@@ -711,7 +711,8 @@ public sealed class PublicationPersistenceTests
         database.Organizations.Add(new Organization { Id = OrganizationId, Name = "Synthetic publication school" });
         await LegacyAccountSeed.InsertAsync(database,
             new ApplicationUser { Id = ActorId, UserName = "publication-user", NormalizedUserName = "PUBLICATION-USER" });
-        database.Projects.Add(new Project
+        await database.SaveChangesAsync();
+        await LegacyProjectSeed.InsertAsync(database, new Project
         {
             Id = ProjectId,
             OrganizationId = OrganizationId,
@@ -720,7 +721,6 @@ public sealed class PublicationPersistenceTests
             DocumentJson = Document(version),
             UpdatedAt = DraftTime,
         });
-        await database.SaveChangesAsync();
     }
 
     private static Publication Edition(Guid? id = null, int version = 1, long revision = 7, string title = "Original edition") => new()

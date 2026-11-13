@@ -85,6 +85,7 @@ public sealed class ProjectGrantBrowserTests
     public async Task EducatorAndStudent_CompleteAssignmentThroughRealBrowserAndApi()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
         var educator = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
         var student = await fixture.CreateAccountAsync();
         var outsider = await fixture.CreateAccountAsync();
@@ -210,7 +211,7 @@ public sealed class ProjectGrantBrowserTests
         await Assert.That(blankAssignment.SourceProjectId).IsNotEqualTo(source);
         await Assert.That(assignment.SourceProjectId).IsNotEqualTo(blankAssignment.SourceProjectId);
         await Assert.That(assignment.Description).IsEqualTo("Updated independent exhibit");
-        await Assert.That(assignment.Revision).IsEqualTo(1);
+        await Assert.That(assignment.Revision).IsEqualTo(2);
         var assignedStudents = await databaseAfter.ClassAssignmentStudents.ToArrayAsync();
         await Assert.That(assignedStudents.Length).IsEqualTo(3);
         var active = assignedStudents.Where(row => row.IsActive).ToArray();
@@ -226,9 +227,10 @@ public sealed class ProjectGrantBrowserTests
     }
 
     [Test]
-    public async Task Administrator_UpdatesProjectAccessThroughRealBrowserAndApi()
+    public async Task Administrator_CannotEditPublishOrChangeProjectAccessThroughRealBrowserAndApi()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
         var administrator = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
         var creator = await fixture.CreateAccountAsync();
         var educator = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
@@ -288,7 +290,7 @@ public sealed class ProjectGrantBrowserTests
         var result = await verify.ServiceProvider.GetRequiredService<ApplicationDbContext>().ProjectAssignments
             .AsNoTracking().Where(row => row.ProjectId == project).OrderBy(row => row.UserId).ToListAsync();
         await Assert.That(result.Count).IsEqualTo(2);
-        await Assert.That(result.Single(row => row.UserId == creator).CanPublish).IsTrue();
+        await Assert.That(result.Single(row => row.UserId == creator).CanPublish).IsFalse();
         await Assert.That(result.Single(row => row.UserId == educator).CanManage).IsTrue();
         await Assert.That(result.Single(row => row.UserId == educator).CanPublish).IsTrue();
     }

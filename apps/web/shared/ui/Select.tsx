@@ -10,6 +10,7 @@ type Props = {
   options: readonly { value: string; label: string }[];
   onChange: (value: string) => void;
   disabled?: boolean;
+  showSelectedIcon?: boolean;
   placeholder?: string;
   className?: string;
   menuClassName?: string;
@@ -25,6 +26,7 @@ export function Select({
   options,
   onChange,
   disabled,
+  showSelectedIcon = true,
   placeholder = "Choose",
   className = "asset-admin-select",
   menuClassName = "asset-admin-select-menu",
@@ -196,7 +198,7 @@ export function Select({
             onClick={() => choose(index)}
           >
             {option.label}
-            {value === option.value && (
+            {showSelectedIcon && value === option.value && (
               <UiIcon icon={check} width={16} height={16} aria-hidden="true" />
             )}
           </button>

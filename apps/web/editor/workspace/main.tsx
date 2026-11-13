@@ -10,8 +10,13 @@ config.autoAddCss = false;
 preloadUiSounds("goingBack", "save");
 const root = document.getElementById("root");
 if (!root) throw new Error("The workspace root is missing");
-createRoot(root).render(
-  <StrictMode>
-    <WorkspacePage />
-  </StrictMode>,
-);
+// Load the existing font weights before the catalogue's first visible frame.
+void Promise.all([400, 500, 600, 700].map((weight) => document.fonts.load(`${weight} 14px Inter`)))
+  .catch(() => undefined)
+  .then(() => {
+    createRoot(root).render(
+      <StrictMode>
+        <WorkspacePage />
+      </StrictMode>,
+    );
+  });

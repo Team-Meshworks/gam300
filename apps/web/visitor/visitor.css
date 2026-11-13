@@ -1,6 +1,11 @@
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-500.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/inter/latin-700.css";
 @import "../shared/preview/preview.css";
 :root {
-  font-family: Inter, system-ui, sans-serif;
+  --sp-font: "Inter", sans-serif;
+  font-family: var(--sp-font);
   color: #292522;
   background: #e9e5db;
   --scene-hint-background: rgb(255 252 247 / 92%);

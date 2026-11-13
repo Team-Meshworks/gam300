@@ -117,6 +117,9 @@ internal static class ClassAssignmentCoordinator
         { return Conflict(context); }
         database.ChangeTracker.Clear();
 
+        // Keep one immutable image reference across every student draft without copying the uploaded bytes
+        var imageId = await database.Projects.Where(project => project.Id == source.ProjectId)
+            .Select(project => project.ImageId).SingleAsync(cancellationToken);
         var projects = new List<StudentProject>(students.Length);
         foreach (var student in students)
         {
@@ -130,7 +133,7 @@ internal static class ClassAssignmentCoordinator
                 CanPublish = true,
             }).Append(new ProjectAssignment { ProjectId = projectId, UserId = student, CanEdit = true, CanPublish = true }).ToArray();
             var copy = ProjectLifecycleEndpoints.Copy(document.Value!, projectId, request.Title!);
-            if (!ProjectLifecycleEndpoints.StageDraft(database, documents, organizationId, copy, grants))
+            if (!ProjectLifecycleEndpoints.StageDraft(database, documents, organizationId, copy, grants, imageId))
             {
                 return ApiProblems.Create(context, 503, "project_unavailable", "The project is unavailable.");
             }

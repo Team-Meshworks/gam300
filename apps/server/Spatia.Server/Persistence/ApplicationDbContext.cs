@@ -32,6 +32,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// </summary>
     public DbSet<Project> Projects => Set<Project>();
 
+    /// <summary>Gets immutable private cover and panorama bytes</summary>
+    public DbSet<ProjectImage> ProjectImages => Set<ProjectImage>();
+
     /// <summary>
     /// Gets the durable acknowledgements of accepted project save mutations
     /// </summary>
@@ -172,6 +175,21 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        builder.Entity<ProjectImage>(image =>
+        {
+            image.ToTable("project_images", table =>
+            {
+                table.HasCheckConstraint("CK_project_images_type", "type IN ('cover', 'panorama')");
+                table.HasCheckConstraint("CK_project_images_content_type", "content_type IN ('image/png', 'image/jpeg', 'image/webp')");
+                table.HasCheckConstraint("CK_project_images_data", "octet_length(data) BETWEEN 1 AND 2097152");
+            });
+            image.HasKey(row => row.Id);
+            image.Property(row => row.Id).HasColumnName("id");
+            image.Property(row => row.Type).HasColumnName("type").HasMaxLength(8);
+            image.Property(row => row.ContentType).HasColumnName("content_type").HasMaxLength(10);
+            image.Property(row => row.Data).HasColumnName("data").IsRequired();
+        });
+
         builder.Entity<Project>(project =>
         {
             project.ToTable("projects", table =>
@@ -202,6 +220,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             project.Property(record => record.OrganizationId).HasColumnName("organization_id");
             project.Property(record => record.IsArchived).HasColumnName("archived");
             project.Property(record => record.Revision).HasColumnName("revision").IsConcurrencyToken();
+            project.Property(record => record.ImageId).HasColumnName("image_id");
+            project.HasOne<ProjectImage>().WithMany().HasForeignKey(record => record.ImageId).OnDelete(DeleteBehavior.Restrict);
             project.Property(record => record.SchemaVersion).HasColumnName("schema_version");
             project.Property(record => record.DocumentJson).HasColumnName("document").HasColumnType("jsonb").IsRequired();
             project.Property(record => record.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamp with time zone");

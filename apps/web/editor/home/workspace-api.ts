@@ -1,3 +1,4 @@
+import { validProjectImage, type ProjectImage } from "../projects/project-image";
 import { combineAbortSignals } from "../../shared/network/abort-signals";
 import { createAccountClient } from "../accounts/account-client";
 
@@ -9,6 +10,8 @@ export const isId = (value: unknown): value is string =>
   value !== "00000000-0000-0000-0000-000000000000";
 
 export interface ProjectSummary {
+  isClassProject?: boolean;
+  image?: ProjectImage | null;
   projectId: string;
   title: string;
   revision: number;
@@ -78,8 +81,10 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
         (row.revision as number) < 0 ||
         typeof row.updatedAt !== "string" ||
         !Number.isFinite(Date.parse(row.updatedAt)) ||
+        (row.isClassProject !== undefined && typeof row.isClassProject !== "boolean") ||
         typeof row.archived !== "boolean" ||
         row.archived !== archived ||
+        !validProjectImage(row.image) ||
         !isRecord(row.permissions) ||
         ["canEdit", "canManage", "canPublish"].some(
           (key) => typeof (row.permissions as Record<string, unknown>)[key] !== "boolean",

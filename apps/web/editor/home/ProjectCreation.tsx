@@ -6,6 +6,7 @@ import type { FormNavigationState } from "../projects/NewProjectForm";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { Field } from "../../shared/ui/Field";
+import { Select } from "../../shared/ui/Select";
 import { createWorkspaceClient, isId, isRecord, projectReceipt } from "./workspace-api";
 
 const api = createWorkspaceClient();
@@ -184,6 +185,36 @@ export function ProjectCreation({
     !!loadError ||
     (session.role !== "Administrator" && !session.orgId) ||
     (session.role === "Administrator" && !organizations.length);
+  const creator = session.role === "Creator";
+  // Keep the submit guard when creator actions sit outside the disabled fieldset
+  const createButton = (
+    <Button type="submit" variant="primary" disabled={!active || needsCheck || phase !== "ready"}>
+      Create project
+    </Button>
+  );
+  const cancelButton = (
+    <Button disabled={phase === "pending"} onClick={close}>
+      {phase === "unknown" ? "Back to projects" : "Cancel"}
+    </Button>
+  );
+  const discardActions = (
+    <>
+      <Button
+        onClick={() => {
+          setDiscard(false);
+          setOpen(false);
+          setTitle("");
+          setSpaceId("");
+          setOrgId("");
+        }}
+      >
+        Discard details
+      </Button>
+      <Button variant="primary" onClick={() => setDiscard(false)}>
+        Keep editing
+      </Button>
+    </>
+  );
   return (
     <div>
       <Button
@@ -237,7 +268,13 @@ export function ProjectCreation({
         <p role="status">Start with an empty scene. You can add a 3D space later.</p>
       ) : null}
       {open && (
-        <Dialog title="New project" onClose={close}>
+        <Dialog
+          title="New project"
+          onClose={close}
+          {...(creator ? { variant: "admin" as const } : {})}
+          className={creator ? "sp-creator-project-dialog" : ""}
+          closeDisabled={phase === "pending"}
+        >
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -259,26 +296,45 @@ export function ProjectCreation({
               <Field id="blank-project-title" label="Project title" required>
                 <input
                   id="blank-project-title"
+                  ref={(input) => {
+                    // Native dialog opening needs an autofocus target before its first focus pass
+                    if (input && creator) input.autofocus = true;
+                  }}
                   required
                   maxLength={256}
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                 />
               </Field>
-              <Field id="blank-project-space" label="3D space (optional)">
-                <select
-                  id="blank-project-space"
+              {creator ? (
+                <Select
+                  label="3D space (optional)"
                   value={spaceId}
-                  onChange={(event) => setSpaceId(event.target.value)}
-                >
-                  <option value="">Empty scene</option>
-                  {spaces?.map((space) => (
-                    <option key={space.id} value={space.id}>
-                      {space.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+                  options={[
+                    { value: "", label: "Empty scene" },
+                    ...(spaces ?? []).map((space) => ({ value: space.id, label: space.name })),
+                  ]}
+                  onChange={setSpaceId}
+                  disabled={!active || needsCheck || phase !== "ready"}
+                  className="sp-creator-space"
+                  menuClassName="sp-creator-space-menu"
+                />
+              ) : (
+                <Field id="blank-project-space" label="3D space (optional)">
+                  <select
+                    id="blank-project-space"
+                    value={spaceId}
+                    onChange={(event) => setSpaceId(event.target.value)}
+                  >
+                    <option value="">Empty scene</option>
+                    {spaces?.map((space) => (
+                      <option key={space.id} value={space.id}>
+                        {space.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               {session.role === "Administrator" && (
                 <Field id="blank-project-organisation" label="Organisation" required>
                   <select
@@ -296,33 +352,28 @@ export function ProjectCreation({
                   </select>
                 </Field>
               )}
-              <Button type="submit" variant="primary">
-                Create project
-              </Button>
+              {!creator && createButton}
             </fieldset>
-            <Button disabled={phase === "pending"} onClick={close}>
-              {phase === "unknown" ? "Back to projects" : "Cancel"}
-            </Button>
+            {creator ? (
+              <div className="sp-actions">
+                {cancelButton}
+                {createButton}
+              </div>
+            ) : (
+              cancelButton
+            )}
           </form>
         </Dialog>
       )}
       {discard && (
-        <Dialog title="Discard new project details?" onClose={() => setDiscard(false)}>
+        <Dialog
+          title="Discard new project details?"
+          onClose={() => setDiscard(false)}
+          {...(creator ? { variant: "admin" as const } : {})}
+          className={creator ? "sp-creator-project-dialog" : ""}
+        >
           <p>No project has been created. Your entered details will be discarded.</p>
-          <Button
-            onClick={() => {
-              setDiscard(false);
-              setOpen(false);
-              setTitle("");
-              setSpaceId("");
-              setOrgId("");
-            }}
-          >
-            Discard details
-          </Button>
-          <Button variant="primary" onClick={() => setDiscard(false)}>
-            Keep editing
-          </Button>
+          {creator ? <div className="sp-actions">{discardActions}</div> : discardActions}
         </Dialog>
       )}
     </div>

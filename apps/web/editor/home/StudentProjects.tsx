@@ -1,19 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ProjectImageView } from "./ProjectImageView";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
+import { useModal } from "../../shared/ui/useModal";
 import { Tabs } from "../../shared/ui/Tabs";
 import { listAssignments } from "../projects/assignment-api";
-import { formatLocalDeadline } from "../projects/deadline";
 import { allPages, createReviewClient } from "../reviews/review-client";
 import type { Decision } from "../reviews/review-types";
 import { ProgressReviews } from "../reviews/ProgressReviews";
-import { PublicationShare } from "../publications/PublicationShare";
-import {
-  readDashboardPublications,
-  readStudentPublication,
-  type StudentPublication,
-} from "./student-publication";
+import { readDashboardPublications, type StudentPublication } from "./student-publication";
 import "../publications/publication.css";
 import "../reviews/reviews.css";
 import { createWorkspaceClient } from "./workspace-api";
@@ -21,56 +17,19 @@ import { studentProjectRows, type StudentProjectRow } from "./student-projects";
 import { loadStudentFeedback } from "./student-feedback";
 import { Icon } from "@iconify/react/offline";
 import info from "@iconify-icons/lucide/info";
-import type { RenderWorkspace } from "./dashboard";
+import close from "@iconify-icons/lucide/x";
+import { dueLabel, projectCover, type RenderWorkspace } from "./dashboard";
 import { DashboardSkeleton } from "./DashboardSkeleton";
-import { CreatorProjectCard } from "./CreatorProjectCard";
+import { CreatorProjectCard, CreatorApproval } from "./CreatorProjectCard";
 import { PublishedProjects } from "./PublishedProjects";
+import { RequestApproval } from "../reviews/RequestApproval";
+import { PublishDialog } from "../publications/PublishDialog";
 import "./student-projects.css";
 
 const workspace = createWorkspaceClient();
 const accounts = createAccountClient();
 const reviews = createReviewClient();
 const ignoreGuard = () => {};
-
-function StudentPublicationLink({ projectId, actorId }: { projectId: string; actorId: string }) {
-  const [result, setResult] = useState<{ item: StudentPublication | null; error: string } | null>(
-    null,
-  );
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    void readStudentPublication(projectId, actorId, fetch, controller.signal).then(
-      (item) => {
-        if (!controller.signal.aborted) setResult({ item, error: "" });
-      },
-      () => {
-        if (!controller.signal.aborted)
-          setResult({ item: null, error: "The published link could not be loaded." });
-      },
-    );
-    return () => controller.abort();
-  }, [projectId, actorId, attempt]);
-  if (!result) return <p role="status">Checking for a published project…</p>;
-  if (result.error)
-    return (
-      <div>
-        <p role="alert">{result.error}</p>
-        <Button
-          onClick={() => {
-            setResult(null);
-            setAttempt((value) => value + 1);
-          }}
-        >
-          Retry published link
-        </Button>
-      </div>
-    );
-  return result.item ? (
-    <PublicationShare url={result.item.visitorUrl} unlisted />
-  ) : (
-    <p>No unlisted link is available for this project.</p>
-  );
-}
 
 export function StudentProjectDetails({
   row,
@@ -80,6 +39,7 @@ export function StudentProjectDetails({
   actorId,
   onClose,
   onOpen,
+  onReviewChanged,
 }: {
   row: StudentProjectRow;
   feedback: readonly Decision[];
@@ -88,68 +48,148 @@ export function StudentProjectDetails({
   actorId: string;
   onClose: () => void;
   onOpen: () => void;
+  onReviewChanged?: () => void;
 }) {
+  const assignment = row.assignment?.details;
+  const initialReview = assignment?.projects.find(
+    (project) => project.projectId === row.project.projectId,
+  )?.reviewState;
+  const [submittedState, setSubmittedState] = useState<"pending" | "approved" | null>(null);
+  const approved = (submittedState ?? initialReview) === "approved";
+  const pending = (submittedState ?? initialReview) === "pending";
+  const [action, setAction] = useState<"request" | "publish" | null>(null);
+  // Open once both review sources settle so the compact popup starts at its final size
+  const [historyReady, setHistoryReady] = useState(!assignment);
+  const markHistoryReady = useCallback(() => setHistoryReady(true), []);
+  // Keep one modal visible while preserving the details scroll and review state
+  const modal = useModal(historyReady && !feedbackLoading && action === null);
   return (
-    <section className="sp-student-detail" aria-label="Project details">
-      <div className="sp-student-detail-image" aria-label="Project image unavailable" />
-      <div className="sp-student-detail-content">
-        <div className="sp-student-detail-heading">
-          <h1>{row.project.title}</h1>
-          <Button aria-label="Close project details" autoFocus onClick={onClose}>
-            ×
-          </Button>
-        </div>
-        {row.assignment && (
-          <>
-            <p className="sp-student-meta">
-              {row.assignment.className} · Due{" "}
-              {formatLocalDeadline(row.assignment.details.dueAtUnixSeconds) ?? "Unavailable"}
-            </p>
-            <h2>Project Description:</h2>
-            <p>{row.assignment.details.description}</p>
-            <h2>Project Instructions:</h2>
-            <p>{row.assignment.details.instructions}</p>
-          </>
-        )}
-        <StudentPublicationLink
-          key={`link:${row.project.projectId}:${actorId}`}
+    <>
+      <dialog
+        ref={modal}
+        className="sp-dialog sp-creator-detail-dialog"
+        aria-label="Project details"
+        onCancel={(event) => {
+          event.preventDefault();
+          onClose();
+        }}
+      >
+        <section
+          className="sp-student-detail"
+          aria-label="Project details"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              onClose();
+            }
+          }}
+        >
+          <ProjectImageView
+            className="sp-student-detail-image"
+            image={row.project.image ?? null}
+            fallback={projectCover(row.project.title, true)}
+          />
+          <div className="sp-student-detail-content">
+            <div className="sp-student-detail-heading">
+              <h1>{row.project.title}</h1>
+              <Button
+                className="sp-close-button"
+                aria-label="Close project details"
+                autoFocus
+                onClick={onClose}
+              >
+                <Icon icon={close} width={38} aria-hidden="true" />
+              </Button>
+            </div>
+            {assignment && (
+              <>
+                <div className="sp-student-detail-badges">
+                  <span
+                    title={`Assigned by: ${assignment.assignedBy ?? row.assignment?.className}`}
+                  >
+                    Assigned by: {assignment.assignedBy ?? row.assignment?.className}
+                  </span>
+                  <span className="sp-student-detail-due">
+                    {dueLabel(assignment.dueAtUnixSeconds)}
+                  </span>
+                  <CreatorApproval row={row} submittedState={submittedState} />
+                </div>
+              </>
+            )}
+            <div className="sp-student-detail-scroll">
+              {assignment && (
+                <>
+                  <div className="sp-student-detail-section">
+                    <h2>Project Description:</h2>
+                    <p>{assignment.description}</p>
+                  </div>
+                  <div className="sp-student-detail-section">
+                    <h2>Project Instructions:</h2>
+                    <p>{assignment.instructions}</p>
+                  </div>
+                </>
+              )}
+              {!assignment && <p>Assignment details are not available for this project.</p>}
+              <div className="sp-student-detail-comments">
+                <h2>Reviews:</h2>
+                {assignment && (
+                  <ProgressReviews
+                    key={`${row.project.projectId}:${actorId}`}
+                    projectId={row.project.projectId}
+                    revision={row.project.revision}
+                    actorId={actorId}
+                    educator={false}
+                    decisions={feedback}
+                    decisionsLoading={feedbackLoading}
+                    decisionsError={feedbackError}
+                    onHistorySettled={markHistoryReady}
+                    onGuard={ignoreGuard}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="sp-student-detail-actions">
+              {assignment && !pending && (
+                <Button
+                  disabled={row.project.archived || !row.project.permissions.canEdit}
+                  onClick={() => setAction(approved ? "publish" : "request")}
+                >
+                  {approved ? "Publish" : pending ? "Awaiting approval" : "Request approval"}
+                </Button>
+              )}
+              <Button
+                variant="primary"
+                aria-label="Open project"
+                disabled={!row.project.permissions.canEdit || row.project.archived}
+                onClick={onOpen}
+              >
+                {row.project.revision === 0 ? "Start Editing" : "Continue Editing"}
+              </Button>
+            </div>
+          </div>
+        </section>
+      </dialog>
+      {action === "request" && (
+        <RequestApproval
           projectId={row.project.projectId}
           actorId={actorId}
+          onClose={() => setAction(null)}
+          onSubmitted={(_revision, approved) => {
+            setSubmittedState(approved ? "approved" : "pending");
+            // Refresh the card too so closing details cannot show the previous review state
+            onReviewChanged?.();
+            if (approved) setAction("publish");
+          }}
         />
-        {!row.assignment && <p>Assignment details are not available for this project.</p>}
-        <h2>Comments:</h2>
-        {row.assignment && (
-          <ProgressReviews
-            key={`${row.project.projectId}:${actorId}`}
-            projectId={row.project.projectId}
-            revision={row.project.revision}
-            actorId={actorId}
-            educator={false}
-            decisions={feedback}
-            decisionsLoading={feedbackLoading}
-            decisionsError={feedbackError}
-            onGuard={ignoreGuard}
-          />
-        )}
-        <div className="sp-student-detail-actions">
-          {row.project.permissions.canPublish && !row.project.archived && (
-            <a
-              className="sp-button"
-              href={`/publish?projectId=${encodeURIComponent(row.project.projectId)}`}
-            >
-              Publish and share
-            </a>
-          )}
-          <Button
-            variant="primary"
-            disabled={!row.project.permissions.canEdit || row.project.archived}
-            onClick={onOpen}
-          >
-            {row.project.revision === 0 ? "Start Editing" : "Open project"}
-          </Button>
-        </div>
-      </div>
-    </section>
+      )}
+      {action === "publish" && (
+        <PublishDialog
+          projectId={row.project.projectId}
+          actorId={actorId}
+          onClose={() => setAction(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -166,7 +206,9 @@ export function StudentProjects({
   active: boolean;
   onOpenProject: (projectId: string) => void;
 }) {
-  const [tab, setTab] = useState<"projects" | "published">("projects");
+  const [tab, setTab] = useState<"projects" | "published">(() =>
+    new URLSearchParams(location.search).get("tab") === "published" ? "published" : "projects",
+  );
   const [attempt, setAttempt] = useState(0);
   const request = useMemo(
     () => ({ session, tab, listVersion, attempt }),
@@ -177,19 +219,22 @@ export function StudentProjects({
     rows: StudentProjectRow[] | "error";
     links: Map<string, StudentPublication> | null;
   } | null>(null);
-  const result = active && list?.request === request ? list : null;
+  // Keep the current tab intact until its replacement is ready; never reuse another account's view
+  const switchingTab =
+    list?.request.session.userId === session.userId &&
+    list.request.session.orgId === session.orgId &&
+    list.request.session.role === session.role &&
+    list.request.listVersion === listVersion &&
+    list.request.attempt === attempt &&
+    list.request.tab !== tab;
+  const result = list?.request === request || switchingTab ? list : null;
+  const shownTab = result?.request.tab ?? tab;
   const rows = result?.rows;
+  // Keep the list mounted so closing details restores its trigger and browsing position
   const [selected, setSelected] = useState<StudentProjectRow | null>(null);
   const [feedback, setFeedback] = useState<Decision[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState("");
-  const lastSelected = useRef<string | null>(null);
-  useEffect(() => {
-    if (!selected && lastSelected.current) {
-      document.getElementById(`student-project-${lastSelected.current}`)?.focus();
-      lastSelected.current = null;
-    }
-  }, [selected]);
   useEffect(() => {
     if (!active) return;
     const { session, tab } = request;
@@ -261,21 +306,9 @@ export function StudentProjects({
       disposed = true;
     };
   }, [selected, session.userId]);
-  if (selected)
-    return renderWorkspace(
-      <StudentProjectDetails
-        row={selected}
-        feedback={feedback}
-        feedbackLoading={feedbackLoading}
-        feedbackError={feedbackError}
-        actorId={session.userId}
-        onClose={() => setSelected(null)}
-        onOpen={() => onOpenProject(selected.project.projectId)}
-      />,
-    );
-  const published = tab === "published";
+  const published = shownTab === "published";
   return renderWorkspace(
-    <section className="sp-student-dashboard" aria-labelledby="creator-heading" data-tab={tab}>
+    <section className="sp-student-dashboard" aria-labelledby="creator-heading" data-tab={shownTab}>
       <div className="sp-student-heading">
         <h1 id="creator-heading">{published ? "Published Projects" : "Projects"}</h1>
         <p>
@@ -287,14 +320,22 @@ export function StudentProjects({
       <Tabs
         id="student-projects"
         label="Project views"
-        value={tab}
+        value={shownTab}
         items={[
           { value: "projects", label: "Projects" },
           { value: "published", label: "Published" },
         ]}
-        onChange={setTab}
+        onChange={(next) => {
+          setSelected(null);
+          setTab(next);
+        }}
       />
-      <div id="student-projects-panel" role="tabpanel" aria-labelledby={`student-projects-${tab}`}>
+      <div
+        id="student-projects-panel"
+        role="tabpanel"
+        aria-labelledby={`student-projects-${shownTab}`}
+        aria-busy={switchingTab}
+      >
         {rows === "error" ? (
           <div role="alert" className="sp-dashboard-state">
             <p>
@@ -319,7 +360,6 @@ export function StudentProjects({
                 name={session.displayName}
                 onOpen={() => onOpenProject(row.project.projectId)}
                 onDetails={() => {
-                  lastSelected.current = row.project.projectId;
                   setFeedback([]);
                   setFeedbackError("");
                   setFeedbackLoading(Boolean(row.assignment));
@@ -336,6 +376,19 @@ export function StudentProjects({
           ? "A little sharing goes a long way. Copy your project link into a message, email or presentation."
           : "Open a project to review its instructions and continue building your virtual museum."}
       </p>
+      {selected && (
+        <StudentProjectDetails
+          key={`${selected.project.projectId}:${session.userId}`}
+          row={selected}
+          feedback={feedback}
+          feedbackLoading={feedbackLoading}
+          feedbackError={feedbackError}
+          actorId={session.userId}
+          onClose={() => setSelected(null)}
+          onReviewChanged={() => setAttempt((n) => n + 1)}
+          onOpen={() => onOpenProject(selected.project.projectId)}
+        />
+      )}
     </section>,
     published ? "creator-published" : "creator-projects",
   );

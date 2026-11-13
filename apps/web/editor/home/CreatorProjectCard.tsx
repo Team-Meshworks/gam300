@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import qrCode from "@iconify-icons/lucide/qr-code";
+import { useModal } from "../../shared/ui/useModal";
+import { dueLabel, projectCover } from "./dashboard";
 import { Icon } from "@iconify/react/offline";
 import arrow from "@iconify-icons/lucide/arrow-right";
 import clock from "@iconify-icons/lucide/clock-3";
@@ -9,15 +13,29 @@ import { Button } from "../../shared/ui/Button";
 import { formatLocalDeadline } from "../projects/deadline";
 import type { StudentPublication } from "./student-publication";
 import type { StudentProjectRow } from "./student-projects";
-import neutralCover from "./assets/default-project-neutral.jpg";
-
-function dueLabel(seconds: number) {
-  const due = new Date(seconds * 1000);
-  const now = new Date();
-  if (due < now) return "Past due";
-  const day = (date: Date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
-  const days = (day(due) - day(now)) / 86400000;
-  return days === 0 ? "Due today" : `Due in ${days} day${days === 1 ? "" : "s"}`;
+// Share the same current approval state between the card and its details
+export function CreatorApproval({
+  row,
+  submittedState,
+}: {
+  row: StudentProjectRow;
+  submittedState?: "pending" | "approved" | null;
+}) {
+  const { project, assignment } = row;
+  const state =
+    submittedState ??
+    assignment?.details.projects.find((item) => item.projectId === project.projectId)?.reviewState;
+  if (!state) return assignment ? "Status unavailable" : "No review listed";
+  return (
+    <span className="sp-approval" data-state={state}>
+      <Icon icon={state === "approved" ? check : state === "pending" ? clock : alert} width={14} />
+      {state === "approved"
+        ? "Approved"
+        : state === "pending"
+          ? "Awaiting Approval"
+          : "Not Approved"}
+    </span>
+  );
 }
 
 export function CreatorProjectCard({
@@ -35,9 +53,62 @@ export function CreatorProjectCard({
 )) {
   const { project, assignment } = row;
   const details = assignment?.details;
-  const state = details?.projects.find((item) => item.projectId === project.projectId)?.reviewState;
   const due = details && formatLocalDeadline(details.dueAtUnixSeconds);
+  const description = useRef<HTMLParagraphElement>(null);
+  const [summary, setSummary] = useState<string | null>(null);
+  useLayoutEffect(() => {
+    const node = description.current;
+    const text = details?.description;
+    if (!node || publication || !text) return;
+    // Measure the inline action too so it never covers a word or spills past the two-line summary
+    const measure = () => {
+      const probe = node.cloneNode(false) as HTMLParagraphElement;
+      const style = getComputedStyle(node);
+      Object.assign(probe.style, {
+        position: "fixed",
+        visibility: "hidden",
+        pointerEvents: "none",
+        width: `${node.getBoundingClientRect().width}px`,
+        display: "block",
+        height: "auto",
+        maxHeight: "none",
+        overflow: "visible",
+        WebkitLineClamp: "unset",
+      });
+      node.parentElement!.append(probe);
+      const limit = parseFloat(style.lineHeight) * 2 + 1;
+      probe.textContent = text;
+      if (probe.getBoundingClientRect().height <= limit) {
+        setSummary(null);
+      } else {
+        const words = text.trim().split(/\s+/u);
+        const action = document.createElement("button");
+        action.className = "sp-description-more";
+        action.textContent = "Read more";
+        const label = document.createElement("span");
+        label.className = "sp-description-more-label";
+        label.textContent = "Read more";
+        action.replaceChildren(label);
+        let low = 0;
+        let high = words.length;
+        while (low < high) {
+          const middle = Math.ceil((low + high) / 2);
+          probe.replaceChildren(`${words.slice(0, middle).join(" ")}… `, action);
+          if (probe.getBoundingClientRect().height <= limit) low = middle;
+          else high = middle - 1;
+        }
+        setSummary(words.slice(0, low).join(" "));
+      }
+      probe.remove();
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [details?.description, publication]);
   const [copyMessage, setCopyMessage] = useState("");
+  const [qrOpen, setQrOpen] = useState(false);
+  const qrDialog = useModal(qrOpen);
   async function copy() {
     if (!publication) return;
     try {
@@ -57,7 +128,11 @@ export function CreatorProjectCard({
       className={`sp-student-card${publication ? " sp-student-card--published" : ""}`}
       aria-labelledby={`title-${project.projectId}`}
     >
-      <img className="sp-student-card-image" src={neutralCover} alt="" />
+      <img
+        className="sp-student-card-image"
+        src={project.image?.url ?? projectCover(project.title)}
+        alt=""
+      />
       <div className="sp-student-card-copy">
         <div className="sp-student-identity">
           <h2 id={`title-${project.projectId}`}>{project.title}</h2>
@@ -73,15 +148,30 @@ export function CreatorProjectCard({
                   : "No class assignment listed"}
           </p>
         </div>
-        {details?.description && <p className="sp-card-description">{details.description}</p>}
+        {details?.description && (
+          <div className="sp-card-description-preview">
+            <p ref={description} className="sp-card-description">
+              {publication
+                ? details.description.split(/(?<=[.!?])\s+/u, 1)[0]
+                : summary === null
+                  ? details.description
+                  : `${summary}… `}
+              {!publication && summary !== null && (
+                <button
+                  type="button"
+                  className="sp-description-more"
+                  aria-label={`Read more about ${project.title}`}
+                  onClick={onDetails}
+                >
+                  <span className="sp-description-more-label">Read more</span>
+                </button>
+              )}
+            </p>
+          </div>
+        )}
         <div className="sp-card-actions">
           {publication ? (
-            <a
-              className="sp-button sp-preview"
-              href={publication.visitorUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <a className="sp-button sp-preview" href={publication.visitorUrl}>
               Preview
             </a>
           ) : (
@@ -111,18 +201,64 @@ export function CreatorProjectCard({
             <Icon icon={link} width={20} />
             <label htmlFor={`share-${project.projectId}`}>Share your project</label>
           </h3>
-          <input
-            id={`share-${project.projectId}`}
-            type="url"
-            readOnly
-            value={publication.visitorUrl}
-            onFocus={(event) => event.currentTarget.select()}
-          />
-          <Button variant="primary" onClick={() => void copy()}>
-            Copy
-          </Button>
+          <div className="sp-published-link-row">
+            <input
+              id={`share-${project.projectId}`}
+              type="url"
+              readOnly
+              value={publication.visitorUrl}
+              onFocus={(event) => event.currentTarget.select()}
+            />
+            <button
+              type="button"
+              className="sp-published-qr"
+              aria-label={`Show QR code for ${project.title}`}
+              onClick={() => setQrOpen(true)}
+            >
+              <Icon icon={qrCode} width={24} aria-hidden="true" />
+            </button>
+          </div>
+          {qrOpen && (
+            <dialog
+              ref={qrDialog}
+              className="sp-dialog sp-creator-qr-dialog"
+              aria-label="QR code"
+              onCancel={(event) => {
+                event.preventDefault();
+                setQrOpen(false);
+              }}
+              onClick={(event) => {
+                if (event.target !== event.currentTarget) return;
+                // Backdrop clicks target the dialog too; keep clicks inside its padding harmless
+                const bounds = event.currentTarget.getBoundingClientRect();
+                if (
+                  event.clientX < bounds.left ||
+                  event.clientX > bounds.right ||
+                  event.clientY < bounds.top ||
+                  event.clientY > bounds.bottom
+                )
+                  setQrOpen(false);
+              }}
+            >
+              <div className="sp-dialog-body">
+                <QRCodeSVG
+                  value={publication.visitorUrl}
+                  size={208}
+                  marginSize={4}
+                  level="M"
+                  role="img"
+                  aria-label={`QR code for ${project.title}`}
+                />
+              </div>
+            </dialog>
+          )}
+          <div className="sp-published-copy">
+            <Button variant="primary" onClick={() => void copy()}>
+              Copy
+            </Button>
+            <span role="status">{copyMessage}</span>
+          </div>
           {publication.requiresSignIn && <small>Only permitted viewers can open this link.</small>}
-          <span role="status">{copyMessage}</span>
         </div>
       ) : (
         <dl className="sp-student-metadata">
@@ -147,23 +283,7 @@ export function CreatorProjectCard({
           <div>
             <dt>Approval status</dt>
             <dd>
-              {state ? (
-                <span className="sp-approval" data-state={state}>
-                  <Icon
-                    icon={state === "approved" ? check : state === "pending" ? clock : alert}
-                    width={14}
-                  />
-                  {state === "approved"
-                    ? "Approved"
-                    : state === "pending"
-                      ? "Awaiting Approval"
-                      : "Not Approved"}
-                </span>
-              ) : assignment ? (
-                "Status unavailable"
-              ) : (
-                "No review listed"
-              )}
+              <CreatorApproval row={row} />
             </dd>
           </div>
         </dl>

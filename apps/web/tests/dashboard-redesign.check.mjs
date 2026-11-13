@@ -104,6 +104,20 @@ try {
         return route.fulfill({ json: { items: assignments, nextCursor: null } });
       if (path.endsWith("/submissions") || path.endsWith("/progress-reviews"))
         return route.fulfill({ json: { items: [], nextCursor: null } });
+      if (path === "/api/v1/projects/publication-moderation")
+        return route.fulfill({
+          json: {
+            items: new URL(request.url()).searchParams
+              .get("ids")
+              .split(",")
+              .map((projectId) => ({
+                projectId,
+                publicationCount: 0,
+                hiddenCount: 0,
+                publicCount: 0,
+              })),
+          },
+        });
       if (path === "/api/v1/projects/publication-links") {
         if (grantOnPublication) {
           revoked = false;
@@ -205,7 +219,7 @@ try {
           if (name === "Completed") {
             const details = page.getByRole("button", { name: "View Details" });
             await details.click();
-            await page.getByRole("heading", { name: "Project details" }).waitFor();
+            await page.getByRole("heading", { name: "Project Details", exact: true }).waitFor();
             await page.getByRole("button", { name: "Close project details" }).click();
             assert.equal(
               await page.getByRole("tab", { name: /^Completed/ }).getAttribute("aria-selected"),
@@ -225,53 +239,53 @@ try {
         assert.equal(await page.getByText(titles[1], { exact: true }).count(), 0);
         await search.fill("");
         await page.getByRole("button", { name: "View Details" }).first().click();
-        await page.getByRole("heading", { name: "Project details" }).waitFor();
+        await page.getByRole("heading", { name: "Project Details", exact: true }).waitFor();
         await page.getByRole("button", { name: "Close project details" }).click();
       } else {
         await page.getByText(titles[0], { exact: true }).waitFor();
+        await page
+          .getByRole("button", { name: /^Read more about / })
+          .first()
+          .click();
+        await page.getByRole("heading", { name: "Project Description:", exact: true }).waitFor();
+        await page.getByRole("button", { name: "Close project details", exact: true }).click();
         await capture("creator-projects");
-        await page.getByRole("button", { name: "Settings", exact: true }).click();
-        const settings = page.getByRole("dialog", { name: "Settings" });
-        await settings.waitFor();
-        await settings.getByRole("switch", { name: "Dark mode" }).focus();
-        await page.keyboard.press("Space");
-        assert.equal(
-          await settings.getByRole("switch", { name: "Dark mode" }).getAttribute("aria-checked"),
-          "true",
-        );
-        await page.keyboard.press("Escape");
-        assert.equal(await settings.count(), 0);
-        assert.equal(
-          await page
-            .getByRole("button", { name: "Settings", exact: true })
-            .evaluate((node) => node === document.activeElement),
-          true,
-        );
         await page.getByRole("tab", { name: "Projects", exact: true }).focus();
         await page.keyboard.press("ArrowRight");
         await page.getByText(titles[0], { exact: true }).waitFor();
-        holdPublication = true;
+        await page.getByRole("textbox", { name: "Share your project" }).waitFor();
         await page.getByRole("tab", { name: "Projects", exact: true }).click();
+        await page
+          .getByRole("button", { name: /view details/i })
+          .first()
+          .waitFor();
+        holdPublication = true;
         const publicationRead = page.waitForRequest(
           (request) => new URL(request.url()).pathname === "/api/v1/projects/publication-links",
         );
         await page.keyboard.press("ArrowRight");
         await publicationRead;
+        const sessionRecheck = page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === "/api/v1/auth/session" &&
+            response.status() === 200,
+        );
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await sessionRecheck;
+        await page.waitForFunction(() => !document.querySelector(".sp-account-gate--rechecking"));
         assert.equal(
           await page
-            .getByRole("tab", { name: "Published", exact: true })
+            .getByRole("tab", { name: "Projects", exact: true })
             .getAttribute("aria-selected"),
           "true",
         );
-        const loading = page.getByRole("status").filter({ hasText: "Loading published projects" });
-        await loading.waitFor();
-        assert.equal(await page.getByText(titles[0], { exact: true }).count(), 0);
-        const placeholder = await loading.locator(".sp-student-card").boundingBox();
-        assert.ok(placeholder && placeholder.width > 500 && placeholder.height > 100);
+        assert.ok(await page.getByText(titles[0], { exact: true }).isVisible());
+        assert.equal(await page.locator(".sp-dashboard-loading").count(), 0);
         holdPublication = false;
         releasePublication();
         await page.getByText(titles[0], { exact: true }).waitFor();
-        assert.equal(await loading.count(), 0);
+        await page.getByRole("heading", { name: "Published Projects", exact: true }).waitFor();
+        assert.equal(await page.locator(".sp-dashboard-loading").count(), 0);
         assert.equal(await page.getByText(titles[1], { exact: true }).count(), 0);
         assert.equal(await page.getByText("Ocean Life", { exact: true }).count(), 0);
         await capture("creator-published");
@@ -283,8 +297,15 @@ try {
             value: { writeText: () => Promise.reject() },
           }),
         );
+        const shareCard = page.locator(".sp-student-card--published");
+        const shareHeight = (await shareCard.boundingBox()).height;
         await page.getByRole("button", { name: "Copy", exact: true }).click();
         await page.getByText("Select the link and copy it.").waitFor();
+        assert.equal(
+          (await shareCard.boundingBox()).height,
+          shareHeight,
+          "Copy feedback does not expand the card",
+        );
         assert.equal(await linkField.evaluate((node) => node === document.activeElement), true);
         assert.ok(publicationRequests.length > 0);
         assert.ok(
@@ -301,12 +322,65 @@ try {
           `https://spatia.example/p/${publicationId}`,
         );
         await page.getByRole("tab", { name: "Projects", exact: true }).click();
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page
+          .getByRole("button", { name: /view details/i })
+          .first()
+          .waitFor();
+        await page
+          .getByRole("button", { name: /view details/i })
+          .first()
+          .scrollIntoViewIfNeeded();
+        const creatorScroll = await page
+          .locator(".sp-student-list")
+          .evaluate((list) => list.scrollTop);
+        const creatorPanelBounds = await page.locator(".sp-student-card").evaluateAll((cards) =>
+          cards.map((card) => {
+            const rect = card.getBoundingClientRect();
+            return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+          }),
+        );
         await page
           .getByRole("button", { name: /view details/i })
           .first()
           .click();
         await page.getByRole("region", { name: "Project details" }).waitFor();
+        const detailDialog = page.getByRole("dialog", { name: "Project details", exact: true });
+        await detailDialog.waitFor();
+        assert.equal(await detailDialog.evaluate((node) => node.matches(":modal")), true);
+        assert.deepEqual(
+          await page.locator(".sp-student-card").evaluateAll((cards) =>
+            cards.map((card) => {
+              const rect = card.getBoundingClientRect();
+              return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+            }),
+          ),
+          creatorPanelBounds,
+          "Opening details does not shift the project panels",
+        );
+        assert.ok(
+          Math.abs(
+            (await page.locator(".sp-student-list").evaluate((list) => list.scrollTop)) -
+              creatorScroll,
+          ) < 1,
+          "Opening details preserves the project list position",
+        );
         await page.getByRole("button", { name: "Close project details" }).click();
+        assert.ok(
+          Math.abs(
+            (await page.locator(".sp-student-list").evaluate((list) => list.scrollTop)) -
+              creatorScroll,
+          ) < 1,
+          "Closing details restores the creator list position",
+        );
+        const detailTrigger = page.getByRole("button", { name: /view details/i }).first();
+        assert.equal(await detailTrigger.evaluate((node) => node === document.activeElement), true);
+        await detailTrigger.click();
+        await detailDialog.waitFor();
+        await page.keyboard.press("Escape");
+        assert.equal(await page.getByRole("dialog").count(), 0);
+
+        await page.setViewportSize({ width: 1440, height: 900 });
         publicationFailure = true;
         await page.reload();
         await page.getByText(titles[0], { exact: true }).waitFor();
@@ -332,11 +406,16 @@ try {
           .filter({ hasText: titles[1] })
           .getByRole("button", { name: /view details/i })
           .click();
-        await page.getByText("No unlisted link is available for this project.").waitFor();
+        await page.getByRole("heading", { name: "Reviews:" }).waitFor();
+        assert.equal(await page.getByRole("textbox", { name: "Share your project" }).count(), 0);
         await page.getByRole("button", { name: "Close project details" }).click();
         emptyPublications = true;
         await page.getByRole("tab", { name: "Published", exact: true }).click();
-        await page.getByText(/no published projects/i).waitFor();
+        const emptyPublication = page
+          .getByRole("status")
+          .filter({ hasText: /no published projects/i });
+        await emptyPublication.locator("svg").waitFor();
+        assert.match(await emptyPublication.textContent(), /no published projects/i);
         assert.equal(await page.getByText(titles[0], { exact: true }).count(), 0);
         assert.ok(
           publicationRequests.every(

@@ -39,6 +39,7 @@ export function WorkspaceAccountGate({
   }, [account]);
   const session = state.workspace;
   const active = state.kind === "ready";
+  const rechecking = state.kind === "checking" && session !== null;
   return (
     <>
       {active && (
@@ -47,8 +48,12 @@ export function WorkspaceAccountGate({
         </a>
       )}
       {!active && (
-        <main className="sp-account-gate">
-          {state.kind === "checking" && <p role="status">Checking your session…</p>}
+        <main className={`sp-account-gate${rechecking ? " sp-account-gate--rechecking" : ""}`}>
+          {state.kind === "checking" && (
+            <p role="status" className={rechecking ? "sp-sr-only" : undefined}>
+              Checking your session…
+            </p>
+          )}
           {state.kind === "signing-out" && <p role="status">Signing out…</p>}
           {state.kind === "signed-out" && <LoginRedirect />}
           {state.kind === "password-required" && (
@@ -67,8 +72,11 @@ export function WorkspaceAccountGate({
         </main>
       )}
       {session && (
-        <div hidden={!active} inert={!active}>
-          <ModalActivity key={`${session.userId}:${session.orgId}:${session.role}`} value={active}>
+        <div hidden={!active && !rechecking} inert={!active} aria-busy={rechecking}>
+          <ModalActivity
+            key={`${session.userId}:${session.orgId}:${session.role}`}
+            value={active ? "active" : rechecking ? "checking" : "inactive"}
+          >
             {children({ session, active, onSignOut: () => void account.signOut(session) })}
           </ModalActivity>
         </div>

@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 import { StudentProjectDetails } from "./StudentProjects";
-import { CreatorProjectCard } from "./CreatorProjectCard";
+import { CreatorProjectCard, CreatorApproval } from "./CreatorProjectCard";
 
 it("does not infer publication eligibility for a visible project without an assignment mapping", () => {
   const html = renderToStaticMarkup(
@@ -94,3 +94,31 @@ it("offers Start Editing for a project with no saved revisions", () => {
   expect(html).toContain("Start Editing");
   expect(html).not.toContain('aria-label="Reviews"');
 });
+
+// A completed submission must update the visible badge before the list request settles.
+it.each([
+  ["pending", "Awaiting Approval"],
+  ["approved", "Approved"],
+] as const)(
+  "shows the confirmed %s state while refreshing project rows",
+  (submittedState, label) => {
+    const html = renderToStaticMarkup(
+      createElement(CreatorApproval, {
+        row: {
+          project: {
+            projectId: "project",
+            title: "Exhibit",
+            revision: 0,
+            updatedAt: "2026-11-10T00:00:00Z",
+            archived: false,
+            permissions: { canEdit: true, canManage: false, canPublish: false },
+          },
+          assignment: null,
+        },
+        submittedState,
+      }),
+    );
+    expect(html).toContain(label);
+    expect(html).not.toContain("No review listed");
+  },
+);

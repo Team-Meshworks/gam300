@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
-const server = await createServer({ server: { host: "127.0.0.1", port: 0 }, logLevel: "silent" });
+const server = await createServer({
+  server: { host: "127.0.0.1", port: 0 },
+  logLevel: "silent",
+});
 let browser;
 const doc = JSON.parse(
   await readFile(new URL("../shared/project/fixtures/m2-project.json", import.meta.url), "utf8"),
@@ -30,10 +33,42 @@ let saved = 0;
 let revision = 0;
 let savedDocument = structuredClone(doc);
 const publications = [];
+const submissionId = "77777777-7777-4777-8777-777777777777";
+const submittedDocument = structuredClone(doc);
+submittedDocument.title = "Submitted exhibition";
+const secondScene = {
+  ...structuredClone(doc.scenes[0]),
+  id: "99999991-9999-4999-8999-999999999999",
+  name: "Submitted second room",
+  viewpoints: [
+    {
+      id: "99999992-9999-4999-8999-999999999999",
+      name: "Arrival",
+      camera: doc.scenes[0].startCamera,
+    },
+  ],
+};
+submittedDocument.scenes.push(secondScene);
+submittedDocument.scenes[0].interactions = [
+  { when: { type: "scene-starts" }, do: { type: "print-hi" } },
+];
+const previewAlerts = [];
+const submittedSummary = {
+  submissionId,
+  revision: 0,
+  sequence: 1,
+  submittedAt: "2026-11-02T01:00:00Z",
+  dueAtUnixSeconds: 1793581199,
+  isLate: false,
+  isCurrentSubmission: false,
+};
+savedDocument.title = "Newer draft, not the submitted exhibition";
+revision = 1;
+
 try {
   await server.listen();
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
-  browser = await launchBrowser({ target: origin });
+  browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
   let page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
   page.setDefaultTimeout(15000);
   const mockApi = async (route) => {
@@ -43,7 +78,7 @@ try {
     if (path === "/api/v1/auth/session")
       return reply({
         userId: role === "Educator" ? actor : student,
-        orgId: "66666666-6666-4666-8666-666666666666",
+        orgId: role === "Administrator" ? null : "66666666-6666-4666-8666-666666666666",
         displayName: "Teacher",
         role,
         mustChangePassword: false,
@@ -94,7 +129,10 @@ try {
       return reply({ items: [], nextCursor: null });
     }
     if (path === "/api/v1/classes")
-      return reply({ items: [{ id: classId, name: "History class" }], nextCursor: null });
+      return reply({
+        items: [{ id: classId, name: "History class" }],
+        nextCursor: null,
+      });
     if (path === `/api/v1/classes/${classId}/assignments`)
       return reply({
         items: [
@@ -135,14 +173,38 @@ try {
         201,
       );
     }
-    if (path.endsWith("/submissions")) return reply({ items: [], nextCursor: null });
+    if (path.endsWith(`/submissions/${submissionId}`))
+      return reply({
+        ...submittedSummary,
+        projectId,
+        studentId: student,
+        document: submittedDocument,
+        assetReferences: [],
+        latestDecision: null,
+        decisions: [],
+        nextCursor: null,
+      });
+    if (path.endsWith("/submissions"))
+      return reply({ items: role === "Educator" ? [submittedSummary] : [], nextCursor: null });
+    if (path === `/api/v1/projects/${projectId}/exhibition`)
+      return reply({
+        projectId,
+        publicationId: submissionId,
+        revision: 0,
+        document: doc,
+        assets: [],
+      });
     if (path === `/api/v1/projects/${projectId}` && req.method() === "PUT") {
       const body = req.postDataJSON();
       saved++;
       await saveGate;
       savedDocument = body.document;
       revision = body.expectedRevision + 1;
-      return reply({ projectId, clientMutationId: body.clientMutationId, revision });
+      return reply({
+        projectId,
+        clientMutationId: body.clientMutationId,
+        revision,
+      });
     }
     if (path === `/api/v1/projects/${projectId}`)
       return reply({
@@ -158,15 +220,28 @@ try {
     return reply({}, 404);
   };
   const mockHome = (route) =>
-    route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Home fixture</title>" });
+    route.fulfill({
+      contentType: "text/html",
+      body: "<!doctype html><title>Home fixture</title>",
+    });
   await page.route("**/api/v1/**", mockApi);
   await page.route("**/home?**", mockHome);
   const url =
     origin +
     "/?" +
-    new URLSearchParams({ projectId, classId, assignmentId, studentId: student, review: "1" });
+    new URLSearchParams({
+      projectId,
+      classId,
+      assignmentId,
+      studentId: student,
+      review: "1",
+    });
+  page.on("dialog", async (dialog) => {
+    previewAlerts.push(dialog.message());
+    await dialog.accept();
+  });
   await page.goto(url);
-  await page.getByText("Scene ready", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Review", exact: true }).waitFor();
   const failures = [];
   async function check(name, action) {
     try {
@@ -177,19 +252,57 @@ try {
       console.error("FAIL " + name + ": " + error.message);
     }
   }
-  await check("teacher editor has no review popup", async () => {
-    assert.equal(await page.getByRole("button", { name: "Review", exact: true }).count(), 0);
+  await check("teacher has a separate read-only project view", async () => {
+    assert.equal(await page.getByRole("button", { name: "Review", exact: true }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
-    await page.getByRole("button", { name: "Leave editor" }).click();
-    const dialog = page.getByRole("dialog", { name: "Are you sure?" });
-    await dialog.waitFor();
-    assert.equal(await page.getByRole("dialog", { name: "Reviews" }).count(), 0);
-    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-    assert.equal(new URL(page.url()).pathname, "/");
+    assert.equal(await page.getByRole("button", { name: "Leave editor" }).count(), 0);
+    assert.equal(await page.getByRole("link", { name: "Close student project" }).count(), 1);
+    assert.equal(await page.getByRole("dialog").count(), 0);
   });
+  await check(
+    "teacher previews the submitted exhibition with working interactions and no writes",
+    async () => {
+      await page.waitForFunction(() =>
+        document.querySelector(".facilitator-project-canvas .editor-shell.is-previewing"),
+      );
+      await page.waitForFunction(
+        () =>
+          document.querySelector(".facilitator-project-header h1")?.textContent ===
+          "Submitted exhibition",
+      );
+      await page.waitForFunction(
+        () =>
+          document.querySelector(".viewport-status")?.textContent?.includes("Scene ready") ||
+          document.querySelector(".viewport-stage canvas"),
+      );
+      assert.equal(
+        await page.locator(".facilitator-project-header h1").textContent(),
+        submittedDocument.title,
+      );
+      assert.notEqual(submittedDocument.title, savedDocument.title);
+      for (let attempt = 0; attempt < 100 && !previewAlerts.includes("hi"); attempt++)
+        await page.waitForTimeout(20);
+      assert.ok(
+        previewAlerts.includes("hi"),
+        "The submitted scene-start interaction must run in educator preview",
+      );
+      const submittedRoom = page
+        .getByRole("navigation", { name: "Scenes", exact: true })
+        .getByRole("button", { name: "Submitted second room", exact: true });
+      await submittedRoom.click();
+      assert.equal(
+        await submittedRoom.getAttribute("aria-pressed"),
+        "true",
+        "Scene selection must respond to one click",
+      );
+      assert.equal(saved, 0, "Read-only preview must never save a student project");
+      assert.equal(publications.length, 0);
+    },
+  );
   // Separate browser storage prevents the teacher session leaking into the student scenario
   await page.close();
   role = "Creator";
+  revision = 1;
   page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
   page.setDefaultTimeout(15000);
   await page.route("**/api/v1/**", mockApi);
@@ -202,28 +315,47 @@ try {
   });
   await page.goto(origin + "/?" + new URLSearchParams({ projectId }));
   await page.getByText("Scene ready", { exact: true }).waitFor();
-  await check("student publishing waits for unsaved work", async () => {
-    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 1);
+  await check("student approval waits for unsaved work", async () => {
+    assert.equal(
+      await page.getByRole("button", { name: "Request approval", exact: true }).count(),
+      1,
+    );
+    assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "Review", exact: true }).count(), 0);
     await page.getByRole("button", { name: "Scenes", exact: true }).click();
-    await page.getByLabel("Scene name", { exact: true }).fill("Saved before publishing");
-    await page.getByRole("button", { name: "Rename scene", exact: true }).click();
-    await page.getByRole("button", { name: "Publish", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Are you sure?" });
+    await page.getByLabel("Scene name", { exact: true }).fill("Saved before approval");
     const saveRequest = page.waitForRequest(
       (request) =>
         request.method() === "PUT" &&
         new URL(request.url()).pathname === `/api/v1/projects/${projectId}`,
     );
-    await dialog.getByRole("button", { name: "Exit", exact: true }).click();
+    await page.getByRole("button", { name: "Rename scene", exact: true }).click();
+    await page.getByRole("button", { name: "Request approval", exact: true }).click();
+    const dialog = page.locator(".creator-approval-dialog");
     await saveRequest;
     assert.equal(new URL(page.url()).pathname, "/");
-    assert.equal(await dialog.isVisible(), true);
+    // Keep submission unavailable while the save and current revision are still being verified
+    assert.equal(await dialog.getAttribute("aria-busy"), "true");
+    assert.equal(
+      await dialog.getByRole("button", { name: "Mark as Completed", exact: true }).count(),
+      0,
+    );
+    assert.equal(
+      await dialog.locator(".creator-approval-actions button").last().isDisabled(),
+      true,
+    );
     assert.equal(publications.length, 0);
     releaseSave();
-    await page.waitForURL((url) => url.pathname === "/publish");
+    await dialog.getByRole("heading", { name: "Finish your work first", exact: true }).waitFor();
+    assert.equal(await dialog.getAttribute("aria-busy"), "false");
+    assert.equal(
+      await dialog.getByRole("button", { name: "Mark as Completed", exact: true }).isEnabled(),
+      true,
+    );
     assert.equal(saved, 1);
-    assert.equal(savedDocument.scenes[0].name, "Saved before publishing");
+    assert.equal(savedDocument.scenes[0].name, "Saved before approval");
+    await dialog.getByRole("button", { name: "Close request approval", exact: true }).click();
+    await page.goto(origin + `/publish?projectId=${projectId}`);
   });
   await check("student publication route remains approval-gated", async () => {
     await page.getByRole("heading", { name: "Publish project", exact: true }).waitFor();
@@ -250,13 +382,36 @@ try {
   await page.unroute("**/home?**");
   await page.goto(origin + "/home");
   await check("teacher home hides submissions and reviews link", async () => {
-    await page.getByRole("navigation").first().waitFor();
+    await page.getByRole("heading", { name: "All Projects", exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: "Submissions and reviews" }).count(), 0);
   });
-  await check("teacher manage projects hides standalone Publish", async () => {
-    await page.getByText("Manage projects and archives", { exact: true }).click();
-    await page.getByRole("heading", { name: "Student project", exact: true }).waitFor();
+  await check("teacher home has no legacy management footer or standalone Publish", async () => {
+    assert.equal(await page.getByText("Manage projects and archives", { exact: true }).count(), 0);
     assert.equal(await page.getByRole("link", { name: "Publish project", exact: true }).count(), 0);
+  });
+  role = "Administrator";
+  const writesBeforeAdmin = saved;
+  const publicationsBeforeAdmin = publications.length;
+  await page.goto(origin + "/?projectId=" + projectId);
+  await check("admin opens the exhibition without editing or review controls", async () => {
+    await page.waitForFunction(() =>
+      document.querySelector(".facilitator-project-canvas .editor-shell.is-previewing"),
+    );
+    for (const name of ["Review", "Publish", "Save", "Request approval", "Leave editor"])
+      assert.equal(await page.getByRole("button", { name, exact: true }).count(), 0);
+    assert.equal(await page.getByRole("dialog").count(), 0);
+    assert.equal(
+      await page.locator("input:visible, textarea:visible, [contenteditable=true]:visible").count(),
+      0,
+    );
+    assert.equal(
+      await page.getByRole("link", { name: "Close student project" }).getAttribute("href"),
+      "/admin/dashboard?view=projects",
+    );
+    await page.getByText("Scene ready", { exact: true }).waitFor();
+    await page.screenshot({ path: "test-results/admin-readonly-project.png" });
+    assert.equal(saved, writesBeforeAdmin);
+    assert.equal(publications.length, publicationsBeforeAdmin);
   });
   assert.deepEqual(failures, []);
 } finally {

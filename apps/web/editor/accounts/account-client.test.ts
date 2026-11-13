@@ -6,6 +6,7 @@ const session = {
   displayName: "Teacher",
   role: "Educator",
   orgId: "ef580108-e406-4c8e-ac76-75cd41e9d2dc",
+  orgName: "Test school",
   mustChangePassword: false,
 };
 const json = (value: unknown) =>

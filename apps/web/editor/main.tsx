@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { ServerProjectEditor } from "./ServerProjectEditor";
+import { ProjectEntry } from "./reviews/FacilitatorProjectView";
 import { preloadUiSounds } from "./audio/ui-sounds";
 import "./styles.css";
 
@@ -24,6 +25,8 @@ const projectId = new URLSearchParams(location.search).get("projectId");
 if (!projectId) throw new Error("The editor requires a project ID");
 createRoot(root).render(
   <StrictMode>
-    <ServerProjectEditor projectId={projectId} />
+    <ProjectEntry projectId={projectId}>
+      <ServerProjectEditor projectId={projectId} />
+    </ProjectEntry>
   </StrictMode>,
 );

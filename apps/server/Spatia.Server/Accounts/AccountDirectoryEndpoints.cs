@@ -28,6 +28,8 @@ public static partial class AccountDirectoryEndpoints
         group.MapGet("/organizations/{id:guid}/deletion", GetOrganizationDeletionAsync);
         group.MapDelete("/organizations/{id:guid}", DeleteOrganizationAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapDelete("/users/{id:guid}", DeleteAccountAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
+        group.MapPost("/organizations/{id:guid}/students/hide", HideStudentsAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
+        group.MapPost("/organizations/{id:guid}/students/delete", DeleteStudentsAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPatch("/users/{id:guid}", UpdateUserAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPatch("/users/{id:guid}/active", SetUserActiveAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPatch("/organizations/{id:guid}/active", SetOrganizationActiveAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);

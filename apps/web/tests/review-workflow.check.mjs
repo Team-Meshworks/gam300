@@ -317,17 +317,29 @@ try {
   const closeBounds = await reviewDialog
     .getByRole("button", { name: "Close dialog" })
     .boundingBox();
-  assert.ok(dialogBounds.width >= 800 && closeBounds.x > dialogBounds.x + dialogBounds.width / 2);
+  assert.ok(Math.abs(dialogBounds.width - 414) <= 1);
+  assert.ok(closeBounds.x > dialogBounds.x + dialogBounds.width / 2);
+  assert.equal(Math.round(closeBounds.width), 36);
+  assert.equal(Math.round(closeBounds.height), 36);
   await reviewDialog
     .getByRole("textbox", { name: "Your review", exact: true })
     .fill("Add a map to your draft.");
   await reviewDialog.getByRole("button", { name: "Save review", exact: true }).click();
-  await reviewDialog.getByText("Add a map to your draft.", { exact: true }).waitFor();
-  const addBounds = await reviewDialog.getByRole("button", { name: "+ Add Reviews" }).boundingBox();
-  assert.ok(addBounds.width < 250);
+  await reviewDialog.waitFor({ state: "hidden" });
   assert.equal(progressReviews.length, 1, "Saving feedback persists a progress review");
+  assert.equal(
+    await reviewDialog.getByText("Add a map to your draft.", { exact: true }).count(),
+    0,
+    "The submission form keeps saved history in the separate Reviews view",
+  );
+  await page.getByRole("button", { name: "Reviews", exact: true }).click();
+  await reviewDialog
+    .getByRole("textbox", { name: "Your review", exact: true })
+    .fill("Label the second exhibit.");
+  await reviewDialog.getByRole("button", { name: "Save review", exact: true }).click();
+  await reviewDialog.waitFor({ state: "hidden" });
+  assert.equal(progressReviews.length, 2, "The submission form supports multiple reviews");
   assert.equal(decisions.length, 0, "Saving feedback does not approve the submission");
-  await page.getByRole("button", { name: "Close dialog" }).click();
   const feedback = page.getByRole("textbox", { name: "Feedback", exact: true });
   await feedback.fill("Move the first exhibit closer.");
   await page.getByRole("button", { name: "Log Out", exact: true }).click();
@@ -471,7 +483,7 @@ try {
   await page.getByRole("button", { name: "Log Out", exact: true }).click();
   await page
     .getByRole("dialog", { name: "Leave this page?" })
-    .getByRole("button", { name: "Discard details and leave" })
+    .getByRole("button", { name: "Discard and leave" })
     .click();
   await page.waitForURL(`${origin}/login`);
   assert.equal(logoutPosts, 1, "Confirmed discard sends one logout");

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 import { TeacherProjectDetails, TeacherStandaloneDetails } from "./TeacherProjects";
 
-it("shows each assigned student with a progress action and the assignment details", () => {
+it("shows assigned students with published viewing or review actions and assignment details", () => {
   const html = renderToStaticMarkup(
     createElement(TeacherProjectDetails, {
       item: {
@@ -14,6 +14,7 @@ it("shows each assigned student with a progress action and the assignment detail
           title: "Silk Road",
           organizationName: "School",
           creatorName: "Ms Chew",
+          creatorUserName: "mschew",
           description: "Explore trade",
           instructions: "Build a museum",
           dueAtUnixSeconds: 1900000000,
@@ -24,6 +25,7 @@ it("shows each assigned student with a progress action and the assignment detail
               studentName: "Alice",
               approvalStatus: "approved",
               published: true,
+              isPublic: true,
             },
             {
               studentId: "bob",
@@ -31,6 +33,7 @@ it("shows each assigned student with a progress action and the assignment detail
               studentName: "Bob",
               approvalStatus: "awaiting-approval",
               published: false,
+              isPublic: false,
             },
           ],
         },
@@ -40,22 +43,21 @@ it("shows each assigned student with a progress action and the assignment detail
     }),
   );
   expect(html).toContain(
-    new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
-      new Date(1900000000 * 1000),
-    ),
+    new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(1900000000 * 1000)),
   );
   expect(html).toContain("Silk Road");
   expect(html).toContain("School");
-  expect(html).toContain("Ms Chew");
+  expect(html).toContain("@mschew");
   expect(html).toContain("Explore trade");
   expect(html).toContain("Build a museum");
   expect(html).toContain("Alice");
   expect(html).toContain("Bob");
-  expect(html.match(/View Progress/g)).toHaveLength(2);
+  expect(html.match(/View Progress/g)).toHaveLength(1);
+  expect(html.match(/View Project/g)).toHaveLength(1);
   expect(html).toContain("Approved");
-  expect(html).toContain("Awaiting approval");
-  expect(html).toContain("Published");
-  expect(html).toContain("Not published");
+  expect(html).toContain("Not Approved");
+  expect(html).toContain("Public");
+  expect(html).toContain("Private");
   expect(html).toContain("In Progress");
 });
 

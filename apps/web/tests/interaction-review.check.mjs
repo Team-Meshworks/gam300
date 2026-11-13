@@ -10,8 +10,8 @@ const browser = await launchBrowser({
 });
 const url = process.argv[2] ?? "http://127.0.0.1:5173/";
 async function recover(page) {
-  const dialog = page.getByRole("dialog", { name: "A recovery copy is available" });
-  await dialog.getByRole("button", { name: "Recover my edits" }).click();
+  const dialog = page.getByRole("dialog", { name: "Recover your changes?" });
+  await dialog.getByRole("button", { name: "Recover changes" }).click();
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
 }
 async function add(page, name) {

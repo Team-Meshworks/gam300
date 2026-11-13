@@ -41,3 +41,23 @@ describe("publication sharing", () => {
     expect(jsQR(pixels, width, width)?.data).toBe(url);
   });
 });
+
+// Pending reads cannot display an approval claim before the server confirms it.
+it("keeps unverified publication requirements neutral", async () => {
+  const { createElement } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { PublishStatus } = await import("./PublishStatus");
+  const html = renderToStaticMarkup(
+    createElement(PublishStatus, {
+      state: "checking",
+      titleId: "status",
+      closeLabel: "Close",
+      onClose: () => {},
+      actions: null,
+    }),
+  );
+  expect(html).toContain("Checking saved revision");
+  expect(html).not.toContain("Teacher-approved");
+  expect(html).not.toContain("Both requirements met");
+  expect(html).not.toContain("Publishing requirements");
+});

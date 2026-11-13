@@ -43,7 +43,19 @@ export function createWorkspaceAccount(client: AccountClient) {
             kind: "password-required",
             workspace: sameAccount(workspace, session) ? workspace : null,
           });
-        else transition({ kind: "ready", workspace: session });
+        else {
+          // Keep unchanged identity stable so revalidation does not reload workspace data
+          const unchanged =
+            sameAccount(workspace, session) &&
+            workspace?.displayName === session.displayName &&
+            workspace.orgName === session.orgName &&
+            workspace.mustChangePassword === session.mustChangePassword &&
+            workspace.developmentAssetsAllowed === session.developmentAssetsAllowed;
+          transition({
+            kind: "ready",
+            workspace: unchanged ? workspace! : session,
+          });
+        }
       } catch {
         if (read === generation)
           transition({

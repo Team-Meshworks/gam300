@@ -7,12 +7,9 @@ const teacherB = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07f";
 const org = "ef580108-e406-4c8e-ac76-75cd41e9d2dc";
 const classId = "a9f15e21-026d-4200-baca-0ba9bd411842";
 let actor = teacherA;
-let classesStarted, projectsStarted, release;
+let classesStarted, release;
 const classesRequest = new Promise((resolve) => {
   classesStarted = resolve;
-});
-const projectsRequest = new Promise((resolve) => {
-  projectsStarted = resolve;
 });
 const gate = new Promise((resolve) => {
   release = resolve;
@@ -52,7 +49,6 @@ try {
       });
     }
     if (path === "/api/v1/projects") {
-      projectsStarted();
       await gate;
       return route.fulfill({
         json: {
@@ -71,7 +67,7 @@ try {
     return route.fulfill({ status: 404 });
   });
   await page.goto(origin + "/new-project");
-  await Promise.all([classesRequest, projectsRequest]);
+  await classesRequest;
   actor = teacherB;
   release();
   await page.getByText("Loading assignment choices…").waitFor({ state: "hidden" });

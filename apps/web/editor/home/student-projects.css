@@ -1,81 +1,1264 @@
-.sp-student-detail-image {
-  flex: 0 0 278px;
-  min-height: 176px;
-  border-radius: 40px;
-  background: #e7e2dc;
+/* Keep creator measurements local so other workspace layouts remain independent */
+:root {
+  --creator-font: var(--sp-font);
+  --creator-ui-font: var(--sp-font);
+  --creator-paper: #fff;
+  --creator-detail-ink: #000;
+  --creator-copy: #515151;
+  --creator-border: #e7e2dc;
+  --creator-action: #332e2a;
+  --creator-action-ink: #fff;
+  --creator-comment: #faf8f3;
+  --creator-date: #8a8989;
+  --creator-assigned: #f3f3f3;
+  --creator-due: #fffdcd;
+  --creator-detail-rejected: #f3cec7;
+  --creator-detail-approved: #e4f3d3;
+  --creator-scroll-thumb: #aaa59c;
+  --creator-scroll-track: #f6f4f1;
+  --creator-card-shadow: 0 6px 24px rgb(57 43 29 / 3%);
 }
-.sp-student-meta {
-  color: #77716a;
+.sp-shell.sp-shell--creator .sp-workspace {
+  width: min(1366px, calc(100% - 74px));
 }
-.sp-student-detail {
-  display: flex;
-  gap: 40px;
-  padding: 50px 36px;
-  min-height: 650px;
-  border-radius: 50px;
-  background: white;
+.sp-shell--creator .sp-student-card {
+  box-shadow:
+    inset 0 0 0 1px var(--creator-border),
+    var(--creator-card-shadow);
 }
-.sp-student-detail-image {
-  flex-basis: 32%;
-  min-height: 500px;
+.sp-shell--creator
+  :is(.sp-card-actions .sp-button, .sp-tabs button, .sp-published-share .sp-button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
-.sp-student-detail-content {
-  flex: 1;
-  min-width: 0;
+.sp-shell--creator .sp-button-label {
+  display: inline-block;
+}
+.sp-shell--creator :is(button, a, input):focus-visible {
+  outline: 3px solid var(--sp-focus);
+  outline-offset: 4px;
+}
+/* Keep the published card compact while preserving its actual publication link */
+.sp-shell--creator .sp-student-card--published {
+  min-height: 252px;
+  grid-template-columns: 278px minmax(0, 1fr) min(36%, 438px);
+}
+.sp-shell--creator .sp-student-card--published .sp-student-card-image {
+  transform: translateY(-3px);
+}
+.sp-shell--creator .sp-student-card--published .sp-card-description {
+  line-height: 26px;
+}
+.sp-shell--creator .sp-published-share .sp-button {
+  height: 25px;
+  min-height: 25px;
+  line-height: 20px;
+}
+.sp-shell--creator .sp-student-detail {
+  position: relative;
   display: grid;
-  gap: 12px;
-  align-content: start;
+  grid-template-columns: 376px minmax(0, 1fr);
+  gap: 39px;
+  min-height: 840px;
+  padding: 50px 48px 35px 35px;
+  border-radius: 50px;
+  background: var(--creator-paper);
+  color: var(--creator-copy);
+  font: 400 15px/20px var(--creator-font);
 }
-.sp-student-detail-heading {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 20px;
+.sp-shell--creator .sp-student-detail-image {
+  display: block;
+  width: 376px;
+  height: 612px;
+  min-height: 0;
+  margin-top: 72px;
+  border-radius: 50px;
+  object-fit: cover;
+  background: var(--creator-assigned);
 }
-.sp-student-detail-heading h1 {
-  font-size: clamp(30px, 3.5vw, 50px);
+.sp-shell--creator .sp-student-detail-content {
+  display: block;
+  min-width: 0;
+}
+.sp-shell--creator .sp-student-detail-heading {
+  display: block;
+  padding-right: 50px;
+}
+.sp-shell--creator .sp-student-detail-heading h1 {
+  margin: 0;
+  color: var(--creator-detail-ink);
+  font: 700 50px/68px var(--creator-font);
   overflow-wrap: anywhere;
 }
-.sp-student-detail-content h2 {
-  font-size: 16px;
-  margin-top: 10px;
+.sp-shell--creator .sp-student-detail-heading .sp-close-button {
+  position: absolute;
+  top: 32px;
+  right: 32px;
 }
-.sp-student-detail-content p {
+.sp-shell--creator .sp-student-detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 11px;
+  align-items: center;
+  margin: 9px 0 27px;
+}
+.sp-shell--creator .sp-student-detail-badges > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 33px;
+  margin: 0;
+  padding: 0 13px;
+  border-radius: 18px;
+  background: var(--creator-assigned);
+  color: var(--creator-date);
+  font: 700 15px/20px var(--creator-font);
+}
+.sp-shell--creator .sp-student-detail-badges .sp-student-detail-due {
+  background: var(--creator-due);
+}
+.sp-shell--creator .sp-student-detail-badges .sp-approval {
+  background: var(--creator-detail-rejected);
+}
+.sp-shell--creator .sp-student-detail-badges .sp-approval[data-state="approved"] {
+  background: var(--creator-detail-approved);
+}
+.sp-shell--creator .sp-approval[data-state="pending"],
+.sp-shell--creator .sp-student-detail-badges .sp-approval[data-state="pending"] {
+  background: #f2e8d8;
+  color: #80652d;
+}
+.sp-shell--creator .sp-student-detail-content h2 {
+  margin: 0 0 4px;
+  font: 700 20px/27px var(--creator-font);
+}
+.sp-shell--creator .sp-student-detail-content p {
+  margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  line-height: 20px;
 }
-.sp-student-comments {
-  background: #faf8f3;
-  border: 1px solid #e7e2dc;
-  border-radius: 18px;
-  overflow: hidden;
+.sp-shell--creator .sp-student-detail-section p {
+  max-width: 740px;
 }
-.sp-student-comments > p,
-.sp-student-comments article {
-  padding: 16px;
+.sp-shell--creator .sp-student-detail-section + .sp-student-detail-section {
+  margin-top: 10px;
 }
-.sp-student-comments article + article {
-  border-top: 1px solid #e7e2dc;
+.sp-shell--creator .sp-student-detail-comments {
+  margin-top: 10px;
 }
-.sp-student-comments time {
-  color: #77716a;
-  font-size: 12px;
+.sp-shell--creator .sp-student-detail-comments .sp-reviews {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
 }
-.sp-student-detail-actions {
+.sp-shell--creator .sp-student-detail-comments .sp-reviews > h3 {
+  display: none;
+}
+.sp-shell--creator .sp-student-detail-comments .sp-progress-list {
+  overflow: clip;
+  border: 1px solid var(--creator-border);
+  border-radius: 20px;
+  box-shadow: var(--creator-card-shadow);
+}
+.sp-shell--creator .sp-student-detail-comments .sp-progress-list:empty {
+  display: none;
+}
+.sp-shell--creator .sp-student-detail-comments .sp-progress-entry {
+  padding: 14px 15px 16px;
+  border: 0;
+  background: var(--creator-comment);
+  color: var(--creator-copy);
+  font: 400 15px/23px var(--creator-ui-font);
+}
+.sp-shell--creator .sp-student-detail-comments .sp-progress-entry + .sp-progress-entry {
+  border-top: 1px solid var(--creator-border);
+}
+.sp-shell--creator .sp-student-detail-comments .sp-progress-entry time {
+  margin-bottom: 8px;
+  color: var(--creator-date);
+  line-height: 20px;
+}
+.sp-shell--creator .sp-student-detail-comments .sp-progress-entry p {
+  line-height: 23px;
+}
+.sp-shell--creator .sp-student-detail-actions {
   display: flex;
-  justify-content: end;
-  margin-top: 12px;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 11px;
+  margin-top: 24px;
 }
-@media (max-width: 760px) {
-  .sp-student-detail {
+.sp-shell--creator .sp-student-detail-actions .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 36px;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 6px 18px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--creator-action);
+  color: var(--creator-action-ink);
+  font: 600 12px/18px var(--creator-ui-font);
+}
+/* Reflow the detail view rather than squeezing its image and feedback on narrow screens */
+@media (max-width: 1150px) {
+  .sp-shell--creator .sp-student-card--published {
+    grid-template-columns: minmax(150px, 22%) minmax(0, 1fr) minmax(150px, 22%);
+  }
+  .sp-shell--creator .sp-student-detail {
+    grid-template-columns: minmax(200px, 32%) minmax(0, 1fr);
+    gap: 28px;
+    padding: 36px 28px;
+  }
+  .sp-shell--creator .sp-student-detail-image {
+    width: 100%;
+    height: 500px;
+  }
+  .sp-shell--creator .sp-student-detail-heading h1 {
+    font-size: 38px;
+    line-height: 1.25;
+  }
+  .sp-shell--creator .sp-student-detail-heading .sp-close-button {
+    top: 28px;
+    right: 24px;
+  }
+}
+@media (max-width: 800px) {
+  .sp-shell--creator .sp-student-card--published {
+    grid-template-columns: minmax(140px, 33%) minmax(0, 1fr);
+  }
+  .sp-shell--creator .sp-student-detail {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    min-height: 0;
     padding: 24px;
+    border-radius: 28px;
+  }
+  .sp-shell--creator .sp-student-detail-image {
+    width: 100%;
+    height: 220px;
+    margin: 48px 0 0;
+    border-radius: 20px;
+  }
+  .sp-shell--creator .sp-student-detail-heading {
+    padding-right: 0;
+  }
+  .sp-shell--creator .sp-student-detail-heading .sp-close-button {
+    top: 16px;
+    right: 16px;
+  }
+  .sp-shell--creator .sp-student-detail-heading h1 {
+    font-size: 30px;
+    line-height: 1.25;
+  }
+}
+@media (max-width: 600px) {
+  .sp-shell.sp-shell--creator .sp-workspace {
+    width: calc(100% - 24px);
+  }
+  .sp-shell--creator .sp-student-card--published {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sp-shell--creator .sp-student-detail-content p {
+  font-family: var(--creator-ui-font);
+}
+
+/* Match admin home proportions while retaining creator cards and the separate detail view */
+.sp-shell--creator:has(.sp-student-dashboard) {
+  --creator-home-panel: #f7f7f7;
+  --creator-home-shadow: inset 4px 5px 14px rgb(57 43 29 / 4%);
+  --creator-home-edge: rgb(255 255 255 / 85%);
+  font-family: var(--sp-font);
+}
+.sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
+  width: calc(100% - 160px);
+  max-width: 1280px;
+  min-height: 0;
+  margin-top: 35px;
+  padding: 48px 40px;
+  border: 1px solid var(--creator-home-edge);
+  border-radius: 50px;
+  background-color: var(--creator-home-panel);
+  background-image: none;
+  background-clip: padding-box;
+  box-shadow: var(--creator-home-shadow);
+}
+.sp-shell--creator .sp-student-dashboard {
+  gap: 24px;
+  font: 400 12px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-list {
+  gap: 18px;
+}
+.sp-shell--creator .sp-student-heading h1 {
+  font: 700 32px/1.3 var(--sp-font);
+}
+.sp-shell--creator .sp-student-heading p,
+.sp-shell--creator .sp-student-dashboard[data-tab="published"] .sp-student-heading p {
+  margin-top: 7px;
+  font: 400 13px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card {
+  grid-template-columns: 200px minmax(0, 1fr) 220px;
+  min-height: 0;
+  gap: 24px;
+  padding: 30px 20px;
+  border-radius: 16px;
+  background: var(--sp-surface);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card--published {
+  grid-template-columns: 200px minmax(0, 1fr) min(36%, 360px);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card-image {
+  height: 144px;
+  border-radius: 12px;
+  transform: none;
+}
+.sp-shell--creator .sp-student-dashboard :is(.sp-student-identity h2, .sp-published-share h3) {
+  font: 700 15px/1.4 var(--sp-font);
+}
+.sp-shell--creator
+  .sp-student-dashboard
+  :is(.sp-student-identity p, .sp-card-description, .sp-workspace-note, .sp-student-metadata dd) {
+  font: 400 12px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card-copy {
+  min-height: 0;
+  gap: 12px;
+}
+.sp-shell--creator .sp-student-dashboard :is(.sp-student-metadata, .sp-published-share) {
+  min-height: 144px;
+  gap: 16px;
+  padding-left: 20px;
+}
+.sp-shell--creator .sp-student-dashboard :is(.sp-button, .sp-view-details),
+.sp-shell--creator:has(.sp-student-dashboard) .sp-dashboard-tools .sp-button:not(.sp-close-button) {
+  width: auto;
+  min-height: 36px;
+  padding: 6px 18px;
+  font: 600 12px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-view-details {
+  padding-inline: 0;
+}
+.sp-shell--creator .sp-student-dashboard .sp-published-share {
+  gap: 8px;
+}
+.sp-shell--creator .sp-student-dashboard .sp-published-share .sp-button {
+  justify-self: start;
+  height: auto;
+  min-width: 84px;
+}
+/* Keep the Figma type hierarchy while preserving the approved compact card dimensions */
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-student-identity h2 {
+  font: 700 20px/1.4 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-student-identity p {
+  font: 400 12.5px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-card-description {
+  font: 400 14px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-student-metadata dt {
+  font: 500 12px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-student-metadata dd {
+  font: 400 14px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-student-metadata .sp-due {
+  font: 700 14px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-student-metadata .sp-approval {
+  font: 600 14px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-published-share h3 {
+  font: 700 16px/1.4 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-published-share input {
+  font: 400 13px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card :is(.sp-button, .sp-view-details) {
+  font: 600 12px/1.5 var(--sp-font);
+  min-height: 36px;
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-card .sp-published-copy [role="status"] {
+  font: 400 12px/1.5 var(--sp-font);
+}
+.sp-shell.sp-shell--creator .sp-student-dashboard > .sp-workspace-note {
+  font: 400 13px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-student-dashboard > .sp-tabs {
+  width: fit-content;
+  justify-self: start;
+  align-self: start;
+  isolation: isolate;
+  background: #e6e2dc;
+  opacity: 1;
+  box-shadow: none;
+}
+.sp-shell--creator .sp-student-dashboard > .sp-tabs button[aria-selected="true"] {
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(48 39 30 / 4%);
+}
+.sp-shell--creator .sp-student-dashboard > .sp-tabs button {
+  width: auto;
+  min-width: 100px;
+  height: 36px;
+  padding: 6px 18px;
+  font: 600 14px/1.5 var(--sp-font);
+}
+@media (max-width: 1100px) {
+  .sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
+    padding: 28px;
+    border-radius: 32px;
+  }
+  .sp-shell--creator .sp-student-dashboard :is(.sp-student-card, .sp-student-card--published) {
+    grid-template-columns: minmax(140px, 22%) minmax(0, 1fr) minmax(140px, 22%);
+    gap: 16px;
+    padding: 16px;
+  }
+  .sp-shell--creator
+    .sp-student-dashboard
+    .sp-student-card:where(:not(.sp-student-card--published)) {
+    grid-template-columns: minmax(140px, 22%) minmax(0, 1fr) 220px;
+  }
+}
+@media (max-width: 800px) {
+  .sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
+    width: calc(100% - 40px);
+  }
+  .sp-shell--creator .sp-student-dashboard :is(.sp-student-card, .sp-student-card--published) {
+    grid-template-columns: minmax(140px, 33%) minmax(0, 1fr);
+  }
+  .sp-shell--creator .sp-student-dashboard :is(.sp-student-metadata, .sp-published-share) {
+    min-height: 0;
+    padding: 16px 0 0;
+  }
+}
+@media (max-width: 520px) {
+  .sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
+    margin-top: 16px;
+    padding: 22px 16px;
     border-radius: 24px;
   }
-  .sp-student-detail {
-    flex-direction: column;
+  .sp-shell--creator .sp-student-heading h1 {
+    font-size: 22px;
   }
-  .sp-student-detail-image {
-    flex: none;
-    min-height: 180px;
+  .sp-shell--creator .sp-student-dashboard :is(.sp-student-card, .sp-student-card--published) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sp-shell--creator .sp-student-dashboard .sp-student-card-image {
+    height: auto;
+  }
+}
+
+/* Keep secondary project controls and dialogs on the same compact creator scale */
+.sp-shell--creator .sp-home-projects--creator .sp-home-project-card {
+  gap: 20px;
+  padding: 20px;
+  border-radius: 16px;
+}
+.sp-shell--creator .sp-home-projects--creator .sp-home-project-copy h2 {
+  font-size: 15px;
+  line-height: 1.4;
+}
+.sp-shell--creator .sp-home-projects--creator :is(p, time) {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.sp-shell--creator .sp-home-projects--creator .sp-home-project-copy {
+  gap: 12px;
+}
+.sp-shell--creator .sp-student-detail-comments .sp-button:not(.sp-close-button) {
+  min-height: 36px;
+  justify-self: start;
+  padding: 6px 18px;
+  font: 600 12px/18px var(--sp-font);
+}
+.sp-creator-project-dialog {
+  border-radius: 28px;
+  padding: 28px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--creator-scroll-thumb) var(--creator-scroll-track);
+  overflow: hidden;
+}
+.sp-creator-project-dialog > h2 {
+  font: 700 22px/1.3 var(--sp-font);
+}
+.sp-creator-project-dialog .sp-dialog-body {
+  margin: 12px -8px -8px;
+  padding: 8px;
+  max-height: max(80px, calc(100dvh - 200px));
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--creator-scroll-thumb) var(--creator-scroll-track);
+  white-space: normal;
+}
+.sp-creator-project-dialog .sp-home-fields {
+  gap: 18px;
+}
+.sp-creator-project-dialog form > p + p {
+  margin-top: 8px;
+}
+.sp-creator-project-dialog form > p + .sp-home-fields {
+  margin-top: 20px;
+}
+.sp-creator-project-dialog .sp-actions {
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+.sp-creator-project-dialog .sp-button:not(.sp-close-button) {
+  min-height: 36px;
+  width: auto;
+  padding: 6px 18px;
+  font: 600 12px/18px var(--sp-font);
+}
+.sp-creator-project-dialog .sp-home-fields > .sp-button {
+  justify-self: end;
+}
+.sp-creator-space {
+  display: grid;
+  gap: 9px;
+}
+.sp-creator-space > label {
+  font-size: 14px;
+  font-weight: 600;
+}
+.sp-creator-space > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 1px solid var(--sp-border);
+  border-radius: 12px;
+  background: var(--creator-paper);
+  color: var(--sp-ink);
+  font: 400 14px/20px var(--sp-font);
+}
+.sp-creator-space > button > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-creator-space > button > svg {
+  flex: none;
+}
+.sp-creator-space-menu {
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--sp-border);
+  border-radius: 12px;
+  background: var(--creator-paper);
+  color: var(--sp-ink);
+  box-shadow: var(--creator-card-shadow);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--creator-scroll-thumb) var(--creator-scroll-track);
+}
+.sp-creator-space-menu > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: 400 14px/20px var(--sp-font);
+  text-align: left;
+}
+.sp-creator-space-menu > button:is(:hover, [data-active="true"]) {
+  background: var(--sp-soft);
+}
+.sp-creator-project-dialog .sp-dialog-body::-webkit-scrollbar,
+.sp-creator-space-menu::-webkit-scrollbar {
+  width: 8px;
+}
+.sp-creator-project-dialog .sp-dialog-body::-webkit-scrollbar-thumb,
+.sp-creator-space-menu::-webkit-scrollbar-thumb {
+  border: 2px solid var(--creator-scroll-track);
+  border-radius: 8px;
+  background: var(--creator-scroll-thumb);
+}
+@media (max-width: 520px) {
+  .sp-creator-project-dialog {
+    padding: 24px 20px;
+    border-radius: 24px;
+  }
+  .sp-shell--creator .sp-home-projects--creator .sp-home-project-card {
+    gap: 16px;
+    padding: 16px;
+  }
+}
+
+/* Keep auxiliary creator menus consistent while retaining their native form and keyboard behaviour */
+@supports (appearance: base-select) {
+  .sp-shell[data-account-role="Creator"] select,
+  .sp-shell[data-account-role="Creator"] select::picker(select) {
+    appearance: base-select;
+  }
+  .sp-shell[data-account-role="Creator"] select {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .sp-shell[data-account-role="Creator"] select::picker(select) {
+    padding: 6px;
+    border: 1px solid var(--creator-border);
+    border-radius: 12px;
+    background: var(--creator-paper);
+    color: var(--sp-ink);
+    box-shadow: var(--creator-card-shadow);
+    font: 400 14px/20px var(--sp-font);
+  }
+  .sp-shell[data-account-role="Creator"] select::picker-icon {
+    width: 6px;
+    height: 6px;
+    margin-inline: 12px 4px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+    content: "";
+  }
+  .sp-shell[data-account-role="Creator"] select option {
+    min-height: 36px;
+    padding: 8px 10px;
+    border-radius: 8px;
+  }
+  .sp-shell[data-account-role="Creator"] select option:focus-visible {
+    outline: 0;
+    background: var(--sp-soft);
+  }
+  .sp-shell[data-account-role="Creator"] select option:is(:hover, :checked) {
+    background: var(--sp-soft);
+  }
+}
+
+.sp-shell[data-account-role="Creator"] .sp-review-workspace > .sp-page-heading h1 {
+  font-size: 25px;
+  line-height: 32px;
+  letter-spacing: 0;
+}
+@media (max-width: 520px) {
+  .sp-shell[data-account-role="Creator"] .sp-review-workspace > .sp-page-heading h1 {
+    font-size: 22px;
+    line-height: 30px;
+  }
+}
+
+/* Match the role dashboards without changing their content hierarchy */
+.sp-shell[data-account-role="Creator"] {
+  --creator-search-top: rgb(239 239 239 / 45%);
+  --creator-search-bottom: rgb(245 245 245 / 45%);
+  --creator-search-edge: var(--sp-search-edge);
+  --creator-search-shadow: inset 0 3px 7px rgb(0 0 0 / 7%);
+}
+.sp-shell[data-account-role="Creator"] .sp-search {
+  height: 45px;
+  min-height: 45px;
+  padding: 0 22px;
+  border: 1px solid var(--creator-search-edge);
+  background-color: transparent;
+  background-image: linear-gradient(var(--creator-search-top), var(--creator-search-bottom) 55%);
+  box-shadow: var(--creator-search-shadow);
+}
+.sp-shell[data-account-role="Creator"] .sp-search input {
+  box-sizing: border-box;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  font: 400 13px/18px var(--sp-font);
+}
+.sp-shell[data-account-role="Creator"] .sp-search svg {
+  width: 24px;
+  height: 24px;
+}
+.sp-shell[data-account-role="Creator"] .sp-button.sp-close-button,
+.sp-creator-project-dialog > .sp-dialog-dismiss {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  flex-basis: 36px;
+  padding: 0;
+}
+.sp-shell[data-account-role="Creator"] .sp-button.sp-close-button svg,
+.sp-creator-project-dialog > .sp-dialog-dismiss svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Keep the shared pill focus ring instead of drawing a second rectangle around its input */
+.sp-shell[data-account-role="Creator"] .sp-search input:focus-visible {
+  outline: none;
+}
+
+.sp-shell[data-account-role="Creator"] {
+  --creator-hover: #eee8e1;
+  --creator-selected-hover: #f4f1ed;
+  --creator-primary-hover: #51473d;
+}
+.sp-shell[data-account-role="Creator"] .sp-view-details {
+  border-radius: 12px;
+  padding-inline: 10px;
+  margin-inline: -10px;
+  cursor: pointer;
+}
+.sp-shell[data-account-role="Creator"] .sp-view-details:hover:not(:disabled) {
+  background: var(--creator-hover);
+  text-decoration: none;
+}
+.sp-shell[data-account-role="Creator"] .sp-tabs button:hover:not(:disabled) {
+  background: var(--creator-hover);
+}
+.sp-shell[data-account-role="Creator"] .sp-tabs button[aria-selected="true"]:hover:not(:disabled) {
+  background: var(--creator-selected-hover);
+}
+.sp-shell[data-account-role="Creator"] .sp-student-detail-actions .sp-button:hover:not(:disabled) {
+  background: var(--creator-primary-hover);
+}
+.sp-shell[data-account-role="Creator"]
+  :is(input:not([type="checkbox"]):not([type="radio"]), textarea) {
+  cursor: text;
+}
+.sp-shell[data-account-role="Creator"] :is(button, select, summary):not(:disabled),
+.sp-creator-space-menu > button:not(:disabled) {
+  cursor: pointer;
+}
+
+.sp-shell--creator .sp-student-dashboard .sp-student-metadata dd {
+  margin-top: 4px;
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-metadata .sp-due {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Use the shared facilitator washes above panel fills while keeping content clear */
+.sp-shell--creator:has(.sp-student-dashboard) > .sp-wash {
+  z-index: 1;
+}
+.sp-shell--creator:has(.sp-student-dashboard) > .sp-account-header,
+.sp-shell--creator .sp-student-dashboard > *,
+.sp-shell--creator:has(.sp-student-dashboard) .sp-dashboard-tools {
+  position: relative;
+  z-index: 2;
+}
+
+.sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
+  position: relative;
+}
+.sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 1px solid var(--creator-home-edge);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+@media (max-width: 1100px) {
+  .sp-shell.sp-shell--creator:has(.sp-student-dashboard) .sp-workspace {
+    padding-block: 38px;
+  }
+}
+
+/* Centre empty publications between the introduction and the footer note */
+.sp-shell--creator .sp-student-dashboard[data-tab="published"]:has(p.sp-dashboard-state) {
+  grid-template-rows: auto minmax(246px, 1fr) auto;
+}
+.sp-shell--creator
+  .sp-student-dashboard[data-tab="published"]:has(p.sp-dashboard-state)
+  > .sp-tabs {
+  grid-row: 2;
+  grid-column: 1;
+  align-self: start;
+  z-index: 3;
+}
+.sp-shell--creator
+  .sp-student-dashboard[data-tab="published"]
+  [role="tabpanel"]:has(> p.sp-dashboard-state) {
+  grid-row: 2;
+  grid-column: 1;
+  display: grid;
+  align-items: center;
+}
+.sp-shell--creator
+  .sp-student-dashboard[data-tab="published"]
+  [role="tabpanel"]
+  > p.sp-dashboard-state {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.sp-shell--creator .sp-publications-illustration {
+  width: 96px;
+  height: 72px;
+  color: #a49b8f;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sp-shell--creator .sp-publications-back {
+  fill: #e9e4dc;
+  stroke: #d3cbc0;
+}
+.sp-shell--creator .sp-publications-front {
+  fill: #faf8f4;
+  stroke: #b9afa2;
+}
+.sp-shell--creator .sp-publications-accent {
+  stroke: #c3b6a3;
+}
+
+/* Programmatic route focus should not draw a border around the entire workspace */
+.sp-shell[data-account-role="Creator"] .sp-workspace:focus {
+  outline: none;
+}
+
+/* Keep details in the same modal layer as other workspace popups */
+.sp-shell--creator .sp-creator-detail-dialog {
+  position: fixed;
+  width: min(720px, calc(100% - 40px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  border-radius: 28px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--creator-scroll-thumb) var(--creator-scroll-track);
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail {
+  grid-template-columns: 216px minmax(0, 1fr);
+  min-height: 0;
+  gap: 24px;
+  padding: 28px;
+  border-radius: 0;
+  font-size: 13px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-content {
+  display: flex;
+  flex-direction: column;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-actions {
+  margin-top: auto;
+  padding-top: 24px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-image {
+  align-self: center;
+  width: 216px;
+  height: 352px;
+  margin: 0;
+  border-radius: 20px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-heading h1 {
+  font-size: 25px;
+  line-height: 32px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-close-button {
+  top: 20px;
+  right: 20px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-badges {
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin: 12px 0 20px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-badges > span {
+  min-height: 28px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-content h2 {
+  font-size: 15px;
+  line-height: 22px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-progress-entry {
+  padding: 12px 14px;
+  font-size: 13px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-progress-entry p {
+  line-height: 20px;
+}
+@media (max-width: 600px) {
+  .sp-shell--creator .sp-creator-detail-dialog {
+    width: calc(100% - 32px);
+  }
+  .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 24px;
+    gap: 20px;
+  }
+  .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-image {
+    width: 100%;
+    height: 140px;
+    margin-top: 32px;
+    border-radius: 16px;
+  }
+  .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-heading h1 {
+    font-size: 22px;
+    line-height: 28px;
+  }
+}
+
+/* Keep status badges on the same row when an educator has a long name */
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-badges > span {
+  flex-shrink: 0;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-badges > span:first-child {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 28px;
+}
+
+/* Keep copy feedback beside its action without adding another card row */
+.sp-shell--creator .sp-published-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+.sp-shell--creator .sp-published-copy .sp-button {
+  flex: none;
+}
+.sp-shell--creator .sp-published-copy [role="status"] {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* Match the pale deadline badge without changing other workspace palettes */
+.sp-shell--creator .sp-approval[data-state="approved"] {
+  background: var(--creator-detail-approved);
+  color: #57733e;
+}
+
+/* Keep secondary approval actions distinct from the white popup */
+.sp-shell--creator .sp-student-detail-actions .sp-button--secondary {
+  background: #eeeae6;
+  color: var(--creator-action);
+}
+.sp-shell[data-account-role="Creator"]
+  .sp-student-detail-actions
+  .sp-button--secondary:hover:not(:disabled) {
+  background: #e3ded8;
+}
+
+/* Keep approval labels together without widening the badge beyond its content */
+.sp-shell--creator .sp-student-metadata .sp-approval {
+  white-space: nowrap;
+}
+
+/* Keep the QR action beside the link without adding another pill-shaped control */
+.sp-shell--creator .sp-published-link-row {
+  display: flex;
+  align-items: center;
+  /* Account for the QR glyph's 2px inset so the visible gap matches Copy */
+  gap: 6px;
+  min-width: 0;
+}
+.sp-shell--creator .sp-published-link-row input {
+  flex: 1;
+  min-width: 0;
+}
+.sp-shell--creator .sp-published-qr {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--creator-action);
+  cursor: pointer;
+}
+.sp-shell--creator .sp-published-qr:hover {
+  color: #81796e;
+}
+.sp-shell--creator .sp-dialog.sp-creator-qr-dialog {
+  width: min(300px, calc(100% - 32px));
+  padding: 28px;
+  border-radius: 28px;
+}
+.sp-shell--creator .sp-creator-qr-dialog .sp-dialog-body {
+  padding-top: 0;
+  display: flex;
+  justify-content: center;
+  margin: 0;
+}
+.sp-shell--creator .sp-creator-qr-dialog .sp-dialog-body > svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Keep status backgrounds fitted to their labels without changing the readable text size */
+.sp-shell--creator .sp-student-card .sp-student-metadata .sp-approval {
+  padding: 4px 8px;
+}
+
+/* Keep both metadata values centred in equal-height rows */
+.sp-shell--creator .sp-student-metadata dd {
+  display: flex;
+  align-items: center;
+  min-height: 29px;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-badges > span {
+  box-sizing: border-box;
+  height: 28px;
+  padding-block: 0;
+  align-items: center;
+}
+
+/* Keep the creator workspace fixed while its project list owns scrolling */
+.sp-shell.sp-shell.sp-shell--creator:has(.sp-student-dashboard) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+  padding-bottom: 32px;
+}
+.sp-shell.sp-shell.sp-shell--creator:has(.sp-student-dashboard) > .sp-account-header {
+  flex-shrink: 0;
+  margin-block: 0;
+}
+.sp-shell.sp-shell.sp-shell--creator:has(.sp-student-dashboard) > .sp-workspace {
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.sp-shell--creator .sp-student-dashboard > [role="tabpanel"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.sp-shell--creator .sp-student-dashboard .sp-student-list {
+  grid-auto-rows: max-content;
+  flex: 1;
+  min-height: 0;
+  padding-right: 10px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+/* Keep heading gaps consistent inside the scrollable details */
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-comments > h2 {
+  margin-bottom: 0;
+}
+
+/* Keep title, badges and actions outside the shared details scroll area */
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-scroll {
+  min-height: 0;
+  max-height: min(360px, 42dvh);
+  padding-right: 10px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+/* Keep long descriptions in the details popup rather than stretching the summary card */
+.sp-shell--creator .sp-student-card:not(.sp-student-card--published) .sp-card-description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+}
+.sp-shell--creator .sp-description-more {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--creator-action, #332e2a);
+  font: 600 12px/18px var(--sp-font);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.sp-shell--creator .sp-student-card:not(.sp-student-card--published) .sp-card-description-preview {
+  position: relative;
+  font: 400 14px/1.5 var(--sp-font);
+}
+.sp-shell--creator .sp-description-more {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding-left: 6px;
+  background: var(--sp-surface, #fff);
+  font: inherit;
+}
+/* Keep long details inside the original compact frame */
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail {
+  height: 408px;
+  box-sizing: border-box;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-content {
+  min-height: 0;
+}
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-scroll {
+  flex: 1;
+  max-height: none;
+}
+@media (max-width: 600px) {
+  .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail {
+    height: min(640px, calc(100dvh - 48px));
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+}
+
+.sp-shell--creator
+  .sp-creator-detail-dialog
+  .sp-student-detail-scroll
+  > :is(.sp-student-detail-section + .sp-student-detail-section, .sp-student-detail-comments) {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--creator-border);
+}
+
+.sp-shell--creator .sp-description-more {
+  text-decoration: none;
+}
+.sp-shell--creator .sp-description-more-label {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-comments:has(.sp-progress-entry) {
+  gap: 8px;
+}
+
+/* Keep the ellipsis in the description and its action on the same text baseline */
+.sp-shell--creator .sp-description-more {
+  position: static;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+}
+
+.sp-shell--creator
+  .sp-student-card:not(.sp-student-card--published)
+  .sp-card-description:has(.sp-description-more) {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.sp-shell--creator .sp-description-more {
+  border-radius: 4px;
+}
+.sp-shell--creator .sp-description-more:hover {
+  background: var(--creator-hover);
+  box-shadow: none;
+}
+.sp-shell--creator .sp-description-more:focus-visible {
+  outline: 2px solid var(--creator-action);
+  outline-offset: 3px;
+}
+
+.sp-shell--creator .sp-description-more {
+  padding: 3px;
+  margin: -3px;
+}
+
+/* Let inline hover padding extend below the text without being clipped */
+.sp-shell--creator .sp-student-card:not(.sp-student-card--published) .sp-card-description {
+  -webkit-line-clamp: 2;
+}
+.sp-shell--creator
+  .sp-student-card:not(.sp-student-card--published)
+  .sp-card-description:has(.sp-description-more) {
+  overflow: visible;
+}
+
+.sp-shell--creator .sp-description-more {
+  display: inline-block;
+  line-height: 1;
+  padding: 3px;
+  margin: -3px;
+  vertical-align: baseline;
+}
+
+@media (min-width: 761px) {
+  .sp-shell--creator .sp-student-dashboard :is(.sp-student-metadata, .sp-published-share) {
+    align-self: stretch;
+  }
+}
+.sp-shell--creator .sp-description-more {
+  padding-bottom: 5px;
+  margin-bottom: -5px;
+}
+
+/* Match the badge gap to the deadline value's existing vertical inset */
+.sp-shell--creator .sp-student-dashboard .sp-student-metadata dd:has(.sp-approval) {
+  margin-top: 8px;
+}
+
+/* Reserve the same two-line summary space on every project card */
+.sp-shell--creator
+  .sp-student-dashboard
+  .sp-student-card:not(.sp-student-card--published)
+  .sp-student-card-copy {
+  min-height: 161px;
+  grid-template-rows: auto minmax(42px, 1fr) auto;
+}
+
+@media (min-width: 761px) {
+  .sp-shell--creator .sp-student-dashboard .sp-student-card:not(.sp-student-card--published) {
+    box-sizing: border-box;
+    height: 221px;
+  }
+}
+
+@media (min-width: 761px) {
+  .sp-shell--creator .sp-student-dashboard .sp-student-card--published {
+    box-sizing: border-box;
+    height: 221px;
+  }
+}
+
+@media (min-width: 761px) {
+  .sp-shell--creator .sp-student-dashboard .sp-student-card--published .sp-student-card-copy {
+    align-self: stretch;
+    min-height: 161px;
+    grid-template-rows: auto minmax(42px, 1fr) auto;
   }
 }

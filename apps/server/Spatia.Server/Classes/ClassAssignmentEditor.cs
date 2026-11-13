@@ -68,6 +68,8 @@ internal static class ClassAssignmentEditor
         if (eligible != requestedStudents.Length)
         { return ApiProblems.Create(context, 422, "invalid_class_members", "Choose active students enrolled in this class."); }
         var newStudents = requestedStudents.Except(mappings.Select(row => row.StudentId)).ToArray();
+        var sourceImageId = await database.Projects.Where(project => project.Id == assignment.SourceProjectId)
+            .Select(project => project.ImageId).SingleAsync(cancellationToken);
         var projectIds = mappings.Where(row => row.IsActive || requestedStudents.Contains(row.StudentId))
             .Select(row => row.ProjectId).Concat(newStudents.Length > 0 ? [assignment.SourceProjectId] : Array.Empty<Guid>())
             .Distinct().Order().ToArray();
@@ -129,7 +131,7 @@ internal static class ClassAssignmentEditor
                 })
                     .Append(new ProjectAssignment { ProjectId = projectId, UserId = student, CanEdit = true, CanPublish = true }).ToArray();
                 if (!ProjectLifecycleEndpoints.StageDraft(database, documents, classroom!.OrganizationId,
-                    ProjectLifecycleEndpoints.Copy(sourceDocument.Value!, projectId, request.Title!), grants)) { return Unavailable(context); }
+                    ProjectLifecycleEndpoints.Copy(sourceDocument.Value!, projectId, request.Title!), grants, sourceImageId)) { return Unavailable(context); }
                 database.ClassAssignmentStudents.Add(new ClassAssignmentStudent
                 {
                     AssignmentId = assignmentId,

@@ -18,6 +18,144 @@ namespace Spatia.Server.Tests;
 public sealed class PublicationEndpointTests
 {
     [Test]
+    public async Task FacilitatorModeration_RestrictsAssignedClassPublicationsAndPreservesStudentDraft()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, asset) = await PrepareAsync(fixture);
+        var edition = Guid.NewGuid();
+        using (var published = await PublishAsync(fixture, data.ProjectId, edition, "Unlisted"))
+        { await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        var path = $"/api/v1/projects/{data.ProjectId}/publication-moderation";
+        var query = $"/api/v1/projects/publication-moderation?ids={data.ProjectId}";
+        await using var scope = fixture.App.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var original = await database.Projects.AsNoTracking().SingleAsync(row => row.Id == data.ProjectId);
+        using var visitor = fixture.CreateClient();
+        using (var available = await visitor.GetAsync($"/api/v1/publications/{edition}/assets/{asset.Id}/bytes"))
+        { await Assert.That(available.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        using (var hidden = await AuthTestRequests.PostAsync(fixture, path, new { action = "hide" }))
+        { await Assert.That(hidden.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using (var hidden = await visitor.GetAsync($"/api/v1/publications/{edition}"))
+        { await Assert.That(hidden.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        using (var hidden = await visitor.GetAsync($"/api/v1/publications/{edition}/assets/{asset.Id}/bytes"))
+        { await Assert.That(hidden.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        await fixture.SignInAsync(data.Student);
+        using (var links = await fixture.Client.GetAsync("/api/v1/projects/publication-links"))
+        { await Assert.That((await links.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength()).IsEqualTo(0); }
+        using (var draft = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}"))
+        { await Assert.That(draft.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        using (var republish = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), "Unlisted"))
+        { await Assert.That(republish.StatusCode).IsEqualTo(HttpStatusCode.Forbidden); }
+        using (var denied = await AuthTestRequests.PostAsync(fixture, path, new { action = "show" }))
+        { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.Forbidden); }
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(Spatia.Server.Accounts.ApplicationRoles.Educator));
+        using (var denied = await fixture.Client.GetAsync(query))
+        { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        using (var denied = await AuthTestRequests.PostAsync(fixture, path, new { action = "delete" }))
+        { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        await fixture.SignInAsync(data.Educator);
+        await database.ClassroomMembers.Where(row => row.ClassroomId == data.ClassroomId && row.UserId == data.Educator)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, false));
+        using (var denied = await AuthTestRequests.PostAsync(fixture, path, new { action = "show" }))
+        { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        await database.ClassroomMembers.Where(row => row.ClassroomId == data.ClassroomId && row.UserId == data.Educator)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, true));
+        using (var shown = await AuthTestRequests.PostAsync(fixture, path, new { action = "show" }))
+        { await Assert.That(shown.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using (var available = await visitor.GetAsync($"/api/v1/publications/{edition}"))
+        { await Assert.That(available.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        await fixture.SignInAsync(data.Student);
+        using (var republish = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), "Unlisted"))
+        { await Assert.That(republish.StatusCode).IsEqualTo(HttpStatusCode.Conflict); }
+        await fixture.SignInAsync(data.Educator);
+        using (var deleted = await AuthTestRequests.PostAsync(fixture, path, new { action = "delete" }))
+        { await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using (var restored = await AuthTestRequests.PostAsync(fixture, path, new { action = "show" }))
+        { await Assert.That(restored.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        await fixture.SignInAsync(data.Student);
+        using (var links = await fixture.Client.GetAsync("/api/v1/projects/publication-links"))
+        { await Assert.That((await links.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength()).IsEqualTo(0); }
+        using (var draft = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}"))
+        { await Assert.That(draft.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        var retained = await database.Projects.AsNoTracking().SingleAsync(row => row.Id == data.ProjectId);
+        await Assert.That(retained.Revision).IsEqualTo(original.Revision);
+        await Assert.That(retained.DocumentJson).IsEqualTo(original.DocumentJson);
+        await Assert.That(await database.ReviewSubmissions.CountAsync(row => row.ProjectId == data.ProjectId)).IsEqualTo(1);
+        using (var republish = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), "Unlisted"))
+        { await Assert.That(republish.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        using (var originalLink = await visitor.GetAsync($"/api/v1/publications/{edition}"))
+        { await Assert.That(originalLink.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task FacilitatorModeration_UnpublishedDraftCanBeHiddenShownAndSoftRemoved(bool approved)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        var (data, _) = await PrepareAsync(fixture, approve: approved);
+        var path = $"/api/v1/projects/{data.ProjectId}/publication-moderation";
+        var query = $"/api/v1/projects/publication-moderation?ids={data.ProjectId}";
+        using (var hidden = await AuthTestRequests.PostAsync(fixture, path, new { action = "hide" }))
+        { await Assert.That(hidden.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using (var state = await fixture.Client.GetAsync(query))
+        {
+            var row = (await state.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0];
+            await Assert.That(row.GetProperty("publicationCount").GetInt32()).IsEqualTo(0);
+            await Assert.That(row.GetProperty("publishingBlocked").GetBoolean()).IsTrue();
+        }
+        await fixture.SignInAsync(data.Student);
+        using (var draft = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}"))
+        {
+            await Assert.That(draft.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var saved = await draft.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(saved.GetProperty("permissions").GetProperty("canEdit").GetBoolean()).IsTrue();
+            await Assert.That(saved.GetProperty("permissions").GetProperty("canPublish").GetBoolean()).IsFalse();
+            using var edit = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/projects/{data.ProjectId}")
+            {
+                Content = JsonContent.Create(new { expectedRevision = 0, clientMutationId = Guid.NewGuid(), document = saved.GetProperty("document") })
+            };
+            edit.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+            using var edited = await fixture.Client.SendAsync(edit);
+            await Assert.That(edited.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        }
+        using (var blocked = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), "Unlisted"))
+        { await Assert.That(blocked.StatusCode).IsEqualTo(HttpStatusCode.Forbidden); }
+        using (var denied = await AuthTestRequests.PostAsync(fixture, path, new { action = "show" }))
+        { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.Forbidden); }
+        await fixture.SignInAsync(data.Educator);
+        using (var shown = await AuthTestRequests.PostAsync(fixture, path, new { action = "show" }))
+        { await Assert.That(shown.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using (var state = await fixture.Client.GetAsync(query))
+        { await Assert.That((await state.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0].GetProperty("publishingBlocked").GetBoolean()).IsFalse(); }
+        await fixture.SignInAsync(data.Student);
+        using (var draft = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}"))
+        {
+            var current = await draft.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(current.GetProperty("permissions").GetProperty("canPublish").GetBoolean()).IsTrue();
+            using var needsApproval = await PublishAsync(fixture, data.ProjectId, Guid.NewGuid(), "Unlisted", revision: current.GetProperty("revision").GetInt64());
+            await Assert.That(needsApproval.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+        }
+        await fixture.SignInAsync(data.Educator);
+        using (var removed = await AuthTestRequests.PostAsync(fixture, path, new { action = "delete" }))
+        { await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using (var state = await fixture.Client.GetAsync(query))
+        { await Assert.That((await state.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0].GetProperty("removed").GetBoolean()).IsTrue(); }
+        using (var repeated = await AuthTestRequests.PostAsync(fixture, path, new { action = "delete" }))
+        { await Assert.That(repeated.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using (var restore = await AuthTestRequests.PostAsync(fixture, path, new { action = "show" }))
+        { await Assert.That(restore.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        await fixture.SignInAsync(data.Student);
+        using (var draft = await fixture.Client.GetAsync($"/api/v1/projects/{data.ProjectId}"))
+        { await Assert.That(draft.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        await using var scope = fixture.App.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.Projects.AnyAsync(row => row.Id == data.ProjectId)).IsTrue();
+        await Assert.That(await database.ReviewSubmissions.AnyAsync(row => row.ProjectId == data.ProjectId)).IsTrue();
+        await Assert.That(await database.Publications.CountAsync(row => row.ProjectId == data.ProjectId)).IsEqualTo(0);
+    }
+
+    [Test]
     [Arguments("Public")]
     [Arguments("Unlisted")]
     public async Task StudentPublishesApprovedRevisionAndSharesWithoutGrantingDraftAccess(string audience)

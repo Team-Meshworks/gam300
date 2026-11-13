@@ -11,9 +11,9 @@
   --aa-text-small: 12px;
   --aa-text-body: 14px;
   --aa-text-section: 16px;
-  --aa-text-card: 18px;
+  --aa-text-card: 15px;
   --aa-text-title: 24px;
-  --aa-text-page: 24px;
+  --aa-text-page: 25px;
   --aa-paper: #ffffff;
   --aa-surface: var(--sp-soft, #f7f5f2);
   --aa-upload-surface: #fffdfb;
@@ -28,7 +28,7 @@
   --aa-muted: var(--sp-muted, #77716a);
   --aa-border: var(--sp-border, #e7e2dc);
   --aa-placeholder: #c4c4c4;
-  --aa-focus: #69645e;
+  --aa-focus: var(--sp-focus, #85582f);
   --aa-cancel-ink: #515151;
   --aa-selected: #eeeae4;
   --aa-danger: #c94032;
@@ -45,7 +45,7 @@
   --aa-scroll-hover: #6f6961;
   --aa-avatar: var(--sp-avatar-surface, #ede4d8);
   --aa-avatar-ink: var(--sp-avatar-ink, #77604b);
-  --aa-panel: rgb(255 255 255 / 0.53);
+  --aa-panel: #f7f7f7;
   --aa-page: var(--aa-paper);
 }
 
@@ -81,33 +81,32 @@ html.asset-admin-preview-page,
 .asset-admin-preview::before,
 .asset-admin-preview::after {
   position: absolute;
-  z-index: -1;
+  z-index: 1;
   content: "";
   pointer-events: none;
   background-size: 100% 100%;
+  opacity: var(--sp-wash-opacity);
 }
 .asset-admin-preview::before {
-  left: -210px;
-  top: -248px;
+  left: var(--sp-wash-left-x);
+  top: var(--sp-wash-left-y);
   width: 993px;
   height: 993px;
-  background-image: url("../../shared/ui/assets/admin-ambient-left.svg");
+  background-image: url("../../shared/ui/assets/facilitator-ambient-top.svg");
 }
 .asset-admin-preview::after {
-  left: calc(50% - 67px);
-  top: 183px;
+  left: var(--sp-wash-right-x);
+  top: var(--sp-wash-right-y);
   width: 1004px;
   height: 1004px;
-  background-image: url("../../shared/ui/assets/admin-ambient-right.svg");
+  background-image: url("../../shared/ui/assets/facilitator-ambient-bottom.svg");
 }
-.asset-admin-preview > .sp-account-header {
+.asset-admin-preview-header {
+  z-index: 2;
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 80px;
+  inset: 0 0 auto;
 }
-.asset-admin-preview a {
+.asset-admin-preview a:not(.sp-header-brand) {
   color: var(--aa-ink);
   text-decoration: none;
 }
@@ -168,12 +167,10 @@ html.asset-admin-preview-page,
   min-height: 0;
   overflow: hidden;
   padding: 50px;
-  border: 1px solid var(--aa-paper);
+  border: 1px solid rgb(255 255 255 / 85%);
   border-radius: 50px;
   background: var(--aa-panel);
-  box-shadow:
-    inset 0 3px 12px var(--aa-inset-edge),
-    inset 0 -2px 8px var(--aa-inset-light);
+  box-shadow: inset 4px 5px 14px rgb(57 43 29 / 4%);
   color: var(--aa-ink);
   font: var(--aa-text-body)/1.5 var(--aa-font);
 }
@@ -219,8 +216,8 @@ html.asset-admin-preview-page,
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 8px 20px;
+  min-height: 36px;
+  padding: 0 16px;
   border: 1px solid var(--aa-border);
   border-radius: 999px;
   background: var(--aa-paper);
@@ -234,7 +231,7 @@ html.asset-admin-preview-page,
   transform: translateY(1px);
 }
 .asset-admin :is(button, input, [tabindex]):focus-visible,
-.asset-admin-preview :is(a, button, input, summary):focus-visible {
+.asset-admin-preview-controls :is(a, button, input, summary):focus-visible {
   outline: 3px solid var(--aa-focus);
   outline-offset: 3px;
 }
@@ -244,17 +241,17 @@ html.asset-admin-preview-page,
   cursor: not-allowed;
 }
 .asset-admin .asset-admin-primary {
-  background: var(--aa-ink);
+  background: var(--aa-primary);
   color: var(--aa-paper);
-  border-color: var(--aa-ink);
+  border-color: var(--aa-primary);
 }
 .asset-admin-heading {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 32px;
   flex-shrink: 0;
 }
-.asset-admin-heading > div {
+.asset-admin-heading > div:first-child {
   flex: 0 0 35%;
 }
 .asset-admin-heading p {
@@ -265,10 +262,10 @@ html.asset-admin-preview-page,
 .asset-admin .asset-admin-close {
   display: grid;
   place-items: center;
-  flex: 0 0 40px;
-  width: 40px;
-  height: 40px;
-  min-height: 40px;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
   padding: 0;
   border: 0;
   line-height: 0;
@@ -277,10 +274,11 @@ html.asset-admin-preview-page,
 }
 .asset-admin-heading > .asset-admin-close {
   margin-left: auto;
+  align-self: flex-start;
 }
 .asset-admin-close svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 .asset-admin-close svg,
 .asset-admin-actions svg {
@@ -292,15 +290,35 @@ html.asset-admin-preview-page,
   flex: 1;
   max-width: 608px;
 }
-.asset-admin-search input {
+.asset-admin-search .sp-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 30px;
+  min-width: 0;
+  position: relative;
+  height: 45px;
+  min-height: 45px;
+  padding: 0 22px;
+  border: 1px solid rgb(255 255 255 / 90%);
+  background-color: transparent;
+  background-image: linear-gradient(rgb(239 239 239 / 45%), rgb(245 245 245 / 45%) 55%);
+  background-size: 100% 100%;
+  box-shadow: inset 0 3px 7px rgb(0 0 0 / 7%);
+}
+.asset-admin-search .sp-search input {
   width: 100%;
-  height: 44px;
-  padding: 12px 48px 12px 24px;
-  border: 1px solid var(--aa-paper);
-  border-radius: 999px;
-  background: var(--aa-surface);
-  box-shadow: inset 0 2px 6px var(--aa-inset-edge);
-  font-size: var(--aa-text-small);
+  border: 0;
+  background: transparent;
+  outline-offset: 0;
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  height: 22px;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  font: 400 13px/18px var(--sp-font, "Inter", sans-serif);
 }
 /* Keep the browser-provided clear action neutral alongside the custom search icon */
 .asset-admin-search input::-webkit-search-cancel-button {
@@ -308,11 +326,19 @@ html.asset-admin-preview-page,
   opacity: 0.7;
   cursor: pointer;
 }
-.asset-admin-search > svg {
-  position: absolute;
-  right: 18px;
-  top: 10px;
-  pointer-events: none;
+.asset-admin-search .sp-search > svg {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+.asset-admin-search .sp-search:focus-within {
+  outline: 3px solid var(--aa-focus);
+  outline-offset: 3px;
+}
+.asset-admin-search .sp-search input:focus-visible {
+  outline: none;
 }
 .asset-admin-toolbar {
   display: flex;
@@ -403,7 +429,8 @@ html.asset-admin-preview-page,
   margin-bottom: 12px;
 }
 .asset-admin-card-content h2 {
-  font-size: var(--aa-text-body);
+  font-size: var(--aa-text-card);
+  line-height: 20px;
 }
 .asset-admin-card-content .asset-admin-visibility {
   display: inline-flex;
@@ -420,7 +447,7 @@ html.asset-admin-preview-page,
 .asset-admin-card-content button {
   align-self: flex-start;
   margin-top: auto;
-  min-height: 44px;
+  min-height: 36px;
   padding: 4px 20px;
   font-size: var(--aa-text-small);
 }
@@ -453,36 +480,37 @@ html.asset-admin-preview-page,
   margin: 16px 0 24px;
 }
 
-/* Keep asset tasks compact with the same inset controls as the other admin dialogs */
+/* Match the PDF task frame while retaining compact action buttons */
 .asset-admin-dialog {
-  --aa-text-title: 22px;
-  width: min(840px, calc(100% - 32px));
+  --aa-text-title: 25px;
+  width: min(960px, calc(100% - 32px));
   max-height: calc(100dvh - 40px);
   margin: auto;
-  padding: 24px;
+  padding: 48px;
   border: 1px solid var(--aa-dialog-border);
   border-radius: 20px;
+  scrollbar-gutter: auto;
   background: var(--aa-paper);
   color: var(--aa-heading);
   box-shadow: 0 16px 40px var(--aa-shadow);
 }
-/* File selection needs less room than model inspection */
+/* Upload and inspection share the reference frame */
 .asset-admin-dialog.asset-admin-dialog-upload {
-  --aa-text-title: 22px;
-  width: min(800px, calc(100% - 32px));
-  padding: 24px;
+  --aa-text-title: 25px;
+  width: min(960px, calc(100% - 32px));
+  padding: 48px;
 }
 /* Both upload and inspection use the same wide preview area */
 .asset-admin-dialog .asset-admin-upload,
 .asset-admin-dialog .asset-admin-detail-preview {
   width: 100%;
-  min-height: 140px;
-  height: 160px;
-  aspect-ratio: auto;
+  min-height: 160px;
+  height: auto;
+  aspect-ratio: 2.23;
   border-radius: 20px;
 }
 .asset-admin-dialog h3 {
-  margin: 16px 0 12px;
+  margin: 24px 0 16px;
   font-size: var(--aa-text-title);
   line-height: 1.25;
 }
@@ -496,8 +524,8 @@ html.asset-admin-preview-page,
   flex-basis: 100%;
 }
 .asset-admin-metadata > summary {
-  min-height: 44px;
-  padding-block: 12px;
+  min-height: 36px;
+  padding-block: 8px;
   line-height: 20px;
 }
 .asset-admin-metadata > summary {
@@ -506,7 +534,7 @@ html.asset-admin-preview-page,
   cursor: pointer;
 }
 .asset-admin-metadata .asset-admin-review {
-  margin-bottom: 0;
+  margin-block: 2px 0;
 }
 
 .asset-admin-dialog::backdrop {
@@ -600,7 +628,7 @@ html.asset-admin-preview-page,
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 24px;
+  margin-top: 20px;
   align-items: center;
 }
 .asset-admin-actions button {
@@ -675,6 +703,7 @@ html.asset-admin-preview-page,
 .asset-admin-dialog .asset-admin-select > input,
 .asset-admin-dialog .asset-admin-select > output,
 .asset-admin-dialog .asset-admin-select > button {
+  font-weight: 600;
   border-color: var(--aa-dialog-border);
 }
 .asset-admin-dialog .asset-admin-actions > button {
@@ -844,7 +873,7 @@ html.asset-admin-preview-page,
     flex-wrap: wrap;
     gap: 12px;
   }
-  .asset-admin-heading > div {
+  .asset-admin-heading > div:first-child {
     flex-basis: calc(100% - 52px);
   }
   .asset-admin-search {
@@ -937,7 +966,7 @@ html.asset-admin-preview-page,
   justify-content: flex-start;
   align-self: stretch;
   margin-right: auto;
-  min-height: 44px;
+  min-height: 36px;
   color: var(--aa-ink);
   font-size: var(--aa-text-body);
   text-underline-offset: 3px;
@@ -1034,7 +1063,7 @@ html.asset-admin-preview-page,
 
 /* Separate preview, metadata and lifecycle actions without a stranded half-width field */
 .asset-admin-dialog-detail h3 {
-  margin-top: 16px;
+  margin-top: 24px;
 }
 .asset-admin-dialog-detail .asset-admin-retired-status {
   margin-top: 20px;
@@ -1108,6 +1137,7 @@ html.asset-admin-preview-page,
     padding: 20px;
   }
   .asset-admin-dialog.asset-admin-dialog-upload {
+    --aa-text-title: 22px;
     padding: 20px;
   }
   .asset-admin-dialog .asset-admin-upload,
@@ -1143,4 +1173,166 @@ html.asset-admin-preview-page,
 }
 .asset-admin-detail-preview audio {
   width: min(100%, 360px);
+}
+
+/* Leave the same separation between the page heading and catalogue toolbar as the reference. */
+@media (min-width: 801px) {
+  .asset-admin-toolbar {
+    margin-top: 40px;
+    margin-bottom: 20px;
+  }
+}
+
+/* Reserve a gutter only when an asset task actually overflows. */
+.asset-admin-dialog {
+  scrollbar-gutter: auto;
+}
+
+/* Preserve action colours while giving every enabled control a visible hover surface. */
+.asset-admin button:hover:not(:disabled) {
+  background: #eae5df;
+}
+.asset-admin .asset-admin-primary:hover:not(:disabled) {
+  background: #51473d;
+}
+.asset-admin .asset-admin-danger:hover:not(:disabled) {
+  background: #fbe2dd;
+}
+.asset-admin .asset-admin-close:hover:not(:disabled) {
+  background: #e4e5e7;
+}
+.asset-admin-tabs button {
+  border-radius: 8px;
+}
+.asset-admin-tabs button[aria-pressed="true"]:hover:not(:disabled) {
+  background: #ddd7cf;
+}
+.asset-admin-select-menu button:hover:not(:disabled) {
+  background: #eae5df;
+}
+.asset-admin-select-menu button[aria-selected="true"]:hover:not(:disabled) {
+  background: #ddd7cf;
+}
+.asset-admin-text-link {
+  border-radius: 8px;
+  padding: 8px;
+}
+.asset-admin-text-link:hover {
+  background: #eae5df;
+}
+.asset-admin input:not([type="file"]):not(:disabled):not([readonly]) {
+  cursor: text;
+}
+.asset-admin-search .sp-search {
+  cursor: default;
+  user-select: none;
+}
+.asset-admin-search .sp-search input {
+  cursor: text;
+  user-select: text;
+}
+
+/* Preserve the PDF's page/card/form/hint hierarchy instead of one form-and-action size. */
+.asset-admin-tabs button,
+.asset-admin-toolbar > .asset-admin-primary {
+  font-size: 15px;
+  line-height: 20px;
+}
+.asset-admin-fields > .asset-admin-select > :is(label, span) {
+  font-size: 15px;
+  line-height: 20px;
+}
+.asset-admin-fields > .asset-admin-select > :is(input, output, button) {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.asset-admin-upload > span:not(.asset-admin-upload-symbol, .asset-admin-help) {
+  font-size: 13px;
+  line-height: 20px;
+}
+.asset-admin-dialog-upload .asset-admin-actions > button,
+.asset-admin-dialog-detail .asset-admin-actions > button:not(.asset-admin-danger):has(svg) {
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.asset-admin {
+  position: relative;
+}
+.asset-admin > * {
+  position: relative;
+  z-index: 2;
+}
+.asset-admin::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 1px solid rgb(255 255 255 / 85%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* Upload tasks use a compact frame and scroll inside its rounded padding. */
+.asset-admin-dialog.asset-admin-dialog-upload {
+  --aa-text-title: 22px;
+  width: min(600px, calc(100% - 32px));
+  padding: 16px;
+  overflow: hidden;
+}
+.asset-admin-dialog-upload > form {
+  max-height: calc(100dvh - 90px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin;
+  scrollbar-color: var(--aa-scroll-thumb) var(--aa-scroll-track);
+  padding: 8px;
+}
+.asset-admin-heading > .asset-admin-close {
+  background: #e4e1dc;
+  color: #292723;
+}
+.asset-admin-heading > .asset-admin-close:hover:not(:disabled) {
+  background: #d7d2cb;
+}
+@media (max-width: 700px) {
+  .asset-admin-dialog.asset-admin-dialog-upload {
+    padding: 20px;
+  }
+  .asset-admin-dialog-upload > form {
+    max-height: calc(100dvh - 82px);
+  }
+}
+
+.asset-admin-dialog-upload .asset-admin-upload {
+  aspect-ratio: 2.6;
+  min-height: 140px;
+}
+.asset-admin-dialog-upload h3 {
+  margin-top: 20px;
+  margin-bottom: 24px;
+}
+
+.asset-admin-dialog-upload .asset-admin-actions {
+  margin-top: 16px;
+}
+
+.asset-admin-dialog-upload .asset-admin-metadata > summary {
+  min-height: 28px;
+  padding-block: 4px;
+}
+.asset-admin-dialog-upload .asset-admin-actions:has(.asset-admin-metadata[open]) {
+  margin-top: 20px;
+  row-gap: 16px;
+}
+
+.asset-admin-scroll .asset-admin-state h2 {
+  font-size: 14px;
+  line-height: 20px;
+}
+.asset-admin-scroll .asset-admin-state p {
+  font-size: 13px;
+  line-height: 18px;
 }

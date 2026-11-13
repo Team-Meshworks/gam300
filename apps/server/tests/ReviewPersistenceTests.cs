@@ -171,10 +171,17 @@ public sealed class ReviewPersistenceTests
             });
         }
         database.Classrooms.Add(new Classroom { Id = data.ClassroomId, OrganizationId = data.OrganizationId, Name = "Class" });
-        database.Projects.AddRange(Project(data.SourceId, data.OrganizationId, 0), Project(data.ProjectId, data.OrganizationId, 7));
         if (legacyAssignmentSchema)
         {
             await database.SaveChangesAsync();
+            foreach (var project in new[] { Project(data.SourceId, data.OrganizationId, 0), Project(data.ProjectId, data.OrganizationId, 7) })
+            {
+                await database.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO projects (id, organization_id, archived, revision, schema_version, document, updated_at)
+                    VALUES ({project.Id}, {project.OrganizationId}, {false}, {project.Revision}, {project.SchemaVersion},
+                        {project.DocumentJson}::jsonb, {project.UpdatedAt})
+                    """);
+            }
             await database.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO class_assignments (id, classroom_id, organization_id, created_by_user_id,
                     source_project_id, source_revision, due_at_unix_seconds, title, description, instructions, request_digest)
@@ -187,6 +194,7 @@ public sealed class ReviewPersistenceTests
                 """);
             return data;
         }
+        database.Projects.AddRange(Project(data.SourceId, data.OrganizationId, 0), Project(data.ProjectId, data.OrganizationId, 7));
         database.ClassAssignments.Add(new ClassAssignment
         {
             Id = data.AssignmentId,

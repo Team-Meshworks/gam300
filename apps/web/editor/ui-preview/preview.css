@@ -144,3 +144,8 @@
   flex-basis: 100%;
   color: var(--sp-muted);
 }
+.sp-shell > .sp-workspace > .sp-example-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}

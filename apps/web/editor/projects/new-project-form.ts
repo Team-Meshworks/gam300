@@ -16,7 +16,7 @@ export type NewProjectDraft = Readonly<{
   dueDate: string;
   classId: string;
   imageType: string;
-  // Local selection only; the future host owns upload and asset references
+  // Encoded and saved with the source project before students are assigned
   coverImage?: File;
   studentIds: readonly string[];
 }>;

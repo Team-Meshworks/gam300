@@ -156,7 +156,7 @@ export interface InitSceneHandle {
   ) => boolean;
   pickObjectAt: (clientX: number, clientY: number) => string | undefined;
   getHotspotAnchor: (objectId: string) => Vector3Tuple | undefined;
-  setEditingEnabled: (enabled: boolean) => void;
+  setEditingEnabled: (enabled: boolean, allowInspection?: boolean) => void;
   captureCamera: () => CameraPose;
   showCamera: (pose: CameraPose) => void;
   locateObject: (id: string) => void;
@@ -284,6 +284,7 @@ export function initScene(
   const hotspotMaterials = new Set<THREE.SpriteMaterial>();
   const ready = true;
   let editingEnabled = true;
+  let inspectionEnabled = false;
   let objects: readonly SceneObject[] = [];
   let selectedId: string | null = null;
   let projectScene: ProjectScene | null = null;
@@ -595,7 +596,7 @@ export function initScene(
     orbit.dispose();
     orbit = new OrbitControls(camera, renderer.domElement);
     orbit.enableDamping = true;
-    orbit.enabled = editingEnabled && modeManager.usesOrbit();
+    orbit.enabled = (editingEnabled || inspectionEnabled) && modeManager.usesOrbit();
     applyNavigationTool();
     // The constructor looks at its default target, so reinstall the authored pose afterward
     camera.position.fromArray(pose.position);
@@ -1816,7 +1817,7 @@ export function initScene(
     cancelTouchGesture();
     cancelWheelEdit();
     // Cancellation must not re-enable orbit controls while visiting or walking
-    orbit.enabled = modeManager.usesOrbit() && editingEnabled;
+    orbit.enabled = modeManager.usesOrbit() && (editingEnabled || inspectionEnabled);
     applyNavigationTool();
     selection.visible = mode === "editor" && getSelectionBounds() !== undefined;
     // Markers are authoring aids; visitors interact with the objects themselves.
@@ -2110,15 +2111,17 @@ export function initScene(
     },
     pickObjectAt,
     getHotspotAnchor,
-    setEditingEnabled(enabled) {
+    setEditingEnabled(enabled, allowInspection = false) {
       editingEnabled = enabled;
+      inspectionEnabled = allowInspection;
       if (!enabled) {
         cancelDrag();
         cancelTouchGesture();
         cancelWheelEdit();
         showDropPosition(undefined);
       }
-      orbit.enabled = enabled && modeManager.usesOrbit() && touchGesture === undefined;
+      orbit.enabled =
+        (enabled || allowInspection) && modeManager.usesOrbit() && touchGesture === undefined;
     },
     captureCamera: () => ({
       position: camera.position.toArray() as [number, number, number],

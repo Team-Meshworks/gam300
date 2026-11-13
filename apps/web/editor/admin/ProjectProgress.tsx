@@ -2,6 +2,8 @@ import { Icon as UiIcon } from "@iconify/react/offline";
 import faCircleCheck from "@iconify-icons/lucide/circle-check";
 import faClock from "@iconify-icons/lucide/clock";
 import faGlobe from "@iconify-icons/lucide/globe";
+import selectIcon from "@iconify-icons/lucide/square-check";
+import { Button } from "../../shared/ui/Button";
 import faLock from "@iconify-icons/lucide/lock";
 import { useState } from "react";
 import { SearchField } from "../../shared/ui/SearchField";
@@ -33,17 +35,52 @@ export function ProjectProgress({
   publicationStates: Record<string, ProjectPublicationState>;
   onPublicationChanged: (state: ProjectPublicationState) => void;
 }) {
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [bulkError, setBulkError] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "progress" | "awaiting">("all");
-  const students = assignment.details.projects;
+  const students = assignment.details.projects.filter((student) => {
+    const state = publicationStates[student.projectId.toLowerCase()];
+    return state ? state.publicationCount > 0 : student.published === true;
+  });
   const inProgress = students.filter(
     (row) => row.approvalStatus !== "approved" && row.approvalStatus !== "awaiting-approval",
   );
   const awaiting = students.filter((row) => row.approvalStatus === "awaiting-approval");
   const rows = (filter === "all" ? students : filter === "awaiting" ? awaiting : inProgress).filter(
     (row) =>
-      (row.studentName ?? "").toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+      `${row.studentName ?? ""} ${row.studentUserName ?? ""}`
+        .toLocaleLowerCase()
+        .includes(search.trim().replace(/^@/, "").toLocaleLowerCase()),
   );
+  const ids = rows.map((row) => row.projectId);
+  const picked = selected.filter((id) => ids.includes(id));
+  const allSelected = ids.length > 0 && picked.length === ids.length;
+  const states = picked.map((id) => publicationStates[id.toLowerCase()]);
+  const aggregate =
+    picked.length && states.every(Boolean)
+      ? {
+          projectId: assignment.details.assignmentId,
+          publicationCount: states.reduce((sum, state) => sum + state!.publicationCount, 0),
+          hiddenCount: states.reduce((sum, state) => sum + state!.hiddenCount, 0),
+          publicCount: states.reduce((sum, state) => sum + state!.publicCount, 0),
+        }
+      : undefined;
+  async function refreshSelected() {
+    setBulkError("");
+    try {
+      const states = await client.publicationStates(
+        assignment.details.projects.map((row) => row.projectId),
+      );
+      for (const state of Object.values(states)) onPublicationChanged(state);
+      setSelected([]);
+    } catch {
+      setBulkError(
+        "Publication visibility could not be refreshed. Reload before making another change.",
+      );
+    }
+  }
   return (
     <section className="admin-progress" aria-label="Student progress">
       <div className="admin-progress-controls">
@@ -51,23 +88,80 @@ export function ProjectProgress({
           label="Search students"
           placeholder="Search students by name or account"
           value={search}
-          onChange={setSearch}
+          onChange={(value) => {
+            setSearch(value);
+            setSelected([]);
+          }}
         />
-        <Tabs
-          id="admin-student-status"
-          label="Student project status"
-          value={filter}
-          onChange={setFilter}
-          items={[
-            { value: "all", label: `All Work (${students.length})` },
-            { value: "progress", label: `In Progress (${inProgress.length})` },
-            {
-              value: "awaiting",
-              label: `Awaiting Approval (${awaiting.length})`,
-            },
-          ]}
-        />
+        <div className="admin-project-selection-toolbar">
+          {selecting ? (
+            <div className="admin-project-selection" role="group" aria-label="Project selection">
+              <label>
+                <input
+                  className="sp-selection-checkbox"
+                  type="checkbox"
+                  aria-label="Select all visible projects"
+                  checked={allSelected}
+                  ref={(input) => {
+                    if (input) input.indeterminate = picked.length > 0 && !allSelected;
+                  }}
+                  onChange={() => setSelected(allSelected ? [] : ids)}
+                />
+                Select all
+              </label>
+              <div className="admin-selection-actions">
+                <Button
+                  onClick={() => {
+                    setSelecting(false);
+                    setSelected([]);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <ProjectModeration
+                  projectId={assignment.details.assignmentId}
+                  projectIds={picked}
+                  client={client}
+                  state={bulkError ? undefined : aggregate}
+                  selection
+                  onChanged={() => {}}
+                  onCompleted={refreshSelected}
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              <Tabs
+                id="admin-student-status"
+                label="Student project status"
+                value={filter}
+                onChange={(value) => {
+                  setFilter(value);
+                  setSelected([]);
+                }}
+                items={[
+                  { value: "all", label: `All Work (${students.length})` },
+                  { value: "progress", label: `In Progress (${inProgress.length})` },
+                  {
+                    value: "awaiting",
+                    label: `Awaiting Approval (${awaiting.length})`,
+                  },
+                ]}
+              />
+              <Button
+                className="admin-select-projects"
+                aria-label="Select projects"
+                title="Select projects"
+                disabled={!ids.length}
+                onClick={() => setSelecting(true)}
+              >
+                <UiIcon icon={selectIcon} aria-hidden="true" />
+              </Button>
+            </>
+          )}
+        </div>
       </div>
+      {bulkError && <p role="alert">{bulkError}</p>}
       <div
         id="admin-student-status-panel"
         role="tabpanel"
@@ -77,7 +171,7 @@ export function ProjectProgress({
         {rows.map((student) => {
           const parts = /^(.*) \(([^()]*)\)$/.exec(student.studentName ?? "");
           const name = parts?.[1] ?? student.studentName ?? "Student";
-          const account = parts?.[2];
+          const account = student.studentUserName ?? parts?.[2];
           const publicationState = publicationStates[student.projectId.toLowerCase()];
           const isPublic = publicationState ? publicationState.publicCount > 0 : student.isPublic;
           const initials = name
@@ -89,6 +183,21 @@ export function ProjectProgress({
           return (
             <article className="admin-progress-row" key={student.projectId}>
               <div className="admin-student-identity">
+                {selecting && (
+                  <input
+                    className="sp-selection-checkbox"
+                    type="checkbox"
+                    aria-label={`Select project by ${name}`}
+                    checked={picked.includes(student.projectId)}
+                    onChange={(event) =>
+                      setSelected((current) =>
+                        event.target.checked
+                          ? [...current, student.projectId]
+                          : current.filter((id) => id !== student.projectId),
+                      )
+                    }
+                  />
+                )}
                 <span className="admin-student-avatar" aria-hidden="true">
                   {initials}
                 </span>
@@ -111,7 +220,13 @@ export function ProjectProgress({
                   {student.approvalStatus ? approvalLabels[student.approvalStatus] : "Unavailable"}
                 </dd>
                 <dt>Publish Status</dt>
-                <dd>
+                <dd
+                  className={
+                    (isPublic ?? student.published)
+                      ? "admin-status-approved"
+                      : "admin-status-private"
+                  }
+                >
                   <UiIcon
                     icon={(isPublic ?? student.published) ? faGlobe : faLock}
                     aria-hidden="true"
@@ -133,16 +248,23 @@ export function ProjectProgress({
               >
                 <a
                   className="sp-button sp-button--primary"
-                  href={`/?projectId=${encodeURIComponent(student.projectId)}`}
+                  href={`/?${new URLSearchParams({
+                    projectId: student.projectId,
+                    view: "published",
+                    returnProjectId: new URLSearchParams(location.search).get("projectId") ?? "",
+                    returnView: new URLSearchParams(location.search).get("view") ?? "",
+                  })}`}
                 >
-                  <span className="sp-button-label">View Progress</span>
+                  <span className="sp-button-label">View Project</span>
                 </a>
-                <ProjectModeration
-                  projectId={student.projectId}
-                  client={client}
-                  state={publicationState}
-                  onChanged={onPublicationChanged}
-                />
+                {!selecting && (
+                  <ProjectModeration
+                    projectId={student.projectId}
+                    client={client}
+                    state={publicationState}
+                    onChanged={onPublicationChanged}
+                  />
+                )}
               </div>
             </article>
           );

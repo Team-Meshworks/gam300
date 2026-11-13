@@ -179,14 +179,7 @@ try {
   } else if (process.argv[3] === "admin") {
     account = { ...session, role: "Administrator", orgId: null };
     await page.goto(origin + "/classes");
-    await page.getByRole("button", { name: "New class" }).click();
-    await page.getByLabel("Class name").fill("First class");
-    await page
-      .getByLabel("Organisation")
-      .selectOption({ label: "Active school" }, { timeout: 5000 });
-    assert.equal(await page.getByRole("option", { name: "Inactive school" }).count(), 0);
-    await page.getByRole("button", { name: "Confirm", exact: true }).click();
-    await page.getByText("Class change confirmed.").waitFor();
+    assert.equal(await page.getByRole("button", { name: "New class", exact: true }).count(), 0);
     assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Back to dashboard" }).count(), 1);
     for (const width of [1440, 390]) {
@@ -194,18 +187,19 @@ try {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       await page.screenshot({ path: `${screenshotDirectory}/admin-${width}.png`, fullPage: true });
     }
-    console.log("Administrator creates the first class from an active organisation");
+    console.log(
+      "Administrator legacy class view keeps its current navigation and responsive layout",
+    );
   } else if (process.argv[3] === "open-project") {
     await page.goto(origin + "/home");
     await page.getByRole("heading", { name: "The Silk Road", exact: true }).waitFor();
-    await page.getByText("Manage projects and archives", { exact: true }).click();
+    await page.getByRole("button", { name: "View Details", exact: true }).click();
     await page.route(`**/?projectId=${projectId}`, (route) => route.fulfill({ body: "editor" }));
-    await page.getByRole("button", { name: "Continue editing" }).click();
+    await page.getByRole("button", { name: "Open project", exact: true }).click();
     assert.equal(new URL(page.url()).searchParams.get("projectId"), projectId);
     console.log("Project opens in server editor");
   } else if (process.argv[3] === "gate") {
-    await page.goto(origin + "/home");
-    await page.getByRole("button", { name: "Classes", exact: true }).click();
+    await page.goto(origin + "/classes");
     await page.getByRole("button", { name: "New assignment" }).click();
     await page.getByLabel("Project title").fill("Unsent assignment");
     await page.getByRole("button", { name: "Projects", exact: true }).click();
@@ -226,11 +220,12 @@ try {
     assert.equal(await page.getByLabel("Project title").inputValue(), "Unsent assignment");
     account = { ...session, userId: orgId };
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await page.getByRole("heading", { name: "The Silk Road", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Classes", exact: true }).waitFor();
     assert.equal(await page.getByText("Unsent assignment").count(), 0);
     console.log("Assignment survives same-actor gate and stays hidden from other actors");
     process.exitCode = 0;
   } else {
+    account = { ...session, role: "Administrator", orgId: null };
     await page.goto(origin + "/home");
     const navigation = page.getByRole("navigation", { name: "Workspace" });
     for (const label of ["Projects", "Classes"]) {
@@ -253,7 +248,7 @@ try {
     });
     await touchPage.route("**/api/v1/**", (route) => {
       const path = new URL(route.request().url()).pathname;
-      if (path === "/api/v1/auth/session") return route.fulfill({ json: session });
+      if (path === "/api/v1/auth/session") return route.fulfill({ json: account });
       if (path === "/api/v1/projects" || path === "/api/v1/classes")
         return route.fulfill({ json: { items: [], nextCursor: null } });
       return route.fulfill({ status: 404 });
@@ -268,20 +263,18 @@ try {
     assert.ok(touched >= 4.5, `Selected Classes after touch contrast is ${touched.toFixed(2)}:1`);
     await touchPage.close();
 
+    account = session;
     await page.goto(origin + "/review");
     await page.waitForURL("**/home");
     assert.equal(await page.getByRole("link", { name: "Submissions and reviews" }).count(), 0);
 
+    account = { ...session, role: "Administrator", orgId: null };
     for (const width of [1440, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto(origin + "/home");
       await page.getByRole("heading", { name: "The Silk Road", exact: true }).waitFor();
-      assert.equal(await page.getByRole("button", { name: "View Details" }).isVisible(), true);
-      assert.equal(
-        await page.getByRole("link", { name: "New Project" }).getAttribute("href"),
-        "/new-project",
-      );
-      await page.getByText("Manage projects and archives", { exact: true }).click();
+      assert.equal(await page.getByRole("button", { name: "Continue editing" }).isVisible(), true);
+      assert.equal(await page.getByRole("button", { name: "New project", exact: true }).count(), 0);
       assert.equal(
         await page.getByRole("button", { name: "Continue editing" }).isDisabled(),
         false,
@@ -348,19 +341,25 @@ try {
       .getByRole("button", { name: /view details/i });
     await studentCard.waitFor();
     await studentCard.click();
-    await page.getByRole("heading", { name: "Student draft", exact: true }).waitFor();
+    await page
+      .getByRole("region", { name: "Project details" })
+      .getByRole("heading", { name: "Student draft", exact: true })
+      .waitFor();
     assert.equal(await page.getByRole("region", { name: "Project details" }).isVisible(), true);
     await page.getByRole("button", { name: "Close project details" }).click();
-    await page.getByText("Manage projects and archives", { exact: true }).click();
+    assert.equal(await page.getByText("Manage projects and archives", { exact: true }).count(), 0);
     await page
-      .locator(".sp-home-projects")
-      .getByRole("heading", { name: "Student draft" })
+      .locator(".sp-student-card")
+      .getByRole("heading", { name: "Student draft", exact: true })
       .waitFor();
     assert.equal(await page.getByRole("button", { name: "Archive", exact: true }).count(), 0);
     assert.equal(await page.getByRole("heading", { name: "The Silk Road" }).count(), 0);
     rejectList = true;
-    await page.getByRole("button", { name: "Refresh", exact: true }).click();
-    await page.getByRole("heading", { name: "We couldn’t load this view" }).waitFor();
+    await page.reload();
+    await page
+      .getByRole("alert")
+      .filter({ hasText: "Your projects could not be loaded" })
+      .waitFor();
     rejectList = false;
     await page.getByRole("button", { name: "Retry", exact: true }).click();
     await page.getByRole("heading", { name: "Student draft" }).waitFor();

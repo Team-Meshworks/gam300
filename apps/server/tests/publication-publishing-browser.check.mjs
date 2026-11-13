@@ -90,7 +90,7 @@ try {
   const student = pages.student;
   await student.goto(`${origin}/login`);
   await login(student, "student");
-  await student.getByRole("heading", { name: /you.re signed in/i }).waitFor();
+  await student.waitForURL("**/home");
   await student.goto(`${origin}/publish?projectId=${data.projectId}`);
   await student.getByRole("heading", { name: "Publish project" }).waitFor();
   await student.getByText(data.title, { exact: true }).waitFor();
@@ -234,7 +234,10 @@ try {
   await student.getByRole("button", { name: "Publish", exact: true }).click();
   const secondRequest = (await secondPost).postDataJSON();
   assert.notEqual(secondRequest.publicationId, request.publicationId);
-  assert.deepEqual(secondRequest.intent, { audience: "Authenticated", viewerIds: [data.viewerId] });
+  assert.deepEqual(secondRequest.intent, {
+    audience: "Authenticated",
+    viewerIds: [data.viewerId],
+  });
   await student.getByRole("link", { name: "Open publication" }).waitFor();
   const secondLink = student.getByRole("link", { name: "Open publication" });
   const secondQr = student.getByRole("img", { name: /QR code/i });
@@ -273,16 +276,20 @@ try {
   const manager = pages.educator;
   await manager.goto(`${origin}/login`);
   await login(manager, "educator");
-  await manager.getByRole("heading", { name: /you.re signed in/i }).waitFor();
+  await manager.waitForURL("**/home");
   await manager.goto(`${origin}/publish?projectId=${data.projectId}`);
-  const accessSection = manager.getByRole("region", { name: "Manage publication access" });
+  const accessSection = manager.getByRole("region", {
+    name: "Manage publication access",
+  });
   await accessSection
     .getByRole("textbox", { name: "Publication link or ID" })
     .fill(secondRequest.publicationId);
   await accessSection.getByRole("button", { name: "Check access" }).click();
   await accessSection.getByText("Access active", { exact: true }).waitFor();
   await accessSection.getByRole("button", { name: "Revoke access" }).click();
-  const confirmation = accessSection.getByRole("group", { name: "Confirm revocation" });
+  const confirmation = accessSection.getByRole("group", {
+    name: "Confirm revocation",
+  });
   const revoked = manager.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
@@ -315,6 +322,41 @@ try {
     200,
     "Revocation leaves the first edition available",
   );
+  // Hiding editions removes student share cards without deleting the editable draft
+  const moderate = (action) =>
+    manager.evaluate(
+      async ({ projectId, action }) => {
+        const session = await (await fetch("/api/v1/auth/session")).json();
+        const token = (await (await fetch("/api/v1/auth/csrf")).json()).requestToken;
+        const response = await fetch(`/api/v1/projects/${projectId}/publication-moderation`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-TOKEN": token,
+            "X-Spatia-Account": session.userId,
+          },
+          body: JSON.stringify({ action }),
+        });
+        return response.status;
+      },
+      { projectId: data.projectId, action },
+    );
+  assert.equal(await moderate("hide"), 204);
+  await student.goto(`${origin}/home`);
+  await student.getByRole("tab", { name: "Published", exact: true }).click();
+  await student.getByText("No published projects are available yet.", { exact: true }).waitFor();
+  assert.equal((await read(student, `/api/v1/projects/${data.projectId}`)).status, 200);
+  assert.equal((await read(viewer, snapshot)).status, 404);
+
+  // Showing clears only hiding; the separately revoked edition stays unavailable
+  assert.equal(await moderate("show"), 204);
+  await student.reload();
+  await student.getByRole("tab", { name: "Published", exact: true }).click();
+  const restored = student.getByRole("link", { name: "Preview", exact: true });
+  await restored.waitFor();
+  assert.ok((await restored.getAttribute("href")).endsWith(`/p/${request.publicationId}`));
+  assert.equal((await read(viewer, snapshot)).status, 200);
+  assert.equal((await read(viewer, secondSnapshot)).status, 404);
   console.log(
     "browser publication API passed: UI publication, named viewer login and rendered exhibition, outsider denial and asset integrity",
   );

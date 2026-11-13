@@ -8,8 +8,18 @@ describe("progress feedback presentation", () => {
     const markup = renderToStaticMarkup(
       createElement(ProgressReviewList, {
         items: [
-          { id: "b", feedback: "Later feedback", revision: 2, createdAt: "2026-10-20T00:00:00Z" },
-          { id: "a", feedback: "Earlier feedback", revision: 1, createdAt: "2026-10-18T00:00:00Z" },
+          {
+            id: "b",
+            feedback: "Later feedback",
+            revision: 2,
+            createdAt: "2026-10-20T00:00:00Z",
+          },
+          {
+            id: "a",
+            feedback: "Earlier feedback",
+            revision: 1,
+            createdAt: "2026-10-18T00:00:00Z",
+          },
         ],
       }),
     );
@@ -30,7 +40,11 @@ describe("progress feedback presentation", () => {
           },
         ],
         decisions: [
-          { id: "decision", feedback: "First review", decidedAt: "2026-10-18T09:15:00Z" },
+          {
+            id: "decision",
+            feedback: "First review",
+            decidedAt: "2026-10-18T09:15:00Z",
+          },
         ],
       }),
     );
@@ -42,7 +56,7 @@ describe("progress feedback presentation", () => {
   });
 });
 
-it("opens the educator review dialog directly after returning from the editor", () => {
+it("waits for saved educator feedback before auto-opening the composer", () => {
   const markup = renderToStaticMarkup(
     createElement(ProgressReviews, {
       projectId: "11111111-1111-4111-8111-111111111111",
@@ -51,9 +65,9 @@ it("opens the educator review dialog directly after returning from the editor", 
       educator: true,
       onGuard: () => {},
       autoOpen: true,
+      startEditing: true,
       onClose: () => {},
     }),
   );
-  expect(markup).toContain("aria-labelledby=");
-  expect(markup).toContain("Add Reviews");
+  expect(markup).toBe("");
 });

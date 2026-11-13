@@ -36,7 +36,9 @@ try {
     dueAtUnixSeconds: saved?.dueAtUnixSeconds ?? 1796200000,
     projects: [
       { projectId: studentProjectId, studentId, studentName: "Alice" },
-      ...(saved ? [] : [{ projectId: bobProjectId, studentId: bobId, studentName: "Bob" }]),
+      ...((saved?.studentIds ?? [studentId, bobId]).includes(bobId)
+        ? [{ projectId: bobProjectId, studentId: bobId, studentName: "Bob" }]
+        : []),
     ],
   });
   await page.route("**/api/v1/**", async (route) => {
@@ -104,23 +106,52 @@ try {
     .locator("article")
     .filter({ has: page.locator(`[id="teacher-project-${classId}:${assignmentId}"]`) });
   await assignmentCard.getByRole("button", { name: "View Details" }).click();
-  await page.getByRole("button", { name: "Edit project details" }).click();
-  await page.getByLabel("Project title").fill("Updated museum");
+  const beforeEdit = await page
+    .getByRole("heading", { name: "Project Details", exact: true })
+    .boundingBox();
+  await page.getByRole("button", { name: "Edit Due Date" }).click();
+  const duringEdit = await page
+    .getByRole("heading", { name: "Project Details", exact: true })
+    .boundingBox();
+  assert.ok(Math.abs(beforeEdit.x - duringEdit.x) < 1, "Opening Edit does not shift the page");
+  assert.equal(await page.getByRole("dialog").count(), 0);
+  await page.getByRole("group", { name: "Edit Due Date", exact: true }).waitFor();
+  assert.equal(await page.getByLabel("Project title").count(), 0);
+  assert.equal(await page.getByRole("textbox", { name: /^Project description/ }).count(), 0);
   assert.equal(await page.getByLabel(/^Due date/).getAttribute("type"), "datetime-local");
-  await page.getByLabel("Project description").fill("New description");
-  await page.getByLabel("Project instructions").fill("New instructions");
-  await page.getByRole("checkbox", { name: /Bob/ }).uncheck();
+  await page.waitForFunction(() => document.activeElement?.id === "edit-assignment-due");
+  assert.equal(
+    await page.getByRole("button", { name: "Close project details", exact: true }).isDisabled(),
+    true,
+  );
+  assert.equal(
+    await page.getByRole("button", { name: "Edit Project Description", exact: true }).isDisabled(),
+    true,
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Edit Project Instructions" }).click();
+  assert.equal(await page.getByLabel(/^Due date/).count(), 0);
+  assert.equal(await page.getByRole("textbox", { name: /^Project instructions/ }).count(), 1);
+  await page
+    .getByRole("textbox", { name: /^Project instructions/ })
+    .fill("Discard this inline edit");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByText("Add exhibits", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Edit Project Description" }).click();
+  assert.equal(await page.getByRole("textbox", { name: /^Project instructions/ }).count(), 0);
+  await page.getByRole("textbox", { name: /^Project description/ }).fill("New description");
   await page.getByRole("button", { name: "Save changes" }).click();
-  await page.getByText("Updated museum", { exact: true }).waitFor();
+  await page
+    .getByRole("group", { name: "Edit Project Description", exact: true })
+    .waitFor({ state: "hidden" });
+  await page.getByText("New description", { exact: true }).waitFor();
   assert.ok(saved && /^[0-9a-f-]{36}$/i.test(saved.mutationId));
   assert.equal(saved.expectedRevision, 0);
-  assert.equal(saved.title, "Updated museum");
+  assert.equal(saved.title, "Museum");
   assert.equal(saved.description, "New description");
-  assert.equal(saved.instructions, "New instructions");
+  assert.equal(saved.instructions, "Add exhibits");
   assert.equal(saved.dueAtUnixSeconds, 1796200000, "Unchanged date preserves the exact deadline");
-  assert.deepEqual(saved.studentIds, [studentId]);
-  assert.equal(await page.getByText("Alice", { exact: true }).count(), 1);
-  assert.equal(await page.getByText("Bob", { exact: true }).count(), 0);
+  assert.deepEqual(saved.studentIds, [studentId, bobId]);
   await page.evaluate(
     ({ teacher, classId, assignmentId, studentId }) => {
       localStorage.setItem(
@@ -145,12 +176,12 @@ try {
   );
   superseded = true;
   await page.reload();
-  await assignmentCard.getByRole("button", { name: "View Details" }).click();
-  await page.getByRole("button", { name: "Edit project details" }).click();
-  const dialog = page.getByRole("dialog", { name: "Edit project details" });
+  await page.getByRole("button", { name: "Edit Due Date" }).waitFor();
+  await page.getByRole("button", { name: "Edit Due Date" }).click();
+  const dialog = page.getByRole("group", { name: "Edit Due Date", exact: true });
   await dialog.getByRole("button", { name: "Retry same request" }).click();
   await dialog.getByRole("button", { name: "Review latest version" }).click();
-  await dialog.getByText("Updated museum", { exact: true }).waitFor();
+  await dialog.getByText("Museum", { exact: true }).waitFor();
   assert.equal(
     await page.evaluate(
       ({ teacher, assignmentId }) =>
@@ -169,8 +200,9 @@ try {
     ),
     null,
   );
-  await page.getByRole("button", { name: "Edit project details" }).click();
-  assert.equal(await page.getByLabel("Project title").inputValue(), "Updated museum");
+  await page.getByRole("button", { name: "Edit Due Date" }).click();
+  assert.equal(await page.getByLabel("Project title").count(), 0);
+  assert.ok(await page.getByLabel(/^Due date/).inputValue());
   console.log("Teacher assignment edit checks passed");
 } finally {
   await browser?.close();

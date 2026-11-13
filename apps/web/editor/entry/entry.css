@@ -1,5 +1,6 @@
 :root {
   --login-button-surface: #000;
+  --login-redirect-surface: #fff;
 }
 .entry-page {
   color: #1f1b17;
@@ -691,4 +692,9 @@
   .login-form {
     padding: 20px 0;
   }
+}
+
+.login-redirect {
+  min-height: 100dvh;
+  background: var(--login-redirect-surface);
 }

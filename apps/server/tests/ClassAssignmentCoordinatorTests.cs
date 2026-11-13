@@ -18,6 +18,46 @@ namespace Spatia.Server.Tests;
 public sealed class ClassAssignmentCoordinatorTests
 {
     [Test]
+    public async Task ClassAssignment_ImageFollowsIndependentStudentCopiesWithoutSourceAccess()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var data = await SeedAsync(fixture);
+        var bytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGO0iapgYGAAAAUYARBocWoMAAAAAElFTkSuQmCC");
+        Guid imageId;
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var image = ProjectImageValidation.Read(new("cover", "image/png", bytes))!;
+            imageId = image.Id;
+            database.ProjectImages.Add(image);
+            (await database.Projects.SingleAsync(row => row.Id == data.SourceProject)).ImageId = image.Id;
+            await database.SaveChangesAsync();
+        }
+        var request = Request(data);
+        using var created = await SendAsync(fixture, data.ClassroomId, request);
+        await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var projects = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects").EnumerateArray()
+            .ToDictionary(row => row.GetProperty("studentId").GetGuid(), row => row.GetProperty("projectId").GetGuid());
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await Assert.That(await database.Projects.Where(row => projects.Values.Contains(row.Id))
+                .AllAsync(row => row.ImageId == imageId)).IsTrue();
+            await Assert.That(await database.ProjectImages.CountAsync()).IsEqualTo(1);
+        }
+        using var student = fixture.CreateClient();
+        await fixture.SignInAsync(data.FirstStudent, student);
+        var imagePath = $"/api/v1/projects/{projects[data.FirstStudent]:D}/image";
+        using (var image = await student.GetAsync(imagePath))
+        { await Assert.That(await image.Content.ReadAsByteArrayAsync()).IsEquivalentTo(bytes); }
+        using (var original = await student.GetAsync($"/api/v1/projects/{data.SourceProject:D}/image"))
+        { await Assert.That(original.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        using var detail = await student.GetAsync($"/api/v1/classes/{data.ClassroomId:D}/assignments/{request.RequestId:D}");
+        var metadata = (await detail.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("image");
+        await Assert.That(metadata.GetProperty("url").GetString()).IsEqualTo(imagePath);
+    }
+
+    [Test]
     public async Task AssignmentEditing_IgnoresArchivedInactiveDraftWhileEditingActiveStudents()
     {
         await using var fixture = await CreateFixtureAsync();
@@ -100,6 +140,20 @@ public sealed class ClassAssignmentCoordinatorTests
             await database.ClassAssignmentStudents.Where(row => row.AssignmentId == creation.RequestId)
                 .ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, false));
         }
+        var classified = 0;
+        foreach (var archivedOnly in new[] { false, true })
+        {
+            using var listed = await administrator.GetAsync($"/api/v1/projects?archived={archivedOnly.ToString().ToLowerInvariant()}");
+            await Assert.That(listed.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var summaries = (await listed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items");
+            foreach (var summary in summaries.EnumerateArray().Where(row => row.GetProperty("projectId").GetGuid() == data.SourceProject
+                || projects.Values.Contains(row.GetProperty("projectId").GetGuid())))
+            {
+                await Assert.That(summary.GetProperty("isClassProject").GetBoolean()).IsTrue();
+                classified++;
+            }
+        }
+        await Assert.That(classified).IsEqualTo(3);
         using var inactive = await administrator.GetAsync($"/api/v1/projects/{data.SourceProject:D}/assignments");
         await Assert.That(inactive.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await Assert.That((await inactive.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("classAssignments").GetArrayLength()).IsEqualTo(0);
@@ -313,6 +367,7 @@ public sealed class ClassAssignmentCoordinatorTests
                                      select org.Name).SingleAsync();
             await Assert.That(body.GetProperty("organizationName").GetString()).IsEqualTo(expectedOrg);
             await Assert.That(body.GetProperty("creatorName").GetString()).IsEqualTo(await AuthTestRequests.UserNameAsync(fixture, data.Educator));
+            await Assert.That(body.GetProperty("creatorUserName").GetString()).IsEqualTo(await AuthTestRequests.UserNameAsync(fixture, data.Educator));
             await Assert.That(body.GetProperty("projects")[0].GetProperty("approvalStatus").GetString()).IsEqualTo("not-submitted");
             await Assert.That(body.GetProperty("projects")[0].GetProperty("published").GetBoolean()).IsFalse();
         }
@@ -582,7 +637,7 @@ public sealed class ClassAssignmentCoordinatorTests
         using var administrator = fixture.CreateClient();
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator), administrator);
         using var rejected = await SendAsync(fixture, data.ClassroomId, Request(data) with { SourceProjectId = foreignProject }, administrator);
-        await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         await using var verification = fixture.Database.Services.CreateAsyncScope();
         var reopened = verification.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await Assert.That(await reopened.ClassAssignments.AnyAsync()).IsFalse();
@@ -600,7 +655,7 @@ public sealed class ClassAssignmentCoordinatorTests
             await database.Users.Where(row => row.Id == data.FirstStudent)
                 .ExecuteUpdateAsync(set => set.SetProperty(row => row.DisplayName, "Alice Example"));
         }
-        var firstName = $"Alice Example ({await AuthTestRequests.UserNameAsync(fixture, data.FirstStudent)})";
+        const string firstName = "Alice Example";
         var request = Request(data);
         using var created = await SendAsync(fixture, data.ClassroomId, request);
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
@@ -620,6 +675,8 @@ public sealed class ClassAssignmentCoordinatorTests
             var names = body.GetProperty("projects").EnumerateArray().ToDictionary(
                 row => row.GetProperty("studentId").GetGuid(), row => row.GetProperty("studentName").GetString());
             await Assert.That(names[data.FirstStudent]).IsEqualTo(firstName);
+            var firstStudentRow = body.GetProperty("projects").EnumerateArray().Single(row => row.GetProperty("studentId").GetGuid() == data.FirstStudent);
+            await Assert.That(firstStudentRow.GetProperty("studentUserName").GetString()).IsEqualTo(await AuthTestRequests.UserNameAsync(fixture, data.FirstStudent));
             await Assert.That(names[data.SecondStudent]).IsEqualTo(await AuthTestRequests.UserNameAsync(fixture, data.SecondStudent));
             await Assert.That(body.GetProperty("sourceProjectId").GetGuid()).IsEqualTo(data.SourceProject);
             await Assert.That(body.TryGetProperty("requestDigest", out _)).IsFalse();

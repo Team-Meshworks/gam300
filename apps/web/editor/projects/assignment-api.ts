@@ -1,20 +1,27 @@
+import { validProjectImage, type ProjectImage } from "./project-image";
 import { combineAbortSignals } from "../../shared/network/abort-signals";
 import type { EligibleStudent, ProjectClass } from "./new-project-form";
 
 export type AssignmentSession = {
   userId: string;
   displayName: string;
+  userName?: string;
   role: string;
   orgId: string | null;
   orgName?: string | null;
   mustChangePassword?: boolean;
 };
-export type SourceProject = { projectId: string; title: string; revision: number };
+export type SourceProject = {
+  projectId: string;
+  title: string;
+  revision: number;
+};
 const reviewStates = ["draft", "outdated", "pending", "approved", "returned", "revoked"] as const;
 export type AssignmentProject = {
   studentId: string;
   projectId: string;
   studentName?: string;
+  studentUserName?: string;
   reviewState?: (typeof reviewStates)[number] | null;
   approvalStatus?:
     | "not-submitted"
@@ -27,6 +34,7 @@ export type AssignmentProject = {
   isPublic?: boolean;
 };
 export type AssignmentDetails = {
+  image?: ProjectImage | null;
   assignmentId: string;
   title: string;
   description: string;
@@ -37,6 +45,7 @@ export type AssignmentDetails = {
   sourceProjectId?: string | null;
   organizationName?: string;
   creatorName?: string;
+  creatorUserName?: string;
   projects: AssignmentProject[];
 };
 export type PendingAssignment = {
@@ -113,6 +122,9 @@ export async function assignmentSession(signal?: AbortSignal): Promise<Assignmen
   return {
     userId: value.userId,
     displayName: value.displayName,
+    ...(typeof value.userName === "string" && value.userName.trim()
+      ? { userName: value.userName }
+      : {}),
     role: value.role,
     orgId: value.orgId,
     orgName: typeof value.orgName === "string" && value.orgName.trim() ? value.orgName : null,
@@ -303,6 +315,7 @@ export async function submitAssignment(
 export function assignmentDetails(value: unknown): AssignmentDetails {
   if (
     !record(value) ||
+    !validProjectImage(value.image) ||
     typeof value.assignmentId !== "string" ||
     typeof value.title !== "string" ||
     typeof value.description !== "string" ||
@@ -317,6 +330,7 @@ export function assignmentDetails(value: unknown): AssignmentDetails {
       typeof value.sourceProjectId !== "string") ||
     (value.organizationName !== undefined && typeof value.organizationName !== "string") ||
     (value.creatorName !== undefined && typeof value.creatorName !== "string") ||
+    !validStudentName(value.creatorUserName) ||
     !Array.isArray(value.projects) ||
     value.projects.some(
       (row) =>
@@ -324,6 +338,7 @@ export function assignmentDetails(value: unknown): AssignmentDetails {
         typeof row.studentId !== "string" ||
         typeof row.projectId !== "string" ||
         !validStudentName(row.studentName) ||
+        !validStudentName(row.studentUserName) ||
         !(row.reviewState == null || reviewStates.some((state) => state === row.reviewState)) ||
         (row.approvalStatus !== undefined &&
           ![

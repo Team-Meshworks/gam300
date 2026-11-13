@@ -28,10 +28,11 @@ public static class ProjectReadEndpoints
             var query = context.Request.Query;
             var limit = 10;
             Guid? cursor = null;
-            if (query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("limit" or "cursor" or "archived"))
+            if (query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("limit" or "cursor" or "archived" or "published"))
                 || (query.TryGetValue("limit", out var rawLimit)
                     && (!int.TryParse(rawLimit, NumberStyles.None, CultureInfo.InvariantCulture, out limit) || limit is < 1 or > 20))
-                || (query.TryGetValue("archived", out var rawArchived) && rawArchived[0] is not ("true" or "false")))
+                || (query.TryGetValue("archived", out var rawArchived) && rawArchived[0] is not ("true" or "false"))
+                || (query.TryGetValue("published", out var rawPublished) && rawPublished[0] is not ("true" or "false")))
             {
                 return InvalidQuery(context);
             }
@@ -43,7 +44,7 @@ public static class ProjectReadEndpoints
                 }
                 cursor = id;
             }
-            var result = await access.ListAsync(context, cursor, limit, query["archived"] == "true", cancellationToken);
+            var result = await access.ListAsync(context, cursor, limit, query["archived"] == "true", cancellationToken, published: query["published"] == "true");
             if (result.Failure is { } failure)
             {
                 return ProjectHttpResults.FromAccessFailure(context, failure);
@@ -58,7 +59,10 @@ public static class ProjectReadEndpoints
                                   select new
                                   {
                                       project.Id,
+                                      ImageType = database.ProjectImages.Where(image => image.Id == project.ImageId).Select(image => image.Type).FirstOrDefault(),
                                       OrganizationName = organization.Name,
+                                      IsClassProject = database.ClassAssignments.Any(assignment => assignment.SourceProjectId == project.Id)
+                                          || database.ClassAssignmentStudents.Any(student => student.ProjectId == project.Id),
                                       IsPublic = !project.IsArchived && (from edition in database.Publications
                                                                          join state in database.PublicationAccess on edition.Id equals state.PublicationId
                                                                          where edition.ProjectId == project.Id
@@ -67,11 +71,26 @@ public static class ProjectReadEndpoints
                                                                              && !retired.Contains(edition.Id)
                                                                          select edition.Id).Any(),
                                   }).ToDictionaryAsync(row => row.Id, cancellationToken);
+            var published = query["published"] == "true"
+                ? await database.Projects.AsNoTracking().Where(project => pageIds.Contains(project.Id))
+                    .Select(project => new
+                    {
+                        project.Id,
+                        Edition = database.Publications
+                        .Where(edition => edition.ProjectId == project.Id && !retired.Contains(edition.Id)
+                            && !database.PublicationAccess.Any(state => state.PublicationId == edition.Id && state.Deleted))
+                        .OrderByDescending(edition => edition.CreatedAt).ThenByDescending(edition => edition.Id).FirstOrDefault()
+                    })
+                    .ToDictionaryAsync(row => row.Id, row => row.Edition, cancellationToken)
+                : null;
             var items = new List<ProjectSummary>();
             foreach (var project in result.Projects)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var document = documents.ReadStored(project.ProjectId, project.SchemaVersion, project.UnvalidatedDocumentJson);
+                var edition = published?.GetValueOrDefault(project.ProjectId);
+                if (published is not null && edition is null) { return Unavailable(context); }
+                var document = documents.ReadStored(project.ProjectId, edition?.SchemaVersion ?? project.SchemaVersion,
+                    edition?.DocumentJson ?? project.UnvalidatedDocumentJson);
                 if (!document.Ok)
                 {
                     return Unavailable(context);
@@ -83,8 +102,8 @@ public static class ProjectReadEndpoints
                     title = title[..(char.IsHighSurrogate(title[254]) ? 254 : 255)] + "…";
                 }
                 if (!metadata.TryGetValue(project.ProjectId, out var details)) { return Unavailable(context); }
-                items.Add(new(project.ProjectId, title, project.Revision, project.UpdatedAt, project.IsArchived, Permissions(project),
-                    details.OrganizationName, details.IsPublic));
+                items.Add(new(project.ProjectId, title, edition?.SourceRevision ?? project.Revision, edition?.CreatedAt ?? project.UpdatedAt, project.IsArchived, Permissions(project),
+                    details.OrganizationName, details.IsPublic, details.ImageType is null ? null : new ProjectImageMetadata(details.ImageType, $"/api/v1/projects/{project.ProjectId:D}/image"), details.IsClassProject));
             }
             return HasExpired(context)
                 ? ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired)

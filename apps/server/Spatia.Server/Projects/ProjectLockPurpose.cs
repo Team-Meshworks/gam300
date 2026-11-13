@@ -24,4 +24,7 @@ public enum ProjectLockPurpose
     /// Requires existing publishing permission on an unarchived project
     /// </summary>
     Publish,
+
+    /// <summary>Allows authorized moderation without granting draft editing or publishing rights</summary>
+    ModeratePublications,
 }

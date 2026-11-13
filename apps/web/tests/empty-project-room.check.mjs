@@ -114,26 +114,9 @@ try {
     page.setDefaultTimeout(8000);
     page.on("pageerror", (error) => errors.push(error.message));
     const url = `${base}/?projectId=${fixture.projectId}`;
-    await page.goto(`${base}/home`);
-    await page.getByText("Manage projects and archives", { exact: true }).click();
-    await page
-      .getByRole("button", { name: "New project", exact: true })
-      .click()
-      .catch(async (error) => {
-        console.error(
-          "Creation failed:",
-          page.url(),
-          await page.locator("body").innerText(),
-          errors,
-        );
-        throw error;
-      });
-    const dialog = page.getByRole("dialog", { name: "New project" });
-    await dialog.getByLabel("Project title").fill(`Empty ${method}`);
-    assert.equal(await dialog.getByLabel("3D space").inputValue(), "");
-    await dialog.getByRole("button", { name: "Create project" }).click();
-    await page.waitForURL(url);
+    await page.goto(url);
     await page.getByText("Scene ready", { exact: true }).waitFor({ timeout: 60000 });
+    await page.getByRole("button", { name: "Close base model chooser", exact: true }).click();
     await page.getByRole("button", { name: "Third person", exact: true }).click();
     await page.getByRole("button", { name: "Rooms", exact: true }).click();
     const choice = page.getByRole("button", { name: "Approved room", exact: true });

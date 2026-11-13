@@ -21,6 +21,71 @@ public sealed class ProjectLifecycleTests
 {
     private const string Marker = "private-lifecycle-document-not-for-errors-or-logs";
 
+    // Exercise the actual creation boundary, private bytes and copy semantics in one focused round trip
+    [Test]
+    [Arguments("image/png", "iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGO0iapgYGAAAAUYARBocWoMAAAAAElFTkSuQmCC")]
+    [Arguments("image/jpeg", "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAIDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDk6KKK9I4D/9k=")]
+    [Arguments("image/webp", "UklGRjIAAABXRUJQVlA4ICYAAACQAQCdASoCAAEAAUAmJQBOl0AAcwAA/vDXA+KAUjhzvzfY9pgAAA==")]
+    public async Task ProjectImages_CreateAndDuplicateRetainPrivateBytes(string contentType, string encoded)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var actor = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        await fixture.SignInAsync(actor);
+        var data = Convert.FromBase64String(encoded);
+        var id = await CreateAsync(fixture, new { title = Marker, image = new { type = "panorama", contentType, data } });
+        var path = $"/api/v1/projects/{id:D}/image";
+        using (var image = await fixture.Client.GetAsync(path))
+        {
+            await Assert.That(image.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That(image.Content.Headers.ContentType!.MediaType).IsEqualTo(contentType);
+            await Assert.That(await image.Content.ReadAsByteArrayAsync()).IsEquivalentTo(data);
+            await Assert.That(image.Headers.CacheControl!.NoStore).IsTrue();
+        }
+        using (var listed = await fixture.Client.GetAsync("/api/v1/projects"))
+        {
+            var metadata = (await listed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0].GetProperty("image");
+            await Assert.That(metadata.GetProperty("type").GetString()).IsEqualTo("panorama");
+            await Assert.That(metadata.GetProperty("url").GetString()).IsEqualTo(path);
+        }
+        using var duplicate = await SendAsync(fixture, HttpMethod.Post, Path(id, "/duplicate"), new { expectedRevision = 0, title = "Copy" });
+        var copyId = (await MetadataAsync(duplicate, HttpStatusCode.Created, 0)).GetProperty("projectId").GetGuid();
+        using (var copy = await fixture.Client.GetAsync($"/api/v1/projects/{copyId:D}/image"))
+        { await Assert.That(await copy.Content.ReadAsByteArrayAsync()).IsEquivalentTo(data); }
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await Assert.That(await database.ProjectImages.CountAsync()).IsEqualTo(1);
+            // Removing a current grant must immediately deny image reads, including after a prior successful load
+            await database.ProjectAssignments.Where(row => row.ProjectId == id && row.UserId == actor).ExecuteDeleteAsync();
+        }
+        using var denied = await fixture.Client.GetAsync(path);
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
+    public async Task ProjectImages_InvalidUploadDoesNotCreateAProjectOrImage()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Educator));
+        foreach (var image in new[]
+        {
+            new ProjectImageUpload("cover", "image/png", new byte[] { 137, 80, 78, 71 }),
+            new ProjectImageUpload("cover", "image/svg+xml", "<svg/>"u8.ToArray()),
+            new ProjectImageUpload("panorama", "image/png", Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC")),
+            new ProjectImageUpload("cover", "image/png", Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAEAEAAAABCAIAAAA+gZcVAAAAI0lEQVR4nO3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAgA4MMAQAAVBo6+cAAAAASUVORK5CYII=")),
+            new ProjectImageUpload("cover", "image/png", new byte[ProjectImageValidation.MaximumBytes + 1]),
+            new ProjectImageUpload("unknown", "image/png", Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGO0iapgYGAAAAUYARBocWoMAAAAAElFTkSuQmCC")),
+        })
+        {
+            using var response = await SendAsync(fixture, HttpMethod.Post, "/api/v1/projects", new { title = Marker, image });
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
+        }
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.Projects.CountAsync()).IsEqualTo(0);
+        await Assert.That(await database.ProjectImages.CountAsync()).IsEqualTo(0);
+    }
+
     [Test]
     [Arguments(ApplicationRoles.Educator)]
     [Arguments(ApplicationRoles.Creator)]
@@ -86,7 +151,6 @@ public sealed class ProjectLifecycleTests
     [Test]
     [Arguments(ApplicationRoles.Creator)]
     [Arguments(ApplicationRoles.Educator)]
-    [Arguments(ApplicationRoles.Administrator)]
     public async Task ProjectLifecycle_BlankCreationDerivesOrganizationAndInitialAuthority(string role)
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
@@ -147,45 +211,37 @@ public sealed class ProjectLifecycleTests
     }
 
     [Test]
-    public async Task ProjectLifecycle_AdministratorProvisionsAndReassignsStudentsWithoutExposingOtherWork()
+    public async Task ProjectLifecycle_AdministratorCanReadButCannotMutateStudentWork()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var educator = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        await fixture.SignInAsync(educator);
+        var project = await CreateAsync(fixture, new { title = Marker, environmentAssetId = "test-room-v1" });
+        var before = await ReadAsync(fixture, project);
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
-        using var organizationResponse = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/organizations", new { name = "Class" });
-        await Assert.That(organizationResponse.StatusCode).IsEqualTo(HttpStatusCode.Created);
-        var organization = (await organizationResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
-        var students = new List<Guid>();
-        foreach (var name in new[] { "student-one", "student-two" })
+        var opened = await OpenAsync(fixture, project);
+        foreach (var permission in new[] { "canEdit", "canManage", "canPublish" })
         {
-            using var provisioned = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/users", new
-            { userName = name, initialPassword = AuthTestRequests.CurrentPassword, role = ApplicationRoles.Creator, orgId = organization });
-            await Assert.That(provisioned.StatusCode).IsEqualTo(HttpStatusCode.Created);
-            students.Add((await provisioned.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid());
+            await Assert.That(opened.GetProperty("permissions").GetProperty(permission).GetBoolean()).IsFalse();
         }
-        var project = await CreateAsync(fixture, new { title = Marker, environmentAssetId = "test-room-v1", orgId = organization });
-        using var assigned = await SendAsync(fixture, HttpMethod.Patch, Path(project, "/assignments"), Assignments(0, [students[0]], publish: [students[0]]));
-        await MetadataAsync(assigned, HttpStatusCode.OK, 1);
-        using var firstClient = fixture.CreateClient();
-        using var secondClient = fixture.CreateClient();
-        foreach (var (name, client) in new[] { ("student-one", firstClient), ("student-two", secondClient) })
+        foreach (var (method, path, body) in new[]
         {
-            using var login = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login", new { userName = name, password = AuthTestRequests.CurrentPassword }, client);
-            await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-            using var password = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/password", new { currentPassword = AuthTestRequests.CurrentPassword, newPassword = AuthTestRequests.NewPassword }, client);
-            await Assert.That(password.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+            (HttpMethod.Post, "/api/v1/projects/", (object)new { title = Marker, orgId = before.OrganizationId }),
+            (HttpMethod.Put, Path(project), Save(project, "Unauthorized edit", 0)),
+            (HttpMethod.Post, Path(project, "/duplicate"), (object)new { expectedRevision = 0, title = "Copy" }),
+            (HttpMethod.Patch, Path(project, "/archive"), (object)new { expectedRevision = 0, archived = true }),
+            (HttpMethod.Patch, Path(project, "/assignments"), Assignments(0, [], [educator])),
+            (HttpMethod.Post, Path(project, "/progress-reviews"), (object)new { reviewId = Guid.NewGuid(), expectedRevision = 0, feedback = "Unauthorized comment" }),
+            (HttpMethod.Post, Path(project, "/submissions"), (object)new { submissionId = Guid.NewGuid(), expectedRevision = 0, completionConfirmed = true }),
+            (HttpMethod.Post, Path(project, $"/submissions/{Guid.NewGuid():D}/decisions"), (object)new { decisionId = Guid.NewGuid(), expectedRevision = 0, outcome = "approved", feedback = "Unauthorized review" })
+        })
+        {
+            using var rejected = await SendAsync(fixture, method, path, body);
+            await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         }
-        await Assert.That((await OpenAsync(fixture, project, firstClient)).GetProperty("permissions").GetProperty("canPublish").GetBoolean()).IsTrue();
-        using var excluded = await secondClient.GetAsync(Path(project));
-        await ProblemAsync(fixture, excluded, HttpStatusCode.NotFound, "project_not_found");
-        using var reassigned = await SendAsync(fixture, HttpMethod.Patch, Path(project, "/assignments"), Assignments(1, [students[1]]));
-        await MetadataAsync(reassigned, HttpStatusCode.OK, 2);
-        using var removed = await firstClient.GetAsync(Path(project));
-        await ProblemAsync(fixture, removed, HttpStatusCode.NotFound, "project_not_found");
-        using var firstList = await firstClient.GetAsync("/api/v1/projects");
-        using var secondList = await secondClient.GetAsync("/api/v1/projects");
-        await Assert.That((await firstList.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength()).IsEqualTo(0);
-        await Assert.That((await secondList.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0].GetProperty("projectId").GetGuid()).IsEqualTo(project);
-        await Assert.That((await OpenAsync(fixture, project, secondClient)).GetProperty("permissions").GetProperty("canPublish").GetBoolean()).IsFalse();
+        var after = await ReadAsync(fixture, project);
+        await Assert.That(after.DocumentJson).IsEqualTo(before.DocumentJson);
+        await Assert.That(after.Revision).IsEqualTo(before.Revision);
     }
 
     [Test]

@@ -75,6 +75,7 @@ try {
         thumbnailFor: () => undefined,
         onAdd: (id) => window.selectedRoomIds.push(id),
         onAudio: () => {},
+        onPickerChange: () => {},
         onDragChange: () => {},
         tool: "select",
         onToolChange: () => {},

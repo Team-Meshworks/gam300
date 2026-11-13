@@ -56,7 +56,13 @@ try {
             items: assignments.map((body) => ({
               ...body,
               assignmentId: body.requestId,
-              projects: [{ studentId, projectId: studentProjectId, studentName: "Alice" }],
+              projects: [
+                {
+                  studentId,
+                  projectId: studentProjectId,
+                  studentName: "Alice",
+                },
+              ],
             })),
             nextCursor: null,
           },
@@ -94,7 +100,11 @@ try {
                     revision: 3,
                     updatedAt: "2026-11-05T00:00:00Z",
                     archived: false,
-                    permissions: { canEdit: true, canManage: true, canPublish: true },
+                    permissions: {
+                      canEdit: true,
+                      canManage: true,
+                      canPublish: true,
+                    },
                   },
                 ]
               : [],
@@ -105,24 +115,35 @@ try {
         writes.push(request.postDataJSON());
         return route.fulfill({
           status: 201,
-          json: { projectId, revision: 0, updatedAt: "2026-11-05T00:00:00Z", archived: false },
+          json: {
+            projectId,
+            revision: 0,
+            updatedAt: "2026-11-05T00:00:00Z",
+            archived: false,
+          },
         });
       }
       return route.fulfill({ status: 404 });
     });
     await page.route(`**/?projectId=${projectId}`, (route) => route.fulfill({ body: "editor" }));
-    const assetsLoaded =
-      role === "Creator" &&
-      page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/assets");
     await page.goto(origin + "/home");
-    if (role === "Creator")
-      await page.getByText("Manage projects and archives", { exact: true }).click();
-    if (assetsLoaded)
-      await assetsLoaded.catch(async (error) => {
-        throw new Error(`Assets request did not occur: ${await page.locator("body").innerText()}`, {
-          cause: error,
-        });
-      });
+    if (role === "Creator") {
+      // Creators browse assigned projects without fetching the creation catalogue.
+      await page.getByRole("heading", { name: "Projects", exact: true }).waitFor();
+      await page.getByText("No projects are available yet.", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("button", { name: "New project", exact: true }).count(), 0);
+      assert.equal(
+        await page.getByText("Manage projects and archives", { exact: true }).count(),
+        0,
+      );
+      assert.equal(assetReads, 0);
+      assert.deepEqual(writes, []);
+      await page.goto(origin + "/new-project");
+      await page.getByRole("heading", { name: "Access denied", exact: true }).waitFor();
+      assert.deepEqual(writes, [], "A direct route must not bypass creator creation restrictions");
+      await page.close();
+      continue;
+    }
     if (role === "Educator") {
       if (missingSource) {
         await page.evaluate(
@@ -143,11 +164,47 @@ try {
       }
       await page.getByRole("link", { name: "New Project", exact: true }).click();
       await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
+      assert.equal(
+        await page.getByRole("combobox", { name: /^Class/ }).innerText(),
+        "Select a class",
+      );
+      await page.getByLabel("Project title").fill("Discard this draft");
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      const departure = page.getByRole("dialog", { name: "Leave this page?" });
+      await departure.waitFor();
+      assert.equal(await departure.getByRole("button").count(), 2);
+      await departure.getByRole("button", { name: "Keep editing", exact: true }).click();
+      assert.equal(await page.getByLabel("Project title").inputValue(), "Discard this draft");
+      assert.equal(
+        await page.evaluate(() => {
+          const event = new Event("beforeunload", { cancelable: true });
+          window.dispatchEvent(event);
+          return event.defaultPrevented;
+        }),
+        true,
+        "Keeping edits must retain native unload protection",
+      );
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      let nativePrompts = 0;
+      const dismissNative = async (dialog) => {
+        nativePrompts++;
+        await dialog.dismiss();
+      };
+      page.on("dialog", dismissNative);
+      await departure.getByRole("button", { name: "Discard and leave", exact: true }).click();
+      await page.waitForURL(`${origin}/home`).catch((error) => {
+        throw new Error(JSON.stringify({ nativePrompts, url: page.url() }), { cause: error });
+      });
+      page.off("dialog", dismissNative);
+      assert.equal(nativePrompts, 0, "Confirmed discard must not ask again through beforeunload");
+      await page.getByRole("link", { name: "New Project", exact: true }).click();
+      await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
       await page.getByLabel("Project title").fill("Blank project");
       await page.getByLabel("Project description").fill("Description");
       await page.getByLabel("Project instructions").fill("Instructions");
-      await page.getByLabel(/^Due date/).fill("2027-12-01T15:30");
-      await page.getByLabel(/^Class/).selectOption(classId);
+      await page.getByLabel(/^Due date/).fill("2027-12-01");
+      await page.getByRole("combobox", { name: /^Class/ }).click();
+      await page.getByRole("option", { name: "Class", exact: true }).click();
       await page.getByRole("checkbox", { name: /Alice/ }).check();
       await page.getByRole("button", { name: "Create project" }).click();
       if (missingSource) {
@@ -174,10 +231,10 @@ try {
       }
       await page.getByText(/assignment was not created/i).waitFor();
       await page.getByRole("button", { name: "Create project" }).click();
-      await page.getByRole("heading", { name: "Project details", exact: true }).waitFor();
-      await page.getByRole("heading", { name: "Blank project", exact: true }).waitFor();
-      await page.getByText("Alice", { exact: true }).waitFor();
-      await page.getByRole("button", { name: "View Progress" }).waitFor();
+      await page.waitForURL(`${origin}/home`);
+      await page.getByRole("heading", { name: "All Projects", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "Blank project", exact: true }).first().waitFor();
+      assert.equal(await page.getByRole("button", { name: /Open project for/ }).count(), 0);
       assert.deepEqual(writes, [{ title: "Blank project" }]);
       assert.equal(assignments.length, 2);
       assert.equal(assignments[1].sourceProjectId, projectId);
@@ -188,41 +245,10 @@ try {
       await page.close();
       continue;
     }
-    const create = page.getByRole("button", { name: "New project", exact: true });
-    await create.waitFor();
-    await page
-      .waitForFunction(
-        () =>
-          [...document.querySelectorAll("button")].some(
-            (button) => button.textContent.trim() === "New project" && !button.disabled,
-          ),
-        null,
-        { timeout: 3000 },
-      )
-      .catch(() =>
-        assert.fail(
-          `New project should be enabled for ${role} with catalogue status ${assetsStatus}`,
-        ),
-      );
-    await create.click();
-    const dialog = page.getByRole("dialog", { name: "New project" });
-    assert.equal(
-      await dialog
-        .getByText(
-          "Empty projects can be edited and assigned, but publishing is not yet available.",
-          { exact: true },
-        )
-        .count(),
-      1,
-      "Empty projects explain the current publishing limitation",
-    );
-    await dialog.getByLabel("Project title").fill("Blank project");
-    await dialog.getByRole("button", { name: "Create project" }).click();
-    await page.waitForURL(`**/?projectId=${projectId}`);
-    assert.deepEqual(writes, [{ title: "Blank project" }]);
-    await page.close();
   }
-  console.log("Educators and creators can create a blank project when spaces are empty");
+  console.log(
+    "Educators can create blank assignments; creators retain the assigned-project entry boundary",
+  );
 } finally {
   await browser.close();
 }

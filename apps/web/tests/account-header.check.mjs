@@ -73,10 +73,63 @@ try {
           },
         },
       });
+    if (path === "/api/v1/projects/publication-links")
+      return route.fulfill({ json: { items: [], nextCursor: null } });
     if (path === "/api/v1/classes" || path === "/api/v1/projects")
       return route.fulfill({ json: { items: [], nextCursor: null } });
     return route.fulfill({ status: 404 });
   });
+  // Every role consumes the same shared header appearance, including responsive controls.
+  const headerStyles = () =>
+    page
+      .locator(
+        ".sp-header-brand, .sp-header-mark, .sp-header-account, .sp-header-account .sp-avatar, .sp-header-name, .sp-header-logout",
+      )
+      .evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const css = getComputedStyle(node);
+          return {
+            font: css.font,
+            gap: css.gap,
+            padding: css.padding,
+            color: css.color,
+            background: css.backgroundColor,
+            border: css.border,
+            radius: css.borderRadius,
+            height: css.height,
+            align: css.alignItems,
+            justify: css.justifyContent,
+          };
+        }),
+      );
+  await mkdir("../../.artifacts/account-header", { recursive: true });
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    let shared;
+    for (const [role, route] of [
+      ["Educator", "review"],
+      ["Administrator", "spaces"],
+      ["Creator", "home"],
+    ]) {
+      current = {
+        ...session,
+        displayName: "Shared Header",
+        role,
+        orgId: role === "Administrator" ? null : session.orgId,
+      };
+      await page.goto(`${origin}/${route}`);
+      await page.getByText("Shared Header", { exact: true }).waitFor();
+      await page.screenshot({
+        path: `../../.artifacts/account-header/shared-${role}-${width}.png`,
+      });
+      const rendered = await headerStyles();
+      if (shared)
+        assert.deepEqual(rendered, shared, `${role} shares the facilitator header at ${width}px`);
+      else shared = rendered;
+    }
+  }
+  current = session;
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${origin}/review`);
   await page.getByText("First Educator", { exact: true }).waitFor();
   const before = sessionReads;
@@ -185,6 +238,34 @@ try {
   const upload = page.getByRole("dialog", { name: "Upload 3D Space" });
   await upload.getByText("Additional Details", { exact: true }).click();
   await upload.getByLabel("Source or provenance (optional)").fill("Unsent museum archive");
+  await upload.evaluate((dialog) => {
+    window.uploadDialogCloseCount = 0;
+    dialog.addEventListener("close", () => window.uploadDialogCloseCount++);
+  });
+  holdNextSession = true;
+  const uploadRecheck = new Promise((resolve) => {
+    sessionStarted = resolve;
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await waitForSignal(uploadRecheck, "Upload session recheck");
+  assert.equal(
+    await upload.evaluate((dialog) => dialog.matches(":modal")),
+    true,
+    "Upload stays visible during file-picker return checks",
+  );
+  assert.equal(
+    await upload.evaluate((dialog) => dialog.inert),
+    true,
+    "Upload interactions stay blocked while access is unverified",
+  );
+  releaseSession();
+  await page.waitForFunction(() => !document.querySelector(".asset-admin-dialog").inert);
+  assert.equal(
+    await page.evaluate(() => window.uploadDialogCloseCount),
+    0,
+    "Session verification must not close and reopen the upload backdrop",
+  );
+
   sessionFailure = true;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page
@@ -199,9 +280,32 @@ try {
   );
   current = { ...session, role: "Creator", displayName: "👩‍🎨 Creator" };
   await page.goto(`${origin}/home`);
-  await page.getByRole("button", { name: "Settings", exact: true }).waitFor();
+  await page.getByText(current.displayName, { exact: true }).waitFor();
   assert.equal(await page.locator(".sp-header-account .sp-avatar").textContent(), "👩‍🎨");
-  console.log("Account rechecks, stale responses and uncertain logout are guarded.");
+  const emptyProjects = page.getByText("No projects are available yet.", { exact: true });
+  await emptyProjects.waitFor();
+  holdNextSession = true;
+  const creatorRecheck = new Promise((resolve) => {
+    sessionStarted = resolve;
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await waitForSignal(creatorRecheck, "Creator session recheck");
+  assert.equal(
+    await emptyProjects.isVisible(),
+    true,
+    "Confirmed creator content must not flash to loading during rechecks",
+  );
+  assert.equal(
+    await page.locator(".sp-shell").evaluate((node) => Boolean(node.closest("[inert]"))),
+    true,
+  );
+  releaseSession();
+  await page.waitForFunction(() => !document.querySelector(".sp-shell").closest("[inert]"));
+  await page.getByRole("tab", { name: "Published", exact: true }).click();
+  await page.getByText("No published projects are available yet.", { exact: true }).waitFor();
+  console.log(
+    "Shared header parity, account rechecks, stale responses and uncertain logout are guarded.",
+  );
 } finally {
   await browser.close();
 }

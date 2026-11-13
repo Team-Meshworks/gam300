@@ -45,6 +45,8 @@ public sealed class ProductionRoomBrowserTests
             app.MapGet("/", () => Results.File(Path.Combine(directory, "index.html"), "text/html")).AllowAnonymous();
             app.MapGet("/login", () => Results.File(Path.Combine(directory, "entry.html"), "text/html"))
                 .AllowAnonymous();
+            app.MapGet("/home", () => Results.File(Path.Combine(directory, "entry.html"), "text/html"))
+                .AllowAnonymous();
         }, environmentName: "Production");
 
         var administrator = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);

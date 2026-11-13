@@ -53,7 +53,7 @@ internal static class ClassAssignmentReads
         var sourceIds = page.Select(row => row.SourceProjectId).ToArray();
         var creatorIds = page.Select(row => row.CreatedByUserId).Distinct().ToArray();
         var creators = await database.Users.AsNoTracking().Where(user => creatorIds.Contains(user.Id))
-            .Select(user => new { user.Id, Name = string.IsNullOrEmpty(user.DisplayName) ? user.UserName : user.DisplayName }).ToArrayAsync(cancellationToken);
+            .Select(user => new { user.Id, user.UserName, Name = string.IsNullOrEmpty(user.DisplayName) ? user.UserName : user.DisplayName }).ToArrayAsync(cancellationToken);
         var organizationName = await database.Organizations.AsNoTracking().Where(org => org.Id == classroom!.OrganizationId)
             .Select(org => org.Name).SingleAsync(cancellationToken);
         var creator = account.Role == ApplicationRoles.Creator;
@@ -70,7 +70,8 @@ internal static class ClassAssignmentReads
                                   mapping.ProjectId,
                                   StudentName = string.IsNullOrEmpty(student.DisplayName)
                                       ? student.UserName ?? student.Id.ToString()
-                                      : student.DisplayName + " (" + (student.UserName ?? student.Id.ToString()) + ")",
+                                      : student.DisplayName,
+                                  StudentUserName = student.UserName,
                               }).ToArrayAsync(cancellationToken);
         var projectIds = projects.Where(row => !creator || row.StudentId == account.UserId).Select(row => row.ProjectId).ToArray();
         var retired = database.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM retired_publication_ids");
@@ -79,6 +80,7 @@ internal static class ClassAssignmentReads
             {
                 project.Id,
                 project.Revision,
+                ImageType = database.ProjectImages.Where(image => image.Id == project.ImageId).Select(image => image.Type).FirstOrDefault(),
                 Submission = database.ReviewSubmissions.Where(submission => submission.ProjectId == project.Id)
                     .OrderByDescending(submission => submission.Sequence)
                     .Select(submission => new
@@ -102,6 +104,7 @@ internal static class ClassAssignmentReads
             }).ToArrayAsync(cancellationToken);
         var items = page.Select(row => new AssignmentView(row.Id, row.Title, row.Description, row.Instructions, row.DueAtUnixSeconds, row.Revision,
             organizationName, creators.FirstOrDefault(user => user.Id == row.CreatedByUserId)?.Name ?? "Teacher",
+            creators.FirstOrDefault(user => user.Id == row.CreatedByUserId)?.UserName,
             visibleSources.Contains(row.SourceProjectId) ? row.SourceProjectId : null,
             projects.Where(project => project.AssignmentId == row.Id)
                 .Select(project =>
@@ -123,10 +126,14 @@ internal static class ClassAssignmentReads
                         "awaiting-approval" => "pending",
                         _ => approval,
                     };
-                    return new StudentProject(project.StudentId, project.ProjectId, project.StudentName, reviewState,
+                    return new StudentProject(project.StudentId, project.ProjectId, project.StudentName, project.StudentUserName, reviewState,
                         creator ? null : approval, creator ? null : status?.Published,
                         account.Role == ApplicationRoles.Administrator ? status?.IsPublic : null);
-                }).ToArray())).ToArray();
+                }).ToArray(),
+            projects.Where(project => project.AssignmentId == row.Id)
+                .Select(project => new { project.ProjectId, Type = statusRows.FirstOrDefault(item => item.Id == project.ProjectId)?.ImageType })
+                .Where(image => image.Type is not null)
+                .Select(image => new ProjectImageMetadata(image.Type!, $"/api/v1/projects/{image.ProjectId:D}/image")).FirstOrDefault())).ToArray();
         if (assignmentId is not null && items.Length == 0)
         {
             return ApiProblems.Create(context, 404, "class_assignment_not_found", "The assignment is unavailable.");
@@ -138,11 +145,13 @@ internal static class ClassAssignmentReads
 
     private sealed record AssignmentView(Guid AssignmentId, string Title, string Description, string Instructions,
         long DueAtUnixSeconds, long Revision, string OrganizationName, string CreatorName,
-        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? SourceProjectId, StudentProject[] Projects)
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CreatorUserName,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? SourceProjectId, StudentProject[] Projects, ProjectImageMetadata? Image)
     {
         public string AssignedBy => CreatorName;
     }
-    private sealed record StudentProject(Guid StudentId, Guid ProjectId, string StudentName, string? ReviewState,
+    private sealed record StudentProject(Guid StudentId, Guid ProjectId, string StudentName,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? StudentUserName, string? ReviewState,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ApprovalStatus,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Published,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? IsPublic);

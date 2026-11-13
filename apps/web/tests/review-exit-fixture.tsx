@@ -10,11 +10,15 @@ createRoot(document.getElementById("root")!).render(
     orgId="44444444-4444-4444-8444-444444444444"
     educator
     autoOpen
-    publication={{
-      studentId: "33333333-3333-4333-8333-333333333333",
-      studentName: "Student One",
-      projectTitle: "Museum",
-    }}
+    {...(new URLSearchParams(location.search).has("history")
+      ? {}
+      : {
+          publication: {
+            studentId: "33333333-3333-4333-8333-333333333333",
+            studentName: "Student One",
+            projectTitle: "Museum",
+          },
+        })}
     onGuard={() => {}}
     onSaved={() => {
       document.body.dataset.saved = "yes";

@@ -49,11 +49,14 @@ const publicationStates = Object.fromEntries(
     project.projectId,
     {
       projectId: project.projectId,
-      publicationCount: project.isPublic ? 1 : 0,
+      publicationCount: 1,
       hiddenCount: 0,
       publicCount: project.isPublic ? 1 : 0,
     },
   ]),
+);
+const originallyPublic = new Set(
+  projects.filter((project) => project.isPublic).map((project) => project.projectId),
 );
 const moderationReads = [];
 const moderationWrites = [];
@@ -71,6 +74,7 @@ try {
     });
   });
   page.setDefaultTimeout(10000);
+  page.setDefaultNavigationTimeout(30000);
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   let authenticated = false;
@@ -81,6 +85,7 @@ try {
   let assetError = false;
   let assetReads = 0;
   let projectReads = 0;
+  let adminProjectReads = 0;
   let creations = 0;
   // Keep mock catalogue previews independent of Vite source paths and build hashing.
   const assetThumbnail = await readFile("editor/home/assets/default-project-neutral.jpg");
@@ -120,23 +125,27 @@ try {
         authenticated = false;
         return route.fulfill({ status: 204 });
       }
-      if (/^\/api\/v1\/admin\/projects\/[0-9a-f-]+\/publication-moderation$/.test(url.pathname)) {
+      if (
+        /^\/api\/v1\/admin\/projects(?:\/[0-9a-f-]+)?\/publication-moderation$/.test(url.pathname)
+      ) {
         assert.equal(request.headers()["x-spatia-account"], userId);
-        const projectId = url.pathname.split("/")[5];
-        const action = request.postDataJSON().action;
-        moderationWrites.push({ projectId, action });
-        const state = publicationStates[projectId];
-        if (action === "delete") {
-          state.publicationCount = 0;
-          state.hiddenCount = 0;
-          state.publicCount = 0;
-        } else {
-          state.hiddenCount = action === "hide" ? state.publicationCount : 0;
-          state.publicCount = action === "hide" ? 0 : state.publicationCount;
-        }
-        const project = projects.find((row) => row.projectId === projectId);
-        if (project) {
-          project.isPublic = state.publicCount > 0;
+        const { action, projectIds = [url.pathname.split("/")[5]] } = request.postDataJSON();
+        for (const projectId of projectIds) {
+          moderationWrites.push({ projectId, action });
+          const state = publicationStates[projectId];
+          if (action === "delete") {
+            state.publicationCount = 0;
+            state.hiddenCount = 0;
+            state.publicCount = 0;
+          } else {
+            state.hiddenCount = action === "hide" ? state.publicationCount : 0;
+            state.publicCount =
+              action === "hide" || !originallyPublic.has(projectId) ? 0 : state.publicationCount;
+          }
+          const project = projects.find((row) => row.projectId === projectId);
+          if (project) {
+            project.isPublic = state.publicCount > 0;
+          }
         }
         if (loseModerationResponse) {
           loseModerationResponse = false;
@@ -170,7 +179,9 @@ try {
         failModerationRead = false;
         return route.fulfill({ status: 503 });
       }
-      return route.fulfill({ json: { items: ids.map((id) => publicationStates[id]) } });
+      return route.fulfill({
+        json: { items: ids.map((id) => publicationStates[id]) },
+      });
     }
     if (url.pathname === "/api/v1/admin/assets") {
       assetReads++;
@@ -212,6 +223,7 @@ try {
     }
     if (url.pathname === "/api/v1/projects") {
       projectReads++;
+      if (request.headers()["referer"]?.includes("/admin/dashboard")) adminProjectReads++;
       if (new URL(request.headers().referer).pathname === "/admin/dashboard")
         assert.equal(request.headers()["x-spatia-account"], userId);
       if (projectError) return route.fulfill({ status: 503 });
@@ -243,11 +255,13 @@ try {
           sourceProjectId: projects[1].projectId,
           organizationName: "Ridgeview Secondary School",
           creatorName: "Ms Tan",
+          creatorUserName: "MsTan",
           projects: [
             {
               studentId: userId,
               projectId: projects[2].projectId,
               studentName: "Aisyah (aisyah)",
+              studentUserName: "progress.student1",
               approvalStatus: "approved",
               isPublic: true,
               published: true,
@@ -258,7 +272,7 @@ try {
               studentName: "Christopher Low (christopher)",
               approvalStatus: "awaiting-approval",
               isPublic: false,
-              published: false,
+              published: true,
             },
           ],
         },
@@ -333,14 +347,47 @@ try {
     await page.getByRole("link", { name: "Open project workspace", exact: true }).count(),
     0,
   );
+  await page.evaluate(() => {
+    window.organisationNavigationMarker = "same-workspace";
+  });
   await page.getByRole("link", { name: "View Organisations", exact: true }).click();
   await page.waitForURL(origin + "/organisations");
+  assert.equal(
+    await page.evaluate(() => window.organisationNavigationMarker),
+    "same-workspace",
+    "Opening organisations preserves the document instead of flashing a new page",
+  );
+  await page.goBack();
+  await page.getByRole("link", { name: "View Organisations", exact: true }).waitFor();
+  await page.goForward();
+  await page.getByRole("heading", { name: "All Organisations", exact: true, level: 1 }).waitFor();
+  assert.equal(await page.evaluate(() => window.organisationNavigationMarker), "same-workspace");
   assert.equal(await page.getByRole("navigation", { name: "Workspace screens" }).count(), 0);
   await page.getByRole("link", { name: "Close organisations" }).click();
   await page.waitForURL(origin + "/admin/dashboard");
+  for (const [link, heading] of [
+    ["View Environments", "All 3D Spaces"],
+    ["View Library", "All Assets"],
+  ]) {
+    await page.getByRole("link", { name: link, exact: true }).click();
+    await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+    assert.equal(
+      await page.evaluate(() => window.organisationNavigationMarker),
+      "same-workspace",
+      `${link} preserves the workspace document`,
+    );
+    await page.getByRole("button", { name: "Close asset administration", exact: true }).click();
+    await page.getByRole("link", { name: "View Organisations", exact: true }).waitFor();
+    assert.equal(
+      await page.evaluate(() => window.organisationNavigationMarker),
+      "same-workspace",
+      "Closing the catalogue preserves the workspace document",
+    );
+  }
+
   await page
     .getByRole("button", {
-      name: `View details for ${projects[0].title}`,
+      name: `View Details for ${projects[0].title}`,
       exact: true,
     })
     .waitFor();
@@ -363,7 +410,7 @@ try {
         }),
       );
   const chromeBefore = await chromeGeometry();
-  assert.equal(chromeBefore[1].height, 44);
+  assert.equal(chromeBefore[1].height, 36);
   assert.equal(chromeBefore[1].height, chromeBefore[2].height);
   const entryIcons = await page.locator(".admin-entry-symbol > svg").evaluateAll((nodes) =>
     nodes.map((node) => ({
@@ -375,9 +422,32 @@ try {
     entryIcons,
     Array.from({ length: 3 }, () => ({ width: 24, height: 24 })),
   );
-  await page.getByRole("button", { name: "View All Projects", exact: true }).click();
-  const projectView = page.locator('section[aria-label="All Projects"]');
+  await page.getByRole("button", { name: "View All", exact: true }).click();
+  const projectView = page.locator('section[aria-label="All Published Projects"]');
   await projectView.waitFor();
+  const headingTops = await projectView
+    .locator(".admin-project-view-heading")
+    .evaluate((row) =>
+      [...row.querySelectorAll("h1, :scope > .sp-search, :scope > .sp-close-button")].map(
+        (node) => node.getBoundingClientRect().top,
+      ),
+    );
+  assert.ok(
+    Math.max(...headingTops) - Math.min(...headingTops) <= 1,
+    "Heading text, search field and close button share the top edge",
+  );
+  assert.equal(
+    await projectView.locator(".admin-project-loading [inert]").count(),
+    0,
+    "Opening the list keeps already loaded cards visible without a placeholder flash",
+  );
+  assert.equal(new URL(page.url()).searchParams.get("view"), "projects");
+  await page.reload();
+  await projectView.waitFor();
+  assert.equal(
+    await page.getByRole("heading", { name: "All Published Projects", exact: true }).isVisible(),
+    true,
+  );
   assert.deepEqual(
     await chromeGeometry(),
     chromeBefore,
@@ -387,7 +457,7 @@ try {
     path: join(dirname(screenshot), "admin-projects-after.png"),
     fullPage: true,
   });
-  assert.equal(await page.getByRole("dialog", { name: "All Projects" }).count(), 0);
+  assert.equal(await page.getByRole("dialog", { name: "All Published Projects" }).count(), 0);
   for (const name of [
     /^All Work(?: \(\d+\))?$/,
     /^Private(?: \(\d+\))?$/,
@@ -439,7 +509,7 @@ try {
     "Public",
     "Public",
   ]);
-  assert.equal(await projectView.getByRole("button", { name: /^View progress for/ }).count(), 2);
+  assert.equal(await projectView.getByRole("button", { name: /^View Details for/ }).count(), 2);
   assert.equal(
     await projectView.locator(".admin-project-organization").first().textContent(),
     "Ridgeview Secondary School",
@@ -463,7 +533,7 @@ try {
   await projectView.getByRole("tab", { name: /^All Work(?: \(\d+\))?$/ }).click();
   await projectView
     .getByRole("button", {
-      name: "View progress for Ancient China",
+      name: "View Details for Ancient China",
       exact: true,
     })
     .waitFor();
@@ -471,12 +541,12 @@ try {
     await projectView.getByRole("tab", { name: "All Work (4)", exact: true }).count(),
     1,
   );
-  await projectView.getByLabel("Search all projects").fill("Rome");
+  await projectView.getByLabel("Search published projects").fill("Rome");
   assert.equal(await projectView.locator(".admin-project-card").count(), 1);
   const readsBefore = projectReads;
   await projectView
     .getByRole("button", {
-      name: "View progress for Life in Ancient Rome",
+      name: "View Details for Life in Ancient Rome",
       exact: true,
     })
     .click();
@@ -531,11 +601,7 @@ try {
     .filter({ hasText: "Christopher Low" });
   assert.equal(
     await privateStudent.getByRole("button", { name: "Hide", exact: true }).isDisabled(),
-    true,
-  );
-  assert.equal(
-    await privateStudent.getByRole("button", { name: "Hide", exact: true }).getAttribute("title"),
-    "No published editions",
+    false,
   );
 
   await page.setViewportSize({ width: 1440, height: 1024 });
@@ -551,11 +617,26 @@ try {
   assert.equal(await progress.locator(".admin-progress-row").count(), 1);
   assert.equal(await progress.getByText("Christopher Low", { exact: true }).isVisible(), true);
   await progress.getByRole("tab", { name: "All Work (2)" }).click();
+  await progress.getByLabel("Search students").fill("@progress.student1");
+  assert.equal(await progress.locator(".admin-progress-row").count(), 1);
   await progress.getByLabel("Search students").fill("aisyah");
   assert.equal(await progress.locator(".admin-progress-row").count(), 1);
   assert.equal(
-    await progress.getByRole("link", { name: "View Progress" }).getAttribute("href"),
-    `/?projectId=${projects[2].projectId}`,
+    await progress.getByRole("link", { name: "View Project", exact: true }).getAttribute("href"),
+    `/?projectId=${projects[2].projectId}&view=published&returnProjectId=${projects[1].projectId}&returnView=projects`,
+  );
+  assert.equal(await details.getByText("@MsTan", { exact: true }).count(), 1);
+  assert.equal(
+    await details
+      .getByText("Create a virtual museum exploring ancient Rome.", { exact: true })
+      .count(),
+    1,
+  );
+  assert.equal(
+    await details
+      .getByText("Build three exhibits with historical context.", { exact: true })
+      .count(),
+    1,
   );
   await details.getByLabel("Class Assignment").selectOption("1");
   assert.equal(
@@ -575,7 +656,7 @@ try {
         y: icon.y + icon.height / 2 - rect.y - rect.height / 2,
       };
     }),
-    { width: 40, height: 40, x: 0, y: 0 },
+    { width: 36, height: 36, x: 0, y: 0 },
   );
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
@@ -601,6 +682,61 @@ try {
   );
   await page.setViewportSize({ width: 1440, height: 1212 });
 
+  const selectionIconBox = await progress
+    .getByRole("button", { name: "Select projects", exact: true })
+    .boundingBox();
+  const rosterTabBox = await progress.getByRole("tab", { name: /^All Work/ }).boundingBox();
+  assert.ok(
+    Math.abs(
+      selectionIconBox.y + selectionIconBox.height / 2 - rosterTabBox.y - rosterTabBox.height / 2,
+    ) < 1,
+    "Selection icon and tabs share the same vertical centre",
+  );
+  const rosterBeforeSelection = await progress.locator(".admin-progress-list").boundingBox();
+  await progress.getByRole("button", { name: "Select projects", exact: true }).click();
+  assert.deepEqual(
+    await progress.locator(".admin-progress-list").boundingBox(),
+    rosterBeforeSelection,
+    "Selection preserves the roster position and height",
+  );
+  assert.equal(
+    await progress.locator(".admin-student-actions button").count(),
+    0,
+    "Selection mode hides individual project moderation",
+  );
+  assert.ok((await progress.getByRole("link", { name: "View Project", exact: true }).count()) > 0);
+  const selection = progress.getByRole("group", { name: "Project selection", exact: true });
+  assert.equal(
+    await selection.getByRole("button", { name: "Hide selected", exact: true }).isDisabled(),
+    true,
+  );
+  await selection
+    .getByRole("checkbox", { name: "Select all visible projects", exact: true })
+    .check();
+  const selectedCount = await progress
+    .getByRole("checkbox", { name: /^Select project by / })
+    .count();
+  await selection
+    .getByRole("button", { name: `Hide selected (${selectedCount})`, exact: true })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Hide Selected Projects?", exact: true })
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await selection
+    .getByRole("button", { name: `Hide selected (${selectedCount})`, exact: true })
+    .click();
+  await page.getByRole("dialog").getByRole("button", { name: "Hide", exact: true }).click();
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  await selection
+    .getByRole("checkbox", { name: "Select all visible projects", exact: true })
+    .check();
+  await selection
+    .getByRole("button", { name: `Show selected (${selectedCount})`, exact: true })
+    .click();
+  await page.getByRole("dialog").getByRole("button", { name: "Show", exact: true }).click();
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  await selection.getByRole("button", { name: "Cancel", exact: true }).click();
   const mainModeration = details.locator(".admin-project-moderation");
   const writesBeforeModeration = moderationWrites.length;
   await mainModeration.getByRole("button", { name: "Hide", exact: true }).click();
@@ -629,7 +765,10 @@ try {
   const studentRow = progress.locator(".admin-progress-row").filter({ hasText: "Aisyah" });
   loseModerationResponse = true;
   await studentRow.getByRole("button", { name: "Hide", exact: true }).click();
-  const uncertainDialog = page.getByRole("dialog", { name: "Hide Publications?", exact: true });
+  const uncertainDialog = page.getByRole("dialog", {
+    name: "Hide Publications?",
+    exact: true,
+  });
   await uncertainDialog.getByRole("button", { name: "Hide", exact: true }).click();
   await uncertainDialog
     .getByRole("alert")
@@ -658,12 +797,9 @@ try {
     .click();
   await page.getByRole("dialog").waitFor({ state: "detached" });
   assert.equal(
-    await studentRow.getByRole("button", { name: "Delete", exact: true }).isDisabled(),
-    true,
-  );
-  assert.equal(
-    await studentRow.locator(".admin-student-status dd").last().textContent(),
-    "Private",
+    await studentRow.count(),
+    0,
+    "Deleted publications disappear from the published roster",
   );
   assert.equal(
     projectReads,
@@ -673,14 +809,14 @@ try {
   await details.getByRole("button", { name: "Back", exact: true }).click();
   await details.waitFor({ state: "detached" });
   assert.equal(await projectView.isVisible(), true, "Back returns to the project list");
-  assert.equal(await projectView.getByLabel("Search all projects").inputValue(), "Rome");
+  assert.equal(await projectView.getByLabel("Search published projects").inputValue(), "Rome");
   assert.equal(await projectView.getByRole("tab", { name: "Public (1)", exact: true }).count(), 1);
-  assert.equal(await projectView.getByRole("tab", { name: "Private (3)", exact: true }).count(), 1);
+  assert.equal(await projectView.getByRole("tab", { name: "Private (2)", exact: true }).count(), 1);
 
-  await projectView.getByLabel("Search all projects").fill("Silk Road");
+  await projectView.getByLabel("Search published projects").fill("Silk Road");
   await projectView
     .getByRole("button", {
-      name: `View progress for ${projects[0].title}`,
+      name: `View Details for ${projects[0].title}`,
       exact: true,
     })
     .click();
@@ -689,20 +825,35 @@ try {
       exact: true,
     })
     .waitFor();
+  const unassigned = page.getByRole("region", { name: "Project details", exact: true });
+  assert.equal(await unassigned.getByText("Created by", { exact: true }).count(), 1);
+  assert.equal(await unassigned.getByText("No class assigned", { exact: true }).count(), 1);
+  assert.equal(
+    await unassigned.getByRole("heading", { name: "Project Description", exact: true }).count(),
+    1,
+  );
+  assert.equal(
+    await unassigned.getByRole("heading", { name: "Project Instructions", exact: true }).count(),
+    1,
+  );
+  await page.screenshot({
+    path: join(dirname(screenshot), "admin-project-unassigned.png"),
+    fullPage: true,
+  });
   await page
     .getByRole("region", { name: "Project details", exact: true })
     .getByRole("button", { name: "Back", exact: true })
     .click();
 
   assert.equal(projectReads, readsBefore, "Returning to the list does not reload its pages");
-  await projectView.getByLabel("Search all projects").fill("");
+  await projectView.getByLabel("Search published projects").fill("");
   assert.equal(
     await projectView.locator(".admin-project-card").count(),
-    4,
-    "Loaded pages are retained",
+    3,
+    "Loaded published projects are retained while deleted editions are removed",
   );
   assert.equal(await projectView.getByRole("button", { name: "Load more projects" }).count(), 0);
-  await projectView.getByLabel("Search all projects").fill("no matching project");
+  await projectView.getByLabel("Search published projects").fill("no matching project");
   await projectView.getByRole("status").filter({ hasText: "No matching projects" }).waitFor();
   assert.equal(
     await projectView.locator(".admin-project-loading").count(),
@@ -717,7 +868,7 @@ try {
   );
   assert.deepEqual(
     await page.locator(".admin-project-status").allTextContents(),
-    ["Private", "Public", "Private"],
+    ["Private", "Public"],
     "Home cards receive student publication changes from the cached project list",
   );
   const overflowBefore = await page.evaluate(() => getComputedStyle(document.body).overflowY);
@@ -877,7 +1028,7 @@ try {
   await page.getByRole("button", { name: "Retry Projects", exact: true }).click();
   await page
     .getByRole("button", {
-      name: `View details for ${projects[0].title}`,
+      name: `View Details for ${projects[0].title}`,
       exact: true,
     })
     .waitFor();
@@ -888,11 +1039,11 @@ try {
   for (const other of ["Creator", "Educator"]) {
     role = other;
     await page.goto(origin + "/login");
-    await page.getByRole("heading", { name: "You’re signed in.", exact: true }).waitFor();
-    const before = projectReads;
+    await page.waitForURL("**/home");
+    const before = adminProjectReads;
     await page.goto(origin + "/admin/dashboard");
     await page.getByRole("heading", { name: "Access denied", exact: true }).waitFor();
-    assert.equal(projectReads, before);
+    assert.equal(adminProjectReads, before);
   }
   authenticated = false;
   await page.goto(origin + "/admin/dashboard");
@@ -903,7 +1054,10 @@ try {
   forced = true;
   await page.goto(origin + "/admin/dashboard");
   await page
-    .getByRole("heading", { name: "Change your password to continue", exact: true })
+    .getByRole("heading", {
+      name: "Change your password to continue",
+      exact: true,
+    })
     .waitFor();
   await page.goto(origin + "/landing");
   await page.getByRole("heading", { name: /Build immersive/ }).waitFor();

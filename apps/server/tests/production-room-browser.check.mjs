@@ -86,7 +86,7 @@ async function openEditor(id = projectId) {
   await next.getByLabel("Username", { exact: true }).fill(userName);
   await next.getByLabel("Password", { exact: true }).fill("Synthetic-long-password1!");
   await next.getByRole("button", { name: "Log in", exact: true }).click();
-  await next.getByRole("link", { name: "Go to projects", exact: true }).waitFor();
+  await next.waitForURL(origin + "/home");
   const session = await next.evaluate(async () => {
     const response = await fetch("/api/v1/auth/session", { cache: "no-store" });
     return { status: response.status, value: await response.json() };
@@ -95,6 +95,8 @@ async function openEditor(id = projectId) {
   assert.equal(session.value.developmentAssetsAllowed, false);
   await next.goto(`${origin}/?projectId=${encodeURIComponent(id)}`);
   await next.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  const chooser = next.getByRole("button", { name: "Close base model chooser", exact: true });
+  if (await chooser.isVisible()) await chooser.click();
   return next;
 }
 
@@ -225,9 +227,7 @@ try {
   saved = waitForSave(page);
   await placeAtRoomCenter(page);
   assert.equal((await saved).status(), 200);
-  await page
-    .locator('.save-state[data-state="saved"]')
-    .waitFor();
+  await page.locator('.save-state[data-state="saved"]').waitFor();
   let authored = await readProject(page);
   assert.equal(
     authored.document.scenes[0].objects.filter((object) => object.assetId === authoring.crateId)
@@ -256,9 +256,7 @@ try {
     })(),
   ]);
   assert.equal(dropped.status(), 200);
-  await page
-    .locator('.save-state[data-state="saved"]')
-    .waitFor();
+  await page.locator('.save-state[data-state="saved"]').waitFor();
   authored = await readProject(page);
   const crates = authored.document.scenes[0].objects.filter(
     (object) => object.assetId === authoring.crateId,
@@ -277,9 +275,7 @@ try {
   saved = waitForSave(page);
   await library.getByRole("button", { name: "Add", exact: true }).click();
   assert.equal((await saved).status(), 200);
-  await page
-    .locator('.save-state[data-state="saved"]')
-    .waitFor();
+  await page.locator('.save-state[data-state="saved"]').waitFor();
   await page.context().close();
   page = await openEditor(authoring.projectId);
   authored = await readProject(page);

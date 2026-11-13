@@ -95,12 +95,8 @@ export async function checkServerEditor(
   };
   try {
     const page = await open(accounts[0], true);
-    await page
-      .getByLabel("Scene name", { exact: true })
-      .fill("SCRUM-67 actual editor save");
-    await page
-      .getByRole("button", { name: "Rename scene", exact: true })
-      .click();
+    await page.getByLabel("Scene name", { exact: true }).fill("SCRUM-67 actual editor save");
+    await page.getByRole("button", { name: "Rename scene", exact: true }).click();
     await page.locator('.save-state[data-state="saved"]').waitFor();
     const fresh = await open(accounts[0]);
     assert.equal(
@@ -108,36 +104,22 @@ export async function checkServerEditor(
       "SCRUM-67 actual editor save",
     );
     // The second authenticated editor creates a real revision conflict in the first.
-    await fresh
-      .getByLabel("Scene name", { exact: true })
-      .fill("Another editor's saved revision");
-    await fresh
-      .getByRole("button", { name: "Rename scene", exact: true })
-      .click();
+    await fresh.getByLabel("Scene name", { exact: true }).fill("Another editor's saved revision");
+    await fresh.getByRole("button", { name: "Rename scene", exact: true }).click();
     await fresh.locator('.save-state[data-state="saved"]').waitFor();
-    await page
-      .getByLabel("Scene name", { exact: true })
-      .fill("Keep these conflicting edits");
-    await page
-      .getByRole("button", { name: "Rename scene", exact: true })
-      .click();
-    await page
-      .getByRole("alert")
-      .filter({ hasText: "Another revision" })
-      .waitFor();
-    await page.getByLabel("Project options", { exact: true }).click();
-    await page.getByRole("button", { name: "Log Out", exact: true }).click();
-    await page
-      .getByRole("button", { name: "Exit", exact: true })
-      .click();
+    await page.getByLabel("Scene name", { exact: true }).fill("Keep these conflicting edits");
+    await page.getByRole("button", { name: "Rename scene", exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: "Another revision" }).waitFor();
+    await page.getByRole("button", { name: "Leave editor", exact: true }).click();
+    await page.getByRole("button", { name: "Exit", exact: true }).click();
     await page.getByRole("dialog").getByRole("alert").waitFor();
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.getByRole("button", { name: "Keep editing", exact: true }).click();
     assert.equal(
       await page.getByLabel("Scene name", { exact: true }).inputValue(),
       "Keep these conflicting edits",
     );
     console.log(
-      "actual editor + PostgreSQL: autosave, fresh authenticated reopen, concurrent conflict and blocked logout passed",
+      "actual editor + PostgreSQL: autosave, fresh authenticated reopen, concurrent conflict and blocked departure passed",
     );
   } finally {
     await Promise.all(contexts.map((context) => context.close()));

@@ -455,7 +455,10 @@ describe("server project session lifecycle", () => {
     const { store, session, database, write } = setup();
     vi.spyOn(database, "getIndexedDB").mockRejectedValue(new Error("Quota exceeded"));
     store.loadProject(serializedFixture({ ...fixture, title: "Unstored work" }), assets);
-    expect(await session.prepareToLeave("recovery")).toMatchObject({ ok: false });
+    expect(await session.prepareToLeave("recovery")).toMatchObject({
+      ok: false,
+      error: { message: "Recovery backup failed; keep this tab open and export your project" },
+    });
     expect(await session.prepareToLeave("save")).toMatchObject({ ok: false });
     expect(write).not.toHaveBeenCalled();
     // A real completed export remains an escape path when browser storage is unavailable

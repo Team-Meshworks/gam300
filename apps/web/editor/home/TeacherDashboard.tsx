@@ -1,5 +1,4 @@
 import { Icon } from "@iconify/react/offline";
-import searchIcon from "@iconify-icons/ant-design/search-outlined";
 import pencil from "@iconify-icons/lucide/pencil";
 import clock from "@iconify-icons/lucide/clock-3";
 import check from "@iconify-icons/lucide/circle-check";
@@ -7,10 +6,10 @@ import unknown from "@iconify-icons/lucide/circle-help";
 import plus from "@iconify-icons/lucide/plus";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
+import { Select } from "../../shared/ui/Select";
 import { Tabs } from "../../shared/ui/Tabs";
 import { DashboardSkeleton } from "./DashboardSkeleton";
-import type { WorkStatus } from "./dashboard";
-import neutralCover from "./assets/default-project-neutral.jpg";
+import { projectCover, type WorkStatus } from "./dashboard";
 
 const filters = [
   { value: "all", label: "All Projects" },
@@ -18,7 +17,11 @@ const filters = [
   { value: "progress", label: "In Progress" },
   { value: "complete", label: "Completed" },
 ] as const;
-export type TeacherQuery = { search: string; filter: (typeof filters)[number]["value"] };
+export type TeacherQuery = {
+  search: string;
+  filter: (typeof filters)[number]["value"];
+  classId: string;
+};
 const statusIcons = {
   "In Progress": pencil,
   "Awaiting Approval": clock,
@@ -27,15 +30,18 @@ const statusIcons = {
 };
 export type TeacherCard = {
   id: string;
+  classId?: string;
   title: string;
   status: WorkStatus;
   metadata: string;
+  imageUrl?: string;
   onDetails: () => void;
 };
 
 export function TeacherDashboard({
   name,
   cards,
+  classes,
   error,
   onRetry,
   query,
@@ -43,14 +49,18 @@ export function TeacherDashboard({
 }: {
   name: string;
   cards: TeacherCard[] | null;
+  classes: readonly { id: string; name: string }[];
   error: string;
   onRetry: () => void;
   query: TeacherQuery;
   onQuery: (query: TeacherQuery) => void;
 }) {
-  const { filter, search } = query;
+  const { filter, search, classId } = query;
   const term = search.trim().toLocaleLowerCase();
-  const matched = cards?.filter((card) => card.title.toLocaleLowerCase().includes(term));
+  const matched = cards?.filter(
+    (card) =>
+      (!classId || card.classId === classId) && card.title.toLocaleLowerCase().includes(term),
+  );
   const selectedLabel = filters.find((item) => item.value === filter)?.label;
   const shown = matched?.filter((card) => filter === "all" || card.status === selectedLabel);
   return (
@@ -63,14 +73,13 @@ export function TeacherDashboard({
         <div className="sp-teacher-heading">
           <div>
             <h2 id="facilitator-heading">All Projects</h2>
-            <p>Review published experiences and control what visitors can explore.</p>
+            <p>Review student progress and manage project visibility.</p>
           </div>
           <SearchField
             label="Search projects"
             placeholder="Search all projects"
             value={search}
-            onChange={(search) => onQuery({ filter, search })}
-            icon={<Icon icon={searchIcon} width={30} />}
+            onChange={(search) => onQuery({ ...query, search })}
           />
         </div>
         <div className="sp-teacher-toolbar">
@@ -78,7 +87,7 @@ export function TeacherDashboard({
             id="facilitator-work"
             label="Filter projects by status"
             value={filter}
-            onChange={(filter) => onQuery({ filter, search })}
+            onChange={(filter) => onQuery({ ...query, filter })}
             items={filters.map(({ value, label }) => ({
               value,
               label: matched
@@ -86,9 +95,25 @@ export function TeacherDashboard({
                 : label,
             }))}
           />
-          <a className="sp-button sp-button--primary sp-new-project" href="/new-project">
-            <Icon icon={plus} width={13} /> New Project
-          </a>
+          <div className="sp-teacher-toolbar-actions">
+            <Select
+              label="Filter projects by class"
+              value={classId}
+              options={[
+                { value: "", label: "All Classes" },
+                ...[...classes]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map(({ id, name }) => ({ value: id, label: name })),
+              ]}
+              disabled={!cards}
+              onChange={(classId) => onQuery({ ...query, classId })}
+              className="sp-project-class sp-teacher-class-filter"
+              menuClassName="sp-project-class-menu sp-teacher-class-menu"
+            />
+            <a className="sp-button sp-button--primary sp-new-project" href="/new-project">
+              <Icon icon={plus} width={13} /> New Project
+            </a>
+          </div>
         </div>
         <div
           id="facilitator-work-panel"
@@ -106,15 +131,21 @@ export function TeacherDashboard({
             <p className="sp-dashboard-state" role="status">
               {term
                 ? "No projects match your search."
-                : filter === "all"
+                : filter === "all" && !classId
                   ? "No projects are available yet."
-                  : `No projects with status “${selectedLabel}”.`}
+                  : classId
+                    ? "No projects match this class and status."
+                    : `No projects with status “${selectedLabel}”.`}
             </p>
           ) : (
             <div className="sp-teacher-grid">
               {shown.map((card) => (
                 <article key={card.id} className="sp-teacher-card">
-                  <img src={neutralCover} className="sp-teacher-card-cover" alt="" />
+                  <img
+                    src={card.imageUrl ?? projectCover(card.title)}
+                    className="sp-teacher-card-cover"
+                    alt=""
+                  />
                   <div className="sp-teacher-card-copy">
                     <div className="sp-teacher-card-heading">
                       <h3>{card.title}</h3>

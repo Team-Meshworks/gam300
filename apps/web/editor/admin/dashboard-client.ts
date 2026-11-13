@@ -6,6 +6,8 @@ export interface ProjectPublicationState {
   publicationCount: number;
   hiddenCount: number;
   publicCount: number;
+  publishingBlocked?: boolean;
+  removed?: boolean;
 }
 
 export interface DashboardProject {
@@ -36,8 +38,14 @@ const record = (value: unknown): value is Record<string, unknown> =>
 const id = (value: unknown): value is string =>
   typeof value === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
 
-export function createDashboardClient(accountId: string, request: typeof fetch = fetch) {
-  async function send(path: string, init: RequestInit = {}): Promise<unknown> {
+export function createDashboardClient(
+  accountId: string,
+  request: typeof fetch = fetch,
+  moderationScope: "admin" | "facilitator" = "admin",
+) {
+  const moderationPrefix =
+    moderationScope === "admin" ? "/api/v1/admin/projects" : "/api/v1/projects";
+  async function send(path: string, init: RequestInit = {}, timeout = 15000): Promise<unknown> {
     let response: Response;
     try {
       response = await request(path, {
@@ -45,7 +53,7 @@ export function createDashboardClient(accountId: string, request: typeof fetch =
         headers: { ...init.headers, "X-Spatia-Account": accountId },
         credentials: "same-origin",
         cache: "no-store",
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(timeout),
       });
     } catch {
       throw new Error(
@@ -59,7 +67,9 @@ export function createDashboardClient(accountId: string, request: typeof fetch =
         response.status === 401
           ? "Your session has expired. Sign in again."
           : response.status === 403
-            ? "Administrator access could not be verified. Sign in again."
+            ? moderationScope === "facilitator"
+              ? "Project management access could not be verified. Sign in again."
+              : "Administrator access could not be verified. Sign in again."
             : response.status === 400
               ? "Check the organisation name and try again."
               : response.status === 429
@@ -83,6 +93,7 @@ export function createDashboardClient(accountId: string, request: typeof fetch =
       archived = false,
     ): Promise<ProjectPage> {
       const query = new URLSearchParams({ limit: String(limit), archived: String(archived) });
+      if (moderationScope === "admin") query.set("published", "true");
       if (cursor) query.set("cursor", cursor);
       const page = await send(`/api/v1/projects?${query}`);
       if (
@@ -171,7 +182,7 @@ export function createDashboardClient(accountId: string, request: typeof fetch =
       for (let offset = 0; offset < ids.length; offset += 100) {
         const batch = ids.slice(offset, offset + 100);
         const page = await send(
-          `/api/v1/admin/projects/publication-moderation?${new URLSearchParams({ ids: batch.join(",") })}`,
+          `${moderationPrefix}/publication-moderation?${new URLSearchParams({ ids: batch.join(",") })}`,
         );
         if (!record(page) || !Array.isArray(page.items) || page.items.length !== batch.length) {
           throw new Error("Publication visibility could not be verified.");
@@ -182,6 +193,8 @@ export function createDashboardClient(accountId: string, request: typeof fetch =
             !id(item.projectId) ||
             !batch.includes(item.projectId.toLowerCase()) ||
             states[item.projectId.toLowerCase()] ||
+            (item.publishingBlocked !== undefined && typeof item.publishingBlocked !== "boolean") ||
+            (item.removed !== undefined && typeof item.removed !== "boolean") ||
             ![item.publicationCount, item.hiddenCount, item.publicCount].every(
               (count) => Number.isSafeInteger(count) && (count as number) >= 0,
             ) ||
@@ -196,21 +209,30 @@ export function createDashboardClient(accountId: string, request: typeof fetch =
       return states;
     },
     async moderatePublications(
-      projectId: string,
+      projectId: string | readonly string[],
       action: "hide" | "show" | "delete",
     ): Promise<void> {
-      if (!id(projectId)) {
-        throw new Error("The publication project could not be verified.");
+      const ids = typeof projectId === "string" ? [projectId] : projectId;
+      if (ids.length < 1 || ids.length > 1000 || ids.some((value) => !id(value))) {
+        throw new Error("The publication projects could not be verified.");
       }
       const csrf = await send("/api/v1/auth/csrf");
       if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken) {
         throw new Error("Your session could not be verified. Sign in again.");
       }
-      await send(`/api/v1/admin/projects/${encodeURIComponent(projectId)}/publication-moderation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
-        body: JSON.stringify({ action }),
-      });
+      await send(
+        typeof projectId === "string"
+          ? `${moderationPrefix}/${encodeURIComponent(projectId)}/publication-moderation`
+          : `${moderationPrefix}/publication-moderation`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
+          body: JSON.stringify(
+            typeof projectId === "string" ? { action } : { projectIds: ids, action },
+          ),
+        },
+        typeof projectId === "string" ? 15000 : 90000,
+      );
     },
     async createOrganization(name: string): Promise<void> {
       const csrf = await send("/api/v1/auth/csrf");

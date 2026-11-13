@@ -1,9 +1,14 @@
+import { Icon } from "@iconify/react/offline";
+import check from "@iconify-icons/lucide/check";
 import { useEffect, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
 import { createAccountClient } from "../accounts/account-client";
 import { createWorkspaceClient, isId, isRecord } from "../home/workspace-api";
 import { Button } from "../../shared/ui/Button";
+import { Select } from "../../shared/ui/Select";
+import { SearchField } from "../../shared/ui/SearchField";
+import { PublishStatus } from "./PublishStatus";
 import { PublicationShare } from "./PublicationShare";
 import { PublicationAccess } from "./PublicationAccess";
 import {
@@ -74,13 +79,24 @@ function pendingRequest(key: string | null): {
 
 export function PublicationPage({
   session,
+  projectId: requestedProjectId,
   onGuard,
+  onCancel,
 }: {
   session: AccountSession;
+  projectId?: string;
   onGuard: (guard: LeaveGuard) => void;
+  onCancel?: () => void;
 }) {
   const params = new URLSearchParams(location.search).getAll("projectId");
-  const projectId = params.length === 1 && isId(params[0]) ? params[0] : null;
+  const projectId =
+    requestedProjectId !== undefined
+      ? isId(requestedProjectId)
+        ? requestedProjectId
+        : null
+      : params.length === 1 && isId(params[0])
+        ? params[0]
+        : null;
   const storageKey = projectId
     ? `spatia-publication:${session.userId.toLowerCase()}:${projectId.toLowerCase()}`
     : null;
@@ -93,15 +109,20 @@ export function PublicationPage({
     pending.error ? storageMessage : pending.request ? uncertainMessage : "",
   );
   const [viewers, setViewers] = useState<Viewer[]>([]);
-  const [viewersLoading, setViewersLoading] = useState(true);
+  const [viewersLoading, setViewersLoading] = useState(!onCancel);
   const [viewersError, setViewersError] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  const [viewerQuery, setViewerQuery] = useState("");
+  const [selectedOnly, setSelectedOnly] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [phase, setPhase] = useState<
     "ready" | "pending" | "unknown" | "success" | "stale" | "storage-error"
   >(pending.error ? "storage-error" : pending.request ? "unknown" : "ready");
   const [request, setRequest] = useState<PublicationRequest | null>(pending.request);
-  const [audience, setAudience] = useState(pending.request?.intent.audience ?? "Authenticated");
+  const modal = Boolean(onCancel);
+  const [audience, setAudience] = useState(
+    pending.request?.intent.audience ?? (onCancel ? "Unlisted" : "Authenticated"),
+  );
   const [ack, setAck] = useState<PublicationAcknowledgement | null>(null);
   const [shareAvailable, setShareAvailable] = useState(true);
   const inFlight = useRef(false);
@@ -196,6 +217,7 @@ export function PublicationPage({
       }
     })();
     void (async () => {
+      if (modal) return;
       try {
         const rows = await api.pages(
           `/api/v1/projects/${encodeURIComponent(projectId)}/publication-viewers`,
@@ -228,7 +250,7 @@ export function PublicationPage({
     return () => {
       cancelled = true;
     };
-  }, [projectId, session.userId]);
+  }, [projectId, session.userId, modal]);
 
   useEffect(() => {
     const pending = phase === "pending";
@@ -240,13 +262,27 @@ export function PublicationPage({
     return () => window.removeEventListener("beforeunload", preventLoss);
   }, [onGuard, phase, confirmed, selected.length]);
 
+  useEffect(() => {
+    // Wait for the pending navigation guard to clean up before leaving with a verified receipt
+    if (phase === "success" && ack && session.role === "Creator" && modal)
+      location.assign("/home?tab=published");
+  }, [phase, ack, session.role, modal]);
+
+  const visibleViewers = viewers.filter(
+    (viewer) =>
+      viewer.userName.toLocaleLowerCase().includes(viewerQuery.trim().toLocaleLowerCase()) &&
+      (!selectedOnly || selected.includes(viewer.userId)),
+  );
+  const matchingIds = [...new Set([...selected, ...visibleViewers.map((viewer) => viewer.userId)])];
+
   async function publish(retry = false) {
     if (
       inFlight.current ||
       !saved ||
       !projectId ||
       !saved.canPublish ||
-      (!retry && (!confirmed || phase !== "ready" || readiness?.state !== "Ready")) ||
+      (!retry &&
+        ((!onCancel && !confirmed) || phase !== "ready" || readiness?.state !== "Ready")) ||
       (retry && (phase !== "unknown" || !request))
     )
       return;
@@ -327,21 +363,91 @@ export function PublicationPage({
     }
   }
 
+  if (onCancel)
+    return (
+      <PublishStatus
+        state={
+          loading || !readiness
+            ? "checking"
+            : readiness.completionConfirmed === false
+              ? "incomplete"
+              : readiness?.approved === false
+                ? "pending"
+                : "approved"
+        }
+        titleId="creator-publish-title"
+        closeLabel="Close publish project"
+        onClose={onCancel}
+        locked={phase === "pending"}
+        actions={
+          <>
+            <Button disabled={phase === "pending" || phase === "unknown"} onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={
+                phase === "pending" ||
+                (phase !== "unknown" &&
+                  (phase !== "ready" ||
+                    loading ||
+                    !saved?.canPublish ||
+                    readiness?.state !== "Ready"))
+              }
+              onClick={() => void publish(phase === "unknown")}
+            >
+              {phase === "pending"
+                ? "Publishing…"
+                : phase === "unknown"
+                  ? "Retry publication"
+                  : "Publish Project"}
+            </Button>
+          </>
+        }
+      >
+        {loading && (
+          <p role="status" className="publish-status-loading">
+            Preparing your saved project…
+          </p>
+        )}
+        {(error ||
+          readinessError ||
+          (readiness && readiness.state !== "Ready") ||
+          (saved && !saved.canPublish)) && (
+          <p role="alert" className="creator-approval-error">
+            {error ||
+              readinessError ||
+              (saved && !saved.canPublish
+                ? "You do not have permission to publish this project."
+                : readinessMessages[readiness!.state])}
+          </p>
+        )}
+      </PublishStatus>
+    );
+
   return (
     <section className="sp-publication" aria-label="Publication settings">
       {!projectId && <p role="alert">Choose a valid project before publishing.</p>}
-      <p>
-        Publish a saved revision for selected signed-in viewers. The publisher can also view it.
-        Unsaved edits, including unsaved recovery edits, are not included. Later edits will not
-        change this published edition.
-      </p>
+      {!onCancel && (
+        <p>
+          Publish a saved revision for selected signed-in viewers. The publisher can also view it.
+          Unsaved edits, including unsaved recovery edits, are not included. Later edits will not
+          change this published edition.
+        </p>
+      )}
       {loading && <p role="status">Loading saved project…</p>}
       {error && <p role="alert">{error}</p>}
       {saved && (
         <>
           <h2>{saved.title}</h2>
-          <p>Saved revision {saved.revision}</p>
-          {saved.canPublish && phase !== "success" && (
+          {!onCancel && <p>Saved revision {saved.revision}</p>}
+          {onCancel &&
+            saved.canPublish &&
+            phase !== "success" &&
+            (readinessError || (readiness && readiness.state !== "Ready")) && (
+              <p role="alert">{readinessError || readinessMessages[readiness!.state]}</p>
+            )}
+          {!onCancel && saved.canPublish && phase !== "success" && (
             <section aria-label="Publication prerequisites">
               <h3>Publication prerequisites</h3>
               {loading && <p role="status">Checking publication readiness…</p>}
@@ -419,30 +525,54 @@ export function PublicationPage({
             <>
               <fieldset disabled={phase !== "ready" || viewersLoading}>
                 <legend>Publication audience</legend>
-                <label>
-                  Who can open this publication
-                  <select
-                    value={audience}
-                    onChange={(event) => {
-                      setAudience(event.target.value);
-                      setConfirmed(false);
-                    }}
-                  >
-                    <option value="Authenticated">Permitted signed-in accounts</option>
-                    <option value="Unlisted">Anyone with the link</option>
-                    <option value="Public">Anyone without signing in</option>
-                  </select>
-                </label>
-                <p>
-                  {audience === "Authenticated"
-                    ? "Choose permitted accounts below"
-                    : audience === "Unlisted"
-                      ? "Unlisted is not private; anyone holding the link can open it"
-                      : "Anyone can open this publication without an account"}
-                </p>
+                <div className="sp-publication-audience-field">
+                  {onCancel ? (
+                    <Select
+                      label="Who can open this publication"
+                      value={audience}
+                      className="creator-publication-select"
+                      showSelectedIcon={false}
+                      menuClassName="creator-publication-options"
+                      options={[
+                        { value: "Authenticated", label: "Permitted signed-in accounts" },
+                        { value: "Unlisted", label: "Anyone with the link" },
+                        { value: "Public", label: "Anyone without signing in" },
+                      ]}
+                      disabled={phase !== "ready" || viewersLoading}
+                      onChange={(value) => {
+                        setAudience(value);
+                        setConfirmed(false);
+                      }}
+                    />
+                  ) : (
+                    <label>
+                      Who can open this publication
+                      <select
+                        value={audience}
+                        onChange={(event) => {
+                          setAudience(event.target.value);
+                          setConfirmed(false);
+                        }}
+                      >
+                        <option value="Authenticated">Permitted signed-in accounts</option>
+                        <option value="Unlisted">Anyone with the link</option>
+                        <option value="Public">Anyone without signing in</option>
+                      </select>
+                    </label>
+                  )}
+                </div>
+                {(!onCancel || audience !== "Authenticated") && (
+                  <p>
+                    {audience === "Authenticated"
+                      ? "Choose permitted accounts below"
+                      : audience === "Unlisted"
+                        ? "Unlisted is not private; anyone holding the link can open it"
+                        : "Anyone can open this publication without an account"}
+                  </p>
+                )}
                 {audience === "Authenticated" && (
                   <>
-                    <p>Choose up to 100 viewers.</p>
+                    {!onCancel && <p>Choose up to 100 viewers.</p>}
                     {viewersLoading && <p role="status">Loading viewers…</p>}
                     {viewersError && (
                       <p>Viewers could not be loaded. You can publish for yourself only.</p>
@@ -450,26 +580,120 @@ export function PublicationPage({
                     {!viewersLoading && !viewersError && viewers.length === 0 && (
                       <p>No other viewers are available to select.</p>
                     )}
-                    {viewers.map((viewer) => (
-                      <label key={viewer.userId}>
-                        <input
-                          type="checkbox"
-                          checked={selected.includes(viewer.userId)}
-                          disabled={
-                            audience !== "Authenticated" ||
-                            (selected.length >= 100 && !selected.includes(viewer.userId))
-                          }
-                          onChange={(event) =>
-                            setSelected((previous) =>
-                              event.target.checked
-                                ? [...previous, viewer.userId]
-                                : previous.filter((id) => id !== viewer.userId),
-                            )
-                          }
-                        />{" "}
-                        {viewer.userName}
-                      </label>
-                    ))}
+                    {onCancel && !viewersLoading && !viewersError && viewers.length > 0 ? (
+                      <div className="creator-viewer-picker">
+                        <div className="creator-viewer-heading">
+                          <strong>Viewers</strong>
+                          <span role="status">{selected.length} / 100 selected</span>
+                        </div>
+                        <SearchField
+                          label="Search viewers"
+                          placeholder="Search accounts"
+                          value={viewerQuery}
+                          onChange={setViewerQuery}
+                        />
+                        <div className="creator-viewer-tools">
+                          <button
+                            type="button"
+                            aria-pressed={selectedOnly}
+                            onClick={() => setSelectedOnly(!selectedOnly)}
+                          >
+                            Selected ({selected.length})
+                          </button>
+                          <div>
+                            <button
+                              type="button"
+                              disabled={
+                                !visibleViewers.length ||
+                                matchingIds.length > 100 ||
+                                matchingIds.length === selected.length
+                              }
+                              onClick={() => {
+                                setSelected(matchingIds);
+                                setConfirmed(false);
+                              }}
+                            >
+                              {viewerQuery.trim() ? "Select matches" : "Select all"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!selected.length}
+                              onClick={() => {
+                                setSelected([]);
+                                setConfirmed(false);
+                              }}
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                        <div
+                          className="creator-viewer-list"
+                          // Base height on eligible accounts so searching does not make the popup jump
+                          style={{ height: Math.min(viewers.length, 4) * 36 + 26 }}
+                          role="group"
+                          aria-label="Publication viewers"
+                        >
+                          <div className="creator-viewer-scroll">
+                            {visibleViewers.map((viewer) => (
+                              <button
+                                type="button"
+                                key={viewer.userId}
+                                aria-pressed={selected.includes(viewer.userId)}
+                                disabled={
+                                  !selected.includes(viewer.userId) && selected.length >= 100
+                                }
+                                onClick={() => {
+                                  setSelected((previous) =>
+                                    previous.includes(viewer.userId)
+                                      ? previous.filter((id) => id !== viewer.userId)
+                                      : [...previous, viewer.userId],
+                                  );
+                                  setConfirmed(false);
+                                }}
+                              >
+                                <span>{viewer.userName}</span>
+                                {selected.includes(viewer.userId) && (
+                                  <Icon icon={check} width={16} aria-hidden="true" />
+                                )}
+                              </button>
+                            ))}
+                            {!visibleViewers.length && (
+                              <p role="status">
+                                {selectedOnly && !selected.length
+                                  ? "No viewers selected."
+                                  : "No matching accounts."}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      !onCancel && (
+                        <>
+                          {viewers.map((viewer) => (
+                            <label key={viewer.userId}>
+                              <input
+                                type="checkbox"
+                                checked={selected.includes(viewer.userId)}
+                                disabled={
+                                  audience !== "Authenticated" ||
+                                  (selected.length >= 100 && !selected.includes(viewer.userId))
+                                }
+                                onChange={(event) =>
+                                  setSelected((previous) =>
+                                    event.target.checked
+                                      ? [...previous, viewer.userId]
+                                      : previous.filter((id) => id !== viewer.userId),
+                                  )
+                                }
+                              />{" "}
+                              {viewer.userName}
+                            </label>
+                          ))}
+                        </>
+                      )
+                    )}
                   </>
                 )}
                 <label>
@@ -481,41 +705,45 @@ export function PublicationPage({
                   I confirm this saved revision is ready to publish.
                 </label>
               </fieldset>
-              {phase === "unknown" ? (
-                <Button onClick={() => void publish(true)}>Retry publication</Button>
-              ) : (
+              <div className={onCancel ? "creator-approval-actions" : "sp-publication-actions"}>
                 <Button
-                  variant="primary"
-                  disabled={
-                    phase !== "ready" ||
-                    !confirmed ||
-                    viewersLoading ||
-                    loading ||
-                    readiness?.state !== "Ready"
-                  }
-                  onClick={() => void publish()}
+                  disabled={phase === "pending" || phase === "unknown"}
+                  onClick={() => location.assign("/home")}
                 >
-                  {phase === "pending" ? "Publishing…" : "Publish"}
+                  Cancel
                 </Button>
-              )}
-              <Button
-                disabled={phase === "pending" || phase === "unknown"}
-                onClick={() => location.assign("/home")}
-              >
-                Cancel
-              </Button>
+                {phase === "unknown" ? (
+                  <Button onClick={() => void publish(true)}>Retry publication</Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    disabled={
+                      phase !== "ready" ||
+                      !confirmed ||
+                      viewersLoading ||
+                      loading ||
+                      readiness?.state !== "Ready"
+                    }
+                    onClick={() => void publish()}
+                  >
+                    {phase === "pending" ? "Publishing…" : "Publish"}
+                  </Button>
+                )}
+              </div>
             </>
           )}
-          <PublicationAccess
-            key={`${session.userId}:${projectId}:${ack?.publicationId ?? "existing"}`}
-            projectId={projectId!}
-            session={session}
-            initialId={ack?.publicationId}
-            onAvailabilityChange={(id, available) => {
-              if (ack?.publicationId.toLowerCase() === id.toLowerCase())
-                setShareAvailable(available);
-            }}
-          />
+          {!onCancel && (
+            <PublicationAccess
+              key={`${session.userId}:${projectId}:${ack?.publicationId ?? "existing"}`}
+              projectId={projectId!}
+              session={session}
+              initialId={ack?.publicationId}
+              onAvailabilityChange={(id, available) => {
+                if (ack?.publicationId.toLowerCase() === id.toLowerCase())
+                  setShareAvailable(available);
+              }}
+            />
+          )}
         </>
       )}
     </section>

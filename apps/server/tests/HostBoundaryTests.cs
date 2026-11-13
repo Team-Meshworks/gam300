@@ -90,7 +90,7 @@ public sealed class HostBoundaryTests
         await using var app = SpatiaApplication.Build(CreateConfigurationBuilder());
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
         var expected = new[] { "GET /api/v1/auth/csrf", "POST /api/v1/auth/login", "GET /api/v1/auth/session", "GET /api/v1/auth/asset-access", "POST /api/v1/auth/logout", "POST /api/v1/auth/password",
-            "POST /api/v1/admin/organizations", "POST /api/v1/admin/users", "POST /api/v1/admin/users/{id:guid}/password",
+            "POST /api/v1/admin/organizations", "POST /api/v1/admin/users", "POST /api/v1/admin/users/bulk", "POST /api/v1/admin/organizations/{id:guid}/students/delete", "POST /api/v1/admin/organizations/{id:guid}/students/hide", "POST /api/v1/admin/users/{id:guid}/password",
             "GET /api/v1/admin/users", "GET /api/v1/admin/users/{id:guid}", "GET /api/v1/admin/organizations", "GET /api/v1/admin/organizations/{id:guid}",
             "PATCH /api/v1/admin/users/{id:guid}/active", "DELETE /api/v1/admin/users/{id:guid}",
             "PATCH /api/v1/admin/users/{id:guid}", "GET /api/v1/admin/organizations/{id:guid}/projects",
@@ -99,6 +99,8 @@ public sealed class HostBoundaryTests
             "GET /api/v1/projects/", "GET /api/v1/projects/{id:guid}", "GET /api/v1/projects/{id:guid}/assignments", "PUT /api/v1/projects/{id:guid}",
             "POST /api/v1/projects/", "POST /api/v1/projects/{id:guid}/duplicate", "POST /api/v1/projects/{id:guid}/submissions", "PATCH /api/v1/projects/{id:guid}/assignments", "PATCH /api/v1/projects/{id:guid}/archive",
             "GET /api/v1/projects/{id:guid}/submissions", "GET /api/v1/projects/{id:guid}/submissions/{submissionId:guid}",
+            "GET /api/v1/projects/{id:guid}/image",
+            "GET /api/v1/projects/{projectId:guid}/exhibition", "GET /api/v1/projects/{projectId:guid}/exhibitions/{publicationId:guid}/assets/{assetId}/bytes",
             "GET /api/v1/projects/{id:guid}/progress-reviews", "POST /api/v1/projects/{id:guid}/progress-reviews",
             "POST /api/v1/projects/{id:guid}/submissions/{submissionId:guid}/decisions",
             "GET /api/v1/classes/", "GET /api/v1/classes/{id:guid}", "GET /api/v1/classes/{id:guid}/roster", "GET /api/v1/classes/{id:guid}/eligible-students",
@@ -109,7 +111,8 @@ public sealed class HostBoundaryTests
             "GET /api/v1/projects/{projectId:guid}/assets/{id:guid}/bytes", "GET /api/v1/projects/{projectId:guid}/assets", "GET /api/v1/projects/{projectId:guid}/publication-links", "GET /api/v1/projects/publication-links",
             "GET,HEAD /api/v1/publications/{publicationId}", "GET /api/v1/publications/{publicationId}/manifest", "GET,HEAD /api/v1/publications/{publicationId}/assets/{assetId}/bytes",
             "GET /api/v1/publications/{publicationId:guid}/access", "POST /api/v1/publications/{publicationId:guid}/access",
-            "GET /api/v1/admin/projects/publication-moderation", "POST /api/v1/admin/projects/{projectId:guid}/publication-moderation",
+            "GET /api/v1/admin/projects/publication-moderation", "POST /api/v1/admin/projects/publication-moderation", "POST /api/v1/projects/publication-moderation", "POST /api/v1/admin/projects/{projectId:guid}/publication-moderation",
+            "GET /api/v1/projects/publication-moderation", "POST /api/v1/projects/{projectId:guid}/publication-moderation",
             "POST /api/v1/projects/{id:guid}/publications", "GET /api/v1/projects/{id:guid}/publication-readiness", "GET /api/v1/projects/{id:guid}/publication-viewers" };
         await Assert.That(string.Join(";", endpoints.Select(endpoint =>
             string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods) + " " + endpoint.RoutePattern.RawText).Order()))

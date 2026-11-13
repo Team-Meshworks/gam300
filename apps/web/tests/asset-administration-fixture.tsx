@@ -180,14 +180,16 @@ function AssetAdministrationPreview() {
   // Keep scenario controls outside the reusable screen and show the simulated account explicitly
   return (
     <div className="asset-admin-preview">
-      <WorkspaceHeader
-        account={role === "Signed out" ? null : { displayName, role }}
-        homeHref="/"
-        onSignOut={() => {
-          setClosed(true);
-          setRole("Signed out");
-        }}
-      />
+      <div className="asset-admin-preview-header">
+        <WorkspaceHeader
+          account={role === "Signed out" ? null : { displayName, role }}
+          homeHref="/"
+          onSignOut={() => {
+            setClosed(true);
+            setRole("Signed out");
+          }}
+        />
+      </div>
 
       {role === "Signed out" && (
         <section className="asset-admin asset-admin-denied">

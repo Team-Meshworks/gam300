@@ -1,8 +1,11 @@
 import { Icon as UiIcon } from "@iconify/react/offline";
 import faCircleChevronDown from "@iconify-icons/lucide/circle-chevron-down";
+import uploadIcon from "@iconify-icons/lucide/upload";
+import checkIcon from "@iconify-icons/lucide/check";
 import faEye from "@iconify-icons/lucide/eye";
 import faEyeSlash from "@iconify-icons/lucide/eye-off";
-import { useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
+import { importAccounts, downloadCredentials, readAccountCsv } from "./account-csv";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
@@ -20,7 +23,9 @@ export function AccountDialog({
   organizationName,
   onClose,
   onSave,
+  onImport,
 }: {
+  onImport?: (values: NewAccount[]) => Promise<readonly string[]>;
   account?: ManagedAccount | undefined;
   organizationName: string;
   onClose: () => void;
@@ -37,6 +42,37 @@ export function AccountDialog({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const saving = useRef(false);
+  const upload = useRef<HTMLInputElement>(null);
+  const [credentials, setCredentials] = useState<NewAccount[]>([]);
+  const csvSource = useRef<string | null>(null);
+  const imported = credentials.length > 0;
+  const [csvHelp, setCsvHelp] = useState(false);
+  const csvHelpId = useId();
+  async function uploadCsv(file: File | undefined) {
+    if (!file || saving.current) return;
+    saving.current = true;
+    setPending(true);
+    setError("");
+    csvSource.current = null;
+    setCredentials([]);
+    try {
+      if (file.size > 512 * 1024) throw new Error("Choose a CSV smaller than 512 KB.");
+      const source = await readAccountCsv(file);
+      const values = importAccounts(source, role);
+      csvSource.current = source;
+      setCredentials(values);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "The upload could not be confirmed. Refresh before retrying.",
+      );
+    } finally {
+      saving.current = false;
+      setPending(false);
+      if (upload.current) upload.current.value = "";
+    }
+  }
   const enabled = (field: string) => !account || overrides[field] === true;
   const changed = !account || Object.values(overrides).some(Boolean);
   function close() {
@@ -49,6 +85,17 @@ export function AccountDialog({
     setPending(true);
     setError("");
     try {
+      if (!account && csvSource.current && onImport) {
+        const values = importAccounts(csvSource.current, role).map((value, index) => ({
+          ...value,
+          initialPassword: credentials[index]!.initialPassword,
+        }));
+        const created = new Set(await onImport(values));
+        if (created.size > 0)
+          downloadCredentials(values.filter((value) => created.has(value.userName)));
+        onClose();
+        return;
+      }
       await onSave(
         account
           ? {
@@ -138,8 +185,50 @@ export function AccountDialog({
           }
           trailing={override("role", "account type")}
         />
-        <fieldset className="sp-credentials" disabled={pending}>
-          <legend>Account Credentials</legend>
+        <fieldset className="sp-credentials" disabled={pending || imported}>
+          <legend className="sp-credentials-heading">
+            <span>Account Credentials</span>
+            {!account && onImport && (
+              <span
+                className="sp-csv-help"
+                onMouseEnter={() => setCsvHelp(true)}
+                onMouseLeave={() => setCsvHelp(false)}
+              >
+                <input
+                  ref={upload}
+                  type="file"
+                  accept=".csv,text/csv"
+                  hidden
+                  onChange={(event) => void uploadCsv(event.target.files?.[0])}
+                />
+                <Button
+                  className="sp-csv-action"
+                  variant="quiet"
+                  disabled={pending}
+                  aria-describedby={csvHelpId}
+                  onFocus={() => setCsvHelp(true)}
+                  onBlur={() => setCsvHelp(false)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape" && csvHelp) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setCsvHelp(false);
+                    }
+                  }}
+                  onClick={() => {
+                    upload.current?.click();
+                    setCsvHelp(false);
+                  }}
+                >
+                  <UiIcon icon={uploadIcon} aria-hidden="true" />
+                  <span>Upload CSV</span>
+                </Button>
+                <span id={csvHelpId} role="tooltip" className="sp-csv-tooltip" hidden={!csvHelp}>
+                  Format in any order: Name, DOB (or Date of Birth), Account Type (optional).
+                </span>
+              </span>
+            )}
+          </legend>
           <div className="sp-credential-grid">
             <div className="sp-field">
               <label htmlFor="account-name">Name</label>
@@ -212,26 +301,44 @@ export function AccountDialog({
             </div>
           </div>
         </fieldset>
-        {error && (
-          <p role="alert" className="sp-account-error">
-            {error}
-          </p>
-        )}
         <div className="sp-account-form-footer">
           <div className="sp-account-notes">
-            <p className="sp-hint">Changes apply to this account only.</p>
-            <p id="account-password-hint" className="sp-hint">
-              {enabled("password")
-                ? "Use 12–128 characters. The person will change this temporary password on sign-in."
-                : "Existing passwords are private. Override to set a new temporary password."}
-            </p>
+            <div
+              className={
+                imported || error ? "sp-account-note-copy is-imported" : "sp-account-note-copy"
+              }
+              aria-hidden={Boolean(imported || error)}
+            >
+              <p className="sp-hint">Changes apply to this account only.</p>
+              <p id="account-password-hint" className="sp-hint">
+                {enabled("password")
+                  ? "Use 12–128 characters. Users must change this password at first sign-in."
+                  : "Existing passwords are private. Override to set a new temporary password."}
+              </p>
+            </div>
+            {error && (
+              <p role="alert" className="sp-account-error">
+                {error}
+              </p>
+            )}
+            {imported && !error && (
+              <div className="sp-account-import-ready" role="status">
+                <p className="sp-hint">
+                  <UiIcon icon={checkIcon} aria-hidden="true" />
+                  {credentials.length} accounts ready to import.
+                </p>
+                <p className="sp-hint">
+                  Set the account type for rows without one, then save changes.
+                </p>
+              </div>
+            )}
           </div>
           <div className="sp-actions">
             <Button onClick={close} disabled={pending}>
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={pending || !changed}>
-              {pending ? "Saving…" : "Save Changes"}
+              {pending ? "Saving…" : "Save changes"}
             </Button>
           </div>
         </div>

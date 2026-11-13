@@ -260,19 +260,20 @@ export function OrganizationDirectory({
     );
   }
   // Server search can match a member even when the organisation name differs from the query
-  const visible =
-    searching || searchError
-      ? []
-      : onSearch
-        ? organizations
-        : organizations.filter((item) =>
-            item.name.toLowerCase().includes(query.trim().toLowerCase()),
-          );
+  const visible = searchError
+    ? []
+    : onSearch
+      ? organizations
+      : organizations.filter((item) =>
+          item.name.toLowerCase().includes(query.trim().toLowerCase()),
+        );
   return (
     <section
       className={`sp-directory sp-organization-overview${administration ? " sp-directory--administration" : ""}`}
     >
-      <div className="sp-organization-overview-heading">
+      <div
+        className={`sp-organization-overview-heading${administration ? " sp-admin-page-heading" : ""}`}
+      >
         <div>
           <h1>All Organisations</h1>
           <p className="sp-hint">
@@ -349,12 +350,14 @@ export function OrganizationDirectory({
             </Button>
           </article>
         ))}
+        {!searching && !searchError && !visible.length && (
+          <p role="status" className="sp-list-empty">
+            No matching organisations. Try another name.
+          </p>
+        )}
       </div>
       {searching && <p role="status">Searching organisations…</p>}
       {searchError && <p role="alert">{searchError}</p>}
-      {!searching && !searchError && !visible.length && (
-        <p role="status">No matching organisations. Try another name.</p>
-      )}
     </section>
   );
 }

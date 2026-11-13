@@ -222,13 +222,13 @@
   --account-error: #a22620;
   --account-shadow: 0 12px 32px rgb(15 23 42 / 12%);
   position: fixed;
-  width: min(800px, calc(100% - 32px));
+  width: min(720px, calc(100% - 32px));
   max-width: none;
   left: 50%;
   right: auto;
   margin-inline: 0;
   transform: translateX(-50%);
-  padding: 23px 23px 21px;
+  padding: 23px 31px 29px;
   border: 1px solid var(--account-border);
   border-radius: 20px;
   background: var(--account-surface);
@@ -237,7 +237,7 @@
   translate: 0 -12px;
 }
 .sp-account-dialog .sp-dialog-body {
-  margin: 6px 0 0;
+  margin: 2px 0 0;
   gap: 0;
 }
 .sp-account-dialog h2 {
@@ -252,8 +252,8 @@
 }
 .sp-account-dialog .sp-dialog-dismiss {
   position: absolute;
-  right: 23px;
-  top: 34px;
+  right: 31px;
+  top: 21px;
   border: 0;
   padding: 0;
   width: 32px;
@@ -263,8 +263,8 @@
 }
 .sp-account-form {
   display: grid;
-  gap: 14px;
-  margin-top: 12px;
+  gap: 20px;
+  margin-top: 20px;
 }
 .sp-account-identity {
   display: flex;
@@ -307,9 +307,10 @@
 }
 .sp-account-form > .sp-field {
   gap: 14px;
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 .sp-account-form > .sp-field > label {
+  color: #344054;
   font-size: 15px;
   font-weight: 600;
   line-height: 22px;
@@ -321,10 +322,11 @@
   margin: 0;
 }
 .sp-credentials legend {
+  color: #344054;
   font-size: 15px;
   font-weight: 600;
   line-height: 22px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   padding: 0;
 }
 .sp-credential-grid {
@@ -333,9 +335,10 @@
   gap: 16px;
 }
 .sp-credential-grid .sp-field {
-  gap: 4px;
+  gap: 8px;
 }
 .sp-credential-grid .sp-field > label {
+  color: #475467;
   font-size: 12px;
   font-weight: 600;
   line-height: 16px;
@@ -438,6 +441,14 @@
   flex-shrink: 0;
   color: var(--account-chevron);
 }
+/* The account type reference uses a filled disc with a light chevron */
+.sp-account-type-icon circle {
+  fill: var(--account-chevron);
+  stroke: var(--account-chevron);
+}
+.sp-account-type-icon path {
+  stroke: var(--account-surface);
+}
 .sp-account-type-select > .sp-override {
   position: absolute;
   right: 13px;
@@ -512,10 +523,14 @@
 }
 @media (max-width: 640px) {
   .sp-account-dialog.sp-dialog {
-    padding: 24px 18px;
+    padding: 24px 24px 32px;
   }
   .sp-account-dialog h2 {
     font-size: 20px;
+  }
+  .sp-account-dialog .sp-dialog-dismiss {
+    top: 22px;
+    right: 24px;
   }
   .sp-credential-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -551,6 +566,9 @@
   background-image:
     linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
     var(--admin-workspace-background);
+  background-clip: padding-box;
+  background-color: var(--admin-panel);
+  box-shadow: var(--admin-panel-shadow);
   background-position: center;
   background-size: 100% 100%;
   background-repeat: no-repeat;
@@ -561,7 +579,7 @@
   justify-content: flex-end;
 }
 .sp-directory--administration .sp-organization-overview-heading {
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 14px;
 }
 .sp-directory--administration .sp-organization-overview-heading h1,
@@ -662,6 +680,9 @@
   background-image:
     linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
     var(--admin-workspace-background);
+  background-clip: padding-box;
+  background-color: var(--admin-panel);
+  box-shadow: var(--admin-panel-shadow);
   background-position: center;
   background-size: 100% 100%;
   background-repeat: no-repeat;
@@ -747,8 +768,11 @@
 }
 .sp-directory--administration .sp-organization-detail .sp-tabs button {
   min-height: 20px;
-  padding: 0;
-  border-bottom-color: transparent;
+  padding: 8px 10px;
+  border: 0;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  text-decoration: none;
   font-size: 14px;
   font-weight: 400;
   color: var(--sp-muted);
@@ -868,7 +892,7 @@
   font-weight: 600;
 }
 .sp-directory--administration .sp-account-row .sp-person-name small {
-  margin-top: 4px;
+  margin-top: 0;
   font-size: 12px;
 }
 .sp-directory--administration .sp-account-row-bottom {
@@ -997,42 +1021,826 @@
   min-height: 40px;
   padding: 0;
 }
-/* Give long organisation names room without stretching each overview card */
+/* Two organisation cards per row, with counts stacked beside identity and actions. */
 .sp-directory--administration .sp-organization-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 10px;
 }
 .sp-directory--administration .sp-organization-card {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 90px;
   min-height: 190px;
-  padding: 20px;
-  gap: 14px;
+  padding: 31px 30px;
+  gap: 20px 20px;
 }
 .sp-directory--administration .sp-organization-card .sp-account {
-  gap: 12px;
+  gap: 13px;
+}
+.sp-directory--administration .sp-organization-card .sp-avatar {
+  width: 50px;
+  height: 50px;
+  flex-shrink: 0;
+  font-size: 15px;
 }
 .sp-directory--administration .sp-organization-card h3 {
-  max-width: none;
+  max-width: 229px;
   font-size: 18px;
   line-height: 1.3;
 }
 .sp-directory--administration .sp-organization-card .sp-organization-counts {
-  grid-column: 1;
-  grid-row: auto;
+  grid-column: 2;
+  grid-row: 1 / span 2;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
+  flex-direction: column;
+  gap: 10px;
+  align-self: center;
+  color: #938b82;
+  font-size: 12px;
 }
-.sp-directory--administration .sp-organization-card > .sp-button {
+.sp-directory--administration.sp-organization-overview .sp-organization-card > .sp-button {
+  grid-column: 1;
   justify-self: start;
+  min-height: 40px;
 }
-@media (max-width: 1000px) {
+.sp-directory--administration.sp-organization-overview .sp-directory-close {
+  background: #e4e1dc;
+  color: #292723;
+}
+.sp-directory--administration.sp-organization-overview .sp-directory-close:hover {
+  background: #d7d2cb;
+}
+@media (min-width: 601px) and (max-width: 1000px) {
   .sp-directory--administration .sp-organization-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .sp-directory--administration .sp-organization-card {
+    padding: 24px 18px;
+    gap: 20px 12px;
   }
 }
 @media (max-width: 600px) {
   .sp-directory--administration .sp-organization-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* Keep administrator actions compact alongside the dashboard controls */
+.sp-directory--administration .sp-button:not(.sp-close-button),
+.sp-account-form-footer .sp-actions > .sp-button {
+  min-height: 36px;
+  padding-inline: 16px;
+}
+
+.sp-directory--administration .sp-button--primary,
+.sp-account-dialog .sp-button--primary {
+  background: #332e2a;
+  border-color: #332e2a;
+}
+
+/* Match the facilitator search control while retaining this role's layout. */
+.sp-directory--administration .sp-search,
+.sp-directory--administration .sp-organization-detail .sp-search {
+  position: relative;
+  height: 45px;
+  min-height: 45px;
+  padding: 0 22px;
+  border: var(--admin-search-border);
+  background-clip: padding-box;
+  background-color: transparent;
+  background-image: linear-gradient(rgb(239 239 239 / 45%), rgb(245 245 245 / 45%) 55%);
+  background-size: 100% 100%;
+  box-shadow: var(--admin-search-shadow);
+}
+.sp-directory--administration .sp-search input,
+.sp-directory--administration .sp-organization-detail .sp-search input {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  height: 22px;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  font: 400 13px/18px var(--sp-font, "Inter", sans-serif);
+}
+.sp-directory--administration .sp-search svg,
+.sp-directory--administration .sp-organization-detail .sp-search svg {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+
+.sp-directory--administration .sp-close-button,
+.sp-directory--administration .sp-account-search-row > .sp-close-button,
+.sp-account-dialog .sp-dialog-dismiss {
+  flex-basis: 36px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+}
+.sp-directory--administration .sp-close-button > svg,
+.sp-account-dialog .sp-dialog-dismiss > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sp-directory--administration .sp-tabs button {
+  border-radius: 8px;
+}
+.sp-directory--administration .sp-tabs button:hover:not(:disabled) {
+  background: #eae5df;
+}
+.sp-directory--administration .sp-tabs button[aria-selected="true"]:hover:not(:disabled) {
+  background: #eae5df;
+}
+.sp-directory--administration .sp-close-button:hover:not(:disabled),
+.sp-account-dialog .sp-dialog-dismiss:hover:not(:disabled) {
+  background: #e4e5e7;
+}
+.sp-account-type-menu > button:hover:not(:disabled) {
+  background: #eae5df;
+}
+.sp-account-type-menu > button[aria-selected="true"]:hover:not(:disabled) {
+  background: #ddd7cf;
+}
+.sp-shell--dashboard:has(.sp-directory--administration)
+  .sp-dialog:has(.sp-actions):not(.sp-account-dialog):not(.sp-account-confirmation) {
+  width: min(480px, calc(100% - 32px));
+  padding: 24px;
+}
+.sp-shell--dashboard:has(.sp-directory--administration)
+  .sp-dialog:not(.sp-account-dialog)
+  .sp-actions:not(.sp-confirmation-actions)
+  .sp-button {
+  min-height: 36px;
+  padding: 6px 16px;
+}
+.sp-directory--administration .sp-button--danger:hover:not(:disabled),
+.sp-shell--dashboard:has(.sp-directory--administration)
+  .sp-dialog
+  .sp-button--danger:hover:not(:disabled) {
+  background: #fbe2dd;
+}
+
+.sp-directory--administration .sp-button,
+.sp-account-dialog .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* Account lists retain a stronger name and filter level than handles and status labels. */
+.sp-directory--administration .sp-organization-detail .sp-tabs button {
+  font-size: 15px;
+  line-height: 20px;
+}
+.sp-directory--administration .sp-account-row .sp-person-name strong {
+  font-size: 15px;
+  line-height: 20px;
+}
+.sp-directory--administration .sp-account-row .sp-person-name small {
+  font-size: 13px;
+  line-height: 18px;
+}
+.sp-directory--administration .sp-directory-project h4 {
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.sp-directory--administration .sp-account-row .sp-button {
+  font-size: 15px;
+  line-height: 20px;
+}
+.sp-directory--administration .sp-directory-project-visibility {
+  font-size: 12px;
+  line-height: 18px;
+}
+.sp-directory--administration .sp-account-row .sp-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* Match the Published Projects roster without changing the account workflows. */
+.sp-directory--administration .sp-organization-detail .sp-account-list {
+  background: var(--admin-progress-background);
+  border: 1px solid var(--sp-border);
+  border-radius: 16px;
+}
+.sp-directory--administration .sp-account-list-header {
+  padding: 20px 20px var(--admin-tabs-bottom-padding);
+  gap: var(--admin-search-tabs-gap);
+  border-bottom: 1px solid var(--sp-border);
+}
+.sp-directory--administration .sp-account-list-toolbar {
+  padding-bottom: 0;
+}
+.sp-directory--administration .sp-organization-detail .sp-tabs {
+  gap: 10px;
+}
+.sp-directory--administration .sp-organization-detail .sp-tabs button {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  font: 400 15px/20px var(--sp-font);
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.sp-directory--administration .sp-organization-detail .sp-tabs button[aria-selected="true"] {
+  font-weight: 600;
+  background: transparent;
+}
+.sp-directory--administration .sp-organization-detail .sp-tabs button:hover:not(:disabled) {
+  background: #eae5df;
+}
+.sp-directory--administration .sp-account-row {
+  grid-template-columns: minmax(0, 1fr) 148px;
+  row-gap: var(--admin-person-row-gap);
+  column-gap: 14px;
+  align-content: start;
+  padding: 20px 24px;
+  border-top: 0;
+  border-bottom: 1px solid var(--sp-border);
+}
+.sp-directory--administration .sp-account-row:last-child {
+  border-bottom: 0;
+}
+.sp-directory--administration .sp-account-row .sp-person-name strong {
+  font-weight: 700;
+}
+.sp-directory--administration .sp-account-row-metadata {
+  align-self: center;
+  justify-self: end;
+  width: 124px;
+  gap: 10px;
+}
+.sp-directory--administration .sp-account-row-metadata dt {
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.sp-directory--administration .sp-account-row-metadata dd {
+  font-size: 13px;
+  line-height: 18px;
+}
+.sp-directory--administration .sp-account-row .sp-button,
+.sp-directory--administration .sp-account-list-toolbar > .sp-button {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 14px;
+  font: 500 15px/20px var(--sp-font);
+}
+.sp-directory--administration .sp-account-row .sp-button:not(.sp-button--primary) {
+  color: #515151;
+  border-color: #e7e2dc;
+  background: #f7f5f2;
+}
+.sp-directory--administration
+  .sp-account-row
+  .sp-button:not(.sp-button--primary):hover:not(:disabled) {
+  background: #eee8e1;
+}
+.sp-directory--administration .sp-account-search-row > .sp-close-button {
+  background: #e4e1dc;
+}
+.sp-directory--administration .sp-account-search-row > .sp-close-button:hover:not(:disabled) {
+  background: #d7d2cb;
+}
+@media (max-width: 520px) {
+  .sp-directory--administration .sp-account-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: 15px;
+  }
+  .sp-directory--administration .sp-account-row-metadata {
+    width: 100%;
+  }
+}
+
+/* The organisation detail panels sit under the same washes as Published Projects. */
+.sp-directory--administration > .sp-organization-detail {
+  z-index: auto;
+}
+.sp-directory--administration
+  .sp-organization-detail
+  :is(.sp-organization-identity, .sp-organization-projects, .sp-account-list) {
+  position: relative;
+}
+.sp-directory--administration
+  .sp-organization-detail
+  :is(.sp-organization-identity, .sp-organization-projects, .sp-account-list)
+  > * {
+  position: relative;
+  z-index: 2;
+}
+.sp-directory--administration
+  .sp-organization-detail
+  :is(.sp-organization-identity, .sp-organization-projects, .sp-account-list)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 1px solid var(--sp-border);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.sp-account-dialog .sp-credentials-heading {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sp-csv-help {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.sp-account-dialog .sp-csv-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--account-muted);
+  font: 500 13px/20px var(--sp-font);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sp-account-dialog .sp-csv-action:hover:not(:disabled) {
+  background: transparent;
+  color: var(--account-ink);
+  text-decoration: none;
+}
+.sp-account-dialog .sp-csv-action > svg {
+  width: 16px;
+  height: 16px;
+}
+.sp-csv-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  pointer-events: none;
+  right: 0;
+  z-index: 10;
+  width: 240px;
+  max-width: calc(100dvw - 80px);
+  padding: 10px 12px;
+  border: 1px solid var(--account-border);
+  border-radius: 10px;
+  background: var(--account-surface);
+  box-shadow: var(--account-shadow);
+  color: var(--account-ink);
+  font: 400 12px/18px var(--sp-font);
+}
+.sp-csv-tooltip[hidden] {
+  display: none;
+}
+.sp-credentials-heading .sp-csv-action {
+  min-height: 22px;
+}
+
+.sp-account-notes {
+  position: relative;
+}
+.sp-account-note-copy.is-imported {
+  visibility: hidden;
+}
+.sp-account-import-ready {
+  position: absolute;
+  inset: 0;
+}
+.sp-account-import-ready > .sp-hint:first-child {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--account-active-ink);
+}
+.sp-account-import-ready svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.sp-account-notes .sp-account-error {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+@media (min-width: 1051px) {
+  .sp-directory--administration .sp-organization-detail {
+    grid-template-rows: minmax(var(--admin-roster-header-height), max-content) minmax(0, 1fr);
+  }
+  .sp-directory--administration .sp-organization-detail-left,
+  .sp-directory--administration .sp-organization-detail > .sp-account-list {
+    grid-row: 1 / span 2;
+    display: grid;
+    grid-template-rows: subgrid;
+  }
+  .sp-directory--administration .sp-organization-detail > .sp-account-list {
+    row-gap: 0;
+  }
+  .sp-directory--administration .sp-organization-detail-left {
+    grid-column: 1;
+  }
+  .sp-directory--administration .sp-organization-detail > .sp-account-list {
+    grid-column: 2;
+  }
+}
+
+.sp-dialog.sp-account-confirmation .sp-confirmation-actions {
+  margin-top: 8px;
+}
+
+.sp-dialog.sp-account-confirmation {
+  width: min(400px, calc(100% - 32px));
+}
+.sp-directory--administration:has(> .sp-organization-detail),
+.sp-directory--administration.sp-organization-overview {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+}
+.sp-directory--administration.sp-organization-overview > .sp-organization-grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  align-content: start;
+}
+.sp-directory--administration .sp-organization-detail {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+@media (max-width: 1050px) {
+  .sp-directory--administration .sp-organization-detail {
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .sp-directory--administration .sp-organization-detail-left {
+    display: block;
+    overflow: auto;
+  }
+  .sp-directory--administration .sp-organization-identity {
+    margin-bottom: 10px;
+  }
+  .sp-directory--administration .sp-organization-projects {
+    height: 320px;
+  }
+  .sp-directory--administration .sp-account-list {
+    height: 100%;
+  }
+}
+
+.sp-directory--administration :is(.sp-organization-grid, .sp-organization-project-list) {
+  padding-right: 10px;
+  margin-right: -10px;
+}
+
+:root {
+  --account-selection-ink: var(--sp-ink);
+  --account-selection-border: #b1aaa2;
+  --account-selection-paper: var(--sp-surface);
+  --account-selection-on: #fff;
+  --account-selection-fill: rgb(51 46 42 / 4%);
+  --account-selection-danger: var(--admin-moderation-danger-ink);
+}
+.sp-directory--administration .sp-account-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--sp-border);
+  color: var(--sp-muted);
+  font: 500 15px/20px var(--sp-font);
+}
+.sp-account-selection label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  gap: 12px;
+  cursor: pointer;
+}
+.sp-directory--administration .sp-account-row--selectable {
+  grid-template-columns: 16px minmax(0, 1fr) 148px;
+  column-gap: 12px;
+}
+.sp-account-selection-check {
+  display: grid;
+  align-items: center;
+  min-height: 32px;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  cursor: pointer;
+}
+.sp-directory--administration
+  .sp-account-row--selectable
+  :is(.sp-account-row-top, .sp-account-row-bottom) {
+  grid-column: 2;
+}
+.sp-directory--administration .sp-account-row--selectable .sp-account-row-metadata {
+  grid-column: 3;
+}
+.sp-directory--administration .sp-account-row--selectable.is-selected {
+  background: var(--account-selection-fill);
+}
+@media (max-width: 520px) {
+  .sp-directory--administration .sp-account-selection {
+    padding-inline: 15px;
+  }
+  .sp-directory--administration .sp-account-row--selectable {
+    grid-template-columns: 16px minmax(0, 1fr);
+  }
+  .sp-directory--administration .sp-account-row--selectable .sp-account-row-metadata {
+    grid-column: 2;
+    grid-row: 3;
+  }
+}
+
+.sp-account-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
+  flex: none;
+}
+.sp-directory--administration .sp-account-toolbar-actions > .sp-button--primary {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 14px;
+  font: 500 15px/20px var(--sp-font);
+}
+.sp-directory--administration .sp-account-toolbar-actions > .sp-account-select-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
+  width: 28px;
+  min-width: 28px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sp-muted);
+  font: 500 12px/18px var(--sp-font);
+  white-space: nowrap;
+}
+.sp-directory--administration
+  .sp-account-toolbar-actions
+  > .sp-account-select-action:hover:not(:disabled) {
+  background: var(--account-selection-fill);
+  color: var(--sp-ink);
+}
+.sp-directory--administration
+  .sp-account-toolbar-actions
+  > .sp-account-select-action[aria-pressed="true"] {
+  color: var(--sp-ink);
+}
+
+.sp-account-select-action svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sp-directory--administration .sp-account-list-header {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+.sp-directory--administration .sp-account-list-toolbar {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.sp-account-select-action:active:not(:disabled) {
+  background: var(--account-selection-fill);
+}
+:is(.sp-account-select-action, .sp-account-bulk-delete, .sp-account-select-row):disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sp-account-selection label > span,
+.sp-account-bulk-delete > span {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+  line-height: 1;
+}
+.sp-directory--administration .sp-account-selection .sp-account-bulk-delete:disabled {
+  color: var(--sp-muted);
+  opacity: 0.55;
+}
+
+.sp-directory--administration .sp-account-list-header > .sp-account-selection-toolbar {
+  padding: 0 0 0 4px;
+  border: 0;
+}
+.sp-account-list-toolbar[hidden],
+.sp-account-selection-toolbar[hidden] {
+  display: none;
+}
+.sp-account-selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sp-directory--administration .sp-account-selection-actions > .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 14px;
+  font: 500 15px/20px var(--sp-font);
+}
+.sp-directory--administration .sp-account-selection-actions > .sp-account-bulk-delete {
+  gap: 6px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--account-selection-danger);
+  background: transparent;
+  font-weight: 600;
+}
+.sp-directory--administration .sp-account-selection-actions > .sp-account-bulk-delete:disabled {
+  color: var(--sp-muted);
+  background: transparent;
+  opacity: 0.55;
+}
+.sp-account-bulk-delete svg {
+  width: 16px;
+  height: 16px;
+}
+.sp-directory--administration .sp-account-list-header > .sp-account-selection-toolbar {
+  flex-wrap: wrap;
+}
+.sp-account-selection-actions {
+  margin-left: auto;
+}
+.sp-directory--administration .sp-account-list-toolbar .sp-tabs button {
+  font-weight: 400;
+}
+.sp-directory--administration .sp-account-list-toolbar .sp-tabs button[aria-selected="true"] {
+  font-weight: 600;
+}
+
+.sp-account-selection-toolbar > label {
+  margin-left: -10px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--sp-ink);
+  font-weight: 600;
+}
+.sp-account-selection-toolbar > label:hover:has(input:not(:disabled)) {
+  background: var(--account-selection-fill);
+}
+.sp-directory--administration
+  .sp-account-selection-actions
+  > .sp-button:not(.sp-account-bulk-delete) {
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sp-muted);
+}
+.sp-directory--administration
+  .sp-account-selection-actions
+  > .sp-button:not(.sp-account-bulk-delete):hover:not(:disabled) {
+  background: var(--account-selection-fill);
+  color: var(--sp-ink);
+}
+.sp-account-selection-toolbar .sp-account-selection-actions {
+  gap: 16px;
+}
+
+@media (min-width: 1051px) {
+  .sp-directory--administration .sp-account-list-toolbar .sp-tabs {
+    gap: 4px;
+  }
+  .sp-directory--administration .sp-account-list-toolbar .sp-tabs button {
+    padding-inline: 4px;
+  }
+}
+
+@media (min-width: 1051px) {
+  .sp-directory--administration .sp-account-list-toolbar {
+    gap: 8px;
+  }
+  .sp-directory--administration .sp-account-toolbar-actions {
+    gap: 20px;
+  }
+  .sp-directory--administration .sp-account-toolbar-actions > .sp-button--primary {
+    padding-inline: 10px;
+  }
+  .sp-directory--administration .sp-account-toolbar-actions > .sp-account-select-action {
+    flex-basis: 24px;
+    width: 24px;
+    min-width: 24px;
+  }
+}
+
+.sp-directory--administration .sp-account-list-header {
+  grid-template-rows: 45px minmax(36px, 1fr);
+}
+.sp-directory--administration .sp-account-toolbar-actions > .sp-account-select-action {
+  height: 28px;
+  min-height: 28px;
+  border-radius: 4px;
+}
+@media (min-width: 1051px) {
+  .sp-directory--administration .sp-account-toolbar-actions > .sp-account-select-action {
+    height: 24px;
+    min-height: 24px;
+  }
+}
+
+.sp-directory--administration .sp-account-toolbar-actions > .sp-account-select-action {
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+.sp-account-select-action > svg {
+  display: block;
+  margin: 0;
+  padding: 0;
+  transform: none;
+}
+
+@media (min-width: 1344px) {
+  .sp-directory--administration .sp-account-list-toolbar .sp-tabs {
+    gap: 12px;
+  }
+  .sp-directory--administration .sp-account-list-toolbar .sp-tabs button {
+    padding-inline: 6px;
+  }
+}
+
+@media (min-width: 1051px) and (max-width: 1343px) {
+  .sp-directory--administration .sp-account-list-toolbar {
+    gap: 4px;
+  }
+  .sp-directory--administration .sp-account-toolbar-actions {
+    gap: 12px;
+  }
+}
+
+.sp-directory--administration .sp-organization-projects .sp-tabs {
+  gap: 20px;
+}
+.sp-directory--administration .sp-organization-projects .sp-tabs button {
+  padding-inline: 0;
+}
+
+.sp-directory--administration
+  :is(.sp-organization-grid, .sp-organization-project-list, .sp-account-rows):has(
+    > p[role="status"]:only-child
+  ) {
+  display: grid;
+  place-items: center;
+}
+.sp-directory--administration.sp-organization-overview > .sp-organization-grid:has(> p:only-child) {
+  align-content: center;
+}
+.sp-directory--administration
+  :is(.sp-organization-grid, .sp-organization-project-list, .sp-account-rows)
+  > p[role="status"]:only-child {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 24px;
+  color: var(--sp-muted);
+  text-align: center;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.sp-directory--administration .sp-account-selection-actions > .sp-account-bulk-hide {
+  color: var(--sp-ink);
+  font-weight: 600;
+  gap: 6px;
+}
+.sp-account-bulk-hide svg {
+  width: 16px;
+  height: 16px;
+}
+.sp-account-bulk-hide:disabled {
+  opacity: 0.55;
 }

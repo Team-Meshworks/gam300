@@ -128,7 +128,7 @@ try {
   assert.ok(recovered, "The actual recovery transaction must finish before reload");
   denyCrate = true;
   await page.reload();
-  await page.getByRole("button", { name: "Recover my edits" }).click();
+  await page.getByRole("button", { name: "Recover changes" }).click();
   await page.getByRole("link", { name: "Sign in in another tab" }).waitFor();
   assert.equal(
     await page.locator(".object-row").count(),

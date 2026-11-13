@@ -60,6 +60,8 @@ export type ServerEditorSession = {
   openServerVersion: () => void;
   logout: () => void;
   publish?: () => void;
+  publishLabel?: "Request approval" | "Awaiting approval" | "Publish";
+  publishDisabled?: boolean;
   importFile: (file: File) => Promise<void>;
 };
 
@@ -81,7 +83,13 @@ function removalNotice(label: string, removedRules: number): string {
     : `${label}. Undo restores it.`;
 }
 
-export function App({ server }: { server: ServerEditorSession }) {
+export function App({
+  server,
+  readOnlyPreview = false,
+}: {
+  server: ServerEditorSession;
+  readOnlyPreview?: boolean;
+}) {
   const { assets, selectionAssets, store } = server;
   const editorAssets = useMemo(() => [...assets, HOTSPOT_ASSET], [assets]);
   const assetKinds = useMemo(
@@ -241,7 +249,7 @@ export function App({ server }: { server: ServerEditorSession }) {
   const selectedObject = roomSelected
     ? environmentObject(projectScene)
     : objects.find((object) => object.id === selection);
-  const visitor = modeState?.mode === "visitor";
+  const visitor = readOnlyPreview || modeState?.mode === "visitor";
   const mobileDevice = isMobileTouchDevice();
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
   // Start inside the scene, the overview button switch to the orbit camera
@@ -303,12 +311,27 @@ export function App({ server }: { server: ServerEditorSession }) {
   useEffect(() => {
     interactionHandlerRef.current = interactionHandler;
   }, [interactionHandler]);
+  const previewStarted = useRef<ModeManager | null>(null);
+  useEffect(() => {
+    if (!readOnlyPreview || !manager || status !== "ready" || previewStarted.current === manager)
+      return;
+    previewStarted.current = manager;
+    navigation.start();
+    manager.setMode("visitor");
+  }, [readOnlyPreview, manager, navigation, status]);
+  useEffect(
+    () => () => {
+      if (readOnlyPreview) navigation.end();
+    },
+    [readOnlyPreview, navigation],
+  );
+  const previewReady = !readOnlyPreview || modeState?.mode === "visitor";
   // Leaving Preview, replacing the handler or unmounting ends that preview session
   useEffect(() => {
-    if (!visitor) return;
+    if (!visitor || !previewReady) return;
     interactionHandler.sceneStarted();
     return () => interactionHandler.reset();
-  }, [visitor, interactionHandler]);
+  }, [visitor, interactionHandler, previewReady]);
   const onObjectClick = useCallback((id: string) => {
     interactionHandlerRef.current.objectClicked(id);
   }, []);
@@ -865,7 +888,8 @@ export function App({ server }: { server: ServerEditorSession }) {
           }}
           placingAssetId={placingAssetId}
           onPlacementCancel={() => setPlacingAssetId(null)}
-          editingEnabled={!departing}
+          editingEnabled={!departing && !readOnlyPreview}
+          allowInspection={readOnlyPreview}
           navigationTool={pendingText ? "orbit" : navigationTool}
           view={view}
           status={status}
@@ -1063,11 +1087,11 @@ export function App({ server }: { server: ServerEditorSession }) {
               <p className="walk-hint">
                 {visitor
                   ? captured
-                    ? "Preview mode · Left click to interact · Hold Alt for the mouse · Esc to stop"
-                    : `Preview mode · ${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump`
+                    ? "Preview mode \u00b7 Left click to interact \u00b7 Hold Alt for the mouse \u00b7 Esc to stop"
+                    : `Preview mode \u00b7 ${canCapture ? "Click the scene" : "Drag"} to look around \u00b7 WASD to walk \u00b7 Space to jump`
                   : captured
-                    ? "Click selects what's under the + · Hold the click to carry it, scroll to push or pull · Hold right click to turn it · Hold Alt for the mouse · Esc to stop"
-                    : `${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump, double tap to fly · C to go down`}
+                    ? "Click selects what's under the + \u00b7 Hold the click to carry it, scroll to push or pull \u00b7 Hold right click to turn it \u00b7 Hold Alt for the mouse \u00b7 Esc to stop"
+                    : `${canCapture ? "Click the scene" : "Drag"} to look around \u00b7 WASD to walk \u00b7 Space to jump, double tap to fly \u00b7 C to go down`}
               </p>
             </>
           )}

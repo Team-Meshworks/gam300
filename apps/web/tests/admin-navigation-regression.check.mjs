@@ -135,6 +135,7 @@ for (const [label, path, heading] of [
     try {
       await page.goto(origin + "/admin/dashboard");
       await page.getByRole("heading", { name: "Welcome Back, Admin" }).waitFor();
+      await page.getByRole("button", { name: "View Details for Source", exact: true }).waitFor();
       await page.getByText(label, { exact: true }).click();
       await page.waitForURL(origin + path);
       await page.getByRole("heading", { name: heading, exact: true }).waitFor();
@@ -142,6 +143,11 @@ for (const [label, path, heading] of [
       await checkGeneratedPreviews(page);
       await page.getByRole("button", { name: "Close asset administration" }).click();
       await page.waitForURL(origin + "/admin/dashboard");
+      assert.equal(
+        await page.locator(".admin-project-loading [inert]").count(),
+        0,
+        "Returning home preserves loaded project cards without a placeholder flash",
+      );
     } finally {
       await page.close();
     }
@@ -246,10 +252,10 @@ test("dashboard project cover loads the default blank environment image", async 
   try {
     await page.goto(origin + "/admin/dashboard");
     await page.getByRole("heading", { name: "Welcome Back, Admin" }).waitFor();
-    await page.getByRole("button", { name: "View All Projects" }).click();
+    await page.getByRole("button", { name: "View All", exact: true }).click();
     await page
-      .locator('section[aria-label="All Projects"]')
-      .getByRole("button", { name: "View progress for Source" })
+      .locator('section[aria-label="All Published Projects"]')
+      .getByRole("button", { name: "View Details for Source" })
       .waitFor();
     const cover = page.locator(".admin-project-card").first().locator("img.admin-project-cover");
     assert.equal(await cover.count(), 1, "project card has a cover image");

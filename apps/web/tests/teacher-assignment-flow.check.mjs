@@ -66,8 +66,7 @@ try {
       return route.fulfill({ json: { items: [], nextCursor: null } });
     return route.fulfill({ status: 404 });
   });
-  await page.goto(origin + "/home");
-  await page.getByRole("button", { name: "Classes", exact: true }).click();
+  await page.goto(origin + "/classes");
   await page.getByLabel("Class", { exact: true }).selectOption(classId);
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   await page.getByRole("heading", { name: "Project details" }).waitFor();
@@ -75,7 +74,11 @@ try {
   const checks = [
     [
       "selected class retained",
-      async () => assert.equal(await page.locator("#project-class").inputValue(), classId),
+      async () =>
+        assert.equal(
+          (await page.getByRole("combobox", { name: "Class *", exact: true }).innerText()).trim(),
+          "History",
+        ),
     ],
     [
       "enrolled student populated",
@@ -90,9 +93,8 @@ try {
       async () => assert.equal(await page.getByLabel("Source project").count(), 0),
     ],
     [
-      "date and time input",
-      async () =>
-        assert.equal(await page.locator("#project-due").getAttribute("type"), "datetime-local"),
+      "date input",
+      async () => assert.equal(await page.locator("#project-due").getAttribute("type"), "date"),
     ],
     [
       "creator shown",
@@ -108,12 +110,9 @@ try {
       async () =>
         assert.equal(
           await page
-            .getByText(
-              "Each selected student receives an independent draft with these instructions.",
-              {
-                exact: true,
-              },
-            )
+            .getByText("You can edit project details, students and the due date later.", {
+              exact: true,
+            })
             .count(),
           1,
         ),

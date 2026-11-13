@@ -65,7 +65,16 @@ public sealed partial class PublicationCoordinatorTests
     {
         await using var fixture = await PublicationCoordinatorFixture.CreateAsync(role: role);
         var request = Request();
-        await AssertCommittedAsync(await fixture.PublishAsync(request), request, fixture.ProjectId, false);
+        var result = await fixture.PublishAsync(request);
+        if (role == ApplicationRoles.Administrator)
+        {
+            await Assert.That(result.AccessFailure).IsEqualTo(ProjectAccessFailure.OperationForbidden);
+            await fixture.AssertCountAsync(0);
+        }
+        else
+        {
+            await AssertCommittedAsync(result, request, fixture.ProjectId, false);
+        }
     }
 
     [Test]

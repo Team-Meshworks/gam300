@@ -55,6 +55,7 @@ export function connectServerProjectSession(options: {
   // Server revision is tracked separately by autosave
   let storageRevision = options.storageRevision;
   let disposed = false;
+  let backupError = "";
   let closing: Promise<ValidationResult<boolean>> | undefined;
   // Hold onto the previous project's history when the store switches projects
   // Its final queued backup may run after the new scene has loaded
@@ -77,7 +78,10 @@ export function connectServerProjectSession(options: {
       const parsed = deserializeProject(documentJson, options.assetKinds, {
         allowDraftLinks: true,
       });
-      if (!parsed.ok) return false;
+      if (!parsed.ok) {
+        backupError = parsed.error.message;
+        return false;
+      }
       // History belongs to the captured scene, not whichever scene happens to be open later
       const history =
         historyDocument.ok && historyDocument.value === documentJson ? capturedHistory : undefined;
@@ -95,7 +99,11 @@ export function connectServerProjectSession(options: {
       );
       // Final backup may finish after logout, still under the captured account key
       // Only this disposed owner's storage counter changes; no editor callbacks run
-      if (!result.ok) return false;
+      if (!result.ok) {
+        backupError = result.error.message;
+        return false;
+      }
+      backupError = "";
       storageRevision = result.value;
       return true;
     },
@@ -169,6 +177,13 @@ export function connectServerProjectSession(options: {
         }
       } catch {
         preserved = false;
+      }
+      if (choice === "recovery" && !preserved) {
+        return invalid(
+          "storage",
+          backupError ||
+            "Browser backup failed. Keep editing or export your changes before leaving.",
+        );
       }
       if (disposed || !preserved || captured !== autosave.getDocumentJson()) {
         return invalid(

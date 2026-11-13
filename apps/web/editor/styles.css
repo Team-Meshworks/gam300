@@ -1,4 +1,10 @@
+@import "../shared/ui/scrollbars.css";
 @import "../shared/preview/preview.css";
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-500.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/inter/latin-700.css";
+
 /* Keep the page still while native dialogs and editor popups own the interaction */
 html:has(
   dialog[open],
@@ -21,7 +27,8 @@ body:has(
 
 :root {
   --text: #1f1d1a;
-  font-family: "Segoe UI", system-ui, sans-serif;
+  --sp-font: "Inter", sans-serif;
+  font-family: var(--sp-font);
   line-height: 1.45;
   color: #1f1d1a;
   background: #fffdf3;
@@ -3454,4 +3461,145 @@ dialog.sp-dialog.sp-display-dialog {
   border: 0;
   border-radius: 999px;
   background: var(--asset-scroll-thumb);
+}
+
+/* Keep editor entry blank while preserving loading announcements for assistive technology */
+.editor-opening {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #fff;
+}
+.editor-opening > :not(dialog) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Keep recovery choices separated while retaining every preservation path */
+.project-confirmation.creator-recovery-dialog {
+  box-sizing: border-box;
+  width: min(420px, calc(100% - 32px));
+  padding: 36px 28px;
+  border: 1px solid #e7e2dc;
+  border-radius: 28px;
+  background: #fff;
+  color: #332e2a;
+  box-shadow: 0 20px 80px rgb(41 39 35 / 20%);
+  font:
+    400 13px/20px Inter,
+    sans-serif;
+}
+.creator-recovery-dialog h2 {
+  margin: 0 44px 12px 0;
+  font-size: 22px;
+  line-height: 30px;
+}
+.creator-recovery-dialog p {
+  margin: 0 0 28px;
+  color: #6e685f;
+}
+.creator-recovery-dialog .creator-recovery-actions {
+  display: block;
+}
+.creator-recovery-versions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 11px;
+}
+
+.creator-recovery-dialog .creator-recovery-actions button {
+  min-height: 40px;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 24px;
+  background: #eeeae6;
+  color: #332e2a;
+  font:
+    600 13px/20px Inter,
+    sans-serif;
+}
+.creator-recovery-dialog .creator-recovery-actions .creator-recovery-primary-action {
+  background: #332e2a;
+  color: #fff;
+}
+.creator-recovery-dialog button.creator-recovery-export {
+  display: inline;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.creator-recovery-dialog button.creator-recovery-export:hover:not(:disabled) {
+  background: transparent;
+}
+
+.creator-recovery-dialog .creator-recovery-actions button:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+.creator-recovery-dialog button.project-confirmation-close {
+  top: 20px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+  background: #f3f4f6;
+  box-sizing: border-box;
+  min-height: 36px;
+  max-height: 36px;
+  max-width: 36px;
+  aspect-ratio: 1;
+  border: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+.creator-recovery-dialog button.project-confirmation-close .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.creator-recovery-dialog button:focus-visible {
+  outline: 2px solid #81796e;
+  outline-offset: 3px;
+}
+
+.creator-exit-dialog button.creator-recovery-export {
+  white-space: nowrap;
+}
+
+.project-confirmation.creator-exit-dialog {
+  width: min(410px, calc(100% - 32px));
+  padding-block: 32px;
+}
+.creator-exit-dialog h2 {
+  margin-bottom: 20px;
+  padding-right: 0;
+}
+.creator-exit-dialog p {
+  margin-bottom: 20px;
+}
+
+.project-confirmation.creator-opening-dialog {
+  width: min(400px, calc(100% - 32px));
+  padding: 28px;
+}
+.creator-opening-dialog h2 {
+  padding-right: 0;
+  margin-bottom: 20px;
+}
+.creator-opening-dialog p {
+  margin-bottom: 20px;
 }
