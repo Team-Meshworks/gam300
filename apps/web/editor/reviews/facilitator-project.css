@@ -2,7 +2,7 @@
 .sp-facilitator-submission {
   --sp-surface: #fffdfb;
   --sp-soft: #f5f4f2;
-  --sp-close-surface: #f3f4f6;
+  --sp-close-surface: #e4e1dc;
   --sp-close-ink: #000;
   --sp-border: #e7e2dc;
   --sp-ink: #292723;
@@ -14,7 +14,7 @@
   --review-shadow: 0 16px 48px rgb(41 39 35 / 12%);
   --review-control-hover: #eae5df;
   --review-primary-hover: #51473d;
-  --review-close-hover: #e4e5e7;
+  --review-close-hover: #d7d2cb;
   font-family: var(--review-body-font);
   color: var(--sp-ink);
 }

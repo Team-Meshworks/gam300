@@ -424,6 +424,7 @@ export function TeacherProjectDetails({
             value={search}
             onChange={setSearch}
           />
+          <div className="sp-teacher-student-toolbar">
           <Tabs
             id="teacher-student-status"
             label="Student project status"
@@ -435,6 +436,8 @@ export function TeacherProjectDetails({
               { value: "awaiting", label: "Awaiting Approval" },
             ]}
           />
+          </div>
+          <div className="sp-teacher-student-list" id="teacher-student-status-panel" role="tabpanel" aria-labelledby={`teacher-student-status-${studentTab}`}>
           {visibleStudents.map((p) => (
             <div className="sp-teacher-student" key={p.projectId}>
               <div className="sp-teacher-student-identity">
@@ -547,6 +550,7 @@ export function TeacherProjectDetails({
                 : "No student projects are available."}
             </p>
           )}
+          </div>
           <p className="sp-teacher-students-note">
             <Icon icon={lockIcon} aria-hidden="true" />
             Only completed, submitted and teacher-approved work can be published.
