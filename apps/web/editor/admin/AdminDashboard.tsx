@@ -66,11 +66,11 @@ function ProjectCards({
             </div>
             {browser && <p className="admin-project-organization">{project.organizationName}</p>}
             <Button
-              variant={browser ? "primary" : "secondary"}
-              aria-label={`${browser ? "View progress" : "View details"} for ${project.title}`}
+              variant="secondary"
+              aria-label={`View Details for ${project.title}`}
               onClick={() => onView(project)}
             >
-              {browser ? "View Progress" : "View details"}
+              View Details
             </Button>
           </div>
         </article>
@@ -161,7 +161,7 @@ function ProjectDetails({
     <section className="admin-panel admin-project-detail" aria-label="Project details">
       <div className="admin-project-view-heading">
         <div>
-          <h1>Published Projects</h1>
+          <h1>Project Details</h1>
           <p>Review published experiences and control what visitors can explore.</p>
         </div>
         <Button
@@ -656,7 +656,7 @@ export function AdminDashboard({
             <p>Manage published projects and their public visibility.</p>
           </div>
           <Button variant="primary" onClick={() => setModal("projects")}>
-            View All Projects
+            View All
           </Button>
         </div>
         {loading ? (

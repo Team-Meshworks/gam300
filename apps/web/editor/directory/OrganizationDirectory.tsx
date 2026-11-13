@@ -201,7 +201,7 @@ export function OrganizationDirectory({
                             className="sp-button sp-button--primary"
                             href={`/admin/dashboard?projectId=${encodeURIComponent(project.id)}`}
                           >
-                            View details
+                            View Details
                           </a>
                         ) : (
                           <Button
@@ -349,12 +349,14 @@ export function OrganizationDirectory({
             </Button>
           </article>
         ))}
+        {!searching && !searchError && !visible.length && (
+          <p role="status" className="sp-list-empty">
+            No matching organisations. Try another name.
+          </p>
+        )}
       </div>
       {searching && <p role="status">Searching organisations…</p>}
       {searchError && <p role="alert">{searchError}</p>}
-      {!searching && !searchError && !visible.length && (
-        <p role="status">No matching organisations. Try another name.</p>
-      )}
     </section>
   );
 }

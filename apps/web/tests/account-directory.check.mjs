@@ -466,8 +466,8 @@ try {
   );
   await emptyAccounts.waitFor();
   const emptyProjectsText = page.getByText("No projects in this organisation.", { exact: true });
-  assert.equal(await emptyAccounts.evaluate((node) => getComputedStyle(node).fontSize), "14px");
-  assert.equal(await emptyProjectsText.evaluate((node) => getComputedStyle(node).fontSize), "14px");
+  assert.equal(await emptyAccounts.evaluate((node) => getComputedStyle(node).fontSize), "13px");
+  assert.equal(await emptyProjectsText.evaluate((node) => getComputedStyle(node).fontSize), "13px");
   for (const [width, zoom] of [
     [1440, 1],
     [1440, 1.5],

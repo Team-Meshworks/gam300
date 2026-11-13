@@ -13,7 +13,6 @@
   --admin-panel-shadow: inset 4px 5px 14px rgb(57 43 29 / 4%);
   --admin-organisation-card-paper: #fff;
   --admin-panel-tint: transparent;
-  --admin-page-wash-opacity: 1;
   --admin-projects-background: linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint));
   --admin-organisations-background: linear-gradient(
     var(--admin-panel-tint),
@@ -41,17 +40,6 @@
   border-radius: 0;
   background: none;
   padding: 35px 0 0;
-}
-.sp-shell--dashboard .sp-wash--left {
-  left: calc(50% - 1121px);
-  top: -177px;
-}
-.sp-shell--dashboard .sp-wash--right {
-  left: calc(50% - 7px);
-  top: 208px;
-}
-.sp-shell--dashboard:has(.admin-greeting) .sp-wash {
-  opacity: var(--admin-page-wash-opacity);
 }
 .admin-greeting {
   margin-bottom: 50px;
@@ -144,6 +132,11 @@
 .admin-section-heading > .sp-button {
   flex-shrink: 0;
 }
+.admin-dashboard .admin-projects > .admin-section-heading > .sp-button {
+  align-self: flex-start;
+  margin-top: 5px;
+  padding-inline: 20px;
+}
 .admin-project-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -210,20 +203,17 @@
   margin-top: auto;
 }
 .admin-projects:has(> p.admin-project-state) {
-  position: relative;
+  display: flex;
+  flex-direction: column;
   min-height: 412px;
 }
 .admin-projects > p.admin-project-state {
-  position: absolute;
-  top: calc(50% + 4px);
-  left: 0;
-  right: 0;
-  display: block;
+  flex: 1;
   min-height: 0;
   margin: 0;
-  padding: 0 40px;
-  transform: translateY(-50%);
-  pointer-events: none;
+  padding: 24px;
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .admin-project-state {
@@ -338,7 +328,7 @@
 }
 .admin-project-browser > .sp-tabs {
   margin-top: 22px;
-  padding: 8px 20px 10px;
+  padding: 8px 0 10px;
   border-bottom: 1px solid var(--sp-border);
 }
 .admin-project-browser .admin-project-status {
@@ -355,17 +345,14 @@
   gap: 10px;
 }
 .admin-project-browser .admin-project-empty {
-  position: absolute;
-  top: calc(50% + 4px);
-  left: 0;
-  right: 0;
   margin: 0;
-  padding: 0 40px;
+  padding: 24px;
   text-align: center;
   color: var(--sp-muted);
-  transform: translateY(-50%);
-  pointer-events: none;
+  font-size: 13px;
+  line-height: 18px;
 }
+
 .admin-project-view-heading {
   display: flex;
   align-items: center;
@@ -885,18 +872,6 @@
 .sp-shell[data-account-role="Administrator"] > .sp-wash {
   z-index: 1;
 }
-.sp-shell[data-account-role="Administrator"] .sp-wash--left {
-  left: calc(50% - 1121px);
-  top: -177px;
-  width: 993px;
-  height: 993px;
-}
-.sp-shell[data-account-role="Administrator"] .sp-wash--right {
-  left: calc(50% - 7px);
-  top: 208px;
-  width: 1004px;
-  height: 1004px;
-}
 .sp-shell[data-account-role="Administrator"] > .sp-account-header,
 .admin-greeting,
 .admin-panel > *,
@@ -1070,8 +1045,95 @@
   }
 }
 
+.sp-shell--dashboard :is(.admin-project-browser, .admin-project-detail):not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
+}
+.sp-shell--dashboard .admin-project-browser > [role="tabpanel"] {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 10px 8px 0;
+  margin-right: -10px;
+}
+.sp-shell--dashboard .admin-project-browser > :is(.admin-project-view-heading, .sp-tabs) {
+  flex: none;
+}
+.sp-shell--dashboard .admin-detail-columns {
+  flex: 1;
+  min-height: 0;
+}
+.sp-shell--dashboard .admin-detail-columns > :first-child {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 10px;
+  margin-right: -10px;
+}
+.sp-shell--dashboard .admin-detail-columns > .admin-progress {
+  height: 100%;
+  min-height: 0;
+}
 
 :is(.admin-progress-list, .sp-directory--administration .sp-account-rows) {
   border: solid transparent;
   border-width: 0 6px 6px 0;
+}
+
+.sp-shell--dashboard .admin-dashboard:not(:has(> .admin-greeting)) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
+}
+.admin-project-browser .admin-project-view-heading .sp-close-button {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  background: #e4e0da;
+  color: #292723;
+}
+.admin-project-browser .admin-project-view-heading .sp-close-button:hover:not(:disabled) {
+  background: #d6d0c8;
+}
+
+.sp-shell--dashboard .admin-project-browser > [role="tabpanel"]:has(> .admin-project-empty),
+.admin-progress-list:has(> p.admin-progress-empty:only-child) {
+  display: grid;
+  place-items: center;
+}
+.admin-progress-list > p.admin-progress-empty,
+.admin-progress.admin-progress-empty > p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+}
+
+:is(.admin-project-browser, .admin-project-detail) .admin-project-view-heading > .sp-close-button {
+  align-self: start;
+  margin-top: 6px;
+}
+
+.admin-project-detail .admin-project-view-heading > .sp-close-button {
+  margin-top: 8px;
+}
+@media (max-width: 520px) {
+  .admin-project-detail .admin-project-view-heading > .sp-close-button {
+    margin-top: 5px;
+  }
+}
+
+@media (min-width: 801px) {
+  .admin-project-browser .admin-project-view-heading > .sp-search {
+    align-self: start;
+    margin-top: 6px;
+  }
+}
+
+.admin-project-browser > .sp-tabs > button:first-child {
+  margin-left: -10px;
 }

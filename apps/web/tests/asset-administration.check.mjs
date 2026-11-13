@@ -33,7 +33,7 @@ async function checkDialogTypography() {
       })),
     };
   });
-  assert.equal(sizes.title, page.viewportSize().width <= 700 ? 22 : 25);
+  assert.equal(sizes.title, sizes.upload || page.viewportSize().width <= 700 ? 22 : 25);
   assert.ok(
     sizes.section === null || sizes.section === sizes.title,
     "Asset Details uses the same heading scale as the popup title",
@@ -97,6 +97,17 @@ try {
   await page
     .locator(".asset-admin-thumbnail img")
     .evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
+  const controlTops = await page
+    .locator(".asset-admin-heading")
+    .evaluate((row) =>
+      [...row.querySelectorAll(":scope > .asset-admin-search, :scope > .asset-admin-close")].map(
+        (node) => node.getBoundingClientRect().top,
+      ),
+    );
+  assert.ok(
+    Math.max(...controlTops) - Math.min(...controlTops) <= 1,
+    "Search field and close button share the top edge",
+  );
   await page.screenshot({ path: "test-results/scrum168/list.png", fullPage: true });
 
   // Match the routed shell and the PDF's header and footer clearances before testing long lists
@@ -173,7 +184,7 @@ try {
   assert.equal(await dialog.locator("h3").count(), 1);
   await dialog.getByRole("heading", { name: "Upload 3D Space", exact: true }).waitFor();
   await checkDialogTypography();
-  assert.equal(await dialog.evaluate((n) => n.getBoundingClientRect().width), 720);
+  assert.equal(await dialog.evaluate((n) => n.getBoundingClientRect().width), 600);
   const closeInset = await dialog.locator(".asset-admin-close").evaluate((n) => {
     const form = n.closest("form").getBoundingClientRect(),
       r = n.getBoundingClientRect();
@@ -181,6 +192,29 @@ try {
   });
   assert.ok(closeInset >= 6, "Upload close focus outline fits inside the scroll frame");
   await page.screenshot({ path: "test-results/scrum168/upload.png", fullPage: true });
+  await dialog.locator("summary").click();
+  const gaps = await dialog.evaluate((popup) => {
+    const text = (node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return range.getBoundingClientRect();
+    };
+    const heading = text(popup.querySelector("h3"));
+    const label = text(popup.querySelector(".asset-admin-fields .asset-admin-select > span"));
+    const field = popup.querySelector(".asset-admin-fields output").getBoundingClientRect();
+    const summary = text(popup.querySelector("summary"));
+    const optional = text(popup.querySelector(".asset-admin-review label > span"));
+    return [
+      label.top - heading.bottom,
+      summary.top - field.bottom,
+      field.top - label.bottom,
+      optional.top - summary.bottom,
+    ];
+  });
+  assert.ok(Math.abs(gaps[0] - gaps[1]) <= 1, "Section gaps match above and below Asset Type");
+  assert.ok(Math.abs(gaps[2] - gaps[3]) <= 1, "Additional Details uses the field-label gap");
+  await page.screenshot({ path: "test-results/scrum168/upload-expanded.png", fullPage: true });
+
   await page.keyboard.press("Escape");
   assert.equal(
     await page
@@ -228,7 +262,7 @@ try {
   assert.equal(
     await dialog
       .locator("h2")
-      .evaluate((heading) => parseFloat(getComputedStyle(heading).fontSize) === 25),
+      .evaluate((heading) => parseFloat(getComputedStyle(heading).fontSize) === 22),
     true,
   );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -783,7 +817,7 @@ try {
     await page
       .locator(".asset-admin-scroll")
       .evaluate((region) => getComputedStyle(region, "::-webkit-scrollbar").width),
-    "8px",
+    "6px",
   );
   await page.getByRole("button", { name: "Log Out", exact: true }).click();
   await page.getByRole("heading", { name: "Signed out", exact: true }).waitFor();

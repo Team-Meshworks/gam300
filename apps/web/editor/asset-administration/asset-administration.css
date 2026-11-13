@@ -85,17 +85,18 @@ html.asset-admin-preview-page,
   content: "";
   pointer-events: none;
   background-size: 100% 100%;
+  opacity: var(--sp-wash-opacity);
 }
 .asset-admin-preview::before {
-  left: calc(50% - 1121px);
-  top: -177px;
+  left: var(--sp-wash-left-x);
+  top: var(--sp-wash-left-y);
   width: 993px;
   height: 993px;
   background-image: url("../../shared/ui/assets/facilitator-ambient-top.svg");
 }
 .asset-admin-preview::after {
-  left: calc(50% - 7px);
-  top: 208px;
+  left: var(--sp-wash-right-x);
+  top: var(--sp-wash-right-y);
   width: 1004px;
   height: 1004px;
   background-image: url("../../shared/ui/assets/facilitator-ambient-bottom.svg");
@@ -246,7 +247,7 @@ html.asset-admin-preview-page,
 }
 .asset-admin-heading {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 32px;
   flex-shrink: 0;
 }
@@ -273,6 +274,13 @@ html.asset-admin-preview-page,
 }
 .asset-admin-heading > .asset-admin-close {
   margin-left: auto;
+  margin-top: 6px;
+  align-self: flex-start;
+}
+@media (min-width: 851px) {
+  .asset-admin-heading > .asset-admin-search {
+    margin-top: 6px;
+  }
 }
 .asset-admin-close svg {
   width: 16px;
@@ -532,7 +540,7 @@ html.asset-admin-preview-page,
   cursor: pointer;
 }
 .asset-admin-metadata .asset-admin-review {
-  margin-bottom: 0;
+  margin-block: 2px 0;
 }
 
 .asset-admin-dialog::backdrop {
@@ -1274,8 +1282,9 @@ html.asset-admin-preview-page,
 
 /* Upload tasks use a compact frame and scroll inside its rounded padding. */
 .asset-admin-dialog.asset-admin-dialog-upload {
-  width: min(720px, calc(100% - 32px));
-  padding: 24px;
+  --aa-text-title: 22px;
+  width: min(600px, calc(100% - 32px));
+  padding: 16px;
   overflow: hidden;
 }
 .asset-admin-dialog-upload > form {
@@ -1301,4 +1310,35 @@ html.asset-admin-preview-page,
   .asset-admin-dialog-upload > form {
     max-height: calc(100dvh - 82px);
   }
+}
+
+.asset-admin-dialog-upload .asset-admin-upload {
+  aspect-ratio: 2.6;
+  min-height: 140px;
+}
+.asset-admin-dialog-upload h3 {
+  margin-top: 20px;
+  margin-bottom: 24px;
+}
+
+.asset-admin-dialog-upload .asset-admin-actions {
+  margin-top: 16px;
+}
+
+.asset-admin-dialog-upload .asset-admin-metadata > summary {
+  min-height: 28px;
+  padding-block: 4px;
+}
+.asset-admin-dialog-upload .asset-admin-actions:has(.asset-admin-metadata[open]) {
+  margin-top: 20px;
+  row-gap: 16px;
+}
+
+.asset-admin-scroll .asset-admin-state h2 {
+  font-size: 14px;
+  line-height: 20px;
+}
+.asset-admin-scroll .asset-admin-state p {
+  font-size: 13px;
+  line-height: 18px;
 }

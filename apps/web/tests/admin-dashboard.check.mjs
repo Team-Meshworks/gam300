@@ -376,7 +376,7 @@ try {
 
   await page
     .getByRole("button", {
-      name: `View details for ${projects[0].title}`,
+      name: `View Details for ${projects[0].title}`,
       exact: true,
     })
     .waitFor();
@@ -411,7 +411,7 @@ try {
     entryIcons,
     Array.from({ length: 3 }, () => ({ width: 24, height: 24 })),
   );
-  await page.getByRole("button", { name: "View All Projects", exact: true }).click();
+  await page.getByRole("button", { name: "View All", exact: true }).click();
   const projectView = page.locator('section[aria-label="All Projects"]');
   await projectView.waitFor();
   assert.deepEqual(
@@ -475,7 +475,7 @@ try {
     "Public",
     "Public",
   ]);
-  assert.equal(await projectView.getByRole("button", { name: /^View progress for/ }).count(), 2);
+  assert.equal(await projectView.getByRole("button", { name: /^View Details for/ }).count(), 2);
   assert.equal(
     await projectView.locator(".admin-project-organization").first().textContent(),
     "Ridgeview Secondary School",
@@ -499,7 +499,7 @@ try {
   await projectView.getByRole("tab", { name: /^All Work(?: \(\d+\))?$/ }).click();
   await projectView
     .getByRole("button", {
-      name: "View progress for Ancient China",
+      name: "View Details for Ancient China",
       exact: true,
     })
     .waitFor();
@@ -512,7 +512,7 @@ try {
   const readsBefore = projectReads;
   await projectView
     .getByRole("button", {
-      name: "View progress for Life in Ancient Rome",
+      name: "View Details for Life in Ancient Rome",
       exact: true,
     })
     .click();
@@ -732,7 +732,7 @@ try {
   await projectView.getByLabel("Search all projects").fill("Silk Road");
   await projectView
     .getByRole("button", {
-      name: `View progress for ${projects[0].title}`,
+      name: `View Details for ${projects[0].title}`,
       exact: true,
     })
     .click();
@@ -944,7 +944,7 @@ try {
   await page.getByRole("button", { name: "Retry Projects", exact: true }).click();
   await page
     .getByRole("button", {
-      name: `View details for ${projects[0].title}`,
+      name: `View Details for ${projects[0].title}`,
       exact: true,
     })
     .waitFor();
