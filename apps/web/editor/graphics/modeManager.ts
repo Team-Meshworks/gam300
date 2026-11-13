@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EYE_HEIGHT, type FpsControls } from "../controls/fpsControls";
+import { standOnPreviewFloor } from "../../shared/preview/preview-start";
 
 // Wider than the saved 40° lens while walking, the narrow view made people feel sick
 const WALKING_FOV = 70;
@@ -161,15 +162,7 @@ export class ModeManager {
   // Flying in first person, then stand where the view meets the floor. Looking at the sky or
   // far off drops straight down instead
   private standOnFloor(): void {
-    if (this.camera.position.y <= EYE_HEIGHT + 1e-4) return;
-    const forward = this.camera.getWorldDirection(new THREE.Vector3());
-    const facing = forward.clone().setY(0);
-    if (facing.lengthSq() < 1e-8) facing.set(0, 0, -1);
-    const reach = -this.camera.position.y / forward.y;
-    if (forward.y < -1e-4 && reach < 50) this.camera.position.addScaledVector(forward, reach);
-    this.camera.position.y = EYE_HEIGHT;
-    this.fps.syncFromCamera();
-    this.fps.lookAt(this.camera.position.clone().add(facing));
+    standOnPreviewFloor(this.camera, this.fps);
   }
 
   private setFov(fov: number | undefined): void {

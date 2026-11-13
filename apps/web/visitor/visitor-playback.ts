@@ -27,6 +27,20 @@ export function createVisitorPlayback(
   let listener: THREE.AudioListener | undefined;
   const sounds: THREE.PositionalAudio[] = [];
   const pendingMedia = new Set<string>();
+  const blockedMedia = new Set<string>();
+  const mediaAttempts = new Map<string, symbol>();
+  let contextBlocked = false;
+  let permissionReported = false;
+  function reportPermission() {
+    if (disposed || departing) return;
+    if (contextBlocked || blockedMedia.size > 0) {
+      permissionReported = true;
+      report("Select Enable audio to allow playback");
+    } else if (permissionReported) {
+      permissionReported = false;
+      report("Exhibition ready");
+    }
+  }
   const timers = new Set<string>();
   const inside = new Set<string>();
   const gaze = new Map<string, number>();
@@ -51,25 +65,56 @@ export function createVisitorPlayback(
     );
   const root = (id: string) => [...roots].find(([key]) => equal(key, id))?.[1];
 
+  function discardMedia(id: string) {
+    const key = id.toLowerCase();
+    pendingMedia.delete(key);
+    blockedMedia.delete(key);
+    // Invalidate in-flight play promises even if the owner is shown again before they settle
+    mediaAttempts.delete(key);
+    reportPermission();
+  }
   // Repeated Play actions resume the same track; hiding its owner must keep it silent
   function media(id: string) {
+    const key = id.toLowerCase();
     const node = element(id)?.querySelector<HTMLMediaElement>("audio,video");
     if (!node || node.closest("[hidden]")) {
-      pendingMedia.delete(id.toLowerCase());
+      discardMedia(id);
       return;
     }
     // A verified media download may finish after Start or a scene-start rule
     // Resume the requested track when it becomes playable, unless its owner has since hidden
     if (node.readyState < 2 || document.hidden) {
-      pendingMedia.add(id.toLowerCase());
+      pendingMedia.add(key);
       return;
     }
-    pendingMedia.delete(id.toLowerCase());
+    pendingMedia.delete(key);
     if (node.ended) {
       node.currentTime = 0;
     }
     if (node.paused) {
-      void node.play().catch(() => report("Press the media Play control to allow playback"));
+      const attempt = Symbol();
+      mediaAttempts.set(key, attempt);
+      const settle = (blocked: boolean) => {
+        if (disposed || departing || mediaAttempts.get(key) !== attempt) return;
+        if (node.closest("[hidden]") || element(id)?.querySelector("audio,video") !== node) {
+          discardMedia(id);
+          return;
+        }
+        mediaAttempts.delete(key);
+        if (blocked) {
+          pendingMedia.add(key);
+          blockedMedia.add(key);
+        } else {
+          blockedMedia.delete(key);
+        }
+        reportPermission();
+      };
+      void node.play().then(
+        () => settle(false),
+        () => settle(true),
+      );
+    } else {
+      discardMedia(id);
     }
   }
   const mediaReady = (event: Event) => {
@@ -139,6 +184,7 @@ export function createVisitorPlayback(
           const panel = element(action.panelId);
           if (panel) {
             panel.hidden = false;
+            content.dispatchEvent(new CustomEvent("exhibit-show-panel"));
             panel.scrollIntoView({ block: "nearest" });
           }
           break;
@@ -152,9 +198,11 @@ export function createVisitorPlayback(
           if (article) {
             article.hidden = !action.visible;
             if (!action.visible)
-              article
-                .querySelectorAll<HTMLMediaElement>("audio,video")
-                .forEach((node) => node.pause());
+              article.querySelectorAll<HTMLMediaElement>("audio,video").forEach((node) => {
+                const id = node.closest<HTMLElement>("[data-component-id]")?.dataset.componentId;
+                if (id) discardMedia(id);
+                node.pause();
+              });
           }
           break;
         }
@@ -198,7 +246,20 @@ export function createVisitorPlayback(
     }
     void listener.context
       .resume()
-      .catch(() => report("Allow audio playback and press Start exhibition again"));
+      .then(() => {
+        contextBlocked = false;
+        reportPermission();
+      })
+      .catch(() => {
+        contextBlocked = true;
+        reportPermission();
+      });
+    begin();
+    for (const id of pendingMedia) media(id);
+  }
+  // Enter the published scene immediately; audio permissions still need a user gesture
+  function begin() {
+    if (disposed || departing) return;
     // Initial BGM starts once; later object clicks respect tracks the visitor paused manually
     if (started) return;
     started = true;
@@ -288,6 +349,7 @@ export function createVisitorPlayback(
   document.addEventListener("visibilitychange", visibility);
 
   return {
+    begin,
     start,
     click,
     update(delta: number, lookingAt?: string) {
@@ -369,6 +431,8 @@ export function createVisitorPlayback(
       disposed = true;
       // Release subscriptions and audio connections before the canvas or content is replaced
       pendingMedia.clear();
+      blockedMedia.clear();
+      mediaAttempts.clear();
       content.removeEventListener("loadeddata", mediaReady, true);
       content.removeEventListener("exhibit-start", start);
       content.removeEventListener("exhibit-activate", activate);

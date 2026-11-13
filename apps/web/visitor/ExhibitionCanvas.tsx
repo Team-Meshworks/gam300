@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { FpsControls, type FpsMobileControls } from "../shared/preview/FpsControls";
+import { MobileControls } from "../shared/preview/MobileControls";
+import { standOnPreviewFloor } from "../shared/preview/preview-start";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { STARTER_ROOM_SHA256 } from "../shared/asset-runtime/catalogue";
 import { disposeModels } from "../shared/asset-runtime/ModelCache";
@@ -27,6 +29,8 @@ export function ExhibitionCanvas({
   const reset = useRef<() => void>(() => {});
   const selectView = useRef<(id: string) => void>(() => {});
   const [attempt, setAttempt] = useState(0);
+  const [mobile, setMobile] = useState<FpsMobileControls | null>(null);
+  const [captured, setCaptured] = useState(false);
   const [result, setResult] = useState<{
     exhibition: PublishedExhibition;
     sceneIndex: number;
@@ -81,8 +85,13 @@ export function ExhibitionCanvas({
           )?.toLowerCase(),
       )?.camera ?? source.startCamera;
     const camera = new THREE.PerspectiveCamera(starting.fovDegrees, 1, 0.01, 2000);
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
+    const fps = new FpsControls(camera, renderer.domElement);
+    fps.setFlightAllowed(false);
+    fps.onCaptureChange = () => setCaptured(fps.isCaptured());
+    const controls = { target: new THREE.Vector3(), update: () => fps.syncFromCamera() };
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) setMobile(fps.mobileControls);
+    });
     const setView = (pose: typeof starting) => {
       camera.position.fromArray(pose.position);
       camera.quaternion.fromArray(pose.rotation);
@@ -93,14 +102,19 @@ export function ExhibitionCanvas({
         .add(new THREE.Vector3(0, 0, -5).applyQuaternion(camera.quaternion));
       controls.update();
     };
-    const start = () => setView(starting);
+    const start = () => {
+      setView(starting);
+      if (!viewpoint?.id && !("startViewpointId" in source && source.startViewpointId)) {
+        standOnPreviewFloor(camera, fps);
+      }
+    };
     selectView.current = (id) => {
       const view = source.viewpoints?.find((item) => item.id === id);
       if (view) setView(view.camera);
     };
     reset.current = start;
     start();
-    scene.background = new THREE.Color("#edf2f4");
+    scene.background = new THREE.Color("#e9e5db");
     scene.add(new THREE.HemisphereLight(0xffffff, 0x788493, 2));
     const sun = new THREE.DirectionalLight(0xffffff, 2);
     sun.position.set(5, 12, 8);
@@ -113,22 +127,6 @@ export function ExhibitionCanvas({
       camera.updateProjectionMatrix();
     });
     size.observe(host);
-    const keys = (event: KeyboardEvent) => {
-      const deltas: Record<string, [number, number]> = {
-        ArrowLeft: [-0.5, 0],
-        ArrowRight: [0.5, 0],
-        ArrowUp: [0, -0.5],
-        ArrowDown: [0, 0.5],
-      };
-      const delta = deltas[event.key];
-      if (!delta) return;
-      event.preventDefault();
-      const movement = new THREE.Vector3(delta[0], 0, delta[1]).applyQuaternion(camera.quaternion);
-      camera.position.add(movement);
-      controls.target.add(movement);
-      controls.update();
-    };
-    renderer.domElement.addEventListener("keydown", keys);
     const roots = new Map<string, THREE.Object3D>();
     let playback: ReturnType<typeof createVisitorPlayback> | undefined;
     const ray = new THREE.Raycaster();
@@ -147,28 +145,73 @@ export function ExhibitionCanvas({
       }
       return undefined;
     };
-    // Orbit dragging changes the camera without accidentally activating an exhibit
-    let press = { x: 0, y: 0 };
+    // Looking around never activates an exhibit at the end of a drag
+    let press: { id: number; x: number; y: number; locked: boolean; distance: number } | undefined;
+    const cancelPress = () => {
+      press = undefined;
+    };
     const down = (event: PointerEvent) => {
-      press = { x: event.clientX, y: event.clientY };
+      cancelPress();
+      // Pointerdown precedes the FPS mousedown which requests capture; that gesture only enters look mode
+      if (event.button !== 0 || !event.isPrimary || fps.wantsCapture(event)) return;
+      press = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        locked: fps.isCaptured(),
+        distance: 0,
+      };
+    };
+    const move = (event: PointerEvent) => {
+      if (!press || press.id !== event.pointerId) return;
+      const dx = press.locked ? event.movementX : event.clientX - press.x;
+      const dy = press.locked ? event.movementY : event.clientY - press.y;
+      // Accumulate travel rather than displacement so looking away and back still counts as a drag
+      press.distance += Math.hypot(dx, dy);
+      press.x = event.clientX;
+      press.y = event.clientY;
     };
     const click = (event: PointerEvent) => {
-      if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 5) return;
+      const gesture = press;
+      cancelPress();
+      if (
+        !gesture ||
+        gesture.id !== event.pointerId ||
+        event.button !== 0 ||
+        !event.isPrimary ||
+        gesture.locked !== fps.isCaptured() ||
+        !Number.isFinite(gesture.distance) ||
+        gesture.distance + Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 5
+      )
+        return;
       const rect = renderer.domElement.getBoundingClientRect();
-      pointer.set(
-        ((event.clientX - rect.left) / rect.width) * 2 - 1,
-        (-(event.clientY - rect.top) / rect.height) * 2 + 1,
-      );
+      if (fps.isCaptured()) pointer.set(0, 0);
+      else
+        pointer.set(
+          ((event.clientX - rect.left) / rect.width) * 2 - 1,
+          (-(event.clientY - rect.top) / rect.height) * 2 + 1,
+        );
       ray.setFromCamera(pointer, camera);
       const id = picked();
-      if (id) playback?.click(id);
-      else playback?.start();
+      if (id) {
+        playback?.click(id);
+        document
+          .querySelector<HTMLElement>(`[data-exhibition-scene="${source.id}"]`)
+          ?.dispatchEvent(new CustomEvent("exhibit-inspect", { detail: id }));
+      } else playback?.start();
     };
     renderer.domElement.addEventListener("pointerdown", down);
     renderer.domElement.addEventListener("pointerup", click);
+    renderer.domElement.addEventListener("lostpointercapture", cancelPress);
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", cancelPress);
+    document.addEventListener("pointercancel", cancelPress);
+    document.addEventListener("pointerlockchange", cancelPress);
+    document.addEventListener("visibilitychange", cancelPress);
+    window.addEventListener("blur", cancelPress);
     renderer.setAnimationLoop(() => {
       const now = performance.now();
-      controls.update();
+      if (!document.hidden) fps.update(Math.min(0.1, (now - lastFrame) / 1000));
       ray.setFromCamera(new THREE.Vector2(), camera);
       playback?.update(Math.min(0.1, (now - lastFrame) / 1000), picked());
       lastFrame = now;
@@ -303,7 +346,9 @@ export function ExhibitionCanvas({
             },
           );
           play.current = playback.start;
+          playback.begin();
         }
+        fps.engage();
         setResult({
           exhibition,
           sceneIndex,
@@ -339,11 +384,17 @@ export function ExhibitionCanvas({
       playback?.dispose();
       renderer.domElement.removeEventListener("pointerdown", down);
       renderer.domElement.removeEventListener("pointerup", click);
+      renderer.domElement.removeEventListener("lostpointercapture", cancelPress);
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", cancelPress);
+      document.removeEventListener("pointercancel", cancelPress);
+      document.removeEventListener("pointerlockchange", cancelPress);
+      document.removeEventListener("visibilitychange", cancelPress);
+      window.removeEventListener("blur", cancelPress);
       play.current = () => {};
       size.disconnect();
       renderer.setAnimationLoop(null);
-      renderer.domElement.removeEventListener("keydown", keys);
-      controls.dispose();
+      fps.dispose();
       entrances.dispose();
       appearances.dispose();
       disposeModels(scene);
@@ -354,23 +405,43 @@ export function ExhibitionCanvas({
     };
   }, [exhibition, sceneIndex, viewpoint, attempt]);
   return (
-    <section aria-label="Exhibition viewer">
-      <p role="status">{current?.message ?? "Loading exhibition…"}</p>
+    <section className="visitor-viewer" aria-label="Exhibition viewer">
+      <p
+        className={current?.message === "Exhibition ready" ? "sr-only" : "visitor-status"}
+        role="status"
+      >
+        {current?.message ?? "Loading exhibition…"}
+      </p>
       {current?.failed && (
         <button onClick={() => setAttempt((previous) => previous + 1)}>
           Retry loading exhibition
         </button>
       )}
-      <p>
-        Drag to look around, scroll or pinch to zoom. Focus the view and use the arrow keys to move.
-      </p>
-      <button onClick={() => play.current()}>Start exhibition</button>
-      <button onClick={() => reset.current()}>Reset view</button>
-      {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
-        <button key={view.id} onClick={() => selectView.current(view.id)}>
-          {view.name}
-        </button>
-      ))}
+      <div className="visitor-controls">
+        <button onClick={() => play.current()}>Enable audio</button>
+        <button onClick={() => reset.current()}>Reset view</button>
+        {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
+          <button key={view.id} onClick={() => selectView.current(view.id)}>
+            {view.name}
+          </button>
+        ))}
+      </div>
+      {current && !current.failed && (
+        <>
+          {captured && <span className="crosshair" aria-hidden="true" />}
+          <p className="walk-hint">
+            <span className="visitor-desktop-hint">
+              {captured
+                ? "Preview mode · Click to interact · Hold Alt for the mouse · Esc to stop"
+                : "Preview mode · Click or drag to look around · WASD to walk · Space to jump"}
+            </span>
+            <span className="visitor-touch-hint">
+              Preview mode · Use Move and Look to explore · Tap an exhibit to interact
+            </span>
+          </p>
+          {mobile && <MobileControls controls={mobile} allowFlight={false} />}
+        </>
+      )}
       <div
         className="visitor-canvas"
         ref={mount}

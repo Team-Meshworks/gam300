@@ -2,8 +2,13 @@
 
 | Branch | GitHub environment | VM URL                     | Private application port |
 | ------ | ------------------ | -------------------------- | ------------------------ |
-| `dev`  | `development`      | https://51.79.242.181:8443 | `127.0.0.1:8082`         |
-| `main` | `production`       | https://51.79.242.181      | `127.0.0.1:8081`         |
+| `dev`  | `development`      | https://team32.dp-ext8.com:8443 | `127.0.0.1:8082`         |
+| `main` | `production`       | https://team32.dp-ext8.com      | `127.0.0.1:8081`         |
+
+On 10 November 2026 the domain gateway was activated. Production remained on the older
+web-only release `4f5fa8c98e2556419d23b38f334b017280429feb`; development remained on
+full-stack release `a5fb998dca0b7ff8fffd8c9dd985a64819a8d0c3`. No application image
+or database was promoted, and existing publication and QR records were not rewritten.
 
 Integrate feature work into `dev`. Release through a `dev` to `main` pull request.
 CI runs automatically only after pushes to `dev` or `main`, including merge commits.
@@ -339,6 +344,21 @@ Port 80 must remain reachable for ACME validation. This works without a purchase
 See [Let's Encrypt IP certificates](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability)
 and [Caddy TLS configuration](https://caddyserver.com/docs/caddyfile/directives/tls).
 
+The live gateway serves the domain using a standard Let's Encrypt certificate and retains
+IP routes and wiki routing. Its certificate volume must persist for automatic renewal.
+The observed domain certificate has Let's Encrypt YE1 issuer, the domain as CN and SAN,
+and expires 7 February 2027. The production outer Basic gate was removed; Spatia's session
+and API authorization remain in force. Development's `PUBLICATION_ORIGIN` is the domain
+URL on port 8443 and its allowed hosts include the IP and domain.
+
+Both GitHub environment `APP_URL` variables were updated to the domain URLs and read back.
+Server deployment derives `PUBLICATION_ORIGIN` from `APP_URL`; maintain those values when
+deploying. Before future gateway changes, back up its files and validate the candidate
+Caddy configuration before recreation (its admin API is disabled). Preserve the
+certificate volume and wiki routing, then verify HTTPS, both app routes and authorization.
+The 10 November gateway backup is `/home/vthere-runner/vthere/gateway/domain-backup.PtGFGK`
+(root-owned, mode 700). The local SSH key path is `C:/Users/dalto/.ssh/gam300-deploy`.
+
 Create a private gateway directory on the VM and copy `deploy/gateway.compose.yaml`,
 `deploy/gateway.Caddyfile` and `deploy/.env.example` there. Rename the example to `.env`,
 set `SITE_IP` and restrict the file to its owner. The app's `/login` page handles
@@ -361,7 +381,8 @@ must succeed through the gate, while a request without a Spatia session must sti
 return 401. Private loopback API probes receive no Basic credentials.
 
 These secrets must be configured before attempting a gated deployment. Store them as
-environment secrets, not variables. Development currently requires both names above.
+environment secrets, not variables. Check the live gateway before deciding whether an
+environment still requires them.
 A missing or incorrect pair fails the probes; it does not disable either login layer.
 
 The root `/` shows sign-in for signed-out users and routes signed-in creators and
