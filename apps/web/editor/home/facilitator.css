@@ -1781,6 +1781,56 @@ html:has(.sp-shell--facilitator) {
   overflow: auto;
 }
 
+.sp-teacher-toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: 100%;
+}
+.sp-teacher-class-filter {
+  position: relative;
+  flex: 1 1 140px;
+  width: 180px;
+  max-width: 100%;
+}
+.sp-teacher-class-filter > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.sp-shell--facilitator .sp-teacher-class-filter > button {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-color: var(--sp-border);
+  border-radius: 999px;
+  background: var(--sp-surface);
+  font-size: 14.5px;
+  line-height: 20px;
+}
+.sp-shell--facilitator .sp-teacher-class-filter > button:hover:not(:disabled) {
+  background: var(--facilitator-control-hover);
+}
+.sp-shell--facilitator .sp-teacher-class-filter > button > span {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+.sp-shell--facilitator .sp-teacher-class-menu {
+  font-size: 14.5px;
+  line-height: 20px;
+}
+.sp-shell--facilitator .sp-teacher-class-menu > button {
+  min-height: 32px;
+  padding: 6px 10px;
+}
+.sp-shell--facilitator :is(.sp-teacher-class-filter, .sp-teacher-class-menu) svg {
+  width: 14px;
+  height: 14px;
+}
+
 .sp-shell--facilitator .sp-teacher-toolbar {
   padding-top: 8px;
   align-items: center;
@@ -1893,6 +1943,50 @@ html:has(.sp-shell--facilitator) {
 .sp-teacher-student-toolbar .sp-tabs button:hover {
   background: #eae5df;
 }
+.sp-shell--facilitator .sp-teacher-select-projects {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+}
+.sp-teacher-select-projects svg {
+  width: 18px;
+  height: 18px;
+}
+.sp-teacher-project-selection,
+.sp-teacher-selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sp-teacher-project-selection {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  width: 100%;
+  min-height: 36px;
+  font-size: 13px;
+}
+.sp-teacher-project-selection > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.sp-teacher-selection-actions .sp-button {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+.sp-teacher-project-selection input,
+.sp-teacher-student-identity > input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--sp-ink);
+}
 .sp-teacher-student-list {
   flex: 1;
   min-height: 0;
@@ -1962,6 +2056,19 @@ html:has(.sp-shell--facilitator) {
     grid-template-columns: minmax(0, 1fr) 124px;
   }
 }
+.sp-shell--facilitator .sp-teacher-select-projects {
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+}
+.sp-teacher-select-projects > svg {
+  display: block;
+  margin: 0;
+  transform: none;
+}
+.sp-teacher-select-projects:hover:not(:disabled) {
+  background: #eae5df;
+}
 .sp-teacher-student-list {
   scrollbar-gutter: stable;
   border: solid transparent;
@@ -1976,6 +2083,12 @@ html:has(.sp-shell--facilitator) {
   }
   .sp-teacher-student-toolbar .sp-tabs button {
     padding-inline: 4px;
+  }
+  .sp-shell--facilitator .sp-teacher-select-projects {
+    flex-basis: 24px;
+    width: 24px;
+    height: 24px;
+    min-height: 24px;
   }
 }
 @media (min-width: 1344px) {
@@ -2040,6 +2153,30 @@ html:has(.sp-shell--facilitator) {
 @media (max-width: 600px) {
   .sp-shell--facilitator .sp-organisation-view > :is(.sp-class-assignments, .sp-card) {
     padding: 13px 9px;
+  }
+}
+
+@media (max-width: 600px) {
+  .sp-teacher-project-selection > label > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+@media (max-width: 600px) {
+  .sp-teacher-selection-actions .sp-button:has(svg) {
+    width: 32px;
+    padding: 0;
+  }
+  .sp-teacher-selection-actions .sp-button:has(svg) .sp-button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
 }
 @media (max-width: 600px) {
