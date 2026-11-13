@@ -261,7 +261,7 @@ export function OrganizationDirectory({
   }
   // Server search can match a member even when the organisation name differs from the query
   const visible =
-    searching || searchError
+    searchError
       ? []
       : onSearch
         ? organizations

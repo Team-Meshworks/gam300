@@ -298,18 +298,20 @@ function ProjectDetails({
 }
 
 function ProjectResults({
+  initialProjects,
   client,
   onClose,
   initialProjectId,
   onPublicationChanged,
 }: {
+  initialProjects: DashboardProject[];
   client: Client;
   onClose: () => void;
   initialProjectId?: string | undefined;
   onPublicationChanged: (state: ProjectPublicationState) => void;
 }) {
   const [filter, setFilter] = useState<"all" | "private" | "public">("all");
-  const [projects, setProjects] = useState<DashboardProject[]>([]);
+  const [projects, setProjects] = useState<DashboardProject[]>(initialProjects);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -321,7 +323,15 @@ function ProjectResults({
         row.projectId.toLowerCase() === state.projectId.toLowerCase()
           ? { ...row, isPublic: state.publicCount > 0 }
           : row;
-      setProjects((rows) => rows.map(update));
+      setProjects((rows) =>
+        rows
+          .filter(
+            (row) =>
+              row.projectId.toLowerCase() !== state.projectId.toLowerCase() ||
+              state.publicationCount > 0,
+          )
+          .map(update),
+      );
       setDetail((row) => (row ? update(row) : row));
       onPublicationChanged(state);
     },
@@ -400,19 +410,19 @@ function ProjectResults({
     <>
       <section
         className="admin-panel admin-project-browser"
-        aria-label="All Projects"
+        aria-label="All Published Projects"
         hidden={detail !== null}
       >
         <div className="admin-project-view-heading">
           <div>
-            <h1>All Projects</h1>
+            <h1>All Published Projects</h1>
             <p>Review published experiences and control what visitors can explore.</p>
           </div>
           <SearchField
-            label="Search all projects"
+            label="Search published projects"
             value={query}
             onChange={setQuery}
-            placeholder="Search all projects"
+            placeholder="Search published projects"
           />
           <Button
             className="sp-close-button"
@@ -463,13 +473,18 @@ function ProjectResults({
             )}
             {(loading || visible.length > 0) && (
               <Skeleton
-                loading={loading}
+                loading={loading && projects.length === 0}
                 label="Loading projects"
                 className="admin-project-loading"
               >
                 <ProjectCards
-                  projects={loading ? loadingProjects : visible}
-                  onView={setDetail}
+                  projects={loading && projects.length === 0 ? loadingProjects : visible}
+                  onView={(project) => {
+                    const url = new URL(location.href);
+                    url.searchParams.set("projectId", project.projectId);
+                    history.replaceState(null, "", url);
+                    setDetail(project);
+                  }}
                   browser
                 />
               </Skeleton>
@@ -494,7 +509,13 @@ function ProjectResults({
           project={detail}
           client={client}
           onPublicationChanged={publicationChanged}
-          onClose={() => setDetail(null)}
+          onClose={() => {
+            const url = new URL(location.href);
+            url.searchParams.delete("projectId");
+            history.replaceState(null, "", url);
+            if (url.searchParams.get("view") !== "projects") onClose();
+            else setDetail(null);
+          }}
         />
       )}
     </>
@@ -568,13 +589,17 @@ function AddOrganization({
 export function AdminDashboard({
   session,
   onOpenOrganisations,
+  initialProjects,
+  onProjectsLoaded,
 }: {
   session: AccountSession;
   onOpenOrganisations: () => void;
+  initialProjects?: DashboardProject[] | undefined;
+  onProjectsLoaded?: (projects: DashboardProject[]) => void;
 }) {
   const [client] = useState(() => createDashboardClient(session.userId));
-  const [projects, setProjects] = useState<DashboardProject[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<DashboardProject[]>(initialProjects ?? []);
+  const [loading, setLoading] = useState(initialProjects === undefined);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [initialProjectId] = useState(() => {
@@ -584,7 +609,9 @@ export function AdminDashboard({
       : undefined;
   });
   const [modal, setModal] = useState<"projects" | "organisation" | null>(
-    initialProjectId ? "projects" : null,
+    initialProjectId || new URLSearchParams(location.search).get("view") === "projects"
+      ? "projects"
+      : null,
   );
   const [detail, setDetail] = useState<DashboardProject | null>(null);
   const publicationChanged = useCallback((state: ProjectPublicationState) => {
@@ -592,7 +619,15 @@ export function AdminDashboard({
       row.projectId.toLowerCase() === state.projectId.toLowerCase()
         ? { ...row, isPublic: state.publicCount > 0 }
         : row;
-    setProjects((rows) => rows.map(update));
+    setProjects((rows) =>
+      rows
+        .filter(
+          (row) =>
+            row.projectId.toLowerCase() !== state.projectId.toLowerCase() ||
+            state.publicationCount > 0,
+        )
+        .map(update),
+    );
     setDetail((row) => (row ? update(row) : row));
   }, []);
   useEffect(() => {
@@ -614,17 +649,22 @@ export function AdminDashboard({
     return () => {
       disposed = true;
     };
-  }, [client, attempt]);
+  }, [client, attempt, onProjectsLoaded]);
+  useEffect(() => {
+    if (!loading && !error) onProjectsLoaded?.(projects);
+  }, [projects, loading, error, onProjectsLoaded]);
   if (modal === "projects")
     return (
       <div className="admin-dashboard">
         <ProjectResults
+          initialProjects={projects}
           client={client}
           initialProjectId={initialProjectId}
           onPublicationChanged={publicationChanged}
           onClose={() => {
             const url = new URL(location.href);
             url.searchParams.delete("projectId");
+            url.searchParams.delete("view");
             history.replaceState(null, "", url);
             setModal(null);
           }}
@@ -639,7 +679,12 @@ export function AdminDashboard({
           project={detail}
           client={client}
           onPublicationChanged={publicationChanged}
-          onClose={() => setDetail(null)}
+          onClose={() => {
+            const url = new URL(location.href);
+            url.searchParams.delete("projectId");
+            history.replaceState(null, "", url);
+            setDetail(null);
+          }}
         />
       </div>
     );
@@ -652,10 +697,18 @@ export function AdminDashboard({
       <section className="admin-panel admin-projects" aria-labelledby="admin-projects-heading">
         <div className="admin-section-heading">
           <div>
-            <h2 id="admin-projects-heading">All Projects</h2>
+            <h2 id="admin-projects-heading">All Published Projects</h2>
             <p>Manage published projects and their public visibility.</p>
           </div>
-          <Button variant="primary" onClick={() => setModal("projects")}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              const url = new URL(location.href);
+              url.searchParams.set("view", "projects");
+              history.replaceState(null, "", url);
+              setModal("projects");
+            }}
+          >
             View All
           </Button>
         </div>
@@ -677,10 +730,15 @@ export function AdminDashboard({
             </Button>
           </div>
         ) : projects.length ? (
-          <ProjectCards projects={projects} onView={setDetail} />
+          <ProjectCards projects={projects} onView={(project) => {
+            const url = new URL(location.href);
+            url.searchParams.set("projectId", project.projectId);
+            history.replaceState(null, "", url);
+            setDetail(project);
+          }} />
         ) : (
           <p className="admin-project-state" role="status">
-            No projects yet. Projects will appear here when your organisations create them.
+            No published projects yet. Projects will appear here once published.
           </p>
         )}
       </section>

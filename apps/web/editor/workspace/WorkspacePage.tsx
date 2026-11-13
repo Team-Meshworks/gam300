@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceAccountGate, type WorkspaceAccess } from "../accounts/WorkspaceAccountGate";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { HomePage } from "../home/HomePage";
 import { WorkspaceNavigation } from "../home/WorkspaceNavigation";
 import { AccountDirectoryPage } from "../directory/AccountDirectoryPage";
+import type { DashboardProject } from "../admin/dashboard-client";
 import { AdminDashboard } from "../admin/AdminDashboard";
 import { EducatorReviewLink } from "../reviews/EducatorReviewLink";
 import { ReviewWorkspace } from "../reviews/ReviewWorkspace";
@@ -13,7 +14,7 @@ import { createAssetAdministrationService } from "../asset-administration/asset-
 import { useWorkspaceDeparture } from "./useWorkspaceDeparture";
 
 const screens = [
-  { id: "publish", title: "Publish project", roles: ["Administrator", "Educator", "Creator"] },
+  { id: "publish", title: "Publish project", roles: ["Educator", "Creator"] },
   { id: "assets", title: "3D Assets", roles: ["Administrator"] },
   { id: "spaces", title: "3D Spaces", roles: ["Administrator"] },
   { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
@@ -32,6 +33,13 @@ export function WorkspacePage() {
 }
 
 function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
+  const [dashboardProjects, setDashboardProjects] = useState<{
+    accountId: string;
+    items: DashboardProject[];
+  } | null>(null);
+  const rememberDashboardProjects = useCallback((items: DashboardProject[]) => {
+    setDashboardProjects({ accountId: session.userId, items });
+  }, [session.userId]);
   const [route, setRoute] = useState(() => ({ href: location.pathname + location.search, key: 0 }));
   const path = new URL(route.href, location.origin).pathname.replace(/\/$/, "");
   function openScreen(href: string) {
@@ -151,6 +159,8 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
           )}
           {dashboard && (
             <AdminDashboard
+              initialProjects={dashboardProjects?.accountId === session.userId ? dashboardProjects.items : undefined}
+              onProjectsLoaded={rememberDashboardProjects}
               key={`${session.userId}:${route.key}`}
               session={session}
               onOpenOrganisations={() => navigate(() => openScreen("/organisations"))}

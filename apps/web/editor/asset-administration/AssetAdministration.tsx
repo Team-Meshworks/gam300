@@ -56,7 +56,17 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const [reload, setReload] = useState(0);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("all");
-  const [selection, setSelection] = useState<Selection>(initialUpload ? { kind: "upload" } : null);
+  const [selection, setSelection] = useState<Selection>(() => {
+    if (initialUpload) return { kind: "upload" };
+    const id = new URLSearchParams(location.search).get("assetId");
+    return id ? { kind: "detail", id } : null;
+  });
+  useEffect(() => {
+    const url = new URL(location.href);
+    if (selection?.kind === "detail") url.searchParams.set("assetId", selection.id);
+    else url.searchParams.delete("assetId");
+    history.replaceState(history.state, "", url);
+  }, [selection]);
   const [file, setFile] = useState<File | null>(null);
   const [uploadKind, setUploadKind] = useState(kind);
   const [audioPreview, setAudioPreview] = useState<string | null>(null);
