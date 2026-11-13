@@ -1538,44 +1538,6 @@
   gap: 12px;
   cursor: pointer;
 }
-.sp-account-selection input,
-.sp-account-select-row {
-  appearance: none;
-  position: relative;
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  border: 1px solid var(--account-selection-border);
-  border-radius: 4px;
-  background: var(--account-selection-paper);
-  cursor: pointer;
-}
-:is(.sp-account-selection input, .sp-account-select-row):is(:checked, :indeterminate) {
-  border-color: var(--account-selection-ink);
-  background: var(--account-selection-ink);
-}
-:is(.sp-account-selection input, .sp-account-select-row):checked::after {
-  content: "";
-  width: 7px;
-  height: 4px;
-  margin-top: -2px;
-  border: solid var(--account-selection-on);
-  border-width: 0 0 1.5px 1.5px;
-  transform: rotate(-45deg);
-}
-.sp-account-selection input:indeterminate::after {
-  content: "";
-  width: 8px;
-  height: 1.5px;
-  background: var(--account-selection-on);
-}
-:is(.sp-account-selection input, .sp-account-select-row):focus-visible {
-  outline: 2px solid var(--sp-focus);
-  outline-offset: 3px;
-}
 .sp-directory--administration .sp-account-row--selectable {
   grid-template-columns: 16px minmax(0, 1fr) 148px;
   column-gap: 12px;
@@ -1868,6 +1830,19 @@
   text-align: center;
   font-size: 13px;
   line-height: 18px;
+}
+
+.sp-directory--administration .sp-account-selection-actions > .sp-account-bulk-hide {
+  color: var(--sp-ink);
+  font-weight: 600;
+  gap: 6px;
+}
+.sp-account-bulk-hide svg {
+  width: 16px;
+  height: 16px;
+}
+.sp-account-bulk-hide:disabled {
+  opacity: 0.55;
 }
 
 @media (min-width: 801px) {

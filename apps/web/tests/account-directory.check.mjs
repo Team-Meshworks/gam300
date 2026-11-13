@@ -39,6 +39,20 @@ try {
           mustChangePassword: false,
         },
       });
+    if (path === "/api/v1/admin/projects/publication-moderation") {
+      const ids = new URL(req.url()).searchParams.get("ids").split(",");
+      return route.fulfill({
+        json: {
+          items: ids.map((projectId) => ({
+            projectId,
+            publicationCount: projectId === "cccccccc-cccc-4ccc-8ccc-cccccccccccc" ? 0 : 1,
+            hiddenCount: 0,
+            publicCount:
+              projectId === userId || projectId === "cccccccc-cccc-4ccc-8ccc-cccccccccccc" ? 0 : 1,
+          })),
+        },
+      });
+    }
     if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test-csrf" } });
     if (req.method() !== "GET") {
       assert.equal(req.headers()["x-csrf-token"], "test-csrf");
@@ -55,7 +69,16 @@ try {
         return route.fulfill({ status: 204 });
       }
       if (path.endsWith("/active")) {
-        rows[0].isActive = body.isActive;
+        rows.find((row) => row.userId === path.split("/").at(-2)).isActive = body.isActive;
+        return route.fulfill({ status: 204 });
+      }
+      if (path === `/api/v1/admin/organizations/${orgId}/students/hide`) {
+        assert.ok(
+          body.userIds.every((id) =>
+            rows.some((row) => row.userId === id && row.role === "Creator"),
+          ),
+        );
+        for (const row of rows) if (body.userIds.includes(row.userId)) row.isActive = false;
         return route.fulfill({ status: 204 });
       }
       if (path === `/api/v1/admin/organizations/${orgId}/students/delete`) {
@@ -138,6 +161,12 @@ try {
         json: {
           items: [
             { id: userId, title: projectTitle, status: "Draft", isPublic: false },
+            {
+              id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              title: "Unpublished draft fixture",
+              status: "Draft",
+              isPublic: false,
+            },
             {
               id: "bbf2b1d0-b388-4df8-a995-930148dcdd19",
               title: "Project with cover",
@@ -240,7 +269,7 @@ try {
   assert.equal(await explicitCover.getAttribute("src"), "/entry/assets/login-exhibit.png");
   await explicitCover.evaluate((image) => image.decode());
   assert.equal(
-    await defaultCard.getByRole("link", { name: "View details" }).getAttribute("href"),
+    await defaultCard.getByRole("link", { name: "View Details" }).getAttribute("href"),
     `/admin/dashboard?projectId=${userId}`,
   );
   await page.getByRole("tab", { name: "Public", exact: true }).click();
@@ -616,11 +645,32 @@ try {
   );
   assert.ok(
     (await page.locator(".sp-account-row-bottom").count()) > 0,
-    "Selection mode preserves individual actions",
+    "Selection mode preserves the View Account action",
   );
+  assert.equal(
+    await page.getByText("Unpublished draft fixture", { exact: true }).count(),
+    0,
+    "Organisation projects exclude unpublished drafts",
+  );
+  assert.equal(await page.getByRole("button", { name: /^Hide account for / }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: /^Delete account for / }).count(), 0);
+  assert.ok(await page.getByRole("button", { name: /^View account for / }).count() > 0);
   const searchAccounts = page.getByRole("searchbox", { name: "Search accounts", exact: true });
   await searchAccounts.fill("CSV Fresh Learner");
   await page.getByRole("checkbox", { name: "Select all creators", exact: true }).check();
+  await page.getByRole("button", { name: "Hide selected (1)", exact: true }).click();
+  const hideSelected = page.getByRole("dialog", { name: "Hide 1 creator account?", exact: true });
+  await hideSelected.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(rows.find((row) => row.displayName === "CSV Fresh Learner")?.isActive, true);
+  await page.getByRole("button", { name: "Hide selected (1)", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Hide 1 creator account?", exact: true })
+    .getByRole("button", { name: "Hide Accounts", exact: true })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Hide 1 creator account?", exact: true })
+    .waitFor({ state: "detached" });
+  assert.equal(rows.find((row) => row.displayName === "CSV Fresh Learner")?.isActive, false);
   await page.getByRole("button", { name: "Delete selected (1)", exact: true }).click();
   let deletion = page.getByRole("dialog", { name: "Delete 1 creator account?", exact: true });
   await deletion.getByRole("button", { name: "Cancel", exact: true }).click();

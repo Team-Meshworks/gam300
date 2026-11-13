@@ -723,3 +723,41 @@ body:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome) {
   min-height: 0;
   overflow: auto;
 }
+
+.sp-selection-checkbox {
+  appearance: none;
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid #b1aaa2;
+  border-radius: 4px;
+  background: var(--sp-surface);
+  cursor: pointer;
+}
+.sp-selection-checkbox:is(:checked, :indeterminate) {
+  border-color: var(--sp-ink);
+  background: var(--sp-ink);
+}
+.sp-selection-checkbox:checked::after {
+  content: "";
+  width: 7px;
+  height: 4px;
+  margin-top: -2px;
+  border: solid #fff;
+  border-width: 0 0 1.5px 1.5px;
+  transform: rotate(-45deg);
+}
+.sp-selection-checkbox:indeterminate::after {
+  content: "";
+  width: 8px;
+  height: 1.5px;
+  background: #fff;
+}
+.sp-selection-checkbox:focus-visible {
+  outline: 2px solid var(--sp-focus);
+  outline-offset: 3px;
+}

@@ -13,7 +13,9 @@ namespace Spatia.Server.Tests;
 public sealed class AccountDirectoryTests
 {
     [Test]
-    public async Task BulkStudentDeletion_IsAtomicAndRestrictedToCreatorsInOneOrganisation()
+    [Arguments("delete")]
+    [Arguments("hide")]
+    public async Task BulkStudentModeration_IsAtomicAndRestrictedToCreatorsInOneOrganisation(string action)
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
         var administrator = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
@@ -36,7 +38,7 @@ public sealed class AccountDirectoryTests
             stamp = user.SecurityStamp!;
             username = user.UserName!;
         }
-        var path = $"/api/v1/admin/organizations/{orgId:D}/students/delete";
+        var path = $"/api/v1/admin/organizations/{orgId:D}/students/{action}";
         foreach (var invalid in new[] { new[] { first, educator }, new[] { first, outsider }, Array.Empty<Guid>() })
         {
             using var response = await AuthTestRequests.PostAsync(fixture, path, new { userIds = invalid });
@@ -46,6 +48,7 @@ public sealed class AccountDirectoryTests
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             await Assert.That(await database.Users.AnyAsync(row => row.Id == first && row.IsDeleted)).IsFalse();
+            await Assert.That(await database.Users.AnyAsync(row => row.Id == first && row.IsActive)).IsTrue();
         }
         using var deleted = await AuthTestRequests.PostAsync(fixture, path, new { userIds = new[] { first, second } });
         await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
@@ -55,10 +58,11 @@ public sealed class AccountDirectoryTests
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var retained = await database.Users.SingleAsync(row => row.Id == first);
-            await Assert.That(retained.IsDeleted && !retained.IsActive).IsTrue();
+            await Assert.That(retained.IsDeleted).IsEqualTo(action == "delete");
+            await Assert.That(retained.IsActive).IsFalse();
             await Assert.That(retained.SecurityStamp == stamp).IsFalse();
             await Assert.That(retained.UserName).IsEqualTo(username);
-            await Assert.That(await database.Users.AnyAsync(row => row.Id == second && row.IsDeleted)).IsTrue();
+            await Assert.That(await database.Users.AnyAsync(row => row.Id == second && !row.IsActive && row.IsDeleted == (action == "delete"))).IsTrue();
             await Assert.That(await database.Users.AnyAsync(row => (row.Id == educator || row.Id == outsider) && row.IsDeleted)).IsFalse();
         }
     }

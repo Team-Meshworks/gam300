@@ -17,6 +17,7 @@ export interface AccountActions {
   onToggleActive: (id: string) => void;
   onDelete?: (id: string) => void;
   onDeleteStudents?: (ids: string[]) => void;
+  onHideStudents?: (ids: string[]) => void;
   busy: boolean;
   canCreate: boolean;
 }
@@ -170,6 +171,7 @@ export function AccountList({
           <label>
             <input
               type="checkbox"
+              className="sp-selection-checkbox"
               aria-label="Select all creators"
               checked={allSelected}
               ref={(input) => {
@@ -190,6 +192,26 @@ export function AccountList({
             >
               Cancel
             </Button>
+            {actions?.onHideStudents && (
+              <Button
+                className="sp-account-bulk-hide"
+                disabled={
+                  actions.busy ||
+                  picked.length === 0 ||
+                  picked.every((account) => account.status !== "Active")
+                }
+                onClick={() =>
+                  actions.onHideStudents?.(
+                    picked
+                      .filter((account) => account.status === "Active")
+                      .map((account) => account.id),
+                  )
+                }
+              >
+                <UiIcon icon={faEyeSlash} aria-hidden="true" />
+                <span>Hide selected{picked.length > 0 ? ` (${picked.length})` : ""}</span>
+              </Button>
+            )}
             <Button
               className="sp-button--danger sp-account-bulk-delete"
               disabled={actions?.busy || picked.length === 0}
@@ -226,7 +248,7 @@ export function AccountList({
               {canSelect && account.role === "Students" && (
                 <label className="sp-account-selection-check">
                   <input
-                    className="sp-account-select-row"
+                    className="sp-account-select-row sp-selection-checkbox"
                     type="checkbox"
                     aria-label={`Select creator ${account.name} (${account.account})`}
                     checked={selected.includes(account.id)}
@@ -287,7 +309,7 @@ export function AccountList({
                   >
                     View Account
                   </Button>
-                  {actions && (
+                  {actions && !canSelect && (
                     <Button
                       disabled={actions.busy}
                       aria-label={`${administration ? (account.status === "Active" ? "Hide" : "Show") : account.status === "Active" ? "Disable" : "Enable"} account for ${account.name}`}
@@ -310,7 +332,7 @@ export function AccountList({
                       </span>
                     </Button>
                   )}
-                  {administration && actions?.onDelete && (
+                  {administration && actions?.onDelete && !canSelect && (
                     <Button
                       disabled={actions.busy}
                       aria-label={`Delete account for ${account.name}`}

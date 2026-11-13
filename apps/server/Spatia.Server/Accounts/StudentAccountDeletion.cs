@@ -10,9 +10,17 @@ public static partial class AccountDirectoryEndpoints
 {
     private sealed record DeleteStudentsRequest(Guid[] UserIds);
 
-    private static async Task<IResult> DeleteStudentsAsync(Guid id, DeleteStudentsRequest request,
+    private static Task<IResult> DeleteStudentsAsync(Guid id, DeleteStudentsRequest request, HttpContext context,
+        ApplicationDbContext database, UserManager<ApplicationUser> users, CurrentAccountResolver accounts, CancellationToken cancellationToken) =>
+        ChangeStudentsAsync(id, request, context, database, users, accounts, cancellationToken, delete: true);
+
+    private static Task<IResult> HideStudentsAsync(Guid id, DeleteStudentsRequest request, HttpContext context,
+        ApplicationDbContext database, UserManager<ApplicationUser> users, CurrentAccountResolver accounts, CancellationToken cancellationToken) =>
+        ChangeStudentsAsync(id, request, context, database, users, accounts, cancellationToken, delete: false);
+
+    private static async Task<IResult> ChangeStudentsAsync(Guid id, DeleteStudentsRequest request,
         HttpContext context, ApplicationDbContext database, UserManager<ApplicationUser> users,
-        CurrentAccountResolver accounts, CancellationToken cancellationToken)
+        CurrentAccountResolver accounts, CancellationToken cancellationToken, bool delete)
     {
         if (request.UserIds is not { Length: > 0 and <= 1000 } || request.UserIds.Contains(Guid.Empty))
         {
@@ -35,10 +43,10 @@ public static partial class AccountDirectoryEndpoints
         {
             return ApiProblems.Create(context, 400, "invalid_student_selection", "Only creator accounts from this organisation can be selected. Refresh before retrying.");
         }
-        foreach (var user in selected.Where(user => !user.IsDeleted))
+        foreach (var user in selected.Where(user => !user.IsDeleted && (delete || user.IsActive)))
         {
-            // Keep authored work and reserved usernames, matching individual account deletion.
-            user.IsDeleted = true;
+            // Revoke sessions while retaining authored work and reserved usernames.
+            if (delete) { user.IsDeleted = true; }
             user.IsActive = false;
             cancellationToken.ThrowIfCancellationRequested();
             var result = await users.UpdateSecurityStampAsync(user);

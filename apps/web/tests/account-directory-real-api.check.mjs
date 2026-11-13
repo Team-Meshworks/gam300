@@ -1,14 +1,38 @@
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
+import { createServer as createBridge } from "node:http";
+import { request } from "node:https";
+import { readFileSync } from "node:fs";
 
 assert.ok(process.env.SPATIA_API_ORIGIN && process.env.SPATIA_TEST_ADMIN);
 const server = await createServer({ server: { port: 0 }, logLevel: "silent" });
 await server.listen();
-const origin = `https://127.0.0.1:${server.httpServer.address().port}`;
+const upstream = `https://127.0.0.1:${server.httpServer.address().port}`;
+const bridge = createBridge((incoming, outgoing) => {
+  const forwarded = request(
+    upstream + incoming.url,
+    {
+      ca: readFileSync(process.env.SPATIA_DEV_TLS_CERT),
+      method: incoming.method,
+      headers: { ...incoming.headers, host: new URL(upstream).host },
+    },
+    (response) => {
+      outgoing.writeHead(response.statusCode, response.headers);
+      response.pipe(outgoing);
+    },
+  );
+  forwarded.on("error", () => {
+    if (!outgoing.headersSent) outgoing.writeHead(502);
+    outgoing.end();
+  });
+  incoming.pipe(forwarded);
+});
+await new Promise((resolve) => bridge.listen(0, "127.0.0.1", resolve));
+const origin = `http://127.0.0.1:${bridge.address().port}`;
 const browser = await launchBrowser({ target: origin });
 try {
-  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const context = await browser.newContext();
   const page = await context.newPage();
   page.setDefaultTimeout(15000);
   await page.goto(origin + "/login");
@@ -53,7 +77,7 @@ try {
   await dialog.getByRole("button", { name: "Save changes" }).click();
   await dialog.waitFor({ state: "detached" });
   await page.reload();
-  await page.getByRole("button", { name: "Open Synthetic organization" }).click();
+  await page.getByRole("button", { name: "Close organisation", exact: true }).waitFor();
   await page.getByRole("button", { name: "View account for Browser Created" }).click();
   dialog = page.getByRole("dialog");
   assert.equal(await dialog.getByLabel("Password", { exact: true }).inputValue(), "");
@@ -67,7 +91,7 @@ try {
   await dialog.getByRole("button", { name: "Save changes" }).click();
   await dialog.waitFor({ state: "detached" });
   await page.reload();
-  await page.getByRole("button", { name: "Open Synthetic organization" }).click();
+  await page.getByRole("button", { name: "Close organisation", exact: true }).waitFor();
   await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();
   // Exercise recovery against the real API after a failed directory load.
   let failOrganizations = true;
@@ -80,7 +104,7 @@ try {
   await page.getByRole("alert").filter({ hasText: "directory request failed" }).waitFor();
   failOrganizations = false;
   await page.getByRole("button", { name: "Retry", exact: true }).click();
-  await page.getByRole("button", { name: "Open Synthetic organization" }).click();
+  await page.getByRole("button", { name: "Close organisation", exact: true }).waitFor();
   await page.getByRole("button", { name: "View account for Browser Updated" }).waitFor();
   await page.getByText("Dashboard browser project", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Close organisation", exact: true }).click();
@@ -93,7 +117,7 @@ try {
       .count(),
     0,
   );
-  const owner = await browser.newContext({ ignoreHTTPSErrors: true });
+  const owner = await browser.newContext();
   const login = await owner.newPage();
   await login.goto(origin + "/login");
   await login.getByLabel("Username", { exact: true }).fill("browser.updated");
@@ -110,5 +134,6 @@ try {
   );
 } finally {
   await browser.close();
+  await new Promise((resolve) => bridge.close(resolve));
   await server.close();
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createDashboardClient } from "../admin/dashboard-client";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { AccountDialog, type NewAccount } from "./AccountDialog";
@@ -16,6 +17,7 @@ const message = (error: unknown) =>
   error instanceof Error ? error.message : "The directory could not be loaded.";
 export function AccountDirectoryPage({ accountId }: { accountId: string }) {
   const [client] = useState(() => createDirectoryClient(fetch, accountId));
+  const [publications] = useState(() => createDashboardClient(accountId));
   const [organizations, setOrganizations] = useState<ManagedOrganization[] | null>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(() =>
@@ -29,6 +31,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
   const [detailError, setDetailError] = useState("");
   const [projectError, setProjectError] = useState("");
   const [notice, setNotice] = useState("");
+  const [hidingStudents, setHidingStudents] = useState<ManagedAccount[]>([]);
   const [deletingStudents, setDeletingStudents] = useState<ManagedAccount[]>([]);
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -72,26 +75,30 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
   useEffect(() => {
     if (!selected) return;
     let disposed = false;
-    void Promise.allSettled([client.accounts(selected), client.projects(selected)]).then(
-      ([rows, entries]) => {
-        if (disposed) return;
-        if (rows.status === "fulfilled") setAccounts(rows.value);
-        else {
-          setAccounts([]);
-          setDetailError(message(rows.reason));
-        }
-        if (entries.status === "fulfilled") setProjects(entries.value);
-        else {
-          setProjects([]);
-          setProjectError(message(entries.reason));
-        }
-        setDetailLoading(false);
-      },
-    );
+    void Promise.allSettled([
+      client.accounts(selected),
+      client.projects(selected).then(async (projects) => {
+        const states = await publications.publicationStates(projects.map((project) => project.id));
+        return projects.filter((project) => states[project.id.toLowerCase()]!.publicationCount > 0);
+      }),
+    ]).then(([rows, entries]) => {
+      if (disposed) return;
+      if (rows.status === "fulfilled") setAccounts(rows.value);
+      else {
+        setAccounts([]);
+        setDetailError(message(rows.reason));
+      }
+      if (entries.status === "fulfilled") setProjects(entries.value);
+      else {
+        setProjects([]);
+        setProjectError(message(entries.reason));
+      }
+      setDetailLoading(false);
+    });
     return () => {
       disposed = true;
     };
-  }, [selected, attempt, client]);
+  }, [selected, attempt, client, publications]);
   function select(id: string | null) {
     const url = new URL(window.location.href);
     if (id) url.searchParams.set("organisation", id);
@@ -188,6 +195,25 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
       setAccounts((rows) => rows.filter((row) => row.userId !== deletingAccount.userId));
       setNotice("Account deleted. Their authored work and history have been retained.");
       setDeletingAccount(null);
+    } catch (reason) {
+      setNotice(message(reason));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  }
+  async function hideStudents() {
+    if (!selected || !hidingStudents.length || pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setNotice("");
+    try {
+      const ids = hidingStudents.map((account) => account.userId);
+      await client.hideStudents(selected, ids);
+      setAccounts((rows) =>
+        rows.map((row) => (ids.includes(row.userId) ? { ...row, isActive: false } : row)),
+      );
+      setHidingStudents([]);
     } catch (reason) {
       setNotice(message(reason));
     } finally {
@@ -303,6 +329,15 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
             setNotice("");
             setToggle(accounts.find((row) => row.userId === id) ?? null);
           },
+          onHideStudents: (ids) => {
+            if (pending.current) return;
+            setNotice("");
+            setHidingStudents(
+              accounts.filter(
+                (row) => row.role === "Creator" && row.isActive && ids.includes(row.userId),
+              ),
+            );
+          },
           onDeleteStudents: (ids) => {
             if (pending.current) return;
             setNotice("");
@@ -348,6 +383,30 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
       {preview && (
         <Dialog title={preview.title} variant="admin" onClose={() => setPreview(null)}>
           {preview.body}
+        </Dialog>
+      )}
+      {hidingStudents.length > 0 && (
+        <Dialog
+          title={`Hide ${hidingStudents.length} creator account${hidingStudents.length === 1 ? "" : "s"}?`}
+          variant="admin"
+          className="sp-account-confirmation"
+          onClose={() => {
+            if (!pending.current) setHidingStudents([]);
+          }}
+        >
+          <p>
+            These accounts will lose access and be signed out. Their projects and history will be
+            kept. You can show the accounts again later.
+          </p>
+          <div className="sp-actions sp-confirmation-actions">
+            <Button disabled={busy} onClick={() => setHidingStudents([])}>
+              Cancel
+            </Button>
+            <Button variant="primary" disabled={busy} onClick={() => void hideStudents()}>
+              {busy ? "Hiding…" : "Hide Accounts"}
+            </Button>
+          </div>
+          {notice && <p role="alert">{notice}</p>}
         </Dialog>
       )}
       {deletingStudents.length > 0 && (
