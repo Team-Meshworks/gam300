@@ -388,6 +388,12 @@ public sealed class PublicationAccessEndpointTests
         using (var deleted = await AuthTestRequests.PostAsync(fixture, path, new { action = "delete" }))
         { await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
         await AssertCounts(0, 0, 0);
+        using (var publishedList = await fixture.Client.GetAsync("/api/v1/projects?published=true&limit=20"))
+        {
+            await Assert.That(publishedList.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That((await publishedList.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength()).IsEqualTo(0);
+        }
+
         await Assert.That(await database.Publications.CountAsync(row => row.ProjectId == projectId)).IsEqualTo(5);
         await Assert.That(await database.PublicationAccess.CountAsync(row => allIds.Contains(row.PublicationId) && row.Deleted)).IsEqualTo(5);
         await Assert.That(await database.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM retired_publication_ids")
@@ -412,6 +418,123 @@ public sealed class PublicationAccessEndpointTests
                 await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
             }
         }
+    }
+
+    [Test]
+    public async Task ExhibitionPreview_UsesLatestPublicationAndPinnedAssetsWithoutExposingDraftChanges()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var data = JsonSerializer.SerializeToElement(await SeedAsync(fixture));
+        var projectId = data.GetProperty("projectId").GetGuid();
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var original = await database.Publications.AsNoTracking().FirstAsync(row => row.ProjectId == projectId);
+        var document = JsonNode.Parse(original.DocumentJson)!;
+        document["title"] = "Latest published exhibition";
+        var latest = new Publication { Id = Guid.NewGuid(), ProjectId = projectId, PublishedById = original.PublishedById,
+            SourceRevision = 7, SchemaVersion = original.SchemaVersion, DocumentJson = document.ToJsonString(),
+            AssetReferencesJson = original.AssetReferencesJson, RequestDigest = new byte[32] };
+        database.Publications.Add(latest);
+        database.PublicationAccess.Add(new PublicationAccessState { PublicationId = latest.Id, Audience = 1, Hidden = true });
+        document["title"] = "Unpublished changes";
+        var draft = await database.Projects.SingleAsync(row => row.Id == projectId);
+        draft.DocumentJson = document.ToJsonString();
+        draft.Revision = 8;
+        var unpublishedId = Guid.NewGuid();
+        database.Projects.Add(new Project { Id = unpublishedId, OrganizationId = draft.OrganizationId,
+            SchemaVersion = 1, UpdatedAt = DateTimeOffset.UtcNow, DocumentJson = ProjectTestDocuments.Create(unpublishedId, "Unpublished project") });
+        await database.SaveChangesAsync();
+        await fixture.SignInAsync(data.GetProperty("actors").GetProperty("admin").GetProperty("userId").GetGuid());
+        using var preview = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}/exhibition");
+        await Assert.That(preview.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(preview.Headers.CacheControl?.NoStore).IsTrue();
+        var opened = await preview.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(opened.GetProperty("publicationId").GetGuid()).IsEqualTo(latest.Id);
+        await Assert.That(opened.GetProperty("revision").GetInt64()).IsEqualTo(7);
+        await Assert.That(opened.GetProperty("document").GetProperty("title").GetString()).IsEqualTo("Latest published exhibition");
+        var assetUrl = opened.GetProperty("assets")[0].GetProperty("url").GetString()!;
+        using var asset = await fixture.Client.GetAsync(assetUrl);
+        await Assert.That(asset.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var published = await fixture.Client.GetAsync("/api/v1/projects?published=true&limit=20");
+        await Assert.That(published.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var publishedBody = await published.Content.ReadFromJsonAsync<JsonElement>();
+        var ids = publishedBody.GetProperty("items").EnumerateArray()
+            .Select(row => row.GetProperty("projectId").GetGuid()).ToArray();
+        await Assert.That(ids.Contains(projectId)).IsTrue();
+        await Assert.That(ids.Contains(unpublishedId)).IsFalse();
+        var listed = publishedBody.GetProperty("items").EnumerateArray()
+            .Single(row => row.GetProperty("projectId").GetGuid() == projectId);
+        await Assert.That(listed.GetProperty("title").GetString()).IsEqualTo("Latest published exhibition");
+
+        document["title"] = "Republished exhibition";
+        var republished = new Publication { Id = Guid.NewGuid(), ProjectId = projectId, PublishedById = original.PublishedById,
+            SourceRevision = 8, SchemaVersion = original.SchemaVersion, DocumentJson = document.ToJsonString(),
+            AssetReferencesJson = original.AssetReferencesJson, RequestDigest = new byte[32] };
+        database.Publications.Add(republished);
+        database.PublicationAccess.Add(new PublicationAccessState { PublicationId = republished.Id, Audience = 1 });
+        await database.SaveChangesAsync();
+        using var reopened = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}/exhibition");
+        var refreshed = await reopened.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(refreshed.GetProperty("publicationId").GetGuid()).IsEqualTo(republished.Id);
+        await Assert.That(refreshed.GetProperty("document").GetProperty("title").GetString()).IsEqualTo("Republished exhibition");
+        using var missing = await fixture.Client.GetAsync($"/api/v1/projects/{unpublishedId}/exhibition");
+        await Assert.That(missing.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await fixture.SignInAsync(data.GetProperty("actors").GetProperty("publisher").GetProperty("userId").GetGuid());
+        using var creator = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}/exhibition");
+        await Assert.That(creator.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+        await fixture.SignInAsync(data.GetProperty("actors").GetProperty("manager").GetProperty("userId").GetGuid());
+        using var educator = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}/exhibition");
+        await Assert.That(educator.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var foreignAsset = await fixture.Client.GetAsync(assetUrl.Replace(projectId.ToString(), unpublishedId.ToString()));
+        await Assert.That(foreignAsset.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
+    public async Task SelectedPublicationModeration_HandlesMoreThanTwentyProjectsInOneRequest()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var data = JsonSerializer.SerializeToElement(await SeedAsync(fixture));
+        var first = data.GetProperty("projectId").GetGuid();
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var template = await database.Publications.AsNoTracking().FirstAsync(row => row.ProjectId == first);
+        var organization = await database.Projects.Where(row => row.Id == first).Select(row => row.OrganizationId).SingleAsync();
+        var ids = new List<Guid> { first };
+        for (var index = 0; index < 24; index++)
+        {
+            var id = Guid.NewGuid();
+            ids.Add(id);
+            var document = JsonNode.Parse(template.DocumentJson)!;
+            document["projectId"] = id.ToString();
+            database.Projects.Add(new Project { Id = id, OrganizationId = organization, SchemaVersion = template.SchemaVersion,
+                DocumentJson = document.ToJsonString(), UpdatedAt = DateTimeOffset.UtcNow });
+            var publication = new Publication { Id = Guid.NewGuid(), ProjectId = id, PublishedById = template.PublishedById,
+                SourceRevision = 0, SchemaVersion = template.SchemaVersion, DocumentJson = document.ToJsonString(),
+                AssetReferencesJson = template.AssetReferencesJson, RequestDigest = new byte[32] };
+            database.Publications.Add(publication);
+            database.PublicationAccess.Add(new PublicationAccessState { PublicationId = publication.Id, Audience = 1 });
+        }
+        await database.SaveChangesAsync();
+        await fixture.SignInAsync(data.GetProperty("actors").GetProperty("publisher").GetProperty("userId").GetGuid());
+        using var denied = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/projects/publication-moderation", new { projectIds = ids, action = "hide" });
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+        await fixture.SignInAsync(data.GetProperty("actors").GetProperty("admin").GetProperty("userId").GetGuid());
+        foreach (var action in new[] { "hide", "show" })
+        {
+            using var changed = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/projects/publication-moderation", new { projectIds = ids, action });
+            await Assert.That(changed.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+            var hidden = await (from policy in database.PublicationAccess.AsNoTracking()
+                                join publication in database.Publications on policy.PublicationId equals publication.Id
+                                where ids.Contains(publication.ProjectId)
+                                select policy.Hidden).ToArrayAsync();
+            await Assert.That(hidden.All(value => value == (action == "hide"))).IsTrue();
+        }
+        using var deleted = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/projects/publication-moderation", new { projectIds = ids, action = "delete" });
+        await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        await Assert.That(await (from policy in database.PublicationAccess.AsNoTracking()
+                                 join publication in database.Publications on policy.PublicationId equals publication.Id
+                                 where ids.Contains(publication.ProjectId) && !policy.Deleted select policy.PublicationId).CountAsync()).IsEqualTo(0);
+        await Assert.That(await database.Projects.CountAsync(row => ids.Contains(row.Id))).IsEqualTo(25);
     }
 
     private static async Task<object> SeedAsync(HttpsApplicationFixture fixture)

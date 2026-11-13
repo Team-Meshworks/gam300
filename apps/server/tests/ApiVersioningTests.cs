@@ -39,6 +39,7 @@ public sealed class ApiVersioningTests
                     ("POST", "/api/v1/admin/assets/{id:guid}/approve") => 40 * 1024,
                     ("POST", "/api/v1/projects/{id:guid}/publications") or ("POST", "/api/v1/publications/{publicationId:guid}/access") => 16 * 1024,
                     ("POST", "/api/v1/admin/projects/{projectId:guid}/publication-moderation") or ("POST", "/api/v1/projects/{projectId:guid}/publication-moderation") => 4 * 1024,
+                    ("POST", "/api/v1/admin/projects/publication-moderation") or ("POST", "/api/v1/projects/publication-moderation") => 64 * 1024,
                     _ => null,
                 };
                 await Assert.That(endpoint.Metadata.GetMetadata<IRequestSizeLimitMetadata>()?.MaxRequestBodySize)
