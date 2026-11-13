@@ -151,7 +151,6 @@ public sealed class ProjectLifecycleTests
     [Test]
     [Arguments(ApplicationRoles.Creator)]
     [Arguments(ApplicationRoles.Educator)]
-    [Arguments(ApplicationRoles.Administrator)]
     public async Task ProjectLifecycle_BlankCreationDerivesOrganizationAndInitialAuthority(string role)
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
@@ -212,45 +211,37 @@ public sealed class ProjectLifecycleTests
     }
 
     [Test]
-    public async Task ProjectLifecycle_AdministratorProvisionsAndReassignsStudentsWithoutExposingOtherWork()
+    public async Task ProjectLifecycle_AdministratorCanReadButCannotMutateStudentWork()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var educator = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
+        await fixture.SignInAsync(educator);
+        var project = await CreateAsync(fixture, new { title = Marker, environmentAssetId = "test-room-v1" });
+        var before = await ReadAsync(fixture, project);
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
-        using var organizationResponse = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/organizations", new { name = "Class" });
-        await Assert.That(organizationResponse.StatusCode).IsEqualTo(HttpStatusCode.Created);
-        var organization = (await organizationResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
-        var students = new List<Guid>();
-        foreach (var name in new[] { "student-one", "student-two" })
+        var opened = await OpenAsync(fixture, project);
+        foreach (var permission in new[] { "canEdit", "canManage", "canPublish" })
         {
-            using var provisioned = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/users", new
-            { userName = name, initialPassword = AuthTestRequests.CurrentPassword, role = ApplicationRoles.Creator, orgId = organization });
-            await Assert.That(provisioned.StatusCode).IsEqualTo(HttpStatusCode.Created);
-            students.Add((await provisioned.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid());
+            await Assert.That(opened.GetProperty("permissions").GetProperty(permission).GetBoolean()).IsFalse();
         }
-        var project = await CreateAsync(fixture, new { title = Marker, environmentAssetId = "test-room-v1", orgId = organization });
-        using var assigned = await SendAsync(fixture, HttpMethod.Patch, Path(project, "/assignments"), Assignments(0, [students[0]], publish: [students[0]]));
-        await MetadataAsync(assigned, HttpStatusCode.OK, 1);
-        using var firstClient = fixture.CreateClient();
-        using var secondClient = fixture.CreateClient();
-        foreach (var (name, client) in new[] { ("student-one", firstClient), ("student-two", secondClient) })
+        foreach (var (method, path, body) in new[]
         {
-            using var login = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login", new { userName = name, password = AuthTestRequests.CurrentPassword }, client);
-            await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-            using var password = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/password", new { currentPassword = AuthTestRequests.CurrentPassword, newPassword = AuthTestRequests.NewPassword }, client);
-            await Assert.That(password.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+            (HttpMethod.Post, "/api/v1/projects/", (object)new { title = Marker, orgId = before.OrganizationId }),
+            (HttpMethod.Put, Path(project), Save(project, "Unauthorized edit", 0)),
+            (HttpMethod.Post, Path(project, "/duplicate"), (object)new { expectedRevision = 0, title = "Copy" }),
+            (HttpMethod.Patch, Path(project, "/archive"), (object)new { expectedRevision = 0, archived = true }),
+            (HttpMethod.Patch, Path(project, "/assignments"), Assignments(0, [], [educator])),
+            (HttpMethod.Post, Path(project, "/progress-reviews"), (object)new { reviewId = Guid.NewGuid(), expectedRevision = 0, feedback = "Unauthorized comment" }),
+            (HttpMethod.Post, Path(project, "/submissions"), (object)new { submissionId = Guid.NewGuid(), expectedRevision = 0, completionConfirmed = true }),
+            (HttpMethod.Post, Path(project, $"/submissions/{Guid.NewGuid():D}/decisions"), (object)new { decisionId = Guid.NewGuid(), expectedRevision = 0, outcome = "approved", feedback = "Unauthorized review" })
+        })
+        {
+            using var rejected = await SendAsync(fixture, method, path, body);
+            await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         }
-        await Assert.That((await OpenAsync(fixture, project, firstClient)).GetProperty("permissions").GetProperty("canPublish").GetBoolean()).IsTrue();
-        using var excluded = await secondClient.GetAsync(Path(project));
-        await ProblemAsync(fixture, excluded, HttpStatusCode.NotFound, "project_not_found");
-        using var reassigned = await SendAsync(fixture, HttpMethod.Patch, Path(project, "/assignments"), Assignments(1, [students[1]]));
-        await MetadataAsync(reassigned, HttpStatusCode.OK, 2);
-        using var removed = await firstClient.GetAsync(Path(project));
-        await ProblemAsync(fixture, removed, HttpStatusCode.NotFound, "project_not_found");
-        using var firstList = await firstClient.GetAsync("/api/v1/projects");
-        using var secondList = await secondClient.GetAsync("/api/v1/projects");
-        await Assert.That((await firstList.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength()).IsEqualTo(0);
-        await Assert.That((await secondList.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0].GetProperty("projectId").GetGuid()).IsEqualTo(project);
-        await Assert.That((await OpenAsync(fixture, project, secondClient)).GetProperty("permissions").GetProperty("canPublish").GetBoolean()).IsFalse();
+        var after = await ReadAsync(fixture, project);
+        await Assert.That(after.DocumentJson).IsEqualTo(before.DocumentJson);
+        await Assert.That(after.Revision).IsEqualTo(before.Revision);
     }
 
     [Test]

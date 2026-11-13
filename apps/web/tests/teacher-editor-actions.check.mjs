@@ -78,7 +78,7 @@ try {
     if (path === "/api/v1/auth/session")
       return reply({
         userId: role === "Educator" ? actor : student,
-        orgId: "66666666-6666-4666-8666-666666666666",
+        orgId: role === "Administrator" ? null : "66666666-6666-4666-8666-666666666666",
         displayName: "Teacher",
         role,
         mustChangePassword: false,
@@ -186,6 +186,14 @@ try {
       });
     if (path.endsWith("/submissions"))
       return reply({ items: role === "Educator" ? [submittedSummary] : [], nextCursor: null });
+    if (path === `/api/v1/projects/${projectId}/exhibition`)
+      return reply({
+        projectId,
+        publicationId: submissionId,
+        revision: 0,
+        document: doc,
+        assets: [],
+      });
     if (path === `/api/v1/projects/${projectId}` && req.method() === "PUT") {
       const body = req.postDataJSON();
       saved++;
@@ -380,6 +388,30 @@ try {
   await check("teacher home has no legacy management footer or standalone Publish", async () => {
     assert.equal(await page.getByText("Manage projects and archives", { exact: true }).count(), 0);
     assert.equal(await page.getByRole("link", { name: "Publish project", exact: true }).count(), 0);
+  });
+  role = "Administrator";
+  const writesBeforeAdmin = saved;
+  const publicationsBeforeAdmin = publications.length;
+  await page.goto(origin + "/?projectId=" + projectId);
+  await check("admin opens the exhibition without editing or review controls", async () => {
+    await page.waitForFunction(() =>
+      document.querySelector(".facilitator-project-canvas .editor-shell.is-previewing"),
+    );
+    for (const name of ["Review", "Publish", "Save", "Request approval", "Leave editor"])
+      assert.equal(await page.getByRole("button", { name, exact: true }).count(), 0);
+    assert.equal(await page.getByRole("dialog").count(), 0);
+    assert.equal(
+      await page.locator("input:visible, textarea:visible, [contenteditable=true]:visible").count(),
+      0,
+    );
+    assert.equal(
+      await page.getByRole("link", { name: "Close student project" }).getAttribute("href"),
+      "/admin/dashboard?view=projects",
+    );
+    await page.getByText("Scene ready", { exact: true }).waitFor();
+    await page.screenshot({ path: "test-results/admin-readonly-project.png" });
+    assert.equal(saved, writesBeforeAdmin);
+    assert.equal(publications.length, publicationsBeforeAdmin);
   });
   assert.deepEqual(failures, []);
 } finally {

@@ -35,6 +35,8 @@ public static class ProjectLifecycleEndpoints
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
         var account = await access.ResolveCurrentAccountAsync(context, cancellationToken);
         if (AccountFailure(context, account) is { } failure) { return failure; }
+        if (account!.Role == ApplicationRoles.Administrator)
+        { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden); }
         var organizationId = account!.OrganizationId ?? request.OrgId;
         if (account.OrganizationId is { } ownOrganization && request.OrgId is { } requested && requested != ownOrganization)
         {

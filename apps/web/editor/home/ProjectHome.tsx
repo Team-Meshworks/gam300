@@ -128,7 +128,7 @@ export function ProjectHome({
           )}
           <p>Explore your projects and continue your classroom’s work.</p>
         </div>
-        {showCreation && (
+        {showCreation && session.role !== "Administrator" && (
           <ProjectCreation
             session={session}
             active={active}
@@ -195,7 +195,10 @@ export function ProjectHome({
                   <p className="sp-muted">Updated {new Date(project.updatedAt).toLocaleString()}</p>
                   <div className="sp-actions">
                     <Button
-                      disabled={!project.permissions.canEdit || project.archived}
+                      disabled={
+                        session.role !== "Administrator" &&
+                        (!project.permissions.canEdit || project.archived)
+                      }
                       title={
                         project.archived
                           ? "Reopen this project before editing"

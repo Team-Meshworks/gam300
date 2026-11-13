@@ -49,3 +49,12 @@ export function reviewReturnUrl(params: URLSearchParams, role?: string): string 
   }
   return `/home?${destination}`;
 }
+
+export function adminPublishedReturnUrl(params: URLSearchParams): string {
+  const destination = new URLSearchParams();
+  if (params.get("returnView") === "projects") destination.set("view", "projects");
+  const source = params.get("returnProjectId");
+  if (isId(source)) destination.set("projectId", source);
+  if (!destination.size) destination.set("view", "projects");
+  return `/admin/dashboard?${destination}`;
+}

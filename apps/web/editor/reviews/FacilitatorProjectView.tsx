@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Icon } from "@iconify/react/offline";
 import closeIcon from "@iconify-icons/lucide/x";
+import { readPublishedExhibition } from "../persistence/published-exhibition-read";
 import { createClassroomClient } from "../home/classroom-api";
 import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
@@ -12,6 +13,7 @@ import {
 } from "../persistence/server-project-read";
 import { readAssignment } from "../projects/assignment-api";
 import {
+  adminPublishedReturnUrl,
   parseProgressContext,
   reviewReturnUrl,
   type ProgressContext,
@@ -30,9 +32,13 @@ const reviews = createReviewClient();
 export function FacilitatorProjectView({
   session,
   context,
+  projectId = context?.projectId ?? "",
+  published = session.role === "Administrator",
 }: {
   session: AccountSession;
-  context: ProgressContext;
+  context?: ProgressContext;
+  projectId?: string;
+  published?: boolean;
 }) {
   const [loaded, setLoaded] = useState<{
     opened: OpenedServerProject;
@@ -48,6 +54,24 @@ export function FacilitatorProjectView({
   useEffect(() => {
     const controller = new AbortController();
     void (async () => {
+      if (published) {
+        const { opened, assets } = await readPublishedExhibition(
+          projectId,
+          session.userId,
+          controller.signal,
+        );
+        if (!controller.signal.aborted)
+          setLoaded({
+            opened,
+            assets,
+            name: "",
+            title: opened.document.title,
+            className: "",
+            submissionStatus: "",
+          });
+        return;
+      }
+      if (!context) throw new Error("This student project is unavailable.");
       const className = createClassroomClient()
         .classes(controller.signal)
         .then((classes) => classes.find((row) => row.id === context.classId)?.name ?? "")
@@ -138,7 +162,7 @@ export function FacilitatorProjectView({
         );
     });
     return () => controller.abort();
-  }, [session.userId, context, attempt]);
+  }, [session.userId, session.role, projectId, context, published, attempt]);
   const store = useMemo(() => {
     const next = createDocumentStore(loaded?.assets ?? []);
     if (loaded)
@@ -178,19 +202,25 @@ export function FacilitatorProjectView({
           className="sp-button sp-close-button facilitator-project-close"
           aria-label="Close student project"
           title="Close student project"
-          href={reviewReturnUrl(new URLSearchParams(location.search), "Educator")}
+          href={
+            session.role === "Administrator"
+              ? adminPublishedReturnUrl(new URLSearchParams(location.search))
+              : reviewReturnUrl(new URLSearchParams(location.search), "Educator")
+          }
         >
           <Icon icon={closeIcon} width={18} aria-hidden="true" />
         </a>
         <h1>{loaded?.opened.document.title ?? "Student project"}</h1>
-        <Button
-          className="facilitator-project-review"
-          title="Write feedback or approve this submission"
-          disabled={!loaded}
-          onClick={() => setReview(true)}
-        >
-          Review
-        </Button>
+        {session.role === "Educator" && !published && (
+          <Button
+            className="facilitator-project-review"
+            title="Write feedback or approve this submission"
+            disabled={!loaded}
+            onClick={() => setReview(true)}
+          >
+            Review
+          </Button>
+        )}
       </header>
       <div className="facilitator-project-canvas">
         {preview && <App server={preview} readOnlyPreview />}
@@ -226,7 +256,7 @@ export function FacilitatorProjectView({
           ))}
         </nav>
       )}
-      {review && loaded && (
+      {session.role === "Educator" && !published && context && review && loaded && (
         <ProgressReviews
           projectId={context.projectId}
           revision={loaded.opened.revision}
@@ -258,6 +288,7 @@ export function ProjectEntry({
 }) {
   const [session, setSession] = useState<AccountSession | null | undefined>(undefined);
   const [error, setError] = useState("");
+  const published = new URLSearchParams(location.search).get("view") === "published";
   const [context] = useState(() =>
     parseProgressContext(new URLSearchParams(location.search), projectId),
   );
@@ -276,9 +307,9 @@ export function ProjectEntry({
     };
   }, []);
   useEffect(() => {
-    if (session?.role === "Educator" && !context && !session.mustChangePassword)
+    if (session?.role === "Educator" && !published && !context && !session.mustChangePassword)
       location.replace(`/review?projectId=${encodeURIComponent(projectId)}`);
-  }, [session, context, projectId]);
+  }, [session, context, projectId, published]);
   if (error)
     return (
       <main>
@@ -292,6 +323,11 @@ export function ProjectEntry({
         <p role="status">Checking your account…</p>
       </main>
     );
+  if (
+    (session?.role === "Administrator" || (session?.role === "Educator" && published)) &&
+    !session.mustChangePassword
+  )
+    return <FacilitatorProjectView session={session} projectId={projectId} published />;
   if (session?.role === "Educator" && !session.mustChangePassword)
     return context ? (
       <FacilitatorProjectView session={session} context={context} />

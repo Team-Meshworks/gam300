@@ -111,7 +111,7 @@ public sealed class ProjectAccessTests
     [Arguments(ApplicationRoles.Creator, true, false, true, false, true, false)]
     [Arguments(ApplicationRoles.Creator, true, false, false, false, false, false)]
     [Arguments(ApplicationRoles.Educator, false, true, false, true, true, false)]
-    [Arguments(ApplicationRoles.Administrator, false, false, false, true, true, true)]
+    [Arguments(ApplicationRoles.Administrator, false, false, false, false, false, true)]
     public async Task ProjectAccess_ServerRoleAndAssignmentDetermineEffectivePermissions(string role,
         bool edit, bool manage, bool publish, bool expectedManage, bool expectedPublish, bool inactiveTarget)
     {
@@ -120,7 +120,7 @@ public sealed class ProjectAccessTests
         await fixture.SignInAsync(seeded.ActorId, forgedRole: ApplicationRoles.Administrator);
         var snapshot = (await ReadAsync(fixture, seeded.ProjectId)).GetProperty("snapshot");
         await Assert.That(snapshot.GetProperty("actorId").GetGuid()).IsEqualTo(seeded.ActorId);
-        await Assert.That(snapshot.GetProperty("canEdit").GetBoolean()).IsTrue();
+        await Assert.That(snapshot.GetProperty("canEdit").GetBoolean()).IsEqualTo(role != ApplicationRoles.Administrator);
         await Assert.That(snapshot.GetProperty("canManage").GetBoolean()).IsEqualTo(expectedManage);
         await Assert.That(snapshot.GetProperty("canPublish").GetBoolean()).IsEqualTo(expectedPublish);
         await Assert.That(snapshot.GetProperty("unvalidatedDocumentJson").GetString()!.Contains(BodyMarker)).IsTrue();
@@ -276,10 +276,18 @@ public sealed class ProjectAccessTests
         await Assert.That(snapshot.GetProperty("isArchived").GetBoolean()).IsTrue();
         await Assert.That(snapshot.GetProperty("canEdit").GetBoolean()).IsFalse();
         await Assert.That(snapshot.GetProperty("canPublish").GetBoolean()).IsFalse();
-        await Assert.That(snapshot.GetProperty("canManage").GetBoolean()).IsEqualTo(role != ApplicationRoles.Creator);
+        await Assert.That(snapshot.GetProperty("canManage").GetBoolean()).IsEqualTo(role == ApplicationRoles.Educator);
     }
 
     [Test]
+    [Arguments(ApplicationRoles.Administrator, false, ProjectLockPurpose.ModeratePublications, null)]
+    [Arguments(ApplicationRoles.Administrator, true, ProjectLockPurpose.ModeratePublications, null)]
+    [Arguments(ApplicationRoles.Educator, true, ProjectLockPurpose.ModeratePublications, null)]
+    [Arguments(ApplicationRoles.Creator, false, ProjectLockPurpose.ModeratePublications, "OperationForbidden")]
+    [Arguments(ApplicationRoles.Administrator, false, ProjectLockPurpose.EditDraft, "OperationForbidden")]
+    [Arguments(ApplicationRoles.Administrator, false, ProjectLockPurpose.Publish, "OperationForbidden")]
+    [Arguments(ApplicationRoles.Administrator, false, ProjectLockPurpose.ManageAssignments, "OperationForbidden")]
+    [Arguments(ApplicationRoles.Administrator, false, ProjectLockPurpose.ChangeArchiveState, "OperationForbidden")]
     [Arguments(ApplicationRoles.Creator, false, ProjectLockPurpose.EditDraft, null)]
     [Arguments(ApplicationRoles.Creator, false, ProjectLockPurpose.ManageAssignments, "OperationForbidden")]
     [Arguments(ApplicationRoles.Educator, false, ProjectLockPurpose.ManageAssignments, null)]

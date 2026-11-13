@@ -24,10 +24,7 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
   const [view, setView] = useState<"projects" | "classes" | "assignment" | "denied">(() => {
     const path = location.pathname.replace(/\/$/, "");
     if (path === "/classes") return "classes";
-    if (path === "/new-project")
-      return session.role === "Administrator" || session.role === "Educator"
-        ? "assignment"
-        : "denied";
+    if (path === "/new-project") return session.role === "Educator" ? "assignment" : "denied";
     return "projects";
   });
   const organisationView =

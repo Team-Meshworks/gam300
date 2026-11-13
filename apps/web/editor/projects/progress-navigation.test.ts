@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { progressEditorUrl, reviewReturnUrl, parseProgressContext } from "./progress-navigation";
+import { progressEditorUrl, reviewReturnUrl, parseProgressContext, adminPublishedReturnUrl } from "./progress-navigation";
 
 it("keeps the selected student's project and assignment together through editor exit", () => {
   const context = {
@@ -47,4 +47,14 @@ it("does not start review for normal editor visits or incomplete context", () =>
   expect(
     parseProgressContext(new URLSearchParams("review=1&projectId=invalid"), "invalid"),
   ).toBeNull();
+});
+
+it("returns administrators to the source published project without accepting arbitrary destinations", () => {
+  const id = "44444444-4444-4444-8444-444444444444";
+  expect(adminPublishedReturnUrl(new URLSearchParams({ returnProjectId: id, returnView: "projects" })))
+    .toBe(`/admin/dashboard?view=projects&projectId=${id}`);
+  expect(adminPublishedReturnUrl(new URLSearchParams({ returnProjectId: id })))
+    .toBe(`/admin/dashboard?projectId=${id}`);
+  expect(adminPublishedReturnUrl(new URLSearchParams({ returnProjectId: "https://example.test", returnView: "invalid" })))
+    .toBe("/admin/dashboard?view=projects");
 });

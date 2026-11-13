@@ -110,8 +110,13 @@ public sealed class AdministrationEndpointTests
         var sourceId = (await source.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
         using var assigned = await AuthTestRequests.PostAsync(fixture, $"/api/v1/classes/{classId:D}/assignments", new
         {
-            requestId = Guid.NewGuid(), sourceProjectId = sourceId, sourceRevision = 0,
-            dueAtUnixSeconds = 2_000_000_000, title = "History exhibit", description = "Research", instructions = "Build an exhibit",
+            requestId = Guid.NewGuid(),
+            sourceProjectId = sourceId,
+            sourceRevision = 0,
+            dueAtUnixSeconds = 2_000_000_000,
+            title = "History exhibit",
+            description = "Research",
+            instructions = "Build an exhibit",
             studentIds = new[] { student.Id },
         }, teacher);
         await Assert.That(assigned.StatusCode).IsEqualTo(HttpStatusCode.Created);
