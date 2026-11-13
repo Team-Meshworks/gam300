@@ -1,6 +1,6 @@
 <svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="993" height="993" viewBox="0 0 993 993" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g id="Ellipse 7" filter="url(#filter0_f_0_17)">
-<circle cx="496.5" cy="496.5" r="436.5" fill="url(#paint0_radial_0_17)" fill-opacity="0.45"/>
+<circle cx="496.5" cy="496.5" r="436.5" fill="url(#paint0_radial_0_17)" fill-opacity="0.58"/>
 </g>
 <defs>
 <filter id="filter0_f_0_17" x="0" y="0" width="993" height="993" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
@@ -9,8 +9,8 @@
 <feGaussianBlur stdDeviation="30" result="effect1_foregroundBlur_0_17"/>
 </filter>
 <radialGradient id="paint0_radial_0_17" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(496.5 496.5) rotate(90) scale(436.5)">
-<stop stop-color="#F1F1F1"/>
-<stop offset="1" stop-color="#CFC5BB"/>
+<stop stop-color="#E7E3DE"/>
+<stop offset="1" stop-color="#DAD3CB"/>
 </radialGradient>
 </defs>
 </svg>

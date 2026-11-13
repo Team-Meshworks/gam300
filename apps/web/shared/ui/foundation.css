@@ -130,10 +130,10 @@ p {
 }
 :root {
   --sp-search-edge: #fff;
-  --sp-wash-opacity: 0.75;
-  --sp-wash-left-x: calc(50% - 1121px);
-  --sp-wash-left-y: -177px;
-  --sp-wash-right-x: calc(50% + 149px);
+  --sp-wash-opacity: 0.95;
+  --sp-wash-left-x: calc(50% - 1097px);
+  --sp-wash-left-y: -201px;
+  --sp-wash-right-x: calc(50% + 125px);
   --sp-wash-right-y: 208px;
 }
 .sp-wash {
@@ -581,9 +581,9 @@ h3 + .sp-hint {
   .sp-actions
   > .sp-button
   > .sp-button-label {
-  text-box-trim: none;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
   line-height: 18px;
-  transform: translateY(1px);
 }
 
 :is(.sp-shell--creator, .sp-shell--facilitator) .sp-dialog.sp-workspace-leave {
@@ -652,4 +652,74 @@ dialog.sp-dialog > button.sp-button.sp-dialog-dismiss.sp-close-button > svg {
 }
 .sp-dialog .sp-actions.sp-confirmation-actions {
   margin-top: 24px;
+}
+
+/* The outer workspace fits the viewport; content panels own their scrolling. */
+html:has(.sp-shell),
+body:has(.sp-shell) {
+  height: 100%;
+  overflow-y: hidden;
+}
+.sp-shell.sp-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+  padding-bottom: 32px;
+}
+.sp-shell > .sp-account-header {
+  flex-shrink: 0;
+  margin-block: 0;
+}
+.sp-shell.sp-shell > .sp-workspace {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+  overflow: clip;
+}
+.sp-shell.sp-shell
+  > .sp-workspace
+  > :is(.sp-home-toolbar, .sp-workspace-nav, .sp-admin-return, .sp-home-notice, [role="status"]) {
+  flex: none;
+}
+.sp-shell.sp-shell
+  > .sp-workspace
+  > :is(.sp-assignment-create, .sp-assignment-details, .sp-new-project) {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.sp-shell.sp-shell > .sp-workspace > .sp-directory {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
+}
+
+/* Home dashboards retain their natural page height. */
+html:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome),
+body:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome) {
+  height: auto;
+  overflow-y: auto;
+}
+.sp-shell.sp-shell:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome) {
+  display: block;
+  height: auto;
+  min-height: 100dvh;
+}
+.sp-shell.sp-shell:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome)
+  > .sp-workspace {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+
+.sp-shell.sp-shell > .sp-workspace > :is(.sp-publication, .sp-review-workspace) {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }

@@ -536,14 +536,6 @@ html:has(.sp-shell--facilitator) {
 .sp-shell--facilitator:has(.sp-teacher-welcome) .sp-workspace {
   padding-top: 35px;
 }
-.sp-shell--facilitator:has(.sp-teacher-welcome) .sp-wash--left {
-  left: calc(50% - 961px);
-  top: -177px;
-}
-.sp-shell--facilitator:has(.sp-teacher-welcome) .sp-wash--right {
-  left: calc(50% - 67px);
-  top: 208px;
-}
 .sp-shell--facilitator .sp-teacher-welcome {
   margin: 0 0 50px;
   padding: 0;
@@ -1719,4 +1711,70 @@ html:has(.sp-shell--facilitator) {
   border-radius: inherit;
   background: var(--facilitator-surface);
   pointer-events: none;
+}
+
+.sp-shell.sp-shell--facilitator .sp-teacher-detail {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
+}
+.sp-shell--facilitator .sp-teacher-columns {
+  flex: 1;
+  min-height: 0;
+}
+.sp-shell--facilitator .sp-teacher-columns > :is(.sp-teacher-info, .sp-teacher-students) {
+  min-height: 0;
+  height: auto;
+  overflow: auto;
+}
+.sp-shell--facilitator .sp-class-home:not(.sp-organisation-view) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
+}
+.sp-shell--facilitator .sp-class-home > :is(.sp-class-assignments, .sp-card) {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.sp-shell--facilitator .sp-organisation-view {
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
+}
+.sp-shell--facilitator .sp-organisation-view > :is(.sp-class-assignments, .sp-card) {
+  min-height: 0;
+  overflow: auto;
+}
+@media (max-width: 760px) {
+  .sp-shell--facilitator .sp-teacher-columns {
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.sp-shell.sp-shell--facilitator .sp-teacher-projects {
+  min-height: 0;
+}
+.sp-shell--facilitator .sp-teacher-welcome h1 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.sp-shell.sp-shell--facilitator .sp-teacher-new-project {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-project-form {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }

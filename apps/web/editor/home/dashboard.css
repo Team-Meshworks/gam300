@@ -19,14 +19,6 @@
   border: 0;
   background: transparent;
 }
-.sp-shell--facilitator .sp-wash--left {
-  left: calc(50% - 961px);
-  top: -177px;
-}
-.sp-shell--facilitator .sp-wash--right {
-  left: calc(50% - 67px);
-  top: 208px;
-}
 .sp-shell--facilitator .sp-workspace {
   width: min(1280px, calc(100% - 2 * var(--gutter)));
 }
@@ -554,10 +546,6 @@ html[data-theme="dark"] .sp-shell--creator .sp-due {
   .sp-shell--creator .sp-dashboard-tools {
     margin-top: 60px;
   }
-  .sp-shell--facilitator .sp-workspace {
-    position: relative;
-    left: 3px;
-  }
 }
 @media (max-width: 1150px) {
   .sp-teacher-projects {
@@ -717,4 +705,28 @@ html[data-theme="dark"] .sp-shell--creator .sp-due {
   min-height: 0;
   overflow: auto;
   align-content: start;
+}
+.sp-shell--facilitator .sp-teacher-welcome {
+  flex: none;
+}
+.sp-shell--facilitator .sp-teacher-projects {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
+}
+.sp-shell--facilitator .sp-teacher-projects > :not(.sp-teacher-grid) {
+  flex: none;
+}
+.sp-shell--facilitator .sp-teacher-grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  align-content: start;
+}
+.sp-shell--facilitator .sp-teacher-projects > [role="tabpanel"] {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }

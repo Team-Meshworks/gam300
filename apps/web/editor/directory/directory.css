@@ -1469,6 +1469,48 @@
 .sp-dialog.sp-account-confirmation {
   width: min(400px, calc(100% - 32px));
 }
+.sp-directory--administration:has(> .sp-organization-detail),
+.sp-directory--administration.sp-organization-overview {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+}
+.sp-directory--administration.sp-organization-overview > .sp-organization-grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  align-content: start;
+}
+.sp-directory--administration .sp-organization-detail {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+@media (max-width: 1050px) {
+  .sp-directory--administration .sp-organization-detail {
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .sp-directory--administration .sp-organization-detail-left {
+    display: block;
+    overflow: auto;
+  }
+  .sp-directory--administration .sp-organization-identity {
+    margin-bottom: 10px;
+  }
+  .sp-directory--administration .sp-organization-projects {
+    height: 320px;
+  }
+  .sp-directory--administration .sp-account-list {
+    height: 100%;
+  }
+}
+
+.sp-directory--administration :is(.sp-organization-grid, .sp-organization-project-list) {
+  padding-right: 10px;
+  margin-right: -10px;
+}
 
 :root {
   --account-selection-ink: var(--sp-ink);
@@ -1782,13 +1824,21 @@
 }
 
 @media (min-width: 1344px) {
-  .sp-directory--administration .sp-account-list-toolbar .sp-tabs { gap: 12px; }
-  .sp-directory--administration .sp-account-list-toolbar .sp-tabs button { padding-inline: 6px; }
+  .sp-directory--administration .sp-account-list-toolbar .sp-tabs {
+    gap: 12px;
+  }
+  .sp-directory--administration .sp-account-list-toolbar .sp-tabs button {
+    padding-inline: 6px;
+  }
 }
 
 @media (min-width: 1051px) and (max-width: 1343px) {
-  .sp-directory--administration .sp-account-list-toolbar { gap: 4px; }
-  .sp-directory--administration .sp-account-toolbar-actions { gap: 12px; }
+  .sp-directory--administration .sp-account-list-toolbar {
+    gap: 4px;
+  }
+  .sp-directory--administration .sp-account-toolbar-actions {
+    gap: 12px;
+  }
 }
 
 .sp-directory--administration .sp-organization-projects .sp-tabs {
@@ -1796,4 +1846,38 @@
 }
 .sp-directory--administration .sp-organization-projects .sp-tabs button {
   padding-inline: 0;
+}
+
+.sp-directory--administration
+  :is(.sp-organization-grid, .sp-organization-project-list, .sp-account-rows):has(
+    > p[role="status"]:only-child
+  ) {
+  display: grid;
+  place-items: center;
+}
+.sp-directory--administration.sp-organization-overview > .sp-organization-grid:has(> p:only-child) {
+  align-content: center;
+}
+.sp-directory--administration
+  :is(.sp-organization-grid, .sp-organization-project-list, .sp-account-rows)
+  > p[role="status"]:only-child {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 24px;
+  color: var(--sp-muted);
+  text-align: center;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+@media (min-width: 801px) {
+  .sp-directory--administration .sp-organization-overview-heading > .sp-search {
+    align-self: flex-start;
+    margin-top: 6px;
+  }
+}
+
+.sp-directory--administration .sp-organization-overview-heading > .sp-directory-close {
+  align-self: start;
+  margin-top: 6px;
 }
