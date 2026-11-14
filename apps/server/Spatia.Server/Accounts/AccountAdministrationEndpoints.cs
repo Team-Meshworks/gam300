@@ -5,12 +5,12 @@ using Spatia.Server.Security;
 namespace Spatia.Server.Accounts;
 
 /// <summary>
-/// Maps account and organization administration endpoints
+/// Maps account provisioning and credential administration endpoints
 /// </summary>
 public static class AccountAdministrationEndpoints
 {
     /// <summary>
-    /// Adds organization creation, account provisioning and password reset routes with administrator authorization
+    /// Adds account provisioning and password reset routes with administrator authorization
     /// </summary>
     /// <param name="endpoints">The route builder that receives the administration endpoints</param>
     /// <returns>The supplied route builder for further endpoint registration</returns>
@@ -19,14 +19,6 @@ public static class AccountAdministrationEndpoints
         var group = endpoints.MapGroup("/admin")
             .RequireAuthorization(SecurityPolicies.Administrator)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
-        group.MapPost("/organizations", async (CreateOrganizationRequest request, AccountAdministrationService administration,
-            HttpContext context, CancellationToken cancellationToken) =>
-        {
-            var outcome = await administration.CreateOrganizationAsync(request, cancellationToken);
-            return outcome.Result.Succeeded
-                ? Results.Json(outcome.Organization, statusCode: StatusCodes.Status201Created)
-                : ToProblem(context, outcome.Result);
-        });
         group.MapPost("/users", async (ProvisionAccountRequest request, AccountAdministrationService administration,
             HttpContext context, CancellationToken cancellationToken) =>
         {

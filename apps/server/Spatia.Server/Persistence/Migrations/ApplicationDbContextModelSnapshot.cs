@@ -258,6 +258,58 @@ namespace Spatia.Server.Persistence.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("Spatia.Server.Accounts.BulkImportReceipt", b =>
+                {
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<bool>("Acknowledged")
+                        .HasColumnType("boolean")
+                        .HasColumnName("acknowledged");
+
+                    b.Property<string>("CreatedJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("created_accounts");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<byte[]>("ProtectedHandoff")
+                        .HasColumnType("bytea")
+                        .HasColumnName("protected_handoff");
+
+                    b.Property<byte[]>("ProtectedIntent")
+                        .HasColumnType("bytea")
+                        .HasColumnName("protected_intent");
+
+                    b.HasKey("ActorId", "OrganizationId", "OperationId");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasFilter("protected_handoff IS NOT NULL");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.ToTable("bulk_import_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_bulk_import_receipt_abandoned", "protected_intent IS NOT NULL OR (created_accounts = '[]'::jsonb AND protected_handoff IS NULL AND NOT acknowledged)");
+
+                            t.HasCheckConstraint("CK_bulk_import_receipt_acknowledged", "NOT acknowledged OR protected_handoff IS NULL");
+
+                            t.HasCheckConstraint("CK_bulk_import_receipt_created", "jsonb_typeof(created_accounts) = 'array' AND jsonb_array_length(created_accounts) <= 200");
+                        });
+                });
+
             modelBuilder.Entity("Spatia.Server.Accounts.Organization", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1192,6 +1244,21 @@ namespace Spatia.Server.Persistence.Migrations
                     b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Spatia.Server.Accounts.BulkImportReceipt", b =>
+                {
+                    b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Accounts.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
