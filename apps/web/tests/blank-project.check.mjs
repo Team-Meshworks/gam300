@@ -255,7 +255,9 @@ try {
           await other.getByRole("checkbox", { name: /Alice/ }).check();
           const otherCreate = other.getByRole("button", { name: "Create project" });
           await otherCreate.click();
-          await other.getByRole("button", { name: "Start a new project" }).click();
+          const startReplacement = other.getByRole("button", { name: "Start a new project" });
+          await startReplacement.click();
+          await startReplacement.waitFor({ state: "detached" });
           await otherCreate.click();
           await sourceStarted;
           const key = `spatia.assignment.source:${userId}`;
@@ -273,7 +275,23 @@ try {
           await page.close();
           continue;
         }
-        await page.getByRole("button", { name: "Start a new project" }).click();
+        const discardSource = page.getByRole("button", { name: "Start a new project" });
+        const key = `spatia.assignment.source:${userId}`;
+        await page.evaluate(async (key) => {
+          const acquired = Promise.withResolvers();
+          const release = Promise.withResolvers();
+          window.releaseSourceLock = release.resolve;
+          void navigator.locks.request(key, async () => {
+            acquired.resolve();
+            await release.promise;
+          });
+          await acquired.promise;
+        }, key);
+        await discardSource.click();
+        assert.equal(await discardSource.isDisabled(), true);
+        assert.notEqual(await page.evaluate((key) => localStorage.getItem(key), key), null);
+        await page.evaluate(() => window.releaseSourceLock());
+        await discardSource.waitFor({ state: "detached" });
         assert.equal(await page.getByLabel("Project title").inputValue(), "Blank project");
         assert.equal(
           await page.evaluate(
