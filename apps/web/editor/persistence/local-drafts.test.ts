@@ -644,6 +644,33 @@ describe("server project session lifecycle", () => {
     await session.dispose();
   });
 
+  it("checkpoints a legacy scene after undoing its first hierarchy edit", async () => {
+    const { store, database, session, write } = setup();
+    expect(store.createGroup("Exhibits").ok).toBe(true);
+    await session.flush();
+    expect(write).toHaveBeenCalledTimes(1);
+    store.undo();
+    const current = store.getSnapshot().project;
+    expect(current?.schemaVersion).toBe(2);
+    expect(store.getSnapshot().canRedo).toBe(true);
+    await session.flush();
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(session.getStatus()).toBe("saved");
+    const restored = await getRecoverySession(assets, database, { accountId: "alice", projectId });
+    if (!restored.ok || !restored.value?.document) throw new Error("Missing undo checkpoint");
+    const reopened = createDocumentStore([]);
+    expect(
+      reopened.loadProject(JSON.stringify(restored.value.document), assets, restored.value.history)
+        .ok,
+    ).toBe(true);
+    expect(reopened.getSnapshot().canRedo).toBe(true);
+    reopened.redo();
+    expect(reopened.getSnapshot().project?.scenes[0]).toMatchObject({
+      groups: [{ name: "Exhibits" }],
+    });
+    await session.dispose();
+  });
+
   // Reopened history must belong to the recovered document
   it("saves undo changes and keeps their history with the recovery snapshot", async () => {
     const { store, database, write, session } = setup();

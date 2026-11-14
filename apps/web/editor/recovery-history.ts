@@ -237,8 +237,13 @@ export function validateRecoveryHistory(
     }
     const current = read({ project: docs.current, activeSceneId: docs.activeSceneId });
     if (!current.ok) return current;
-    if (JSON.stringify(current.value.project) !== JSON.stringify(project))
-      return invalid("history.documents", "History does not match the saved project");
+    if (docs.current !== project) {
+      // An undo can restore an equivalent document whose fields were inserted in a different order.
+      const saved = validateProject(project, assetKinds, DRAFT_PROJECT);
+      if (!saved.ok) return saved;
+      if (JSON.stringify(current.value.project) !== JSON.stringify(saved.value))
+        return invalid("history.documents", "History does not match the saved project");
+    }
     const past: ProjectHistoryState[] = [],
       future: ProjectHistoryState[] = [];
     for (const [input, output] of [
