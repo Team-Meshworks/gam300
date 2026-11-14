@@ -80,10 +80,20 @@ public sealed class AccountDirectorySessionTests
             var bytes = AssetIntakeTests.CreateMinimalGlb();
             db.AssetCandidates.Add(new AssetCandidate
             {
-                Id = assetId, Name = "Synthetic retired room", Kind = "environment", Bytes = bytes,
+                Id = assetId,
+                Name = "Synthetic retired room",
+                Kind = "environment",
+                Bytes = bytes,
                 Sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)),
-                Status = "approved", Hidden = true, Deleted = true, Source = "Fixture", License = "Fixture",
-                ReviewNotes = "Fixture", ValidationJson = "[]", SubmittedBy = actor, ReviewedBy = actor,
+                Status = "approved",
+                Hidden = true,
+                Deleted = true,
+                Source = "Fixture",
+                License = "Fixture",
+                ReviewNotes = "Fixture",
+                ValidationJson = "[]",
+                SubmittedBy = actor,
+                ReviewedBy = actor,
                 CreatedAt = DateTimeOffset.UtcNow,
             });
             await db.SaveChangesAsync();
