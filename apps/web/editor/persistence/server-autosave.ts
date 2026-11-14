@@ -133,10 +133,13 @@ export function createServerAutosave(options: {
     if (disposed || running || status === "conflict" || status === "rejected") return;
     saveTimer.cancel();
     running = true;
-    if (invalidDraft) {
-      await backup();
+    // An unfinished newer edit must not block a retry of already captured valid bytes.
+    if (invalidDraft && !request) {
+      const backedUp = await backup();
       running = false;
-      if (!disposed) report("failed");
+      if (disposed) return;
+      report(backedUp && !invalidDraft ? "unsaved" : "failed");
+      if (status === "unsaved") schedule();
       return;
     }
     if (!request) {
@@ -198,7 +201,9 @@ export function createServerAutosave(options: {
       const backedUp = await backup();
       running = false;
       if (disposed) return;
-      report(backedUp ? (progress.getSnapshot().dirty ? "unsaved" : "saved") : "failed");
+      report(
+        backedUp && !invalidDraft ? (progress.getSnapshot().dirty ? "unsaved" : "saved") : "failed",
+      );
       if (progress.getSnapshot().dirty) schedule();
     } else if (result.kind === "invalid") {
       const rejectedJson = pending?.documentJson;

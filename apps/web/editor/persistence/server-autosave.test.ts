@@ -116,6 +116,42 @@ describe("server autosave scheduling", () => {
     session.dispose();
   });
 
+  it("reconciles a lost save receipt while a newer link is unfinished", async () => {
+    const { session, write } = setup();
+    write.mockResolvedValueOnce({ kind: "failed" });
+    session.changed(changed("Sent before disconnect"));
+    await session.flush();
+    const original = write.mock.calls[0]![0];
+    const draft = {
+      ...document,
+      schemaVersion: 1 as const,
+      scenes: document.scenes.map((scene) => ({
+        ...scene,
+        interactions: [
+          { when: { type: "scene-starts" as const }, do: { type: "open-link" as const, url: "" } },
+        ],
+      })),
+    };
+    expect(session.changed(draft)).toBe(true);
+    await session.flush();
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(write.mock.calls[1]![0]).toBe(original);
+    expect(session.getRecovery().serverSave).toMatchObject({ revision: 4, pending: null });
+    expect(session.getRecovery().document).toEqual(draft);
+    expect(session.getStatus()).toBe("failed");
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(write).toHaveBeenCalledTimes(2);
+    session.changed(changed("Corrected offline"));
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(write).toHaveBeenCalledTimes(3);
+    const corrected = JSON.parse(write.mock.calls[2]![0].body);
+    expect(corrected.expectedRevision).toBe(4);
+    expect(corrected.clientMutationId).not.toBe(JSON.parse(original.body).clientMutationId);
+    expect(corrected.document.title).toBe("Corrected offline");
+    expect(session.getStatus()).toBe("saved");
+    await session.dispose();
+  });
+
   it.each(["during", "after"] as const)(
     "saves corrections made %s a definite document rejection with a fresh mutation",
     async (timing) => {

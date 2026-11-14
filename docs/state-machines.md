@@ -67,7 +67,7 @@ History recovery validates snapshots and limit; invalid history can be discarded
 | Download fallback or canceled export | No confirmed file write | Keep the editor open during a departure decision |
 | Import chosen | Valid file and allowed account | Create a separate server project. A lost create response retains the uncertainty marker until reconciliation |
 
-The signed-in editor reads and writes account/project keys in the version-2 database. The former standalone editor’s unscoped records stay untouched. File export, a browser checkpoint and a server receipt each confirm a different destination. See [server editor](../apps/web/editor/ServerProjectEditor.tsx), [recovery storage](../apps/web/editor/persistence/local-drafts.ts), [export writer](../apps/web/editor/persistence/project-files.ts) and [database schema](../apps/web/editor/persistence/draft-db.ts).
+The signed-in editor reads and writes account/project keys in the version-2 database. The former standalone editor’s unscoped records stay untouched. A failed final checkpoint keeps the draft in memory for the original account. Reattaching compares validated draft bytes so the same document can reopen after a schema upgrade and undo. File export, a browser checkpoint and a server receipt each confirm a different destination. See [server editor](../apps/web/editor/ServerProjectEditor.tsx), [recovery storage](../apps/web/editor/persistence/local-drafts.ts), [export writer](../apps/web/editor/persistence/project-files.ts) and [database schema](../apps/web/editor/persistence/draft-db.ts).
 
 ## Server autosave and recovery
 
@@ -81,7 +81,8 @@ The signed-in editor reads and writes account/project keys in the version-2 data
 | Saving | Conflict / rejected | Pause; preserve edits and pending data for owner resolution, including during subsequent invalid/corrected edits |
 | Saving | Definite 422 `invalid_document` | Clear uncommitted pending identity; persist current revision and latest edits; show invalid or schedule newer corrected work |
 | Invalid | Correct document / manual flush | Mark unsaved and send a fresh mutation at the same revision, or retry explicitly |
-| Failed | Manual save/reconnect | Retry pending identity/bytes, or retry local backup after confirmed write |
+| Failed | Manual save/reconnect | Retry the captured valid request with its original identity and bytes, even when a newer link is unfinished. Its receipt advances the revision. The newer draft stays local until corrected. If the server already confirmed the save, retry its browser checkpoint. |
+| Local backup in progress | Unfinished link is corrected before its checkpoint completes | Recheck the latest document on completion and schedule the corrected save, even if its debounce already expired. |
 | Any | Dispose | Cancel timer/network; queue final local snapshot; old session cannot update new UI |
 | Recovery | Valid baseline and pending request | Restore same pending identity/bytes; resume after account checks |
 
@@ -205,6 +206,8 @@ A theoretical interleaving alone is not proof of a reproduced product bug. Table
 ## Verification
 
 After merging dev at `1560743`, all 1,043 web unit tests across 111 files passed under Node 24.22.2. TypeScript, the editor and visitor production builds, and the architecture check passed (536 sources and 2,229 imports). The [hosted recovery checks](https://github.com/Team-Meshworks/gam300/actions/runs/43564671144/job/132355771006) passed against the signed-in editor, including real IndexedDB revisions, overlapping OPFS exports and save retries.
+
+The merge review reproduced three failures in the signed-in editor. A missing receipt plus an unfinished link suppressed the exact retry, a corrected link stalled during a slow checkpoint, and an in-memory undo snapshot failed to reattach after a storage error. The [autosave](../apps/web/editor/persistence/server-autosave.test.ts) and [session](../apps/web/editor/persistence/local-drafts.test.ts) regressions passed after the fixes. All 1,046 web unit tests passed. The live assignment test checks both the publication receipt and the share link displayed after navigation.
 
 Before this integration, under pinned Node 24.22.2, checks passed: 87 Vitest files / 886 tests; `tsc -b`; oxlint; oxfmt (391 files); architecture (413 sources, 1,583 imports); editor build (252 modules); and visitor build (41 modules). The visitor build retained its existing >500 KB chunk warning. Local document links and `git diff --check` passed. Both full server-autosave and local-drafts browser suites passed under pinned Node 24.22.2 with Chrome for Testing 157.0.8103.38. One pinned autosave run timed out waiting for saved state after reopening following publication; a diagnostic rerun passed. An earlier capability-revocation timeout also passed on an unchanged rerun. Their causes are unconfirmed. Backend review is source-only; no live server or database concurrency tests were run.
 

@@ -262,6 +262,14 @@ try {
     true,
     "The approved saved project is ready to publish",
   );
+  // Capture the real receipt before the app navigates away from its POST response.
+  let publication;
+  await fresh.route(`**/api/v1/projects/${project}/publications`, async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const response = await route.fetch();
+    if (response.status() === 201) publication = await response.json();
+    await route.fulfill({ response });
+  });
   const publicationResponse = fresh.waitForResponse(
     (response) =>
       response.url().endsWith(`/api/v1/projects/${project}/publications`) &&
@@ -272,16 +280,17 @@ try {
   assert.equal(committed.status(), 201);
   const { publicationId } = committed.request().postDataJSON();
   assert.ok(publicationId);
+  assert.equal(publication.publicationId, publicationId);
   await fresh.waitForURL(`${origin}/home?tab=published`);
   const visitorContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const visitor = await visitorContext.newPage();
   visitor.setDefaultTimeout(20000);
-  // Chrome can release the POST body during navigation. Follow the link the student sees.
   const preview = fresh
     .locator(`article[aria-labelledby="title-${project}"]`)
     .getByRole("link", { name: "Preview", exact: true });
   await preview.waitFor();
-  const shared = new URL(await preview.getAttribute("href"), origin);
+  assert.equal(await preview.getAttribute("href"), publication.visitorUrl);
+  const shared = new URL(publication.visitorUrl);
   assert.equal(shared.pathname, `/p/${publicationId}`);
   await visitor.goto(origin + shared.pathname + shared.search + shared.hash);
   await visitor.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
