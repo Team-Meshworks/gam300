@@ -356,7 +356,7 @@ it.each([401, 403])("distinguishes asset %s preflight and dispatched responses",
   expect(await run()).toMatchObject({ ok: false, kind: status === 401 ? "unknown" : "denied" });
 });
 
-it("retains an uncertain removal across service reentry until an authorized catalogue load", async () => {
+it("retains a legacy uncertain write across service reentry until an authorized catalogue load", async () => {
   let writes = 0;
   let catalogAllowed = false;
   vi.stubGlobal(
@@ -382,22 +382,22 @@ it("retains an uncertain removal across service reentry until an authorized cata
   );
   const signal = new AbortController().signal;
   const first = createAssetAdministrationService(actor);
-  expect(await first.changeAvailability("asset", "remove", signal, true)).toMatchObject({
+  expect(await first.changeAvailability("asset", "hide", signal)).toMatchObject({
     kind: "unknown",
   });
   const reopened = createAssetAdministrationService(actor);
-  expect(await reopened.changeAvailability("asset", "remove", signal, true)).toMatchObject({
+  expect(await reopened.changeAvailability("asset", "hide", signal)).toMatchObject({
     kind: "unknown",
   });
   expect(writes).toBe(1);
   expect((await reopened.load(signal)).ok).toBe(false);
-  expect(await reopened.changeAvailability("asset", "remove", signal, true)).toMatchObject({
+  expect(await reopened.changeAvailability("asset", "hide", signal)).toMatchObject({
     kind: "unknown",
   });
   expect(writes).toBe(1);
   catalogAllowed = true;
   expect((await reopened.load(signal)).ok).toBe(true);
-  await reopened.changeAvailability("asset", "remove", signal, true);
+  await reopened.changeAvailability("asset", "hide", signal);
   expect(writes).toBe(2);
 });
 
@@ -537,3 +537,303 @@ it("allows catalogue reads when storage fails even if browser locks exist", asyn
     (await service.changeAvailability("asset", "remove", new AbortController().signal, true)).ok,
   ).toBe(false);
 });
+
+it("does not settle a keyed removal from a stale authorized catalogue", async () => {
+  const key = `spatia.asset-write:${actor}`;
+  const marker = JSON.stringify({
+    assetId: candidate.id,
+    operationId: "22222222-2222-4222-8222-222222222222",
+  });
+  localStorage.setItem(key, marker);
+  const request = vi.fn(async (url: string) => {
+    if (url === "/api/v1/auth/csrf") return Response.json({ requestToken: "token" });
+    if (url.endsWith("/reconcile")) return new Response(null, { status: 503 });
+    return Response.json({
+      assets: [candidate],
+      policy: {
+        extensions: [".glb"],
+        maxBytes: 1000,
+        canSubmit: true,
+        canForceRemove: true,
+        categories: { environment: null, model: ["Objects"] },
+      },
+    });
+  });
+  vi.stubGlobal("fetch", request);
+  const reopened = createAssetAdministrationService(actor);
+  const result = await reopened.load(new AbortController().signal);
+  expect(localStorage.getItem(key)).toBe(marker);
+  expect(result.ok).toBe(false);
+  expect(
+    await reopened.changeAvailability(candidate.id, "hide", new AbortController().signal),
+  ).toMatchObject({ ok: false, kind: "unknown" });
+});
+
+const operationId = "22222222-2222-4222-8222-222222222222";
+const recoveryKey = `spatia.asset-write:${actor}`;
+const removalMarker = JSON.stringify({ assetId: candidate.id, operationId });
+const removedCandidate = {
+  ...candidate,
+  hidden: true,
+  deleted: true,
+  removedFromProjects: true,
+  actions: [],
+};
+const catalogue = {
+  assets: [candidate],
+  policy: {
+    extensions: [".glb"],
+    maxBytes: 1000,
+    canSubmit: true,
+    canForceRemove: true,
+    categories: { environment: null, model: ["Objects"] },
+  },
+};
+
+it.each([false, true])(
+  "records a keyed removal under its actor lock before dispatch (opt-in %s)",
+  async (optIn) => {
+    const request = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe(actor);
+      if (url === "/api/v1/auth/csrf") return Response.json({ requestToken: "token" });
+      const saved = JSON.parse(localStorage.getItem(recoveryKey)!);
+      expect(saved.assetId).toBe(candidate.id);
+      expect(saved.operationId).toMatch(/^[0-9a-f-]{36}$/);
+      expect((await navigator.locks.query()).held?.some((lock) => lock.name === recoveryKey)).toBe(
+        true,
+      );
+      expect(url).toBe(`/api/v1/admin/assets/${candidate.id}/removals/${saved.operationId}`);
+      expect(init?.method).toBe("PUT");
+      expect(init?.body).toBe("{}");
+      expect(init?.credentials).toBe("same-origin");
+      expect(new Headers(init?.headers).get("X-CSRF-TOKEN")).toBe("token");
+      return Response.json(removedCandidate, {
+        headers: { "X-Spatia-Operation-Id": saved.operationId },
+      });
+    });
+    vi.stubGlobal("fetch", request);
+    expect(
+      await createAssetAdministrationService(actor).changeAvailability(
+        candidate.id,
+        "remove",
+        new AbortController().signal,
+        optIn,
+      ),
+    ).toEqual({ ok: true, value: removedCandidate });
+    expect(localStorage.getItem(recoveryKey)).toBeNull();
+    expect(request).toHaveBeenCalledTimes(2);
+  },
+);
+
+it.each([
+  ["missing acknowledgement", removedCandidate, null, 200],
+  ["wrong acknowledgement", removedCandidate, operationId, 200],
+  ["wrong asset", { ...removedCandidate, id: "another" }, "match", 200],
+  ["not removed", { ...removedCandidate, removedFromProjects: false }, "match", 200],
+  ["not hidden", { ...removedCandidate, hidden: false }, "match", 200],
+  ["not deleted", { ...removedCandidate, deleted: false }, "match", 200],
+  ["malformed candidate", {}, "match", 200],
+  ["noncanonical success", removedCandidate, "match", 201],
+])("retains keyed recovery after %s", async (_name, value, acknowledgement, status) => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (url === "/api/v1/auth/csrf") return Response.json({ requestToken: "token" });
+      const saved = JSON.parse(localStorage.getItem(recoveryKey)!);
+      return Response.json(value, {
+        status,
+        ...(acknowledgement
+          ? {
+              headers: {
+                "X-Spatia-Operation-Id":
+                  acknowledgement === "match" ? saved.operationId : acknowledgement,
+              },
+            }
+          : {}),
+      });
+    }),
+  );
+  const service = createAssetAdministrationService(actor);
+  expect(
+    await service.changeAvailability(candidate.id, "remove", new AbortController().signal),
+  ).toMatchObject({ ok: false, kind: "unknown" });
+  const saved = localStorage.getItem(recoveryKey);
+  expect(saved).not.toBeNull();
+  expect(
+    await service.changeAvailability(candidate.id, "hide", new AbortController().signal),
+  ).toMatchObject({ ok: false, kind: "unknown" });
+  expect(localStorage.getItem(recoveryKey)).toBe(saved);
+});
+
+it.each(["removed", "notApplied"])(
+  "reconciles %s before reading and settling the fresh catalogue",
+  async (outcome) => {
+    localStorage.setItem(recoveryKey, removalMarker);
+    let settled = false;
+    const freshCatalogue = { ...catalogue, assets: [removedCandidate] };
+    const request = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(localStorage.getItem(recoveryKey)).toBe(removalMarker);
+      expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe(actor);
+      if (url === "/api/v1/auth/csrf") return Response.json({ requestToken: "token" });
+      if (url.endsWith("/reconcile")) {
+        expect(url).toBe(`/api/v1/admin/assets/${candidate.id}/removals/${operationId}/reconcile`);
+        expect(init?.method).toBe("POST");
+        expect(init?.body).toBe("{}");
+        expect(init?.credentials).toBe("same-origin");
+        expect(new Headers(init?.headers).get("X-CSRF-TOKEN")).toBe("token");
+        settled = true;
+        return Response.json({ assetId: candidate.id, operationId, outcome });
+      }
+      expect(settled).toBe(true);
+      expect(init?.cache).toBe("no-store");
+      return Response.json(settled ? freshCatalogue : catalogue);
+    });
+    vi.stubGlobal("fetch", request);
+    expect(
+      await createAssetAdministrationService(actor).load(new AbortController().signal),
+    ).toEqual({ ok: true, value: freshCatalogue });
+    expect(localStorage.getItem(recoveryKey)).toBeNull();
+    expect(request.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/auth/csrf",
+      `/api/v1/admin/assets/${candidate.id}/removals/${operationId}/reconcile`,
+      "/api/v1/admin/assets",
+    ]);
+  },
+);
+
+it.each([
+  ["denied", null, 403],
+  ["unauthenticated", null, 401],
+  ["unavailable", null, 503],
+  ["old server", null, 404],
+  ["wrong asset", { assetId: "another", operationId, outcome: "removed" }, 200],
+  ["wrong operation", { assetId: candidate.id, operationId: actor, outcome: "removed" }, 200],
+  ["invalid outcome", { assetId: candidate.id, operationId, outcome: "pending" }, 200],
+  ["missing fields", {}, 200],
+  ["noncanonical success", { assetId: candidate.id, operationId, outcome: "removed" }, 201],
+])("does not settle a keyed removal after %s reconciliation", async (_name, value, status) => {
+  localStorage.setItem(recoveryKey, removalMarker);
+  const request = vi.fn(async (url: string) =>
+    url === "/api/v1/auth/csrf"
+      ? Response.json({ requestToken: "token" })
+      : Response.json(value, { status }),
+  );
+  vi.stubGlobal("fetch", request);
+  const service = createAssetAdministrationService(actor);
+  expect((await service.load(new AbortController().signal)).ok).toBe(false);
+  expect(localStorage.getItem(recoveryKey)).toBe(removalMarker);
+  expect(
+    await service.changeAvailability(candidate.id, "hide", new AbortController().signal),
+  ).toMatchObject({ ok: false, kind: "unknown" });
+  expect(request.mock.calls.map(([url]) => url)).not.toContain("/api/v1/admin/assets");
+});
+
+it.each(["denied", "unavailable", "invalid", "lost"])(
+  "keeps a reconciled marker when the fresh catalogue is %s",
+  async (failure) => {
+    localStorage.setItem(recoveryKey, removalMarker);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/v1/auth/csrf") return Response.json({ requestToken: "token" });
+        if (url.endsWith("/reconcile"))
+          return Response.json({ assetId: candidate.id, operationId, outcome: "removed" });
+        if (failure === "lost") throw new TypeError("Lost catalogue");
+        return Response.json(
+          {},
+          { status: failure === "denied" ? 403 : failure === "unavailable" ? 503 : 200 },
+        );
+      }),
+    );
+    expect(
+      (await createAssetAdministrationService(actor).load(new AbortController().signal)).ok,
+    ).toBe(false);
+    expect(localStorage.getItem(recoveryKey)).toBe(removalMarker);
+  },
+);
+
+it("recovers a dispatched removal after browser cancellation and late server commit", async () => {
+  const controller = new AbortController();
+  let saved: { assetId: string; operationId: string } | undefined;
+  let committed = false;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/v1/auth/csrf") return Response.json({ requestToken: "token" });
+      if (init?.method === "PUT") {
+        saved = JSON.parse(localStorage.getItem(recoveryKey)!);
+        controller.abort();
+        throw new DOMException("Screen closed", "AbortError");
+      }
+      if (url.endsWith("/reconcile")) {
+        committed = true;
+        return Response.json({ ...saved, outcome: "removed" });
+      }
+      expect(committed).toBe(true);
+      return Response.json({ ...catalogue, assets: [removedCandidate] });
+    }),
+  );
+  await expect(
+    createAssetAdministrationService(actor).changeAvailability(
+      candidate.id,
+      "remove",
+      controller.signal,
+    ),
+  ).rejects.toMatchObject({ name: "AbortError" });
+  expect(JSON.parse(localStorage.getItem(recoveryKey)!)).toEqual(saved);
+  const reopened = createAssetAdministrationService(actor);
+  expect(
+    await reopened.changeAvailability(candidate.id, "hide", new AbortController().signal),
+  ).toMatchObject({ ok: false, kind: "unknown" });
+  expect((await reopened.load(new AbortController().signal)).ok).toBe(true);
+  expect(localStorage.getItem(recoveryKey)).toBeNull();
+});
+
+it("does not dispatch or record a removal cancelled during security preflight", async () => {
+  const controller = new AbortController();
+  const request = vi.fn(async () => {
+    controller.abort();
+    return Response.json({ requestToken: "token" });
+  });
+  vi.stubGlobal("fetch", request);
+  await expect(
+    createAssetAdministrationService(actor).changeAvailability(
+      candidate.id,
+      "remove",
+      controller.signal,
+    ),
+  ).rejects.toMatchObject({ name: "AbortError" });
+  expect(localStorage.getItem(recoveryKey)).toBeNull();
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+it("leaves another actor's keyed recovery untouched", async () => {
+  localStorage.setItem(recoveryKey, removalMarker);
+  const otherActor = "33333333-3333-4333-8333-333333333333";
+  const request = vi.fn(async (_url: string, init?: RequestInit) => {
+    expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe(otherActor);
+    return Response.json(catalogue);
+  });
+  vi.stubGlobal("fetch", request);
+  expect(
+    (await createAssetAdministrationService(otherActor).load(new AbortController().signal)).ok,
+  ).toBe(true);
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(localStorage.getItem(recoveryKey)).toBe(removalMarker);
+});
+
+it.each(["{", "{}", JSON.stringify({ assetId: candidate.id, operationId: "" })])(
+  "keeps malformed recovery data fenced: %s",
+  async (marker) => {
+    localStorage.setItem(recoveryKey, marker);
+    const request = vi.fn(async () => Response.json(catalogue));
+    vi.stubGlobal("fetch", request);
+    const service = createAssetAdministrationService(actor);
+    expect((await service.load(new AbortController().signal)).ok).toBe(false);
+    expect(
+      await service.changeAvailability(candidate.id, "hide", new AbortController().signal),
+    ).toMatchObject({ ok: false, kind: "unknown" });
+    expect(localStorage.getItem(recoveryKey)).toBe(marker);
+    expect(request).not.toHaveBeenCalled();
+  },
+);
