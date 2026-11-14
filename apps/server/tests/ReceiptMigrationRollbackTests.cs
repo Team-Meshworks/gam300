@@ -124,10 +124,21 @@ public sealed class ReceiptMigrationRollbackTests
         var bytes = AssetIntakeTests.CreateMinimalGlb();
         var asset = new AssetCandidate
         {
-            Id = Guid.NewGuid(), Name = "Receipt migration asset", Kind = "environment", Bytes = bytes,
-            Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)), Status = "approved", Hidden = true, Deleted = true,
-            Source = "Fixture", License = "Fixture", ReviewNotes = "Fixture", ValidationJson = "[]",
-            SubmittedBy = actor, ReviewedBy = actor, CreatedAt = DateTimeOffset.UtcNow,
+            Id = Guid.NewGuid(),
+            Name = "Receipt migration asset",
+            Kind = "environment",
+            Bytes = bytes,
+            Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)),
+            Status = "approved",
+            Hidden = true,
+            Deleted = true,
+            Source = "Fixture",
+            License = "Fixture",
+            ReviewNotes = "Fixture",
+            ValidationJson = "[]",
+            SubmittedBy = actor,
+            ReviewedBy = actor,
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         db.Organizations.Add(organization);
         db.AssetCandidates.Add(asset);
