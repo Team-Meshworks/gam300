@@ -171,7 +171,7 @@ public sealed class AssetUploadIdentityTests
         await Assert.That(privateAsset.Id).IsEqualTo(original.Id);
         await Assert.That(privateAsset.Hidden && privateAsset.Status == "invalid").IsTrue();
         using var other = await UploadAsync(fixture.Client, token, bytes, "Other.glb");
-        await AuthTestRequests.AssertProblemAsync(other, HttpStatusCode.ServiceUnavailable, "asset_intake_unavailable");
+        await AuthTestRequests.AssertProblemAsync(other, HttpStatusCode.Conflict, "asset_quota_exceeded");
         await Assert.That(await database.AssetCandidates.CountAsync()).IsEqualTo(1000);
     }
 

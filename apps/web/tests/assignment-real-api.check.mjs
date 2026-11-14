@@ -38,6 +38,9 @@ try {
     timezoneId: "Asia/Singapore",
   });
   const page = await login(teacher, process.env.SPATIA_TEST_EDUCATOR);
+  const identityResponse = await teacher.request.get(`${origin}/api/v1/auth/session`);
+  assert.equal(identityResponse.status(), 200);
+  const identity = await identityResponse.json();
   const catalogue = await teacher.request.get(`${origin}/api/v1/assets`);
   assert.equal(
     catalogue.status(),
@@ -66,15 +69,25 @@ try {
   const createdResponse = page.waitForResponse(
     (item) => item.url().endsWith("/api/v1/projects") && item.request().method() === "POST",
   );
+  void createdResponse.catch(() => {});
   const initialAssignment = page.waitForResponse(
     (item) => item.url().endsWith("/assignments") && item.request().method() === "POST",
   );
+  void initialAssignment.catch(() => {});
   await page.getByRole("button", { name: "Create project", exact: true }).click();
   const created = await createdResponse;
   assert.equal(created.status(), 201);
-  assert.deepEqual(created.request().postDataJSON(), {
+  const createBody = created.request().postDataJSON();
+  assert.match(
+    createBody.operationId,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+  assert.deepEqual(createBody, {
     title: "Live blank project",
+    operationId: createBody.operationId,
+    creationGuard: { purpose: "assignment-source", previousOperationId: null },
   });
+  assert.equal(created.request().headers()["x-spatia-account"], identity.userId);
   const blank = await created.json();
   const initialReceipt = await initialAssignment;
   assert.equal(initialReceipt.status(), 201);

@@ -1,4 +1,5 @@
 import { launchBrowser } from "./browser-security.mjs";
+import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -24,6 +25,7 @@ const writes = [],
 const api = async (route) => {
   const request = route.request(),
     path = new URL(request.url()).pathname;
+  if (await recovery.handle(route, account)) return;
   const json = (status, body) => route.fulfill({ status, json: body });
   if (path === "/api/v1/auth/session")
     return account
@@ -81,6 +83,7 @@ const api = async (route) => {
   }
   return json(404, {});
 };
+const recovery = creationRecoveryFixture();
 await context.route("**/api/v1/**", api);
 const page = await context.newPage();
 await page.addInitScript(() => {
@@ -351,18 +354,24 @@ async function importScenario() {
       new URL(route.request().url()).pathname === "/api/v1/projects" &&
       route.request().method() === "POST"
     ) {
+      assert.equal(route.request().headers()["x-spatia-account"], alice);
       imports.push(route.request().postDataJSON());
+      assert.match(imports.at(-1).operationId, /^[0-9a-f-]{36}$/);
+      assert.deepEqual(imports.at(-1).creationGuard, {
+        purpose: "import",
+        previousOperationId: null,
+      });
       return route.fulfill(
         lostReceipt
           ? { status: 503, json: {} }
           : {
-              status: 201,
-              json: {
+              status: 200,
+              json: recovery.commit(route.request(), {
                 projectId: importedId,
                 revision: 0,
                 archived: false,
                 updatedAt: new Date().toISOString(),
-              },
+              }),
             },
       );
     }
@@ -393,23 +402,42 @@ async function importScenario() {
     await upload(JSON.stringify(incoming));
     await editor.getByRole("alert").filter({ hasText: "Import could not be confirmed" }).waitFor();
     assert.equal(imports.length, 1);
-    await upload(JSON.stringify(incoming));
-    await editor
-      .getByRole("alert")
-      .filter({ hasText: "earlier creation may have completed" })
-      .waitFor();
-    assert.equal(imports.length, 1, "Uncertain imports do not create duplicates on retry");
-    // The existing All Projects reconciliation clears this same guard after checking creation
-    await editor.evaluate(
-      (key) => sessionStorage.removeItem(key),
-      `spatia:uncertain-project-creation:${alice}`,
+    const operationKey = "spatia.create:" + alice + ":import";
+    const pending = await editor.evaluate(
+      (key) => JSON.parse(localStorage.getItem(key)),
+      operationKey,
     );
+    assert.equal(pending.body.operationId, imports[0].operationId);
+    assert.match(pending.payloadDigest, /^[a-f0-9]{64}$/);
+    assert.equal(pending.body.document, undefined);
+    await upload(JSON.stringify(incoming));
+    await editor.getByRole("alert").filter({ hasText: "Import could not be confirmed" }).waitFor();
+    assert.equal(imports.length, 2);
+    assert.deepEqual(
+      imports[1],
+      imports[0],
+      "An uncertain import replays the original operation and input",
+    );
+    await upload(JSON.stringify({ ...incoming, title: "Different import" }));
+    await editor.getByRole("alert").filter({ hasText: "Retry the earlier creation" }).waitFor();
+    assert.equal(imports.length, 2, "Changed input cannot reuse the pending import operation");
+    await editor.reload();
+    const savedVersion = editor.getByRole("button", { name: "Use saved version", exact: true });
+    await editor.locator('.save-state[data-state="saved"]').or(savedVersion).first().waitFor();
+    if (await savedVersion.isVisible()) await savedVersion.click();
+    await editor.locator('.save-state[data-state="saved"]').waitFor();
     lostReceipt = false;
     await upload(JSON.stringify(incoming));
-    await editor.waitForURL(`**/?projectId=${importedId}`);
-    assert.equal(imports[1].title, incoming.title);
-    assert.equal(imports[1].document.projectId, incoming.projectId);
-    assert.equal(imports[1].orgId, bob);
+    await editor.waitForURL("**/?projectId=" + importedId);
+    assert.equal(imports.length, 3);
+    assert.deepEqual(
+      imports[2],
+      imports[0],
+      "Reload recovery keeps the import's original operation ID",
+    );
+    assert.equal(imports[2].title, incoming.title);
+    assert.equal(imports[2].document.projectId, incoming.projectId);
+    assert.equal(imports[2].orgId, bob);
     assert.equal(
       JSON.stringify(document),
       original,

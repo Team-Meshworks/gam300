@@ -19,6 +19,12 @@ public static partial class AccountDirectoryEndpoints
     private sealed record BulkHandoff(Guid UserId, string Password, string? SecurityStamp);
     private sealed record BulkCredential(Guid UserId, string UserName, string Password);
 
+    internal static Task<IResult> LegacyBulkImportAsync(ProvisionAccountRequest[] rows, HttpContext context,
+        ApplicationDbContext db, AccountAdministrationService administration, CurrentAccountResolver accounts,
+        IDataProtectionProvider protection, TimeProvider clock, CancellationToken token) =>
+        BulkImportAsync(rows.FirstOrDefault()?.OrgId ?? Guid.Empty, Guid.NewGuid(), BulkAction.Submit, rows,
+            context, db, administration, accounts, protection, clock, token, legacy: true);
+
     private static void MapBulkImports(RouteGroupBuilder group)
     {
         group.MapGet("/organizations/{orgId:guid}/bulk-imports", ListBulkImportsAsync);
@@ -69,7 +75,7 @@ public static partial class AccountDirectoryEndpoints
 
     private static async Task<IResult> BulkImportAsync(Guid orgId, Guid operationId, BulkAction action, ProvisionAccountRequest[]? rows,
         HttpContext context, ApplicationDbContext db, AccountAdministrationService administration, CurrentAccountResolver accounts,
-        IDataProtectionProvider protection, TimeProvider clock, CancellationToken token)
+        IDataProtectionProvider protection, TimeProvider clock, CancellationToken token, bool legacy = false)
     {
         if (operationId == Guid.Empty || orgId == Guid.Empty || (action == BulkAction.Submit &&
             (!AccountAdministrationService.IsValidBulk(rows) || rows![0].OrgId != orgId)))
@@ -86,7 +92,7 @@ public static partial class AccountDirectoryEndpoints
             && row.OperationId == operationId, token);
         var fresh = receipt is null;
         if (fresh && action is BulkAction.Recover or BulkAction.Acknowledge) { return MissingBulk(context); }
-        if (fresh && !await db.Organizations.AnyAsync(row => row.Id == orgId && row.IsActive, token))
+        if (fresh && !legacy && !await db.Organizations.AnyAsync(row => row.Id == orgId && row.IsActive, token))
         {
             return action == BulkAction.Submit
                 ? ApiProblems.Create(context, 422, "organization_unavailable", "Choose an active organization.")
@@ -111,6 +117,7 @@ public static partial class AccountDirectoryEndpoints
 
         var protector = protection.CreateProtector("Spatia.BulkImport.v1", actor.ToString("D"), orgId.ToString("D"), operationId.ToString("D"));
         var handoff = protector.CreateProtector("handoff");
+        IReadOnlyList<ProvisionedAccount>? legacyAccounts = null;
         if (action == BulkAction.Submit)
         {
             var intent = protector.CreateProtector("intent");
@@ -119,16 +126,19 @@ public static partial class AccountDirectoryEndpoints
             {
                 var outcome = await administration.ProvisionBulkRowsAsync(rows!, token);
                 if (!outcome.Result.Succeeded) { return AccountAdministrationEndpoints.ToProblem(context, outcome.Result); }
+                legacyAccounts = outcome.Accounts;
                 var created = outcome.Accounts!.Select(row => new BulkCreated(row.UserId, row.UserName, row.DisplayName, row.Role)).ToArray();
                 receipt!.ProtectedIntent = intent.Protect(digest);
                 receipt.CreatedJson = JsonSerializer.Serialize(created);
                 if (created.Length > 0)
                 {
+                    // Only newly created accounts receive a recoverable handoff of their original temporary passwords.
                     var originals = rows!.DistinctBy(row => row.UserName, StringComparer.Ordinal).ToDictionary(row => row.UserName, StringComparer.Ordinal);
                     var secrets = created.Select(row => new BulkHandoff(row.UserId, originals[row.UserName].InitialPassword,
                         db.Users.Local.Single(user => user.Id == row.UserId).SecurityStamp));
                     receipt.ProtectedHandoff = handoff.Protect(JsonSerializer.SerializeToUtf8Bytes(secrets));
                 }
+                else if (legacy) { db.Entry(receipt).State = EntityState.Detached; }
             }
             else if (!CryptographicOperations.FixedTimeEquals(intent.Unprotect(receipt!.ProtectedIntent!), digest))
             { return ApiProblems.Create(context, 409, "bulk_import_conflict", "This import identifier belongs to different input."); }
@@ -140,8 +150,9 @@ public static partial class AccountDirectoryEndpoints
         }
         List<BulkCredential> credentials = [];
         await db.SaveChangesAsync(token);
-        IResult result = Results.NoContent();
-        if (action is BulkAction.Submit or BulkAction.Recover)
+        IResult result = legacy ? Results.Json(legacyAccounts, statusCode: legacyAccounts!.Count > 0
+            ? StatusCodes.Status201Created : StatusCodes.Status200OK) : Results.NoContent();
+        if (!legacy && action is (BulkAction.Submit or BulkAction.Recover))
         {
             var created = JsonSerializer.Deserialize<BulkCreated[]>(receipt!.CreatedJson)!;
             if (receipt.ProtectedHandoff is not null && receipt.ExpiresAt > clock.GetUtcNow())
@@ -169,7 +180,9 @@ public static partial class AccountDirectoryEndpoints
                 statusCode: fresh ? StatusCodes.Status201Created : StatusCodes.Status200OK);
         }
         if (await AuthorizeAsync(context, accounts, token) is { } revoked) { return revoked; }
-        var completed = await CompleteAsync(context, transaction, result, token);
+        var completed = await CompleteAsync(context, transaction, result, token, readOnly: action == BulkAction.Recover);
+        if (legacy && legacyAccounts!.Count > 0 && ReferenceEquals(completed, result))
+        { context.Response.Headers["X-Spatia-Operation-Id"] = operationId.ToString("D"); }
         if (receipt!.ExpiresAt <= clock.GetUtcNow()) { credentials.Clear(); }
         return completed;
     }

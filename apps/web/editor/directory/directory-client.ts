@@ -63,6 +63,8 @@ export class DirectoryWriteUnconfirmed extends Error {}
 
 export function createDirectoryClient(request: typeof fetch = fetch, accountId?: string) {
   async function send(path: string, init: RequestInit = {}, timeout = 15000): Promise<unknown> {
+    const deleting =
+      init.method === "DELETE" || (init.method === "POST" && path.endsWith("/deletion"));
     let response: Response;
     try {
       response = await request(path, {
@@ -75,7 +77,7 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
     } catch (cause) {
       if (init.method)
         throw new DirectoryWriteUnconfirmed(
-          init.method === "DELETE"
+          deleting
             ? "Deletion could not be confirmed. Close this window and refresh the directory before trying again."
             : "The save could not be confirmed. Close this window and refresh the directory before trying again.",
           { cause },
@@ -143,6 +145,10 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
     )
       throw new DirectoryWriteUnconfirmed(
         "The import confirmation could not be verified. Check the same receipt.",
+      );
+    if (deleting && response.status !== 204)
+      throw new DirectoryWriteUnconfirmed(
+        "Deletion could not be confirmed. Refresh the directory before trying again.",
       );
     if (response.status === 204) return null;
     try {
@@ -225,7 +231,7 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
       return value as unknown as OrganizationDeletion;
     },
     deleteOrganization: (orgId: string, confirmationName: string) =>
-      write(`/api/v1/admin/organizations/${encodeURIComponent(orgId)}`, "DELETE", {
+      write(`/api/v1/admin/organizations/${encodeURIComponent(orgId)}/deletion`, "POST", {
         confirmationName,
       }),
     organizations: async (query = "") => {

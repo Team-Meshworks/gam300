@@ -152,7 +152,7 @@ internal sealed class PublicationCoordinator(ApplicationDbContext database, Proj
         // A canceled/failed commit can already be durable. Only the next same-ID request reconciles it.
         cancellationToken.ThrowIfCancellationRequested();
         return HasExpired(context)
-            ? PublicationResult.Denied(ProjectAccessFailure.AuthenticationRequired)
+            ? PublicationResult.Withheld()
             : PublicationResult.Committed(edition!, replay);
     }
 

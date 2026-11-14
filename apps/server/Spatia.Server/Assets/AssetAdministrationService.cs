@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -9,8 +8,10 @@ using Spatia.Server.Projects;
 namespace Spatia.Server.Assets;
 
 /// <summary>Owns private intake and ordinary retirement without changing existing authored documents</summary>
-public sealed class AssetAdministrationService(ApplicationDbContext database, AssetUploadValidator validator)
+public sealed class AssetAdministrationService(ApplicationDbContext database, AssetUploadValidator validator, IConfiguration configuration)
 {
+    private readonly int _maxRetainedAssets = AssetIntakePolicy.MaxRetainedAssets(configuration);
+    private readonly long _maxRetainedBytes = AssetIntakePolicy.MaxRetainedBytes(configuration);
 
     // List and retry responses need administration metadata only, even for 20 MB assets.
     private IQueryable<AssetCandidate> CandidateMetadata => database.AssetCandidates.AsNoTracking()
@@ -34,15 +35,17 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         });
 
     public async Task<AssetAdministrationRecord[]> ListAsync(CancellationToken token) =>
-        (await CandidateMetadata.OrderByDescending(asset => asset.CreatedAt).Take(1000).ToArrayAsync(token)).Select(Record).ToArray();
+        (await CandidateMetadata.OrderByDescending(asset => asset.CreatedAt).Take(AssetIntakePolicy.CatalogueLimit).ToArrayAsync(token)).Select(Record).ToArray();
 
     internal async Task<AssetAdministrationRecord> ReadRecordAsync(Guid id, CancellationToken token) =>
         Record(await CandidateMetadata.SingleAsync(asset => asset.Id == id, token));
 
-    public async Task<(AssetAdministrationRecord Record, bool Created)?> SubmitAsync(string name, string kind, string? category,
+    public async Task<(AssetAdministrationRecord? Record, bool Created, bool QuotaExceeded)?> SubmitAsync(string name, string kind, string? category,
         byte[] bytes, Guid actor, AssetReviewRequest? metadata, CancellationToken token)
     {
 
+        if (database.Database.CurrentTransaction is null)
+        { throw new InvalidOperationException("Asset uploads require a caller-owned transaction."); }
         // Repeat input bounds here because the service can be called outside the HTTP upload handler
         if (!AssetIntakePolicy.Accepts(name, kind, category) || bytes.Length is < 1 or > AssetIntakePolicy.MaxBytes || actor == Guid.Empty)
         {
@@ -53,7 +56,6 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
         // Validation stays outside the quota lock so other uploads can validate concurrently.
         var validation = kind == "audio" ? AssetAudioValidator.Validate(bytes) : await validator.ValidateAsync(bytes, token);
-        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
         await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(167168)", token);
         // Review and retirement never change these catalogue fields. Keep every historical ID
         // addressable and choose a stable original when a pre-existing catalogue has duplicates.
@@ -63,7 +65,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             .FirstOrDefaultAsync(token);
         if (existing is not null)
         {
-            return (Record(existing), false);
+            return (Record(existing), false, false);
         }
         if (validation is null)
         {
@@ -71,9 +73,9 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         }
         var count = await database.AssetCandidates.CountAsync(token);
         var total = await database.AssetCandidates.SumAsync(item => (long?)item.Bytes.Length, token) ?? 0;
-        if (count >= 1000 || total + bytes.Length > 1024L * 1024 * 1024)
+        if (count >= _maxRetainedAssets || bytes.Length > _maxRetainedBytes - total)
         {
-            return null;
+            return (null, false, true);
         }
 
         // New candidates alone consume quota and receive an immutable ID and the submitted provenance.
@@ -98,8 +100,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
 
         database.AssetCandidates.Add(asset);
         await database.SaveChangesAsync(token);
-        await transaction.CommitAsync(token);
-        return (Record(asset), true);
+        return (Record(asset), true, false);
     }
 
     public async Task<AssetAdministrationRecord?> ReviewAsync(Guid id, AssetReviewRequest review, Guid actor, CancellationToken token)

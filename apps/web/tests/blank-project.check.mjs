@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
+import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5182";
 const browser = await launchBrowser({ target: origin });
@@ -30,6 +31,7 @@ try {
     const page = await context.newPage();
     page.setDefaultTimeout(7000);
     const writes = [];
+    const recovery = creationRecoveryFixture();
     const assignments = [];
     let assetReads = 0;
     let delayedSource;
@@ -43,6 +45,7 @@ try {
     await page.context().route("**/api/v1/**", async (route) => {
       const request = route.request();
       const path = new URL(request.url()).pathname;
+      if (await recovery.handle(route, userId)) return;
       if (path === "/api/v1/auth/session") return route.fulfill({ json: { ...session, role } });
       if (path === "/api/v1/auth/csrf")
         return route.fulfill({ json: { requestToken: "test-token" } });
@@ -130,12 +133,12 @@ try {
         }
         return route.fulfill({
           status: 201,
-          json: {
+          json: recovery.commit(request, {
             projectId,
             revision: 0,
             updatedAt: "2026-11-05T00:00:00Z",
             archived: false,
-          },
+          }),
         });
       }
       return route.fulfill({ status: 404 });
@@ -339,7 +342,14 @@ try {
       await page.getByRole("heading", { name: "All Projects", exact: true }).waitFor();
       await page.getByRole("heading", { name: "Blank project", exact: true }).first().waitFor();
       assert.equal(await page.getByRole("button", { name: /Open project for/ }).count(), 0);
-      assert.deepEqual(writes, [{ title: "Blank project" }]);
+      assert.match(writes[0].operationId, /^[0-9a-f-]{36}$/);
+      assert.deepEqual(writes, [
+        {
+          title: "Blank project",
+          operationId: writes[0].operationId,
+          creationGuard: { purpose: "assignment-source", previousOperationId: null },
+        },
+      ]);
       assert.equal(assignments.length, 2);
       assert.equal(assignments[1].sourceProjectId, projectId);
       assert.equal(assignments[0].sourceRevision, 0);

@@ -674,12 +674,17 @@ public sealed class ProjectLifecycleTests
         string path, object body, HttpClient? client = null, string? token = null)
     {
         using var request = new HttpRequestMessage(method, path) { Content = JsonContent.Create(body) };
+        if (method == HttpMethod.Post && (path.TrimEnd('/') == "/api/v1/projects" || path.EndsWith("/duplicate", StringComparison.Ordinal)))
+        {
+            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+        }
         request.Headers.Add("X-CSRF-TOKEN", token ?? await fixture.GetCsrfAsync(client));
         return await (client ?? fixture.Client).SendAsync(request);
     }
     private static async Task<HttpResponseMessage> SendRawAsync(HttpsApplicationFixture fixture, HttpMethod method, string path, string body)
     {
         using var request = new HttpRequestMessage(method, path) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        if (method == HttpMethod.Post) { request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D")); }
         request.Headers.ExpectContinue = true;
         request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
         return await fixture.Client.SendAsync(request);

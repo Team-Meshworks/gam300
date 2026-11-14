@@ -33,6 +33,7 @@ public static class ApiV1Endpoints
         endpoints.MapProjectImages();
         endpoints.MapProjectSaves();
         endpoints.MapProjectLifecycle();
+        endpoints.MapCreationOperations();
         endpoints.MapClassrooms();
         endpoints.MapReviewSubmissions();
         endpoints.MapProgressReviews();

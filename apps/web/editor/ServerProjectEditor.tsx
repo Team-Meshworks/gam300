@@ -30,6 +30,11 @@ import { deserializeProject } from "../shared/project/project-deserialization";
 import { MAX_PROJECT_BYTES } from "../shared/project/project-limits";
 import { createWorkspaceClient, isId, isRecord, projectReceipt } from "./home/workspace-api";
 import { Icon } from "./ui/Icon";
+import {
+  createOperationKey,
+  sendCreateOperation,
+  readCreateOperation,
+} from "./home/create-operation";
 import { parseProgressContext, reviewReturnUrl } from "./projects/progress-navigation";
 
 const accounts = createAccountClient();
@@ -602,9 +607,16 @@ function ServerProjectSession({
         throw new Error(imported.error.message);
       }
       const key = `spatia:uncertain-project-creation:${active.accountId}`;
-      if (sessionStorage.getItem(key) === "1") {
+      if (
+        sessionStorage.getItem(key) !== null &&
+        !readCreateOperation(
+          localStorage,
+          createOperationKey(active.accountId, "import"),
+          active.accountId,
+        )
+      ) {
         throw new Error(
-          "Check All Projects before importing again; an earlier creation may have completed",
+          "Review the earlier creation warning in All Projects before importing another file",
         );
       }
       // Keep this draft safe and import into a new project instead of overwriting it
@@ -627,24 +639,32 @@ function ServerProjectSession({
       if (!organizationId) {
         throw new Error("The project organisation could not be verified; your draft is unchanged");
       }
-      sessionStorage.setItem(key, "1");
-      if (sessionStorage.getItem(key) !== "1") {
-        throw new Error("Browser storage is unavailable; import was not sent");
-      }
-      const result = await workspace.write(active.accountId, "/api/v1/projects", "POST", {
-        title: imported.value.title,
-        document: imported.value,
-        orgId: organizationId,
-      });
+      const result = await sendCreateOperation(
+        localStorage,
+        createOperationKey(active.accountId, "import"),
+        active.accountId,
+        workspace.write,
+        projectReceipt,
+        {
+          path: "/api/v1/projects",
+          retainBody: false,
+          retry: true,
+          body: {
+            title: imported.value.title,
+            document: imported.value,
+            orgId: organizationId,
+          },
+        },
+      );
       if (result.kind === "rejected") {
-        sessionStorage.removeItem(key);
         throw new Error(result.message);
       }
       // A lost receipt may already have created the project; keep the existing creation guard
       if (result.kind !== "confirmed" || !projectReceipt(result.value) || !isRecord(result.value)) {
-        throw new Error("Import could not be confirmed; check All Projects before trying again");
+        throw new Error(
+          "Import could not be confirmed; select the same file again to safely retry this import",
+        );
       }
-      sessionStorage.removeItem(key);
       const preserved = await active.session.prepareToLeave("save");
       if (!preserved.ok || !preserved.value) {
         throw new Error(

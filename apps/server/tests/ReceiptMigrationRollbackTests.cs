@@ -16,7 +16,7 @@ using Spatia.Server.Persistence;
 namespace Spatia.Server.Tests;
 
 [NotInParallel(nameof(ReceiptMigrationRollbackTests))]
-public sealed class ReceiptMigrationRollbackTests
+public sealed partial class ReceiptMigrationRollbackTests
 {
     private const string BeforeBulk = "20261109085155_AddProjectImages";
     private const string Bulk = "20261114085737_AddBulkImportReceipts";
@@ -163,6 +163,12 @@ public sealed class ReceiptMigrationRollbackTests
         public int ProcessId;
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task AllowCommitAsync()
+        {
+            Release.TrySetResult();
+            return Release.Task;
+        }
 
         public override async ValueTask<InterceptionResult> TransactionCommittingAsync(DbTransaction transaction,
             TransactionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)

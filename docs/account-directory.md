@@ -2,9 +2,9 @@
 
 This describes the administrator account and organization directory, profile overrides and lifecycle API.
 
-All routes require a fully authorized administrator. Responses are not cacheable. Mutations use the existing CSRF and account security protections. No response exposes credentials, password hashes or security stamps.
+All routes require a fully authorized administrator. Responses are not cacheable. Mutations use the existing CSRF and account security protections. Directory responses do not expose credentials, password hashes or security stamps; the bulk import handoff described below can return eligible temporary passwords to its issuer.
 
-If the session reaches its absolute expiry during transaction commit, the response is 401. A lifecycle change already committed remains durable despite that response; after authenticating again, read the current state before deciding whether to retry.
+If authority changes after a protected write commits, an empty 204 with `X-Spatia-Write-Outcome: committed` confirms the write while withholding its representation. After authenticating again, read current state or recover the applicable receipt. See [API write recovery](api-recovery.md).
 
 ## Directory reads
 
@@ -48,15 +48,15 @@ Organization changes lock the organization row and change only its `IsActive` st
 
 In the administrator dashboard, choose **View Organisations**, open an organisation, and choose **Delete organisation**. The confirmation shows the current counts of accounts, classes, assignments, projects (including archived projects), submissions, review decisions, and published editions. The administrator must type the exact organisation name before confirming. Active, inactive, and empty organisations can be deleted.
 
-`GET /api/v1/admin/organizations/{id}/deletion` returns `{ id, name, accounts, classes, assignments, projects, submissions, reviews, publications }`. `DELETE /api/v1/admin/organizations/{id}` accepts `{ "confirmationName": "Exact organisation name" }` and returns 204 after commit. Both routes require a current, unrestricted Administrator session; deletion additionally requires CSRF verification and the account-write rate limit. The browser binds requests to the administrator who opened the directory. A mismatched name returns 400 `organization_confirmation_required`; a missing organisation returns 404 `organization_not_found`.
+`GET /api/v1/admin/organizations/{id}/deletion` returns `{ id, name, accounts, classes, assignments, projects, submissions, reviews, publications }`. `POST` to that same path accepts `{ "confirmationName": "Exact organisation name" }` and returns 204 after commit. The versioned legacy `DELETE /api/v1/admin/organizations/{id}` accepts the same body and uses the same handler. Both methods require a current, unrestricted Administrator session, CSRF verification and the account-write rate limit. The browser uses POST and binds it to the administrator who opened the directory. A mismatched name returns 400 `organization_confirmation_required`; a missing organisation returns 404 `organization_not_found`.
 
-Deletion is permanent and transactional. It removes member accounts and Identity records, memberships, classes, assignments, project drafts and save receipts, provenance, review evidence, publication snapshots, and their access policies. Deleted accounts lose session access. Platform administrators and the platform-wide asset library remain. Other organisations' content is preserved; stale access grants and named-viewer references to the removed accounts are cleared. Unexpected cross-organisation historical references cause a 409 `organization_delete_conflict` and roll back the entire deletion. The browser never automatically retries an uncertain deletion.
+Deletion is permanent and transactional. It removes member accounts and Identity records, memberships, classes, assignments, project drafts and save receipts, provenance, review evidence, publication snapshots, and their access policies. Deleted accounts lose session access. Platform administrators and the platform-wide asset library remain. Other organisations' content is preserved; stale access grants and named-viewer references to the removed accounts are cleared. Unexpected cross-organisation historical references cause a 409 `organization_delete_conflict` and roll back the entire deletion. The browser never automatically retries an uncertain deletion or falls back to DELETE after a lost POST response.
 
 Apply migration `20261106140000_AddOrganizationDeletion` before running the updated server. Ordinary review and publication history remains immutable. Only the deletion transaction can remove evidence belonging to its selected organisation. Deleted publication UUIDs alone are retained in `retired_publication_ids`, with no content, account, or organisation data, so old publication URLs cannot be reused. The database also rejects concurrent attempts to reuse these IDs. Downgrading this migration is blocked after IDs have been retired.
 
 `OrganizationDeletionTests` exercises the real API and PostgreSQL. `npm run test:organization-deletion` checks confirmation, cancellation, errors, pending requests, successful removal, and mobile layout in the browser.
 
-Provisioning, password validation, authentication and sessions reuse the existing account services. Public signup, individual account deletion, transfers and arbitrary role management are outside this contract.
+Provisioning, password validation, authentication and sessions reuse the existing account services. `DELETE /api/v1/admin/users/{id}` deletes an individual eligible account while retaining the username and historical authorship. Public signup, transfers and arbitrary role management are outside this contract.
 
 ## CSV account creation
 
@@ -64,7 +64,7 @@ Account Creation accepts CSV uploads with an optional Account Type (or Role) col
 
 Preparing a CSV generates temporary passwords in memory. Save changes submits one identified import and downloads credentials for the accounts the server confirms it created. Keep the file, then acknowledge the handoff. If the reply or download is lost, reopen the organization’s account list as the issuing administrator, choose the import and download its available credentials. This also works from a fresh browser profile. First sign-in requires a password change.
 
-The directory uses `PUT /api/v1/admin/organizations/{orgId}/bulk-imports/{operationId}`. The accounts and receipt commit together. The legacy `POST /api/v1/admin/users/bulk` retains its original response and has no recoverable handoff. Only the issuer can retrieve the original temporary credentials, for up to 24 hours while the account and password remain eligible. Acknowledgement ends recovery immediately. The state inventory specifies replay, cancellation and expiry. [Bulk import transitions](state-machines.md#workspace-write-lifecycles).
+The directory uses `PUT /api/v1/admin/organizations/{orgId}/bulk-imports/{operationId}`. The accounts and receipt commit together. The legacy `POST /api/v1/admin/users/bulk` retains its array response; new accounts created through it also have a discoverable receipt for their issuing administrator. Only the issuer can retrieve the original temporary credentials, for up to 24 hours while the account and password remain eligible. Acknowledgement ends recovery immediately. The state inventory specifies replay, cancellation and expiry. [Bulk import transitions](state-machines.md#workspace-write-lifecycles).
 
 ## Bulk student deletion
 

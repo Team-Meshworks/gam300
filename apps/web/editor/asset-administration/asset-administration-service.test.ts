@@ -589,6 +589,52 @@ const catalogue = {
     categories: { environment: null, model: ["Objects"] },
   },
 };
+it("explains retained quota exhaustion and clears the rejected upload marker", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) =>
+      url === "/api/v1/auth/csrf"
+        ? Response.json({ requestToken: "token" })
+        : Response.json({ code: "asset_quota_exceeded" }, { status: 409 }),
+    ),
+  );
+  const result = await createAssetAdministrationService(actor).submit(
+    {
+      file: new File(["model"], "crate.glb"),
+      kind: "model",
+      category: "Objects",
+      review: { source: "", license: "", reviewNotes: "" },
+    },
+    new AbortController().signal,
+  );
+  expect(result).toMatchObject({
+    ok: false,
+    kind: "invalid",
+    message: expect.stringContaining("operator"),
+  });
+  expect(localStorage.getItem(recoveryKey)).toBeNull();
+});
+
+it.each(["hide", "remove"] as const)(
+  "retains reconciliation after committed %s without a representation",
+  async (action) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url === "/api/v1/auth/csrf"
+          ? Response.json({ requestToken: "token" })
+          : new Response(null, { status: 204, headers: { "X-Spatia-Write-Outcome": "committed" } }),
+      ),
+    );
+    const result = await createAssetAdministrationService(actor).changeAvailability(
+      candidate.id,
+      action,
+      new AbortController().signal,
+    );
+    expect(result).toMatchObject({ ok: false, kind: "unknown" });
+    expect(localStorage.getItem(recoveryKey)).not.toBeNull();
+  },
+);
 
 it.each([false, true])(
   "records a keyed removal under its actor lock before dispatch (opt-in %s)",
@@ -607,7 +653,9 @@ it.each([false, true])(
       expect(init?.body).toBe("{}");
       expect(init?.credentials).toBe("same-origin");
       expect(new Headers(init?.headers).get("X-CSRF-TOKEN")).toBe("token");
+      expect(new Headers(init?.headers).get("Prefer")).toBe("spatia-created-status");
       return Response.json(removedCandidate, {
+        status: optIn ? 201 : 200,
         headers: { "X-Spatia-Operation-Id": saved.operationId },
       });
     });
@@ -633,7 +681,7 @@ it.each([
   ["not hidden", { ...removedCandidate, hidden: false }, "match", 200],
   ["not deleted", { ...removedCandidate, deleted: false }, "match", 200],
   ["malformed candidate", {}, "match", 200],
-  ["noncanonical success", removedCandidate, "match", 201],
+  ["noncanonical success", removedCandidate, "match", 202],
 ])("retains keyed recovery after %s", async (_name, value, acknowledgement, status) => {
   vi.stubGlobal(
     "fetch",

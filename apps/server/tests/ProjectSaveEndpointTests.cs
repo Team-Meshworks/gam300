@@ -101,7 +101,7 @@ public sealed class ProjectSaveEndpointTests
         }
 
         using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
-            new { title = "Production Starter rooms", environmentAssetId = environment.Id.ToString() });
+            new { operationId = Guid.NewGuid(), title = "Production Starter rooms", environmentAssetId = environment.Id.ToString() });
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var projectId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
         var json = ProjectTestDocuments.Create(projectId, "Production Starter rooms", 2)

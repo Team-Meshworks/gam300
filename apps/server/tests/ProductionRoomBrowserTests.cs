@@ -95,11 +95,11 @@ public sealed class ProductionRoomBrowserTests
             await Assert.That(account.GetProperty("developmentAssetsAllowed").GetBoolean()).IsFalse();
         }
         using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
-            new { title = "Production adjoining rooms", environmentAssetId = environment.Id.ToString() });
+            new { operationId = Guid.NewGuid(), title = "Production adjoining rooms", environmentAssetId = environment.Id.ToString() });
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var projectId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
         using var authoring = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
-            new { title = "Production asset authoring", environmentAssetId = environment.Id.ToString() });
+            new { operationId = Guid.NewGuid(), title = "Production asset authoring", environmentAssetId = environment.Id.ToString() });
         await Assert.That(authoring.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var authoringId = (await authoring.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
 

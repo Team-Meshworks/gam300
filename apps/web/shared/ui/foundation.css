@@ -684,11 +684,21 @@ body:has(.sp-shell) {
   > :is(.sp-home-toolbar, .sp-workspace-nav, .sp-admin-return, .sp-home-notice, [role="status"]) {
   flex: none;
 }
+.sp-shell.sp-shell:not(.sp-shell--facilitator) > .sp-workspace > .sp-class-home,
 .sp-shell.sp-shell
   > .sp-workspace
   > :is(.sp-assignment-page, .sp-assignment-create, .sp-assignment-details, .sp-new-project) {
   flex: 1;
   min-height: 0;
+  overflow: auto;
+}
+
+.sp-shell.sp-shell
+  > .sp-workspace:has(
+    > .sp-home-projects,
+    > .sp-historical-recovery,
+    > .sp-existing-projects[open]
+  ) {
   overflow: auto;
 }
 

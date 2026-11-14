@@ -22,7 +22,7 @@ public sealed class AccountDirectorySessionTests
     [Arguments("organizations", "list")]
     [Arguments("organizations", "detail")]
     [Arguments("organizations", "active")]
-    public async Task Directory_ExpiryDuringCommitDeniesResponseAndPreservesCommittedState(string resource, string operation)
+    public async Task Directory_ExpiryAtCommitWithholdsReadDataAndAcknowledgesOnlyCommittedWrites(string resource, string operation)
     {
         var commit = new CommitProbe();
         await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
@@ -48,7 +48,8 @@ public sealed class AccountDirectorySessionTests
         commit.After = () => fixture.Clock.Set(cutoff);
         using var response = await fixture.Client.SendAsync(request);
         await Assert.That(fixture.Clock.GetUtcNow()).IsEqualTo(cutoff);
-        await AuthTestRequests.AssertProblemAsync(response, HttpStatusCode.Unauthorized, "authentication_required");
+        if (mutation) { await AuthTestRequests.AssertCommittedWithoutRepresentationAsync(response); }
+        else { await AuthTestRequests.AssertProblemAsync(response, HttpStatusCode.Unauthorized, "authentication_required"); }
         await Assert.That(response.Headers.CacheControl?.NoStore).IsTrue();
         var body = await response.Content.ReadAsStringAsync();
         await Assert.That(body.Contains(id.ToString("D"), StringComparison.Ordinal)).IsFalse();
@@ -112,7 +113,7 @@ public sealed class AccountDirectorySessionTests
             "keyedAsset" => await AuthTestRequests.PutAsync(fixture.Client, removalPath, new { }, token),
             _ => await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{assetId:D}/availability", new AssetAvailabilityRequest("remove", true), token: token)
         };
-        await AuthTestRequests.AssertProblemAsync(response, HttpStatusCode.Unauthorized, "authentication_required");
+        await AuthTestRequests.AssertCommittedWithoutRepresentationAsync(response);
         await Assert.That(response.Headers.Contains("X-Spatia-Operation-Id")).IsFalse();
         await fixture.SignInAsync(actor);
         if (operation == "keyedAsset")
@@ -135,6 +136,55 @@ public sealed class AccountDirectorySessionTests
             await Assert.That(result.GetProperty("assets").EnumerateArray().Single(item => item.GetProperty("id").GetGuid() == assetId).GetProperty("removedFromProjects").GetBoolean()).IsTrue();
         }
     }
+    [Test]
+    [Arguments(false, false)]
+    [Arguments(false, true)]
+    [Arguments(true, false)]
+    [Arguments(true, true)]
+    public async Task ProvisionAndReset_ExpiryRollsBackBeforeCommitAndWithholdsDetailsAfterCommit(bool reset, bool afterCommit)
+    {
+        var write = new WriteProbe();
+        var commit = new CommitProbe();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(write, commit)));
+        var actor = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var target = await fixture.CreateAccountAsync();
+        await fixture.SignInAsync(actor);
+        var cutoff = new DateTimeOffset(long.Parse(
+            fixture.ReadTicket().Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey]!, CultureInfo.InvariantCulture), TimeSpan.Zero);
+        var csrf = await fixture.GetCsrfAsync();
+        void Expire() => fixture.Clock.Set(cutoff);
+        if (afterCommit) { commit.After = Expire; } else { write.After = Expire; }
+        using var response = reset
+            ? await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/users/{target:D}/password",
+                new { newTemporaryPassword = AuthTestRequests.NewPassword }, token: csrf)
+            : await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/users",
+                new { userName = "expiry-test", initialPassword = AuthTestRequests.NewPassword, orgId = (Guid?)null, role = ApplicationRoles.Administrator }, token: csrf);
+        if (afterCommit) { await AuthTestRequests.AssertCommittedWithoutRepresentationAsync(response); }
+        else { await AuthTestRequests.AssertProblemAsync(response, HttpStatusCode.Unauthorized, "authentication_required"); }
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        if (reset)
+        {
+            var manager = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
+            var user = await database.Users.SingleAsync(row => row.Id == target);
+            await Assert.That(await manager.CheckPasswordAsync(user, AuthTestRequests.NewPassword)).IsEqualTo(afterCommit);
+        }
+        else { await Assert.That(await database.Users.AnyAsync(row => row.UserName == "expiry-test")).IsEqualTo(afterCommit); }
+    }
+
+    private sealed class WriteProbe : SaveChangesInterceptor
+    {
+        public Action? After;
+
+        public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Exchange(ref After, null)?.Invoke();
+            return ValueTask.FromResult(result);
+        }
+    }
+
     private sealed class CommitProbe : DbTransactionInterceptor
     {
         public Action? After;

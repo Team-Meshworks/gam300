@@ -7,6 +7,18 @@ public static class AssetIntakePolicy
     // Share one body cap and the agreed model categories across intake, review and the browser policy
     // Spaces deliberately have no category list
     public const int MaxBytes = 20 * 1024 * 1024;
+    public const int CatalogueLimit = 100000;
+    public static int MaxRetainedAssets(IConfiguration configuration)
+    {
+        var limit = configuration.GetValue("AssetIntake:MaxRetainedAssets", 1000);
+        return limit is > 0 and <= CatalogueLimit ? limit : throw new InvalidOperationException("AssetIntake:MaxRetainedAssets must be between 1 and 100000.");
+    }
+
+    public static long MaxRetainedBytes(IConfiguration configuration)
+    {
+        var limit = configuration.GetValue("AssetIntake:MaxRetainedBytes", 1024L * 1024 * 1024);
+        return limit > 0 ? limit : throw new InvalidOperationException("AssetIntake:MaxRetainedBytes must be positive.");
+    }
     public static readonly string[] ModelCategories = ["Objects", "Furniture", "Architecture", "Clothing", "Tools & Equipment"];
     public static readonly string[] AudioCategories = ["BGM"];
 

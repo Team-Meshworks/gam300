@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Spatia.Server.Accounts;
@@ -24,6 +25,7 @@ public static class ClassroomEndpoints
         group.MapGet("/{id:guid}/assignments", ClassAssignmentReads.ListAsync);
         group.MapGet("/{id:guid}/assignments/{assignmentId:guid}", ClassAssignmentReads.GetAsync);
         group.MapPost("/", CreateAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
+        group.MapPut("/legacy-resolution", CreateAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPost("/{id:guid}/assignments", ClassAssignmentCoordinator.CreateAsync)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPatch("/{id:guid}/assignments/{assignmentId:guid}", ClassAssignmentEditor.UpdateAsync)
@@ -36,16 +38,38 @@ public static class ClassroomEndpoints
     private static async Task<IResult> CreateAsync(CreateClassroomRequest request, HttpContext context,
         ApplicationDbContext database, ProjectAccessService access, CancellationToken cancellationToken)
     {
+        if (LegacyCreationResolutions.Bind(context, request.OperationId, request.CreationGuard, out var operationId, out var resolution) is { } operationFailure)
+        { return operationFailure; }
+        if (resolution is null) { request = request with { OperationId = operationId }; }
         var managers = request.ManagedByUserIds ?? [];
-        if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 256 || request.Name.Contains('\0')
+        if (!CreationReceipts.ValidGuard(request.CreationGuard, "class")
+            || string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 256 || request.Name.Contains('\0')
             || managers.Length > 100 || managers.Contains(Guid.Empty) || managers.Distinct().Count() != managers.Length)
         {
             return InvalidInput(context);
         }
 
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        var actorId = context.Features.Get<ValidatedAccountSession>()?.UserId;
+        if (actorId is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        await CreationReceipts.LockPurposeAsync(database, actorId.Value, "class", cancellationToken);
+        var intentDigest = resolution is null ? null : LegacyCreationResolutions.ClassDigest(request.Name, request.OrgId, request.ManagedByUserIds);
+        var (binding, bindingFailure) = await LegacyCreationResolutions.LookupAsync(context, database, actorId.Value, intentDigest, resolution, cancellationToken);
+        if (bindingFailure is not null) { return bindingFailure; }
+        if (resolution?.ChooseOperationId(binding) is { } resolvedOperationId) { operationId = resolvedOperationId; }
+        var receipt = resolution is null || binding?.OperationId is not null
+            ? await CreationReceipts.FindAsync(database, actorId.Value, operationId, cancellationToken) : null;
         var account = await access.ResolveCurrentAccountAsync(context, cancellationToken);
         if (AccountFailure(context, account) is { } failure) { return failure; }
+        if (receipt is not null && resolution is null)
+        {
+            if (await CreationReceipts.AccessFailureAsync(context, database, access, receipt, cancellationToken) is { } replayFailure)
+            { return replayFailure; }
+            if (!CreationReceipts.Matches(receipt, "class", CreationReceipts.Digest(request))) { return CreationReceipts.Conflict(context); }
+            return await CreationReceipts.CompleteReplayAsync(context, transaction, receipt, cancellationToken);
+        }
+        if (resolution is null && await CreationReceipts.CheckGuardAsync(context, database, actorId.Value, "class", request.CreationGuard, cancellationToken) is { } keyedGuardFailure)
+        { return keyedGuardFailure; }
         if (account!.Role is not (ApplicationRoles.Administrator or ApplicationRoles.Educator))
         {
             return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden);
@@ -59,12 +83,44 @@ public static class ClassroomEndpoints
         {
             return ApiProblems.Create(context, 422, "organization_unavailable", "Choose an active organization.");
         }
+        if (resolution is not null)
+        {
+            if (binding is not null && binding.OrganizationId != organizationId)
+            { return NotFound(context); }
+            if (binding?.OperationId is not null)
+            {
+                return await LegacyCreationResolutions.ReplayCreatedAsync(context, database, access, transaction, account,
+                    resolution, binding, receipt, cancellationToken);
+            }
+            if ((binding?.ResourceId ?? resolution.ExistingId) is { } selected)
+            {
+                var (target, selectionFailure) = await FindAsync(selected, context, database, access, true, true, cancellationToken);
+                if (selectionFailure is not null) { return selectionFailure; }
+                if (target!.OrganizationId != organizationId) { return NotFound(context); }
+                if (binding is not null && !resolution.Matches(binding)) { return LegacyCreationResolutions.Conflict(context); }
+                if (binding is null)
+                {
+                    LegacyCreationResolutions.Stage(database, actorId.Value, intentDigest!, "class", "class", organizationId.Value,
+                        null, selected, null, null);
+                    await database.SaveChangesAsync(cancellationToken);
+                }
+                if (await CreationReceipts.RevalidateAsync(context, access, account, cancellationToken) is { } selectionAuthority) { return selectionAuthority; }
+                return await LegacyCreationResolutions.CompleteAsync(context, transaction,
+                    Results.Ok(new { id = target.Id, target.OrganizationId, target.Name }), "existing",
+                    CreationReceipts.Location("class", selected), binding is null, cancellationToken);
+            }
+        }
+        var guard = resolution is null ? request.CreationGuard : new CreationGuard { Purpose = "class", PreviousOperationId = resolution.PreviousOperationId };
+        if (resolution is not null && await CreationReceipts.CheckGuardAsync(context, database, actorId.Value, "class", guard, cancellationToken) is { } guardFailure)
+        { return guardFailure; }
         var managerIds = managers.ToHashSet();
         if (account.Role == ApplicationRoles.Educator) { managerIds.Add(account.UserId); }
         if (managerIds.Count > 100 || await EligibleManagerCountAsync(database, organizationId.Value, managerIds, cancellationToken) != managerIds.Count)
         {
             return InvalidMembers(context);
         }
+        request = request with { OperationId = operationId };
+        var digest = CreationReceipts.Digest(request);
         var classroom = new Classroom { Id = Guid.NewGuid(), OrganizationId = organizationId.Value, Name = request.Name };
         database.Classrooms.Add(classroom);
         database.ClassroomMembers.AddRange(managerIds.Select(userId => new ClassroomMember
@@ -74,8 +130,24 @@ public static class ClassroomEndpoints
             UserId = userId,
             RoleId = ApplicationRoles.EducatorId,
         }));
+        var response = new { id = classroom.Id, classroom.OrganizationId, classroom.Name };
+        CreationReceipts.Stage(database, account.UserId, operationId, "class", digest, classroom.Id, response);
+        if (intentDigest is not null)
+        {
+            LegacyCreationResolutions.Stage(database, account.UserId, intentDigest, "class", "class", organizationId.Value,
+                null, classroom.Id, operationId, resolution!.PreviousOperationId);
+        }
         await database.SaveChangesAsync(cancellationToken);
-        return await CompleteAsync(context, transaction, Results.Json(new { id = classroom.Id, classroom.OrganizationId, classroom.Name }, statusCode: 201), cancellationToken);
+        if (await CreationReceipts.RevalidateAsync(context, access, account, cancellationToken) is { } changedAuthority) { return changedAuthority; }
+        if (!await database.Organizations.AnyAsync(row => row.Id == organizationId && row.IsActive, cancellationToken))
+        { return ApiProblems.Create(context, 422, "organization_unavailable", "Choose an active organization."); }
+        if (await EligibleManagerCountAsync(database, organizationId.Value, managerIds, cancellationToken) != managerIds.Count)
+        { return InvalidMembers(context); }
+        return resolution is null
+            ? await CompleteAsync(context, transaction, Results.Created(CreationReceipts.Location("class", classroom.Id), response), cancellationToken)
+            : await LegacyCreationResolutions.CompleteAsync(context, transaction,
+                Results.Created(CreationReceipts.Location("class", classroom.Id), response), "created",
+                CreationReceipts.Location("class", classroom.Id), true, cancellationToken);
     }
 
     private static async Task<IResult> ListAsync(HttpContext context, ApplicationDbContext database,
@@ -273,7 +345,12 @@ public static class ClassroomEndpoints
         if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
         await transaction.CommitAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        if (HasExpired(context))
+        {
+            return HttpMethods.IsGet(context.Request.Method)
+                ? ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired)
+                : CommittedWrite.WithoutRepresentation(context);
+        }
         context.Response.Headers.CacheControl = "no-store";
         return result;
     }
@@ -288,5 +365,6 @@ public static class ClassroomEndpoints
     private static IResult InvalidMembers(HttpContext context) => ApiProblems.Create(context, 422, "invalid_class_members", "Choose active accounts in this organization.");
     internal static IResult InvalidQuery(HttpContext context) => ApiProblems.Create(context, 400, "invalid_class_query", "Check the class list filters and cursor.");
 
-    private sealed record CreateClassroomRequest(string? Name, Guid? OrgId, Guid[]? ManagedByUserIds);
+    private sealed record CreateClassroomRequest(string? Name, Guid? OrgId, Guid[]? ManagedByUserIds, Guid? OperationId,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CreationGuard? CreationGuard);
 }

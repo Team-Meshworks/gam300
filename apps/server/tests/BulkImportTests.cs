@@ -89,7 +89,7 @@ public sealed class BulkImportTests
         var token = await fixture.GetCsrfAsync();
         probe.After = () => fixture.Clock.Set(cutoff);
         using var lost = await PutAsync(fixture.Client, path, [Row(org, "expiry-race")], token);
-        await AuthTestRequests.AssertProblemAsync(lost, HttpStatusCode.Unauthorized, "authentication_required");
+        await AuthTestRequests.AssertCommittedWithoutRepresentationAsync(lost);
         await fixture.SignInAsync(admin);
         using var recovered = await AuthTestRequests.PostAsync(fixture, path + "/receipt", new { });
         await Assert.That(recovered.StatusCode).IsEqualTo(HttpStatusCode.OK);

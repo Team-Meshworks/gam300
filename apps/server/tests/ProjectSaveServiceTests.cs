@@ -358,7 +358,12 @@ public sealed class ProjectSaveServiceTests
             write.After = () => fixture.Clock.Set(cutoff);
         }
 
-        await AssertDeniedAsync(await SaveAsync(fixture, seeded.ProjectId, request), ProjectAccessFailure.AuthenticationRequired);
+        using var response = await AuthTestRequests.PostAsync(fixture, Path(seeded.ProjectId), request);
+        if (afterCommit)
+        {
+            await AuthTestRequests.AssertCommittedWithoutRepresentationAsync(response);
+        }
+        else { await AssertDeniedAsync(await JsonAsync(response), ProjectAccessFailure.AuthenticationRequired); }
         var stored = await ReadAsync(fixture, seeded.ProjectId);
         await Assert.That(stored.Revision).IsEqualTo(afterCommit ? 1L : 0L);
         if (!afterCommit)
@@ -525,7 +530,7 @@ public sealed class ProjectSaveServiceTests
                 var result = await (operation is null
                     ? InvokeAsync(context, database, access, id, request, context.RequestAborted)
                     : operation(context, database, access, id, request));
-                if (result.InvalidDocument)
+                if (result.InvalidDocument || result.RepresentationWithheld)
                 {
                     return ProjectHttpResults.FromSave(context, result);
                 }
