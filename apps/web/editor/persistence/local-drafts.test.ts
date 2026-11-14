@@ -489,6 +489,43 @@ describe("server project session lifecycle", () => {
     expect(write).not.toHaveBeenCalled();
   });
 
+  it("schedules a corrected draft when its older invalid checkpoint is still running", async () => {
+    const { store, database, write, session } = setup();
+    let releaseOpen!: () => void;
+    const held = new Promise<void>((resolve) => {
+      releaseOpen = resolve;
+    });
+    const open = database.getIndexedDB.bind(database);
+    vi.spyOn(database, "getIndexedDB").mockImplementationOnce(async () => {
+      await held;
+      return open();
+    });
+    expect(
+      store.setInteractions([
+        { when: { type: "scene-starts" }, do: { type: "open-link", url: "" } },
+      ]).ok,
+    ).toBe(true);
+    const pending = session.flush();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(database.getIndexedDB).toHaveBeenCalledTimes(1);
+    expect(
+      store.setInteractions([
+        { when: { type: "scene-starts" }, do: { type: "open-link", url: "https://example.org/" } },
+      ]).ok,
+    ).toBe(true);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(write).not.toHaveBeenCalled();
+    releaseOpen();
+    await pending;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(write.mock.calls[0]![0].body).document.scenes[0].interactions[0].do.url).toBe(
+      "https://example.org/",
+    );
+    expect(session.getStatus()).toBe("saved");
+    await session.dispose();
+  });
+
   // An export cannot cover an edit made while the picker is open
   it("refuses to leave when another edit arrives during export", async () => {
     const { store, session } = setup();
@@ -556,6 +593,45 @@ describe("server project session lifecycle", () => {
     expect(write.mock.calls[1]![0].body).toBe(write.mock.calls[0]![0].body);
     expect(session.getStatus()).toBe("saved");
     session.dispose();
+  });
+
+  it("reattaches an undo snapshot retained in memory after storage failure", async () => {
+    const { store, session, database, write } = setup();
+    expect(store.createGroup("Exhibits").ok).toBe(true);
+    await session.flush();
+    store.undo();
+    vi.spyOn(database, "getIndexedDB").mockRejectedValueOnce(new Error("Quota exceeded"));
+    expect(await session.dispose()).toMatchObject({ ok: false });
+    const retained = session.getRecovery();
+    const reopened = createDocumentStore([]);
+    const encoded = serializeProject(retained.document, assets, { allowDraftLinks: true });
+    if (!encoded.ok) throw new Error(encoded.error.message);
+    expect(
+      reopened.loadProject(encoded.value, assets, retained.history, { allowDraftLinks: true }).ok,
+    ).toBe(true);
+    const options = {
+      accountId: "alice",
+      store: reopened,
+      revision: retained.serverSave!.revision,
+      storageRevision: retained.revision,
+      assetKinds: assets,
+      signal: new AbortController().signal,
+      onStatus: vi.fn(),
+      database,
+      write,
+    };
+    expect(() =>
+      connectServerProjectSession({
+        ...options,
+        recovery: { ...retained, document: { ...retained.document, title: "Different draft" } },
+      }),
+    ).toThrow("Recovery does not match");
+    const resumed = connectServerProjectSession({ ...options, recovery: retained });
+    await resumed.flush();
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(resumed.getStatus()).toBe("saved");
+    expect(reopened.getSnapshot().canRedo).toBe(true);
+    await resumed.dispose();
   });
 
   // Logout disconnects editor changes and network events from the old account

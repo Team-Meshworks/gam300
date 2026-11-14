@@ -1,4 +1,5 @@
 import type { createDocumentStore } from "../document-store";
+import { serializeProject } from "../../shared/project/project-serialization";
 import { invalid, type ValidationResult } from "../../shared/project/validation-helpers";
 import { IndexedDBDraftDatabase, type IDraftDatabase } from "./draft-db";
 import {
@@ -41,14 +42,20 @@ export function connectServerProjectSession(options: {
     throw new Error("Invalid recovery revision");
   // Recovery must describe the scene the owner actually chose to open
   // Mixing a server scene with another recovery snapshot would replay the wrong edits
-  if (
-    options.recovery &&
-    (options.recovery.document?.projectId !== document.projectId ||
+  if (options.recovery) {
+    const recovered = serializeProject(options.recovery.document, options.assetKinds, {
+      allowDraftLinks: true,
+    });
+    const opened = serializeProject(document, options.assetKinds, { allowDraftLinks: true });
+    if (
       !options.recovery.serverSave ||
       options.recovery.revision !== options.storageRevision ||
-      JSON.stringify(options.recovery.document) !== JSON.stringify(document))
-  )
-    throw new Error("Recovery does not match the opened project");
+      !recovered.ok ||
+      !opened.ok ||
+      recovered.value !== opened.value
+    )
+      throw new Error("Recovery does not match the opened project");
+  }
 
   // Capture identity once; later callbacks always belong to this account/project pair
   const scope = Object.freeze({ accountId: options.accountId, projectId: document.projectId });
