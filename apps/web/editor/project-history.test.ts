@@ -50,6 +50,35 @@ describe("asset-pipeline recovery compatibility", () => {
     expect(validateRecoveryHistory(recaptured, project, kinds).ok).toBe(true);
   });
 
+  it.each(["current", "past", "future"] as const)(
+    "validates the %s compatibility copy against its matching document",
+    (stack) => {
+      const history = structuredClone(documentFixture.history);
+      const document =
+        stack === "current" ? history.documents.current : history.documents[stack][0]!.project;
+      const copy = stack === "current" ? history.current : history[stack][0]!;
+      // Older checkpoints keep the authored rotation in both copies. The scene reader normalizes it.
+      document.scenes[0]!.objects[0]!.transform.rotation = [0, 0, 0, 1.0000005];
+      const entry = copy[0]!;
+      entry.transform.rotation = [0, 0, 0, 1.0000005];
+      copy[0] = {
+        ...entry,
+        transform: {
+          scale: entry.transform.scale,
+          rotation: entry.transform.rotation,
+          position: entry.transform.position,
+        },
+      };
+      const project = load(history.documents.current);
+      const restored = validateRecoveryHistory(history, project, kinds);
+      expect(restored.ok).toBe(true);
+      if (!restored.ok) throw new Error(restored.error.message);
+      expect(validateRecoveryHistory(restored.value, project, kinds).ok).toBe(true);
+      copy[0]!.transform.rotation = [0, 1, 0, 0];
+      expect(validateRecoveryHistory(history, project, kinds).ok).toBe(false);
+    },
+  );
+
   it("reads the earlier viewpoint envelope without document snapshots", () => {
     const project = load(viewpointFixture.document);
     const result = validateRecoveryHistory(viewpointFixture.history, project, kinds);

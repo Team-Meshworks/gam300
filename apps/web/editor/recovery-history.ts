@@ -201,6 +201,7 @@ export function validateRecoveryHistory(
   } catch {
     return invalid("history", "Recovery history is not serializable");
   }
+  const version = raw.version;
   if (Object.hasOwn(raw, "documents")) {
     const docs = raw.documents;
     if (!isRecord(docs)) return invalid("history.documents", "Invalid document history");
@@ -235,13 +236,13 @@ export function validateRecoveryHistory(
         );
       return { ok: true, value: { project: checked.value, activeSceneId: value.activeSceneId } };
     }
+    const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
     const current = read({ project: docs.current, activeSceneId: docs.activeSceneId });
     if (!current.ok) return current;
     if (docs.current !== project) {
-      // An undo can restore an equivalent document whose fields were inserted in a different order.
       const saved = validateProject(project, assetKinds, DRAFT_PROJECT);
       if (!saved.ok) return saved;
-      if (JSON.stringify(current.value.project) !== JSON.stringify(saved.value))
+      if (!same(current.value.project, saved.value))
         return invalid("history.documents", "History does not match the saved project");
     }
     const past: ProjectHistoryState[] = [],
@@ -256,11 +257,6 @@ export function validateRecoveryHistory(
         output.push(checked.value);
       }
     }
-    // Full documents carry references across scenes. Check compatibility copies against
-    // those validated documents instead of stripping scenes and breaking their links.
-    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-    if (!same(raw.current, sceneState(project, raw.version)))
-      return invalid("history", "Recovery history does not match the saved scene");
     const viewCopies = raw.views;
     if (
       viewCopies !== undefined &&
@@ -268,14 +264,41 @@ export function validateRecoveryHistory(
         !Array.isArray(viewCopies.past) ||
         !Array.isArray(viewCopies.future) ||
         viewCopies.past.length !== past.length ||
-        viewCopies.future.length !== future.length ||
-        !same(viewCopies.current, firstViews(project)))
+        viewCopies.future.length !== future.length)
     )
       return invalid("history.views", "Viewpoint history does not match the saved scene");
     if (isRecord(viewCopies)) {
       const fields = checkFields(viewCopies, ["current", "past", "future"], "history.views");
       if (!fields.ok) return fields;
     }
+    // Older checkpoints can retain unnormalized compatibility copies alongside a full document.
+    // Use that entry's other scenes when validating a copy so cross-scene references still resolve.
+    function matches(document: ProjectDocument, copy: unknown, views: unknown): boolean {
+      if (
+        same(copy, sceneState(document, version)) &&
+        (viewCopies === undefined || same(views, firstViews(document)))
+      )
+        return true;
+      if (
+        viewCopies !== undefined &&
+        (!Array.isArray(views) || (document.schemaVersion === 1 && views.length > 0))
+      )
+        return false;
+      const checked = readSceneCopy(
+        document,
+        copy,
+        document.schemaVersion === 2 ? views : undefined,
+      );
+      return checked.ok && same(checked.value, document);
+    }
+    if (
+      !matches(
+        current.value.project,
+        raw.current,
+        isRecord(viewCopies) ? viewCopies.current : undefined,
+      )
+    )
+      return invalid("history", "Recovery history does not match the saved scene");
     for (const [entries, copies, views] of [
       [past, raw.past, isRecord(viewCopies) ? viewCopies.past : undefined],
       [future, raw.future, isRecord(viewCopies) ? viewCopies.future : undefined],
@@ -283,8 +306,7 @@ export function validateRecoveryHistory(
       if (
         entries.some(
           (entry, i) =>
-            !same(sceneState(entry.project, raw.version as 1 | 2), copies[i]) ||
-            (Array.isArray(views) && !same(firstViews(entry.project), views[i])),
+            !matches(entry.project, copies[i], Array.isArray(views) ? views[i] : undefined),
         )
       )
         return invalid("history.documents", "Saved history copies do not match");
@@ -295,10 +317,18 @@ export function validateRecoveryHistory(
         version: raw.version,
         projectId: project.projectId,
         sceneId: scene.id,
-        current: sceneState(project, raw.version),
-        past: past.map((s) => sceneState(s.project, raw.version as 1 | 2)),
-        future: future.map((s) => sceneState(s.project, raw.version as 1 | 2)),
-        ...(viewCopies ? { views: viewCopies as RecoveryHistory["views"] } : {}),
+        current: sceneState(current.value.project, version),
+        past: past.map((s) => sceneState(s.project, version)),
+        future: future.map((s) => sceneState(s.project, version)),
+        ...(viewCopies
+          ? {
+              views: {
+                current: firstViews(current.value.project),
+                past: past.map((s) => firstViews(s.project)),
+                future: future.map((s) => firstViews(s.project)),
+              },
+            }
+          : {}),
         documents: {
           current: current.value.project,
           activeSceneId: current.value.activeSceneId,
@@ -369,19 +399,20 @@ export function validateRecoveryHistory(
       future: Object.freeze(future.map(freezeViews)),
     });
   }
-  const version = raw.version;
-  function readObjects(
+  function readSceneCopy(
+    document: ProjectDocument,
     input: unknown,
-    viewpoints?: readonly NamedViewpoint[],
-  ): ValidationResult<HistoryState> {
+    viewpoints: unknown,
+  ): ValidationResult<ProjectDocument> {
+    const scene = document.scenes[0]!;
     // Old histories only replaced objects; retain their existing document groups
     // New histories validate both collections together, including every parent reference
     let objects = input;
     // Older backups predate room renaming and inherit their document's scene name
     let sceneName: unknown = scene.name;
-    let groups = project.schemaVersion === 2 ? project.scenes[0]!.groups : undefined;
+    let groups = document.schemaVersion === 2 ? document.scenes[0]!.groups : undefined;
     if (version === 2) {
-      if (project.schemaVersion !== 2 || !isRecord(input)) {
+      if (document.schemaVersion !== 2 || !isRecord(input)) {
         return invalid("history", "Hierarchy history requires a content scene");
       }
       const fields = checkFields(
@@ -394,9 +425,9 @@ export function validateRecoveryHistory(
       objects = input.objects;
       groups = input.groups as typeof groups;
     }
-    const checked = validateProject(
+    return validateProject(
       {
-        ...project,
+        ...document,
         scenes: [
           {
             ...scene,
@@ -405,24 +436,26 @@ export function validateRecoveryHistory(
             ...(groups === undefined ? {} : { groups }),
             ...(viewpoints ? { viewpoints } : {}),
           },
-          ...project.scenes.slice(1),
+          ...document.scenes.slice(1),
         ],
       },
       assetKinds,
       DRAFT_PROJECT,
     );
+  }
+
+  function readObjects(
+    input: unknown,
+    viewpoints?: readonly NamedViewpoint[],
+  ): ValidationResult<HistoryState> {
+    const checked = readSceneCopy(project, input, viewpoints);
     if (!checked.ok) {
       return checked;
     }
-    const result: HistoryState =
-      checked.value.schemaVersion === 2
-        ? {
-            objects: checked.value.scenes[0]!.objects,
-            groups: checked.value.scenes[0]!.groups,
-            sceneName: checked.value.scenes[0]!.name,
-          }
-        : checked.value.scenes[0]!.objects;
-    return { ok: true, value: freezeValidatedData(result) };
+    return {
+      ok: true,
+      value: freezeValidatedData(sceneState(checked.value, checked.value.schemaVersion)),
+    };
   }
 
   // The history's current snapshot must describe the same normalized data as the saved scene

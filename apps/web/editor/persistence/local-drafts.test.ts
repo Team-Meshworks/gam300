@@ -12,6 +12,7 @@ import {
 } from "./recovery-session";
 import type { IDraftDatabase } from "./draft-db";
 import { createDocumentStore } from "../document-store";
+import { degreesToQuaternion } from "../ui/rotation-angles";
 import { connectServerProjectSession } from "./server-project-session";
 import { validateServerSaveRecovery } from "./server-save-recovery";
 import type { ServerDraftRequest, ServerDraftResult } from "./server-draft-write";
@@ -744,6 +745,54 @@ describe("server project session lifecycle", () => {
     expect(reopened.getSnapshot().project?.scenes[0]).toMatchObject({
       groups: [{ name: "Exhibits" }],
     });
+    await session.dispose();
+  });
+
+  it("saves a rotated crate and reopens the undo and redo history for another crate's rename", async () => {
+    const { store, write, session, database } = setup();
+    const [first, second] = store.getSnapshot().objects;
+    if (!first || !second) throw new Error("Expected two crates");
+    const rotation = degreesToQuaternion([0, 226, 0]);
+    expect(store.setTransform(second.id, { ...second.transform, rotation }).ok).toBe(true);
+    expect(store.renameObject(first.id, "Rotated exhibit").ok).toBe(true);
+    await session.flush();
+    const leave = await session.prepareToLeave("recovery");
+    const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
+    expect({
+      writes: write.mock.calls.length,
+      checkpointed: recovered.ok && !!recovered.value?.document,
+      preserved: leave.ok && leave.value,
+    }).toEqual({ writes: 1, checkpointed: true, preserved: true });
+    expect(JSON.parse(write.mock.calls[0]![0].body).document.scenes[0].objects[0].name).toBe(
+      "Rotated exhibit",
+    );
+    if (!recovered.ok || !recovered.value?.document) throw new Error("Missing checkpoint");
+    expect(recovered.value.history).toBeDefined();
+    expect(recovered.value.historyWarning).toBeUndefined();
+    const reopened = createDocumentStore([]);
+    expect(
+      reopened.loadProject(
+        JSON.stringify(recovered.value.document),
+        assets,
+        recovered.value.history,
+      ).ok,
+    ).toBe(true);
+    const objects = () => reopened.getSnapshot().objects;
+    reopened.undo();
+    expect(objects()[0]!.name).toBe(first.name);
+    expect(objects()[1]!.transform.rotation[1]).toBeCloseTo(rotation[1], 14);
+    reopened.undo();
+    expect(objects()[1]!.transform.rotation).toEqual(second.transform.rotation);
+
+    const withRedo = reopened.getRecoveryHistory();
+    const next = createDocumentStore([]);
+    expect(
+      next.loadProject(JSON.stringify(reopened.getSnapshot().project), assets, withRedo).ok,
+    ).toBe(true);
+    next.redo();
+    next.redo();
+    expect(next.getSnapshot().objects[0]!.name).toBe("Rotated exhibit");
+    expect(next.getSnapshot().objects[1]!.transform.rotation[3]).toBeCloseTo(rotation[3], 14);
     await session.dispose();
   });
 
