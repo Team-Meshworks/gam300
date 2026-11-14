@@ -88,13 +88,13 @@ public sealed class ClassroomEndpointTests
         await MoveToOrganizationAsync(fixture, organization, student);
         await fixture.SignInAsync(educator);
 
-        using (var invalid = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name = " ", managedByUserIds = Array.Empty<Guid>() }))
+        using (var invalid = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { operationId = Guid.NewGuid(), name = " ", managedByUserIds = Array.Empty<Guid>() }))
         { await Assert.That(invalid.StatusCode).IsEqualTo(HttpStatusCode.BadRequest); }
-        using (var crossOrg = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name = "Foreign", orgId = foreignOrganization }))
+        using (var crossOrg = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { operationId = Guid.NewGuid(), name = "Foreign", orgId = foreignOrganization }))
         { await Assert.That(crossOrg.StatusCode).IsEqualTo(HttpStatusCode.Forbidden); }
-        using (var invalidManager = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name = "Foreign", managedByUserIds = new[] { foreignEducator } }))
+        using (var invalidManager = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { operationId = Guid.NewGuid(), name = "Foreign", managedByUserIds = new[] { foreignEducator } }))
         { await Assert.That(invalidManager.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity); }
-        using (var duplicateManager = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name = "Duplicate", managedByUserIds = new[] { educator, educator } }))
+        using (var duplicateManager = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { operationId = Guid.NewGuid(), name = "Duplicate", managedByUserIds = new[] { educator, educator } }))
         { await Assert.That(duplicateManager.StatusCode).IsEqualTo(HttpStatusCode.BadRequest); }
 
         var id = await CreateAsync(fixture, "Allowed", []);
@@ -106,7 +106,7 @@ public sealed class ClassroomEndpointTests
         { await Assert.That(malformedPage.StatusCode).IsEqualTo(HttpStatusCode.BadRequest); }
         using var studentClient = fixture.CreateClient();
         await fixture.SignInAsync(student, studentClient);
-        using (var create = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name = "Student class" }, studentClient))
+        using (var create = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { operationId = Guid.NewGuid(), name = "Student class" }, studentClient))
         { await Assert.That(create.StatusCode).IsEqualTo(HttpStatusCode.Forbidden); }
         using (var add = await SendAsync(fixture, HttpMethod.Put, MemberPath(id, student), studentClient))
         { await Assert.That(add.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
@@ -165,6 +165,7 @@ public sealed class ClassroomEndpointTests
         await fixture.SignInAsync(administrator);
         using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new
         {
+            operationId = Guid.NewGuid(),
             name = "Admin class",
             orgId = organization,
             managedByUserIds = new[] { educator },
@@ -287,7 +288,7 @@ public sealed class ClassroomEndpointTests
 
     private static async Task<Guid> CreateAsync(HttpsApplicationFixture fixture, string name, Guid[] managers)
     {
-        using var response = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name, managedByUserIds = managers });
+        using var response = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { operationId = Guid.NewGuid(), name, managedByUserIds = managers });
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
     }

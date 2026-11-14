@@ -39,7 +39,7 @@ export type AssetAdministrationData = Readonly<{
 // Preserve server failures as distinct states so the screen can retry without inventing a successful save
 export type AssetAdministrationResult<T> =
   | { ok: true; value: T }
-  | { ok: false; kind: "denied" | "unavailable" | "invalid"; message: string };
+  | { ok: false; kind: "denied" | "unavailable" | "invalid" | "unknown"; message: string };
 
 // Return authoritative records after mutations; screens never infer approval from an upload
 // Implementations must enforce account permissions and validate bytes on the server

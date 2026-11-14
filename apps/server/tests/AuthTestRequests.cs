@@ -32,12 +32,34 @@ internal static class AuthTestRequests
         return await client.SendAsync(request);
     }
 
+    public static async Task<HttpResponseMessage> PutAsync(HttpClient client, string path, object body, string token)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, path) { Content = JsonContent.Create(body) };
+        request.Headers.Add("X-CSRF-TOKEN", token);
+        return await client.SendAsync(request);
+    }
+
     public static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode status, string code)
     {
         await Assert.That(response.StatusCode).IsEqualTo(status);
+        if (status == HttpStatusCode.Unauthorized)
+        {
+            await Assert.That(response.Headers.WwwAuthenticate.Single().ToString())
+                .IsEqualTo("SpatiaSession realm=\"Spatia\", login_uri=\"/api/v1/auth/login\"");
+        }
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         await Assert.That(json.RootElement.GetProperty("code").GetString()).IsEqualTo(code);
         await Assert.That(response.Headers.Location is null).IsTrue();
+    }
+
+    public static async Task AssertCommittedWithoutRepresentationAsync(HttpResponseMessage response)
+    {
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        await Assert.That(response.Headers.GetValues("X-Spatia-Write-Outcome").Single()).IsEqualTo("committed");
+        await Assert.That(response.Headers.CacheControl?.NoStore).IsTrue();
+        await Assert.That(response.Headers.Location).IsNull();
+        await Assert.That(response.Headers.WwwAuthenticate.Count).IsEqualTo(0);
+        await Assert.That((await response.Content.ReadAsByteArrayAsync()).Length).IsEqualTo(0);
     }
 
     public static async Task AssertSafeAsync(HttpsApplicationFixture fixture, HttpResponseMessage response)

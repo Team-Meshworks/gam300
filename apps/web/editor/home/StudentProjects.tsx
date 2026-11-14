@@ -92,6 +92,9 @@ export function StudentProjectDetails({
           <div className="sp-student-detail-content">
             <div className="sp-student-detail-heading">
               <h1>{row.project.title}</h1>
+              <p>
+                Project ID: <code>{row.project.projectId}</code>
+              </p>
               <Button
                 className="sp-close-button"
                 aria-label="Close project details"

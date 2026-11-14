@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { createDirectoryClient } from "./directory-client";
+import { createDirectoryClient, DirectoryWriteUnconfirmed } from "./directory-client";
 
 const user = {
   userId: "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e",
@@ -12,6 +12,40 @@ const user = {
 };
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+it("requires directory reconciliation only when a dispatched import lacks a valid receipt", async () => {
+  const values = [
+    {
+      displayName: "Sample",
+      userName: "sample",
+      role: "Creator" as const,
+      initialPassword: "sample initial value",
+    },
+  ];
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({}, 503))
+    .mockResolvedValueOnce(json({ requestToken: "token" }))
+    .mockResolvedValueOnce(json({ code: "invalid_account_input" }, 400))
+    .mockResolvedValueOnce(json({ requestToken: "token" }))
+    .mockResolvedValueOnce(json([], 503))
+    .mockResolvedValueOnce(json({ requestToken: "token" }))
+    .mockResolvedValueOnce(json([user], 201));
+  const client = createDirectoryClient(request, user.userId);
+  await expect(client.createBulk(user.orgId, values)).rejects.not.toBeInstanceOf(
+    DirectoryWriteUnconfirmed,
+  );
+  await expect(client.createBulk(user.orgId, values)).rejects.not.toBeInstanceOf(
+    DirectoryWriteUnconfirmed,
+  );
+  await expect(client.createBulk(user.orgId, values)).rejects.toBeInstanceOf(
+    DirectoryWriteUnconfirmed,
+  );
+  await expect(client.createBulk(user.orgId, values)).rejects.toBeInstanceOf(
+    DirectoryWriteUnconfirmed,
+  );
+  expect(request.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(3);
+});
+
 it("loads every page within the selected organisation", async () => {
   const request = vi
     .fn<typeof fetch>()
@@ -149,9 +183,9 @@ it("binds deletion and its fresh CSRF token to the administrator who opened the 
     headers: { "X-Spatia-Account": user.userId },
   });
   expect(request.mock.calls[1]).toEqual([
-    `/api/v1/admin/organizations/${user.orgId}`,
+    `/api/v1/admin/organizations/${user.orgId}/deletion`,
     expect.objectContaining({
-      method: "DELETE",
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-CSRF-TOKEN": "csrf",
@@ -187,3 +221,17 @@ it("reports deletion conflicts and never retries an uncertain delete", async () 
   expect(request).toHaveBeenCalledTimes(6);
   expect(request.mock.calls[5]?.[1]).toMatchObject({ method: "DELETE" });
 });
+it.each([200, 404, 405])(
+  "requires a confirmed deletion without falling back on HTTP %d",
+  async (status) => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+      .mockResolvedValueOnce(json({}, status));
+    await expect(
+      createDirectoryClient(request, user.userId).deleteOrganization(user.orgId, deletion.name),
+    ).rejects.toThrow();
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1]?.[1]?.method).toBe("POST");
+  },
+);

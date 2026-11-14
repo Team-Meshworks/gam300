@@ -51,6 +51,7 @@ export type AssignmentDetails = {
 export type PendingAssignment = {
   actorId: string;
   classId: string;
+  sourceSelection?: string;
   body: {
     requestId: string;
     sourceProjectId: string;

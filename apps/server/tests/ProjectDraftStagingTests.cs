@@ -37,8 +37,8 @@ public sealed class ProjectDraftStagingTests
             Assert.Throws<ArgumentException>(() =>
                 ProjectLifecycleEndpoints.StageDraft(database, documents, organizationId, source.Value!, [secondGrant]));
             await Assert.That(database.ChangeTracker.Entries<Project>().Any()).IsFalse();
-            await Assert.That(ProjectLifecycleEndpoints.StageDraft(database, documents, organizationId, source.Value!, [firstGrant])).IsTrue();
-            await Assert.That(ProjectLifecycleEndpoints.StageDraft(database, documents, organizationId, second, [secondGrant])).IsTrue();
+            await Assert.That(ProjectLifecycleEndpoints.StageDraft(database, documents, organizationId, source.Value!, [firstGrant])).IsNotNull();
+            await Assert.That(ProjectLifecycleEndpoints.StageDraft(database, documents, organizationId, second, [secondGrant])).IsNotNull();
             await database.SaveChangesAsync();
             await Assert.That(await database.Projects.CountAsync()).IsEqualTo(2);
             await Assert.That(await database.ProjectAssignments.CountAsync()).IsEqualTo(2);

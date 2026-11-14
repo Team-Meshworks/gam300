@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using Spatia.Server.Hosting;
 
 namespace Spatia.Server.Projects;
 
@@ -7,6 +9,9 @@ namespace Spatia.Server.Projects;
 /// </summary>
 public sealed record CreateProjectRequest
 {
+    public Guid? OperationId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CreationGuard? CreationGuard { get; init; }
     /// <summary>Gets the new project's bounded title</summary>
     public required string Title { get; init; }
     /// <summary>Gets optional raster imagery stored atomically with this draft</summary>

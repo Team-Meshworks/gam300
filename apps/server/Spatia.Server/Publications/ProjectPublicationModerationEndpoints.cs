@@ -24,14 +24,14 @@ internal static class ProjectPublicationModerationEndpoints
         group.MapPost("/publication-moderation", (SelectionRequest request, HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ChangeManyAsync(request, context, database, access, token, false))
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit).WithMetadata(new RequestSizeLimitAttribute(64 * 1024));
         group.MapGet("/publication-moderation", (HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ReadAsync(context, database, access, token, false));
-        group.MapPost("/{projectId:guid}/publication-moderation", (Guid projectId, ModerationRequest request, HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ChangeAsync(projectId, request, context, database, access, token, false))
+        group.MapPost("/{projectId:guid}/publication-moderation", (Guid projectId, ModerationRequest request, HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ChangeManyAsync(new([projectId], request.Action), context, database, access, token, false))
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit)
             .WithMetadata(new RequestSizeLimitAttribute(4 * 1024));
         var facilitator = endpoints.MapGroup("/projects").RequireAuthorization(SecurityPolicies.FullAccount);
         facilitator.MapPost("/publication-moderation", (SelectionRequest request, HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ChangeManyAsync(request, context, database, access, token, true))
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit).WithMetadata(new RequestSizeLimitAttribute(64 * 1024));
         facilitator.MapGet("/publication-moderation", (HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ReadAsync(context, database, access, token, true));
-        facilitator.MapPost("/{projectId:guid}/publication-moderation", (Guid projectId, ModerationRequest request, HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ChangeAsync(projectId, request, context, database, access, token, true))
+        facilitator.MapPost("/{projectId:guid}/publication-moderation", (Guid projectId, ModerationRequest request, HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) => ChangeManyAsync(new([projectId], request.Action), context, database, access, token, true))
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit)
             .WithMetadata(new RequestSizeLimitAttribute(4 * 1024));
         return endpoints;
@@ -113,28 +113,28 @@ internal static class ProjectPublicationModerationEndpoints
     {
         if (request.ProjectIds is not { Length: > 0 and <= 1000 } || request.ProjectIds.Contains(Guid.Empty)
             || request.Action is not ("hide" or "show" or "delete")) { return Invalid(context); }
-        var ids = request.ProjectIds.Distinct().ToArray();
+        context.Response.Headers.CacheControl = "private, no-store";
+        // Lock projects in a consistent order and commit the entire selection together.
+        var ids = request.ProjectIds.Distinct().Order().ToArray();
+        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
         if (await RecheckModeratorAsync(context, database, access, ids, educator, token, request.Action == "delete") is { } denied) { return denied; }
         foreach (var id in ids)
         {
-            var result = await ChangeAsync(id, new(request.Action), context, database, access, token, educator);
-            if (result is not IStatusCodeHttpResult { StatusCode: 204 }) { return result; }
+            if (await StageAsync(id, request.Action, context, database, access, token, educator) is { } error) { return error; }
         }
-        return Results.NoContent();
+        if (await RecheckModeratorAsync(context, database, access, ids, educator, token, request.Action == "delete") is { } revoked) { return revoked; }
+        await transaction.CommitAsync(token);
+        token.ThrowIfCancellationRequested();
+        return HasExpired(context) ? CommittedWrite.WithoutRepresentation(context) : Results.NoContent();
     }
 
-    private static async Task<IResult> ChangeAsync(Guid projectId, ModerationRequest request,
+    private static async Task<IResult?> StageAsync(Guid projectId, string action,
         HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token, bool educator)
     {
-        context.Response.Headers.CacheControl = "private, no-store";
-        if (request.Action is not ("hide" or "show" or "delete")) { return Invalid(context); }
-
         // Share the project lock with publishing, archive and grant changes; archived drafts remain moderatable
-        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
-        if (await RecheckModeratorAsync(context, database, access, [projectId], educator, token, request.Action == "delete") is { } denied) { return denied; }
         var locked = await access.LockAsync(context, projectId, ProjectLockPurpose.ModeratePublications, token);
         if (locked.Failure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
-        if (await RecheckModeratorAsync(context, database, access, [projectId], educator, token, request.Action == "delete") is { } changed) { return changed; }
+        if (await RecheckModeratorAsync(context, database, access, [projectId], educator, token, action == "delete") is { } changed) { return changed; }
 
         var editionIds = await database.Publications.Where(edition => edition.ProjectId == projectId)
             .Select(edition => edition.Id).ToArrayAsync(token);
@@ -143,7 +143,7 @@ internal static class ProjectPublicationModerationEndpoints
             .ToDictionaryAsync(state => state.PublicationId, token);
         var retired = await database.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM retired_publication_ids")
             .Where(id => editionIds.Contains(id)).ToArrayAsync(token);
-        var targets = request.Action == "delete" ? editionIds : editionIds.Where(id => !retired.Contains(id)
+        var targets = action == "delete" ? editionIds : editionIds.Where(id => !retired.Contains(id)
             && (!states.TryGetValue(id, out var state) || !state.Deleted)).ToArray();
         if (targets.Length == 0 && !educator) { return Unavailable(context); }
         if (educator)
@@ -153,10 +153,10 @@ internal static class ProjectPublicationModerationEndpoints
             var grant = await database.ProjectAssignments.SingleOrDefaultAsync(row => row.ProjectId == projectId
                 && row.UserId == student.StudentId, token);
             if (grant is null) { return Unavailable(context); }
-            grant.CanPublish = request.Action == "show";
-            if (request.Action == "delete") { student.IsActive = false; }
+            grant.CanPublish = action == "show";
+            if (action == "delete") { student.IsActive = false; }
         }
-        if (educator && request.Action != "show")
+        if (educator && action != "show")
         {
             var submission = await database.ReviewSubmissions.Where(row => row.ProjectId == projectId)
                 .OrderByDescending(row => row.Sequence).Select(row => row.Id).FirstOrDefaultAsync(token);
@@ -173,9 +173,9 @@ internal static class ProjectPublicationModerationEndpoints
                     EducatorId = locked.Snapshot!.ActorId,
                     Sequence = approval.Sequence + 1,
                     Outcome = ReviewDecision.Revoked,
-                    Feedback = "Publication " + (request.Action == "hide" ? "hidden" : "deleted")
+                    Feedback = "Publication " + (action == "hide" ? "hidden" : "deleted")
                         + " by the facilitator. Submit your work for a fresh approval before publishing again.",
-                    RequestDigest = SHA256.HashData(Encoding.UTF8.GetBytes($"publication-moderation\n{projectId:D}\n{submission:D}\n{locked.Snapshot.ActorId:D}\n{request.Action}\n{approval.Sequence}")),
+                    RequestDigest = SHA256.HashData(Encoding.UTF8.GetBytes($"publication-moderation\n{projectId:D}\n{submission:D}\n{locked.Snapshot.ActorId:D}\n{action}\n{approval.Sequence}")),
                 });
             }
         }
@@ -187,11 +187,11 @@ internal static class ProjectPublicationModerationEndpoints
                 state = new PublicationAccessState { PublicationId = id, Audience = 0 };
                 database.PublicationAccess.Add(state);
             }
-            if (request.Action == "hide") { state.Hidden = true; }
-            if (request.Action == "show") { state.Hidden = false; }
-            if (request.Action == "delete") { state.Deleted = true; }
+            if (action == "hide") { state.Hidden = true; }
+            if (action == "show") { state.Hidden = false; }
+            if (action == "delete") { state.Deleted = true; }
         }
-        if (request.Action == "delete")
+        if (action == "delete")
         {
             // Include legacy deleted editions too so restoring old policy data can never revive their links
             await database.Database.ExecuteSqlInterpolatedAsync($"""
@@ -201,14 +201,7 @@ internal static class ProjectPublicationModerationEndpoints
                 """, token);
         }
         await database.SaveChangesAsync(token);
-
-        // Retain the lock through the final live-role check and commit, then reject expired acknowledgements
-        if (await RecheckModeratorAsync(context, database, access, [projectId], educator, token, request.Action == "delete") is { } revoked) { return revoked; }
-        await transaction.CommitAsync(token);
-        token.ThrowIfCancellationRequested();
-        return HasExpired(context)
-            ? ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired)
-            : Results.NoContent();
+        return null;
     }
 
     private static async Task<IResult?> RecheckModeratorAsync(HttpContext context, ApplicationDbContext database,

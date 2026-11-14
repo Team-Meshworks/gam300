@@ -78,6 +78,7 @@ if $server; then
     echo "Server deployment requires an explicit HTTPS APP_URL" >&2; exit 1;
   }
   host=${BASH_REMATCH[1]}
+  url=${url%/}
   cp -- "$bundle/compose.server.yaml" "$candidate/"
   # Keep the bind-mounted configuration after the temporary release directory moves
   configuration="$directory/gateway-$revision"
@@ -91,7 +92,7 @@ if $server; then
   fi
   chmod 600 -- "$directory/server.env"
   cat "$directory/server.env" >> "$candidate/.env"
-  printf 'PUBLICATION_ORIGIN=%s\n' "${url%/}" >> "$candidate/.env"
+  printf 'PUBLICATION_ORIGIN=%s\n' "$url" >> "$candidate/.env"
   printf 'API_IMAGE=%s\nMIGRATION_IMAGE=%s\nSERVER_PORT=%s\nSERVER_NETWORK_PREFIX=%s\nSERVER_ENVIRONMENT=%s\nSERVER_ALLOWED_HOSTS=%s\nSERVER_CADDYFILE=%s\n' \
     "$api_image" "$migration_image" "$server_port" "$network" "${environment^}" "$host" \
     "$configuration/server.Caddyfile" >> "$candidate/.env"
@@ -126,6 +127,13 @@ healthy() {
     # Check the local application stack; anonymous session requests must remain unauthorized
     curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 -H "Host: $host" -H 'X-Forwarded-Proto: https' --output /dev/null "http://127.0.0.1:$port/api/v1/auth/csrf" || return 1
     [[ "$(curl --silent --show-error --max-time 10 -H "Host: $host" -H 'X-Forwarded-Proto: https' --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:$port/api/v1/auth/session")" == 401 ]] || return 1
+    local expected_challenge='401 SpatiaSession realm="Spatia", login_uri="/api/v1/auth/login"'
+    local probe=(--silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code} %header{www-authenticate}')
+    [[ "$(public_curl "${probe[@]}" "$url/api/v1/creation-operations/project")" == "$expected_challenge" ]] || return 1
+    [[ "$(curl "${probe[@]}" -H "Host: $host" -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$port/api/v1/creation-operations/project")" == "$expected_challenge" ]] || return 1
+    local resolution=/api/v1/projects/legacy-resolution
+    [[ "$(public_curl "${probe[@]}" --request PUT "$url$resolution")" == "$expected_challenge" ]] || return 1
+    [[ "$(curl "${probe[@]}" --request PUT -H "Host: $host" -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$port$resolution")" == "$expected_challenge" ]] || return 1
   fi
 }
 

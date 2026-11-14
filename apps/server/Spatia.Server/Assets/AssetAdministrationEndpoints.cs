@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.AspNetCore.Mvc;
 using Spatia.Server.Accounts;
 using Spatia.Server.Projects;
@@ -7,11 +6,12 @@ using System.Text.Json;
 using Spatia.Server.Persistence;
 using Spatia.Server.Hosting;
 using Spatia.Server.Security;
+using Microsoft.Net.Http.Headers;
 
 namespace Spatia.Server.Assets;
 
 /// <summary>Maps administrator-only intake and retirement through the existing cookie and CSRF boundaries</summary>
-public static class AssetAdministrationEndpoints
+public static partial class AssetAdministrationEndpoints
 {
     public static IEndpointRouteBuilder MapAssetAdministration(this IEndpointRouteBuilder endpoints)
     {
@@ -21,24 +21,30 @@ public static class AssetAdministrationEndpoints
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
 
         // Return current server capabilities with the list so the screen never guesses which writes are available
-        group.MapGet("", async (AssetAdministrationService service, AssetUploadValidator validator, CancellationToken token) => Results.Ok(new
+        group.MapGet("", async (HttpContext context, ProjectAccessService access, AssetAdministrationService service, AssetUploadValidator validator, CancellationToken token) =>
         {
-            assets = await service.ListAsync(token),
-            policy = new
+            var assets = await service.ListAsync(token);
+            if (await RecheckAdministratorAsync(context, access, token) is { } denied) { return denied; }
+            return Results.Ok(new
             {
-                extensions = new[] { ".glb", ".m4a" },
-                maxBytes = AssetIntakePolicy.MaxBytes,
-                categories = new { environment = (string[]?)null, model = AssetIntakePolicy.ModelCategories, audio = AssetIntakePolicy.AudioCategories },
-                canSubmit = validator.IsAvailable,
-                canSubmitByKind = new { environment = validator.IsAvailable, model = validator.IsAvailable, audio = true },
-                canForceRemove = true
-            },
-        }));
+                assets,
+                policy = new
+                {
+                    extensions = new[] { ".glb", ".m4a" },
+                    maxBytes = AssetIntakePolicy.MaxBytes,
+                    categories = new { environment = (string[]?)null, model = AssetIntakePolicy.ModelCategories, audio = AssetIntakePolicy.AudioCategories },
+                    canSubmit = validator.IsAvailable,
+                    canSubmitByKind = new { environment = validator.IsAvailable, model = validator.IsAvailable, audio = true },
+                    canForceRemove = true
+                },
+            });
+        }).RequireRateLimiting(SecurityPolicies.AssetCatalogueReadRateLimit);
 
         // Allow review of quarantined bytes without exposing them through the student catalogue
-        group.MapGet("/{id:guid}/bytes", async (Guid id, HttpContext context, ApplicationDbContext database, CancellationToken token) =>
+        group.MapGet("/{id:guid}/bytes", async (Guid id, HttpContext context, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
         {
             var asset = await database.AssetCandidates.AsNoTracking().SingleOrDefaultAsync(asset => asset.Id == id, token);
+            if (await RecheckAdministratorAsync(context, access, token) is { } denied) { return denied; }
             if (asset is null) { return ApiProblems.Create(context, 404, "asset_not_found", "Asset is unavailable"); }
 
             // Keep quarantined bytes an explicit download so inspection never becomes public library delivery
@@ -50,7 +56,7 @@ public static class AssetAdministrationEndpoints
 
         // Allow the bounded review fields even when JSON escapes non-ASCII text
         group.MapPost("/{id:guid}/approve", async (Guid id, AssetReviewRequest request, HttpContext context,
-            AssetAdministrationService service, CancellationToken token) =>
+            AssetAdministrationService service, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
         {
             if (!ValidReview(request))
             {
@@ -59,8 +65,14 @@ public static class AssetAdministrationEndpoints
 
             // Bind approval to the authenticated reviewer rather than accepting an actor from request JSON
             var actor = context.Features.Get<CurrentAccount>()!.UserId;
+            await using var transaction = await database.Database.BeginTransactionAsync(token);
+            if (await RecheckAdministratorAsync(context, access, token) is { } denied) { return denied; }
             var record = await service.ReviewAsync(id, request, actor, token);
-            return record is null ? ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before reviewing it") : Results.Ok(record);
+            if (await RecheckAdministratorAsync(context, access, token) is { } changed) { return changed; }
+            if (record is null) { return ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before reviewing it"); }
+            await transaction.CommitAsync(token);
+            if (await RecheckAdministratorAsync(context, access, token) is not null) { return CommittedWrite.WithoutRepresentation(context); }
+            return Results.Ok(record);
         }).WithMetadata(new RequestSizeLimitAttribute(40 * 1024));
         group.MapPost("/{id:guid}/availability", async (Guid id, AssetAvailabilityRequest request, HttpContext context,
             AssetAdministrationService service, ApplicationDbContext database, ProjectAccessService access,
@@ -76,23 +88,23 @@ public static class AssetAdministrationEndpoints
 
             if (request.RemoveFromProjects || request.Action == "remove")
             {
-                await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
-                if (await RecheckAdministratorAsync(context, access, token) is { } denied) { return denied; }
-                var removed = await service.RemoveAsync(id, documents, token);
-                if (removed is null) { return ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing it"); }
-                if (await RecheckAdministratorAsync(context, access, token) is { } changed) { return changed; }
-                await transaction.CommitAsync(token);
-                token.ThrowIfCancellationRequested();
-                return context.Features.Get<ValidatedAccountSession>() is not { } session || session.Clock.GetUtcNow() >= session.ExpiresUtc
-                    ? ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired) : Results.Ok(removed);
+                return await RemoveAsync(id, null, false, context, service, database, access, documents, token);
             }
+            await using var transaction = await database.Database.BeginTransactionAsync(token);
+            if (await RecheckAdministratorAsync(context, access, token) is { } denied) { return denied; }
             var record = await service.ChangeAsync(id, request.Action, token);
-            return record is null ? ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing it") : Results.Ok(record);
+            if (await RecheckAdministratorAsync(context, access, token) is { } changed) { return changed; }
+            if (record is null) { return ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing it"); }
+            await transaction.CommitAsync(token);
+            if (await RecheckAdministratorAsync(context, access, token) is not null) { return CommittedWrite.WithoutRepresentation(context); }
+            return Results.Ok(record);
         });
+        MapRemovalReceipts(group);
         return endpoints;
     }
 
-    private static async Task<IResult> UploadAsync(HttpContext context, AssetAdministrationService service, CancellationToken token)
+    private static async Task<IResult> UploadAsync(HttpContext context, AssetAdministrationService service,
+        ApplicationDbContext database, ProjectAccessService access, CancellationToken token)
     {
         AssetReviewRequest? metadata = null;
         if (context.Request.Headers.TryGetValue("X-Spatia-Asset-Metadata", out var encoded))
@@ -118,9 +130,14 @@ public static class AssetAdministrationEndpoints
         var name = query["name"].ToString();
         var kind = query["kind"].ToString();
         var category = query.TryGetValue("category", out var raw) ? raw.ToString() : null;
-        if (!AssetIntakePolicy.Accepts(name, kind, category) || context.Request.ContentType != AssetIntakePolicy.MediaType(kind))
+        if (!AssetIntakePolicy.Accepts(name, kind, category))
         {
             return Invalid(context);
+        }
+        if (!MediaTypeHeaderValue.TryParse(context.Request.ContentType, out var contentType)
+            || !contentType.MediaType.Equals(AssetIntakePolicy.MediaType(kind), StringComparison.OrdinalIgnoreCase))
+        {
+            return ApiProblems.Create(context, 415, "unsupported_media_type", "Use the asset kind's supported media type");
         }
 
         // Read only after authorization and stop at the same cap even for chunked requests
@@ -140,11 +157,19 @@ public static class AssetAdministrationEndpoints
             return Invalid(context);
         }
         var actor = context.Features.Get<CurrentAccount>()!.UserId;
+        await using var transaction = await database.Database.BeginTransactionAsync(token);
+        if (await RecheckAdministratorAsync(context, access, token) is { } denied) { return denied; }
 
         // Validation or storage unavailability leaves no approved entry and must remain retryable to the client
-        var record = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token);
-        return record is null ? ApiProblems.Create(context, 503, "asset_intake_unavailable", "Asset validation or storage is unavailable")
-            : Results.Json(record, statusCode: StatusCodes.Status201Created);
+        var result = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token);
+        if (await RecheckAdministratorAsync(context, access, token) is { } changed) { return changed; }
+        if (result is { QuotaExceeded: true })
+        { return ApiProblems.Create(context, 409, "asset_quota_exceeded", "Retained asset capacity is full; ask an operator to increase storage capacity"); }
+        if (result is null)
+        { return ApiProblems.Create(context, 503, "asset_intake_unavailable", "Asset validation or storage is unavailable"); }
+        await transaction.CommitAsync(token);
+        if (await RecheckAdministratorAsync(context, access, token) is not null) { return CommittedWrite.WithoutRepresentation(context); }
+        return Results.Json(result.Value.Record, statusCode: result.Value.Created ? StatusCodes.Status201Created : StatusCodes.Status200OK);
     }
 
     private static async Task<IResult?> RecheckAdministratorAsync(HttpContext context, ProjectAccessService access, CancellationToken token)

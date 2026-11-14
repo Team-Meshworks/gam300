@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
+import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5182";
 const browser = await launchBrowser({ target: origin });
@@ -32,10 +33,12 @@ const snapshots = "../../.artifacts/home-check";
 await mkdir(snapshots, { recursive: true });
 const errors = [];
 let logoutPosts = 0;
+const recovery = creationRecoveryFixture();
 async function api(route) {
   const request = route.request();
   const path = new URL(request.url()).pathname;
   const method = request.method();
+  if (await recovery.handle(route, account?.userId)) return;
   if (path === "/api/v1/auth/logout" && method === "POST") logoutPosts++;
   if (path === "/api/v1/auth/session") return route.fulfill({ json: account });
   if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test-token" } });
@@ -43,7 +46,12 @@ async function api(route) {
   if (path === "/api/v1/projects" && method === "POST")
     return route.fulfill({
       status: 201,
-      json: { projectId: source, revision: 0, updatedAt: "2026-10-30T01:00:00Z", archived: false },
+      json: recovery.commit(request, {
+        projectId: source,
+        revision: 0,
+        updatedAt: "2026-10-30T01:00:00Z",
+        archived: false,
+      }),
     });
   if (path === "/api/v1/projects")
     return route.fulfill({
@@ -67,14 +75,20 @@ async function api(route) {
     });
   if (path === "/api/v1/classes" && method === "POST") {
     const body = request.postDataJSON();
-    assert.deepEqual(body, { name: "Geography" });
+    assert.match(body.operationId, /^[0-9a-f-]{36}$/);
+    assert.equal(request.headers()["x-spatia-account"], teacher);
+    assert.deepEqual(body, {
+      name: "Geography",
+      operationId: body.operationId,
+      creationGuard: { purpose: "class", previousOperationId: null },
+    });
     const row = {
       id: "ddca2d1b-b065-41f5-9cae-961d8d1855af",
       name: body.name,
       organizationId: org,
     };
     classes.push(row);
-    return route.fulfill({ status: 201, json: row });
+    return route.fulfill({ status: 201, json: recovery.commit(request, row) });
   }
   if (path === "/api/v1/classes")
     return route.fulfill({ json: { items: classes, nextCursor: null } });
@@ -282,7 +296,7 @@ try {
   const localContext = await browser.newContext({
     timezoneId: "America/New_York",
     locale: "en-US",
-    viewport: { width: 390, height: 900 },
+    viewport: { width: 390, height: 640 },
   });
   await localContext.route("**/api/v1/**", api);
   const local = await localContext.newPage();

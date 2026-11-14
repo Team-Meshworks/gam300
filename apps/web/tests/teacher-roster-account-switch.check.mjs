@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
+import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 
 const teacherA = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const teacherB = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07f";
@@ -27,7 +28,9 @@ try {
   browser = await launchBrowser({ target: origin });
   const page = await browser.newPage();
   page.setDefaultTimeout(10000);
+  const receipts = creationRecoveryFixture();
   await page.route("**/api/v1/**", async (route) => {
+    if (await receipts.handle(route, actor)) return;
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/v1/auth/session")
       return route.fulfill({

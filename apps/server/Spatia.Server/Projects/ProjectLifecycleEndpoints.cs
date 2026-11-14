@@ -19,7 +19,9 @@ public static class ProjectLifecycleEndpoints
         var group = endpoints.MapGroup("/projects").RequireAuthorization(SecurityPolicies.FullAccount)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPost("/", CreateAsync).WithMetadata(new RequestSizeLimitAttribute(SaveEnvelopeReader.MaxRequestBytes));
+        group.MapPut("/legacy-resolution", CreateAsync).WithMetadata(new RequestSizeLimitAttribute(SaveEnvelopeReader.MaxRequestBytes));
         group.MapPost("/{id:guid}/duplicate", DuplicateAsync);
+        group.MapPut("/{id:guid}/duplicate/legacy-resolution", DuplicateAsync);
         group.MapPatch("/{id:guid}/assignments", AssignAsync);
         group.MapPatch("/{id:guid}/archive", ArchiveAsync);
         return endpoints;
@@ -28,13 +30,48 @@ public static class ProjectLifecycleEndpoints
     private static async Task<IResult> CreateAsync(CreateProjectRequest request, HttpContext context,
         ApplicationDbContext database, ProjectAccessService access, ProjectDocumentService documents, CancellationToken cancellationToken)
     {
-        if (!ValidTitle(request.Title) || (request.Document is not null && request.EnvironmentAssetId is not null))
+        if (LegacyCreationResolutions.Bind(context, request.OperationId, request.CreationGuard, out var operationId, out var resolution) is { } operationFailure)
+        { return operationFailure; }
+        if (resolution is null) { request = request with { OperationId = operationId }; }
+        if (!CreationReceipts.ValidGuard(request.CreationGuard, "project", request.Document is not null)
+            || !ValidTitle(request.Title) || (request.Document is not null && request.EnvironmentAssetId is not null))
         {
             return InvalidInput(context);
         }
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        var actorId = context.Features.Get<ValidatedAccountSession>()?.UserId;
+        if (actorId is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        var purpose = request.CreationGuard?.Purpose ?? (request.Document is null ? "project" : "import");
+        await CreationReceipts.LockPurposeAsync(database, actorId.Value, purpose, cancellationToken);
+        var intentDigest = resolution is null ? null : LegacyCreationResolutions.ProjectDigest(request);
+        var (binding, bindingFailure) = await LegacyCreationResolutions.LookupAsync(context, database, actorId.Value, intentDigest, resolution, cancellationToken);
+        if (bindingFailure is not null) { return bindingFailure; }
+        if (resolution?.ChooseOperationId(binding) is { } resolvedOperationId) { operationId = resolvedOperationId; }
+        var receipt = resolution is null || binding?.OperationId is not null
+            ? await CreationReceipts.FindAsync(database, actorId.Value, operationId, cancellationToken) : null;
         var account = await access.ResolveCurrentAccountAsync(context, cancellationToken);
         if (AccountFailure(context, account) is { } failure) { return failure; }
+        if (resolution is not null)
+        {
+            if (account!.Role == ApplicationRoles.Administrator
+                || (account.OrganizationId is { } own && request.OrgId is { } legacyOrganization && own != legacyOrganization))
+            { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden); }
+            if (await ResolveLegacyProjectAsync(context, database, access, transaction, account, resolution, binding, intentDigest!,
+                "project", purpose, account.OrganizationId ?? request.OrgId, null, receipt, cancellationToken) is { } resolved)
+            { return resolved; }
+        }
+        request = request with { OperationId = operationId };
+        var digest = CreationReceipts.Digest(request);
+        if (receipt is not null)
+        {
+            if (await CreationReceipts.AccessFailureAsync(context, database, access, receipt, cancellationToken) is { } replayFailure)
+            { return replayFailure; }
+            if (!CreationReceipts.Matches(receipt, "project", digest)) { return CreationReceipts.Conflict(context); }
+            return await CreationReceipts.CompleteReplayAsync(context, transaction, receipt, cancellationToken);
+        }
+        var guard = resolution is null ? request.CreationGuard : new CreationGuard { Purpose = purpose, PreviousOperationId = resolution.PreviousOperationId };
+        if (await CreationReceipts.CheckGuardAsync(context, database, actorId.Value, purpose, guard, cancellationToken) is { } guardFailure)
+        { return guardFailure; }
         if (account!.Role == ApplicationRoles.Administrator)
         { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden); }
         var organizationId = account!.OrganizationId ?? request.OrgId;
@@ -75,29 +112,76 @@ public static class ProjectLifecycleEndpoints
         if (request.Image is not null && image is null)
         { return ApiProblems.Create(context, 422, "invalid_project_image", "Choose a valid PNG, JPEG or WebP image within the image limits."); }
         if (image is not null) { database.ProjectImages.Add(image); }
-        return await InsertAsync(context, database, documents, transaction, account, organizationId.Value, document, cancellationToken, image?.Id);
+        return await InsertAsync(context, database, access, documents, transaction, account, organizationId.Value, document, cancellationToken,
+            operationId, "project", digest, purpose, null, image?.Id, legacyIntentDigest: intentDigest, resolution: resolution);
     }
 
     private static async Task<IResult> DuplicateAsync(Guid id, DuplicateProjectRequest request, HttpContext context,
         ApplicationDbContext database, ProjectAccessService access, ProjectDocumentService documents, CancellationToken cancellationToken)
     {
-        if (!ValidRevision(request.ExpectedRevision) || !ValidTitle(request.Title)) { return InvalidInput(context); }
+        if (LegacyCreationResolutions.Bind(context, request.OperationId, request.CreationGuard, out var operationId, out var resolution) is { } operationFailure)
+        { return operationFailure; }
+        if (resolution is null) { request = request with { OperationId = operationId }; }
+        if (!CreationReceipts.ValidGuard(request.CreationGuard, "duplicate")
+            || !ValidRevision(request.ExpectedRevision) || !ValidTitle(request.Title)) { return InvalidInput(context); }
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        var actorId = context.Features.Get<ValidatedAccountSession>()?.UserId;
+        if (actorId is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        await CreationReceipts.LockPurposeAsync(database, actorId.Value, "duplicate", cancellationToken);
+        var intentDigest = resolution is null ? null : LegacyCreationResolutions.DuplicateDigest(id, request);
+        var (binding, bindingFailure) = await LegacyCreationResolutions.LookupAsync(context, database, actorId.Value, intentDigest, resolution, cancellationToken);
+        if (bindingFailure is not null) { return bindingFailure; }
+        if (resolution?.ChooseOperationId(binding) is { } resolvedOperationId) { operationId = resolvedOperationId; }
+        var receipt = resolution is null || binding?.OperationId is not null
+            ? await CreationReceipts.FindAsync(database, actorId.Value, operationId, cancellationToken) : null;
+        var account = await access.ResolveCurrentAccountAsync(context, cancellationToken);
+        if (AccountFailure(context, account) is { } accountFailure) { return accountFailure; }
+        var selectedId = binding is not null ? (binding.OperationId is null ? binding.ResourceId : (Guid?)null) : resolution?.ExistingId;
+        if (selectedId is { } selected)
+        {
+            if (selected == id) { return LegacyCreationResolutions.Conflict(context); }
+            await LockSelectedProjectsAsync(database, [id, selected], cancellationToken);
+        }
+        // A new copy references its organization. Pin that parent before locking the source project.
+        await database.Database.SqlQuery<Guid>($"""
+            SELECT o.id AS "Value" FROM organizations o JOIN projects p ON p.organization_id = o.id
+            WHERE p.id = {id} FOR KEY SHARE OF o
+            """).ToListAsync(cancellationToken);
         var authorization = await access.LockAsync(context, id, ProjectLockPurpose.EditDraft, cancellationToken);
         if (authorization.Failure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
         var source = authorization.Snapshot!;
+        if (resolution is not null)
+        {
+            if (account!.OrganizationId is { } own && own != source.OrganizationId)
+            { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound); }
+            if (await ResolveLegacyProjectAsync(context, database, access, transaction, account!, resolution, binding, intentDigest!,
+                "duplicate", "duplicate", source.OrganizationId, id, receipt, cancellationToken) is { } resolved)
+            { return resolved; }
+        }
+        request = request with { OperationId = operationId };
+        var digest = CreationReceipts.Digest(new { id, request });
+        if (receipt is not null)
+        {
+            if (await CreationReceipts.AccessFailureAsync(context, database, access, receipt, cancellationToken) is { } replayFailure)
+            { return replayFailure; }
+            if (!CreationReceipts.Matches(receipt, "duplicate", digest)) { return CreationReceipts.Conflict(context); }
+            return await CreationReceipts.CompleteReplayAsync(context, transaction, receipt, cancellationToken);
+        }
+        var guard = resolution is null ? request.CreationGuard : new CreationGuard { Purpose = "duplicate", PreviousOperationId = resolution.PreviousOperationId };
+        if (await CreationReceipts.CheckGuardAsync(context, database, actorId.Value, "duplicate", guard, cancellationToken) is { } guardFailure)
+        { return guardFailure; }
         if (request.ExpectedRevision != source.Revision) { return RevisionProblem(context, source.Revision); }
-        var account = await access.ResolveCurrentAccountAsync(context, cancellationToken);
-        if (AccountFailure(context, account) is { } accountFailure) { return accountFailure; }
         if (account!.OrganizationId is { } organizationId && organizationId != source.OrganizationId)
         {
             return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound);
         }
         var parsed = documents.ReadStored(id, source.SchemaVersion, source.UnvalidatedDocumentJson);
         if (!parsed.Ok) { return ApiProblems.Create(context, 503, "project_unavailable", "The project is unavailable."); }
-        return await InsertAsync(context, database, documents, transaction, account, source.OrganizationId,
+        return await InsertAsync(context, database, access, documents, transaction, account!, source.OrganizationId,
             Copy(parsed.Value!, Guid.NewGuid(), request.Title), cancellationToken,
-            await database.Projects.Where(project => project.Id == id).Select(project => project.ImageId).SingleAsync(cancellationToken));
+            operationId, "duplicate", digest, "duplicate", id,
+            await database.Projects.Where(project => project.Id == id).Select(project => project.ImageId).SingleAsync(cancellationToken),
+            source.UnvalidatedDocumentJson, intentDigest, resolution);
     }
 
     private static async Task<IResult> AssignAsync(Guid id, ProjectAssignmentsRequest request, HttpContext context,
@@ -164,8 +248,10 @@ public static class ProjectLifecycleEndpoints
         return await CommitAsync(context, database, transaction, id, false, cancellationToken);
     }
 
-    private static async Task<IResult> InsertAsync(HttpContext context, ApplicationDbContext database, ProjectDocumentService documents,
-        IDbContextTransaction transaction, CurrentAccount account, Guid organizationId, IAuthoredProject document, CancellationToken cancellationToken, Guid? imageId = null)
+    private static async Task<IResult> InsertAsync(HttpContext context, ApplicationDbContext database, ProjectAccessService access, ProjectDocumentService documents,
+        IDbContextTransaction transaction, CurrentAccount account, Guid organizationId, IAuthoredProject document, CancellationToken cancellationToken,
+        Guid operationId, string kind, byte[] digest, string purpose, Guid? sourceProjectId, Guid? imageId = null,
+        string? retainedFrom = null, byte[]? legacyIntentDigest = null, LegacyCreationResolution? resolution = null)
     {
         var id = Guid.Parse(document.ProjectId);
         var assignments = account.Role == ApplicationRoles.Administrator ? Array.Empty<ProjectAssignment>() :
@@ -177,12 +263,68 @@ public static class ProjectLifecycleEndpoints
                 CanManage = account.Role == ApplicationRoles.Educator,
                 CanPublish = account.Role == ApplicationRoles.Educator,
             }];
-        if (!StageDraft(database, documents, organizationId, document, assignments, imageId)) { return InvalidDocument(context); }
+        var draft = StageDraft(database, documents, organizationId, document, assignments, imageId);
+        if (draft is null || !await ProjectDocumentService.CanWriteDraftAsync(database, draft.DocumentJson, retainedFrom, cancellationToken))
+        { return InvalidDocument(context); }
         await database.SaveChangesAsync(cancellationToken);
-        return await CommitAsync(context, database, transaction, id, true, cancellationToken);
+        var metadata = await database.Projects.AsNoTracking().Where(row => row.Id == id)
+            .Select(row => new ProjectMetadata(row.Id, row.Revision, row.UpdatedAt, row.IsArchived)).SingleAsync(cancellationToken);
+        CreationReceipts.Stage(database, account.UserId, operationId, kind, digest, id, metadata, purpose, sourceProjectId);
+        if (legacyIntentDigest is not null)
+        {
+            LegacyCreationResolutions.Stage(database, account.UserId, legacyIntentDigest, kind, purpose, organizationId,
+                sourceProjectId, id, operationId, resolution!.PreviousOperationId);
+        }
+        await database.SaveChangesAsync(cancellationToken);
+        if (await CreationReceipts.RevalidateAsync(context, access, account, cancellationToken) is { } failure) { return failure; }
+        return resolution is null ? await CommitAsync(context, database, transaction, id, true, cancellationToken, metadata)
+            : await LegacyCreationResolutions.CompleteAsync(context, transaction, Results.Created(CreationReceipts.Location(kind, id), metadata),
+                "created", CreationReceipts.Location(kind, id), true, cancellationToken);
     }
 
-    internal static bool StageDraft(ApplicationDbContext database, ProjectDocumentService documents, Guid organizationId,
+    private static async Task LockSelectedProjectsAsync(ApplicationDbContext database, Guid[] ids, CancellationToken cancellationToken)
+    {
+        await database.Database.SqlQuery<Guid>($"""
+            SELECT o.id AS "Value" FROM organizations o JOIN projects p ON p.organization_id = o.id
+            WHERE p.id = ANY({ids}) ORDER BY o.id FOR KEY SHARE OF o
+            """).ToListAsync(cancellationToken);
+        await database.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM projects WHERE id = ANY({ids}) ORDER BY id FOR UPDATE")
+            .ToListAsync(cancellationToken);
+    }
+
+    private static async Task<IResult?> ResolveLegacyProjectAsync(HttpContext context, ApplicationDbContext database,
+        ProjectAccessService access, IDbContextTransaction transaction, CurrentAccount account, LegacyCreationResolution resolution,
+        LegacyCreationBinding? binding, byte[] intentDigest, string kind, string purpose, Guid? organizationId, Guid? sourceProjectId,
+        CreationReceipt? receipt, CancellationToken cancellationToken)
+    {
+        if (binding is not null && binding.OrganizationId != organizationId)
+        { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound); }
+        if (binding?.OperationId is not null)
+        {
+            return await LegacyCreationResolutions.ReplayCreatedAsync(context, database, access, transaction, account,
+                resolution, binding, receipt, cancellationToken);
+        }
+        var selectedId = binding?.ResourceId ?? resolution.ExistingId;
+        if (selectedId is not { } selected) { return null; }
+        if (selected == sourceProjectId) { return LegacyCreationResolutions.Conflict(context); }
+        if (sourceProjectId is null) { await LockSelectedProjectsAsync(database, [selected], cancellationToken); }
+        var target = await access.VisibleProjects(account).Where(row => row.Id == selected && row.OrganizationId == organizationId)
+            .Select(row => new ProjectMetadata(row.Id, row.Revision, row.UpdatedAt, row.IsArchived)).SingleOrDefaultAsync(cancellationToken);
+        if (target is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound); }
+        if (binding is not null && !resolution.Matches(binding)) { return LegacyCreationResolutions.Conflict(context); }
+        if (binding is null)
+        {
+            LegacyCreationResolutions.Stage(database, account.UserId, intentDigest, kind, purpose, organizationId!.Value,
+                sourceProjectId, selected, null, null);
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        if (await CreationReceipts.RevalidateAsync(context, access, account, cancellationToken) is { } authorityFailure) { return authorityFailure; }
+        return await LegacyCreationResolutions.CompleteAsync(context, transaction,
+            Results.Ok(target),
+            "existing", CreationReceipts.Location(kind, selected), binding is null, cancellationToken);
+    }
+
+    internal static Project? StageDraft(ApplicationDbContext database, ProjectDocumentService documents, Guid organizationId,
         IAuthoredProject document, IReadOnlyCollection<ProjectAssignment> assignments, Guid? imageId = null)
     {
         if (database.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.ReadCommitted)
@@ -190,13 +332,13 @@ public static class ProjectLifecycleEndpoints
             throw new InvalidOperationException("Project creation requires a caller-owned read-committed transaction.");
         }
         var serialized = documents.Serialize(document);
-        if (!serialized.Ok) { return false; }
+        if (!serialized.Ok) { return null; }
         var id = Guid.Parse(document.ProjectId);
         if (assignments.Any(assignment => assignment.ProjectId != id || assignment.UserId == Guid.Empty))
         {
             throw new ArgumentException("Project assignments must refer to this draft and an account.", nameof(assignments));
         }
-        database.Projects.Add(new Project
+        var draft = new Project
         {
             Id = id,
             OrganizationId = organizationId,
@@ -204,9 +346,10 @@ public static class ProjectLifecycleEndpoints
             SchemaVersion = document.SchemaVersion,
             DocumentJson = serialized.Value!,
             UpdatedAt = DateTimeOffset.UtcNow
-        });
+        };
+        database.Projects.Add(draft);
         database.ProjectAssignments.AddRange(assignments);
-        return true;
+        return draft;
     }
 
     private static async Task AdvanceAsync(ApplicationDbContext database, ProjectAccessSnapshot project, bool archived, CancellationToken cancellationToken)
@@ -220,16 +363,16 @@ public static class ProjectLifecycleEndpoints
     }
 
     private static async Task<IResult> CommitAsync(HttpContext context, ApplicationDbContext database,
-        IDbContextTransaction transaction, Guid id, bool created, CancellationToken cancellationToken)
+        IDbContextTransaction transaction, Guid id, bool created, CancellationToken cancellationToken, ProjectMetadata? metadata = null)
     {
-        var metadata = await database.Projects.AsNoTracking().Where(row => row.Id == id)
+        metadata ??= await database.Projects.AsNoTracking().Where(row => row.Id == id)
             .Select(row => new ProjectMetadata(row.Id, row.Revision, row.UpdatedAt, row.IsArchived)).SingleAsync(cancellationToken);
         if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
         await transaction.CommitAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        if (HasExpired(context)) { return CommittedWrite.WithoutRepresentation(context); }
         context.Response.Headers.CacheControl = "no-store";
-        return Results.Json(metadata, statusCode: created ? 201 : 200);
+        return created ? Results.Created($"{ApiV1Endpoints.Prefix}/projects/{id:D}", metadata) : Results.Ok(metadata);
     }
 
     internal static IAuthoredProject Copy(IAuthoredProject document, Guid id, string title) => document switch

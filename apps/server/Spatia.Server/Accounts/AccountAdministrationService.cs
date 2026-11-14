@@ -6,7 +6,7 @@ using Spatia.Server.Persistence;
 namespace Spatia.Server.Accounts;
 
 /// <summary>
-/// Creates organizations and accounts and resets credentials in database transactions
+/// Creates accounts and resets credentials in database transactions
 /// </summary>
 /// <param name="database">The scoped database context shared with the Identity stores</param>
 /// <param name="users">The Identity manager used to validate and persist account credentials and roles</param>
@@ -71,32 +71,6 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
     }
 
     /// <summary>
-    /// Creates an active organization after validating its name
-    /// </summary>
-    /// <param name="request">The requested organization name</param>
-    /// <param name="cancellationToken">The token used to cancel database work</param>
-    /// <returns>The creation result and organization details, or a failure result with no organization</returns>
-    /// <exception cref="OperationCanceledException">The operation is canceled</exception>
-    public async Task<(IdentityResult Result, OrganizationResponse? Organization)> CreateOrganizationAsync(
-        CreateOrganizationRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        if (request is null || !IsValidName(request.Name) || request.Name.Contains('\0'))
-        {
-            return (Failure("InvalidInput"), null);
-        }
-
-        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        var organization = new Organization { Name = request.Name };
-        database.Organizations.Add(organization);
-        await database.SaveChangesAsync(cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        await transaction.CommitAsync(cancellationToken);
-        return (IdentityResult.Success, new OrganizationResponse(organization.Id, organization.Name, organization.IsActive));
-    }
-
-    /// <summary>
     /// Creates an account with its fixed role and, when required, active organization membership
     /// </summary>
     /// <param name="request">The username, temporary password, role and organization assignment</param>
@@ -104,7 +78,7 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
     /// <returns>The creation result and account details, or a failure result with no account</returns>
     /// <exception cref="InvalidOperationException">The fixed account roles are unavailable</exception>
     /// <exception cref="OperationCanceledException">The operation is canceled</exception>
-    public async Task<(IdentityResult Result, ProvisionedAccount? Account)> ProvisionAccountAsync(
+    internal async Task<(IdentityResult Result, ProvisionedAccount? Account)> ProvisionAccountAsync(
         ProvisionAccountRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -113,61 +87,9 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
             return (Failure("InvalidInput"), null);
         }
 
-        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            // Match profile overrides, lifecycle changes and bootstrap: roles first,
-            // then user writes. Otherwise a username collision can form a lock cycle.
-            await database.Database.ExecuteSqlRawAsync(
-                "LOCK TABLE \"AspNetUserRoles\" IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
-            var outcome = await ProvisionCoreAsync(request, cancellationToken);
-            if (!outcome.Result.Succeeded)
-            {
-                return outcome;
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            await transaction.CommitAsync(cancellationToken);
-            return outcome;
-        }
-        catch (DbUpdateException exception) when (IsDuplicateUserName(exception))
-        {
-            return (Failure("DuplicateUserName"), null);
-        }
-    }
-
-    /// <summary>Creates new organisation accounts, skipping existing usernames; other failures roll back the new accounts.</summary>
-    /// <param name="requests">Accounts sharing one organisation.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The result and all created accounts.</returns>
-    public async Task<(IdentityResult Result, IReadOnlyList<ProvisionedAccount>? Accounts)> ProvisionAccountsAsync(
-        ProvisionAccountRequest[] requests, CancellationToken cancellationToken = default)
-    {
-        if (requests is not { Length: > 0 and <= 200 } || requests.Any(request => !IsValidAccount(request))
-            || requests.Any(request => request.Role == ApplicationRoles.Administrator)
-            || requests.Any(request => request.OrgId != requests[0].OrgId))
-        {
-            return (Failure("InvalidInput"), null);
-        }
-        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        try
-        {
-            await database.Database.ExecuteSqlRawAsync(
-                "LOCK TABLE \"AspNetUserRoles\" IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
-            var accounts = new List<ProvisionedAccount>();
-            foreach (var request in requests.DistinctBy(request => users.NormalizeName(request.UserName)))
-            {
-                if (await users.FindByNameAsync(request.UserName) is not null) { continue; }
-                var outcome = await ProvisionCoreAsync(request, cancellationToken);
-                if (!outcome.Result.Succeeded)
-                {
-                    if (outcome.Result.Errors.Any(error => error.Code == "DuplicateUserName")) { continue; }
-                    return (outcome.Result, null);
-                }
-                accounts.Add(outcome.Account!);
-            }
-            await transaction.CommitAsync(cancellationToken);
-            return (IdentityResult.Success, accounts);
+            return await ProvisionCoreAsync(request, cancellationToken);
         }
         catch (DbUpdateException exception) when (IsDuplicateUserName(exception))
         {
@@ -183,7 +105,7 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
     /// <param name="cancellationToken">The token used to cancel database work</param>
     /// <returns>The reset result, including validation failures or a missing account</returns>
     /// <exception cref="OperationCanceledException">The operation is canceled</exception>
-    public async Task<IdentityResult> ResetPasswordAsync(
+    internal async Task<IdentityResult> ResetPasswordAsync(
         Guid userId,
         ResetAccountPasswordRequest request,
         CancellationToken cancellationToken = default)
@@ -193,9 +115,6 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
             return Failure("InvalidInput");
         }
 
-        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        // Keep lifecycle changes out while concurrent resets retain their optimistic conflict check
-        await database.Database.ExecuteSqlRawAsync("""LOCK TABLE "AspNetUserRoles" IN SHARE MODE""", cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var user = await users.FindByIdAsync(userId.ToString("D"));
         if (user is null)
@@ -209,15 +128,29 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         user.MustChangePassword = true;
         var token = await users.GeneratePasswordResetTokenAsync(user);
         cancellationToken.ThrowIfCancellationRequested();
-        var result = await users.ResetPasswordAsync(user, token, request.NewTemporaryPassword);
-        if (!result.Succeeded)
-        {
-            return result;
-        }
+        return await users.ResetPasswordAsync(user, token, request.NewTemporaryPassword);
+    }
 
-        cancellationToken.ThrowIfCancellationRequested();
-        await transaction.CommitAsync(cancellationToken);
-        return IdentityResult.Success;
+    internal static bool IsValidBulk(ProvisionAccountRequest[]? requests) =>
+        requests is { Length: > 0 and <= 200 } && requests.All(IsValidAccount)
+        && requests.All(request => request.Role != ApplicationRoles.Administrator && request.OrgId == requests[0].OrgId);
+
+    internal async Task<(IdentityResult Result, IReadOnlyList<ProvisionedAccount>? Accounts)> ProvisionBulkRowsAsync(
+        ProvisionAccountRequest[] requests, CancellationToken cancellationToken)
+    {
+        var accounts = new List<ProvisionedAccount>();
+        foreach (var request in requests.DistinctBy(request => users.NormalizeName(request.UserName)))
+        {
+            if (await users.FindByNameAsync(request.UserName) is not null) { continue; }
+            var outcome = await ProvisionCoreAsync(request, cancellationToken);
+            if (!outcome.Result.Succeeded)
+            {
+                if (outcome.Result.Errors.Any(error => error.Code == "DuplicateUserName")) { continue; }
+                return (outcome.Result, null);
+            }
+            accounts.Add(outcome.Account!);
+        }
+        return (IdentityResult.Success, accounts);
     }
 
     private async Task<(IdentityResult Result, ProvisionedAccount? Account)> ProvisionCoreAsync(

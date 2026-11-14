@@ -123,6 +123,17 @@ public static class RequestSecurityExtensions
                         Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0,
                     }));
+            options.AddPolicy(SecurityPolicies.AssetCatalogueReadRateLimit, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.Features.Get<CurrentAccount>() is { } account
+                        ? "asset-reader:" + account.UserId.ToString("D")
+                        : GetIpKey(context),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 60,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                    }));
             options.OnRejected = async (context, cancellationToken) =>
             {
                 var seconds = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter)

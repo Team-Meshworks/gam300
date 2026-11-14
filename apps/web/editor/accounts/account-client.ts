@@ -102,14 +102,14 @@ export function createAccountClient(request: typeof fetch = fetch) {
     if (!session) throw new Error("The sign-in session could not be confirmed. Please try again.");
     return session;
   }
-  async function accountWrite(path: string, body?: object, accountId?: string) {
+  async function accountWrite(path: string, accountId: string, body?: object) {
     const token = await csrf(accountId);
     const response = await send(path, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-CSRF-TOKEN": token,
-        ...(accountId ? { "X-Spatia-Account": accountId } : {}),
+        "X-Spatia-Account": accountId,
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
@@ -123,15 +123,15 @@ export function createAccountClient(request: typeof fetch = fetch) {
       );
     await csrf();
   }
-  async function changePassword(currentPassword: string, newPassword: string) {
-    await accountWrite("/api/v1/auth/password", { currentPassword, newPassword });
+  async function changePassword(currentPassword: string, newPassword: string, accountId: string) {
+    await accountWrite("/api/v1/auth/password", accountId, { currentPassword, newPassword });
     const session = await getSession();
-    if (!session || session.mustChangePassword)
+    if (session?.userId !== accountId || session.mustChangePassword)
       throw new Error("The updated session could not be confirmed. Please sign in again.");
     return session;
   }
-  async function signOut(accountId?: string) {
-    await accountWrite("/api/v1/auth/logout", undefined, accountId);
+  async function signOut(accountId: string) {
+    await accountWrite("/api/v1/auth/logout", accountId);
     if (await getSession()) throw new Error("Sign-out could not be confirmed. Please try again.");
   }
   return { getSession, signIn, changePassword, signOut };

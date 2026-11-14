@@ -39,7 +39,8 @@ public sealed class BundledAssetAccessTests
         using var response = await fixture.Client.GetAsync("/api/v1/auth/asset-access");
         await Assert.That((int)response.StatusCode).IsEqualTo(expected);
         await Assert.That(response.Headers.CacheControl?.NoStore).IsTrue();
-        await Assert.That(response.Headers.WwwAuthenticate.Count).IsEqualTo(0);
+        await Assert.That(response.Headers.WwwAuthenticate.SingleOrDefault()?.Scheme)
+            .IsEqualTo(response.StatusCode == HttpStatusCode.Unauthorized ? "SpatiaSession" : null);
         await Assert.That(response.Headers.Location).IsNull();
         if (response.StatusCode == HttpStatusCode.NoContent)
         {

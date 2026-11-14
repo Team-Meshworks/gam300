@@ -243,7 +243,7 @@ try {
     await chainPage.getByRole("button", { name: "Preview", exact: true }).click();
     await chainPage
       .getByRole("status")
-      .filter({ hasText: "Navigation stopped: scene-start interactions form a loop." })
+      .filter({ hasText: "Navigation stopped: automatic scene interactions form a loop." })
       .waitFor();
     assert.equal(await chainPage.locator(".editor-shell.is-previewing").count(), 1);
     await chainPage.getByRole("button", { name: "Exit preview", exact: true }).click();

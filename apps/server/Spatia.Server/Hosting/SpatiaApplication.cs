@@ -39,6 +39,8 @@ public static class SpatiaApplication
     public static WebApplication Build(WebApplicationBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        _ = AssetIntakePolicy.MaxRetainedAssets(builder.Configuration);
+        _ = AssetIntakePolicy.MaxRetainedBytes(builder.Configuration);
         var connectionString = RequireSetting(builder.Configuration, "ConnectionStrings:Spatia");
         try
         {

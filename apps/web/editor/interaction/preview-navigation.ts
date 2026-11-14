@@ -31,7 +31,7 @@ export function createPreviewNavigation(host: {
       const target = project?.scenes.find((scene) => scene.id.toLowerCase() === id.toLowerCase());
       if (!target || target.id === activeSceneId) return false;
       if (visited.has(target.id.toLowerCase())) {
-        host.notice("Navigation stopped: scene-start interactions form a loop.");
+        host.notice("Navigation stopped: automatic scene interactions form a loop.");
         return false;
       }
       visited.add(target.id.toLowerCase());

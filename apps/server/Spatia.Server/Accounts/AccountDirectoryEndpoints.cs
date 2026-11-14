@@ -20,12 +20,15 @@ public static partial class AccountDirectoryEndpoints
     public static IEndpointRouteBuilder MapAccountDirectory(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/admin").RequireAuthorization(SecurityPolicies.Administrator);
+        MapBulkImports(group);
         group.MapGet("/users", ListUsersAsync);
         group.MapGet("/users/{id:guid}", GetUserAsync);
         group.MapGet("/organizations", ListOrganizationsAsync);
+        group.MapPost("/organizations", CreateOrganizationAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapGet("/organizations/{id:guid}", GetOrganizationAsync);
         group.MapGet("/organizations/{id:guid}/projects", ListOrganizationProjectsAsync);
         group.MapGet("/organizations/{id:guid}/deletion", GetOrganizationDeletionAsync);
+        group.MapPost("/organizations/{id:guid}/deletion", DeleteOrganizationAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapDelete("/organizations/{id:guid}", DeleteOrganizationAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapDelete("/users/{id:guid}", DeleteAccountAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPost("/organizations/{id:guid}/students/hide", HideStudentsAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
@@ -34,6 +37,44 @@ public static partial class AccountDirectoryEndpoints
         group.MapPatch("/users/{id:guid}/active", SetUserActiveAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPatch("/organizations/{id:guid}/active", SetOrganizationActiveAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         return endpoints;
+    }
+
+    private static async Task<IResult> CreateOrganizationAsync(CreateOrganizationRequest request, HttpContext context,
+        ApplicationDbContext database, CurrentAccountResolver accounts, CancellationToken cancellationToken)
+    {
+        if (request.Name is not { Length: > 0 and <= 256 } || string.IsNullOrWhiteSpace(request.Name) || request.Name.Contains('\0'))
+        {
+            return ApiProblems.Create(context, 400, "invalid_account_input", "Check the supplied organization name.");
+        }
+
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        // There may already be duplicate names. Serialize discovery with inserts and lifecycle changes without rewriting old IDs.
+        await database.Database.ExecuteSqlRawAsync("LOCK TABLE organizations IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+        var matches = await database.Organizations.FromSqlInterpolated($"""
+            SELECT * FROM organizations
+            WHERE lower(regexp_replace(name, '^[[:space:]]+|[[:space:]]+$', '', 'g'))
+                = lower(regexp_replace({request.Name}, '^[[:space:]]+|[[:space:]]+$', '', 'g'))
+            LIMIT 2
+            """).AsNoTracking().ToArrayAsync(cancellationToken);
+        if (matches.Length > 1 || matches is [{ IsActive: false }])
+        {
+            return ApiProblems.Create(context, 409, "organization_name_in_use", "Check the organization directory before using this name.");
+        }
+
+        var organization = matches.SingleOrDefault();
+        var status = StatusCodes.Status200OK;
+        if (organization is null)
+        {
+            organization = new Organization { Name = request.Name };
+            database.Organizations.Add(organization);
+            await database.SaveChangesAsync(cancellationToken);
+            status = StatusCodes.Status201Created;
+        }
+        var result = new OrganizationResponse(organization.Id, organization.Name, organization.IsActive);
+        return await CompleteAsync(context, transaction, status == StatusCodes.Status201Created
+            ? Results.Created($"{ApiV1Endpoints.Prefix}/admin/organizations/{organization.Id:D}", result)
+            : Results.Ok(result), cancellationToken);
     }
 
     private static async Task<IResult> SetOrganizationActiveAsync(Guid id, SetActiveRequest request, HttpContext context,
@@ -231,7 +272,7 @@ public static partial class AccountDirectoryEndpoints
         return new DirectoryQuery(limit, cursor, pattern, query.ContainsKey("isActive") ? query["isActive"] == "true" : null, role, orgId);
     }
 
-    private static async Task<IResult?> AuthorizeAsync(HttpContext context, CurrentAccountResolver accounts,
+    internal static async Task<IResult?> AuthorizeAsync(HttpContext context, CurrentAccountResolver accounts,
         CancellationToken cancellationToken)
     {
         if (HasExpired(context) || context.User.Identity?.IsAuthenticated != true) { return AuthenticationRequired(context); }
@@ -242,12 +283,16 @@ public static partial class AccountDirectoryEndpoints
             : ApiProblems.Create(context, 403, "forbidden", "Administrator access is required.");
     }
 
-    private static async Task<IResult> CompleteAsync(HttpContext context, IDbContextTransaction transaction, IResult result,
-        CancellationToken cancellationToken)
+    internal static async Task<IResult> CompleteAsync(HttpContext context, IDbContextTransaction transaction, IResult result,
+        CancellationToken cancellationToken, bool readOnly = false)
     {
         if (HasExpired(context)) { return AuthenticationRequired(context); }
         await transaction.CommitAsync(cancellationToken);
-        if (HasExpired(context)) { return AuthenticationRequired(context); }
+        if (HasExpired(context))
+        {
+            return readOnly || HttpMethods.IsGet(context.Request.Method)
+                ? AuthenticationRequired(context) : CommittedWrite.WithoutRepresentation(context);
+        }
         return result;
     }
 

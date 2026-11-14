@@ -29,4 +29,5 @@ public static class SecurityPolicies
     /// Identifies the account write rate limit partitioned by current account or remote IP
     /// </summary>
     public const string AccountWriteRateLimit = "AccountWrite";
+    public const string AssetCatalogueReadRateLimit = "AssetCatalogueRead";
 }

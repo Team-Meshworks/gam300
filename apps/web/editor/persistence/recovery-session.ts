@@ -4,7 +4,7 @@ import type { ProjectDocument } from "../../shared/project/project-types";
 import { checkFields, invalid, isRecord } from "../../shared/project/validation-helpers";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
 import { validateRecoveryHistory, type RecoveryHistory } from "../recovery-history";
-import { IndexedDBDraftDatabase, type IDraftDatabase } from "./draft-db";
+import { IndexedDBDraftDatabase, SESSION_STORE_NAME, type IDraftDatabase } from "./draft-db";
 import { validateServerSaveRecovery, type ServerSaveRecovery } from "./server-save-recovery";
 
 function isCounter(value: unknown): value is number {
@@ -13,13 +13,14 @@ function isCounter(value: unknown): value is number {
 
 export type RecoverySession = Readonly<{
   revision: number;
-
   document: ProjectDocument;
   history?: RecoveryHistory;
   historyWarning?: string;
   // Older account-scoped backups without retry metadata can still be exported.
   serverSave?: ServerSaveRecovery;
 }>;
+
+type ClearedRecovery = Readonly<{ revision: number; document: null }>;
 
 // Account ID comes from the authenticated session
 // This key separates backups; server permissions still decide access to the project
@@ -41,7 +42,7 @@ function recoveryKey(scope: RecoveryScope): IDBValidKey | null {
 export async function loadRecoverySession(
   assetKinds: ReadonlyMap<string, string>,
   scope: RecoveryScope,
-): Promise<ValidationResult<RecoverySession | null>> {
+): Promise<ValidationResult<RecoverySession | ClearedRecovery | null>> {
   return await getRecoverySession(assetKinds, new IndexedDBDraftDatabase(), scope);
 }
 
@@ -49,7 +50,7 @@ export async function getRecoverySession(
   assetKinds: ReadonlyMap<string, string>,
   database: IDraftDatabase,
   scope: RecoveryScope,
-): Promise<ValidationResult<RecoverySession | null>> {
+): Promise<ValidationResult<RecoverySession | ClearedRecovery | null>> {
   // Capture identity before IndexedDB yields to a possible account switch
   const key = recoveryKey(scope);
   if (key === null) return invalid("storage", "Invalid recovery account or project");
@@ -62,13 +63,24 @@ export async function getRecoverySession(
   }
   try {
     const raw: unknown = await new Promise((resolve, reject) => {
-      const tx = connection.transaction("session", "readonly");
-      const read = tx.objectStore("session").get(key);
+      const tx = connection.transaction(SESSION_STORE_NAME, "readonly");
+      const read = tx.objectStore(SESSION_STORE_NAME).get(key);
       tx.oncomplete = () => resolve(read.result);
       tx.onabort = () => reject(tx.error);
     });
     if (raw === undefined) {
       return { ok: true, value: null };
+    }
+    if (isRecord(raw) && raw.cleared === true) {
+      const fields = checkFields(raw, ["revision", "cleared"], "recovery");
+      if (!fields.ok) return fields;
+      if (!isCounter(raw.revision) || raw.revision < 1) {
+        return invalid("storage", "Cleared recovery revision is invalid; the stored copy was kept");
+      }
+      return {
+        ok: true,
+        value: { revision: raw.revision, document: null },
+      };
     }
     if (
       !isRecord(raw) ||
@@ -184,8 +196,8 @@ export async function applySaveRecoverySession(
   return new Promise((resolve) => {
     let message = "Recovery backup failed; your current project is still open";
     try {
-      const tx = connection.transaction("session", "readwrite");
-      const store = tx.objectStore("session");
+      const tx = connection.transaction(SESSION_STORE_NAME, "readwrite");
+      const store = tx.objectStore(SESSION_STORE_NAME);
       const read = store.get(key);
       tx.onabort = () => {
         connection.close();
@@ -255,9 +267,9 @@ export async function clearConfirmedServerRecovery(
   return new Promise((resolve) => {
     let removed = false;
     try {
-      // Compare and delete in one transaction so a newer tab's edits survive cleanup
-      const tx = connection.transaction("session", "readwrite");
-      const store = tx.objectStore("session");
+      // Compare and clear in one transaction so a newer tab's edits survive cleanup
+      const tx = connection.transaction(SESSION_STORE_NAME, "readwrite");
+      const store = tx.objectStore(SESSION_STORE_NAME);
       const read = store.get(key);
       tx.onabort = () => {
         connection.close();
@@ -273,6 +285,8 @@ export async function clearConfirmedServerRecovery(
         // Missing metadata or newer local edits leave the backup in place
         if (
           !isRecord(raw) ||
+          !isCounter(raw.revision) ||
+          raw.revision < 1 ||
           !isRecord(raw.serverSave) ||
           raw.serverSave.pending !== null ||
           typeof raw.document !== "string" ||
@@ -280,7 +294,8 @@ export async function clearConfirmedServerRecovery(
         )
           return;
         try {
-          store.delete(key);
+          // Keep the revision so another tab cannot reuse an old counter after cleanup
+          store.put({ revision: raw.revision, cleared: true }, key);
           removed = true;
         } catch {
           tx.abort();

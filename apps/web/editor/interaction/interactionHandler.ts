@@ -71,14 +71,9 @@ export function createInteractionHandler(
     update(deltaSeconds) {
       if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return;
       elapsedSeconds += deltaSeconds;
-      let started = false;
       for (const interaction of interactions) {
         if (interaction.when.type !== "time-elapsed" || fired.has(interaction)) continue;
         if (elapsedSeconds < triggerSeconds(interaction.when)) continue;
-        if (!started) {
-          beginEvent();
-          started = true;
-        }
         fired.add(interaction);
         if (execute(interaction.do)) break;
       }

@@ -171,7 +171,9 @@ public sealed class OrganizationDeletionTests
     }
 
     [Test]
-    public async Task Delete_RequiresCsrfAndExactNameAndSupportsEmptyInactiveOrganization()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Delete_RequiresCsrfAndExactNameAndSupportsEmptyInactiveOrganization(bool usePost)
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
@@ -180,18 +182,22 @@ public sealed class OrganizationDeletionTests
         var org = new Organization { Id = Guid.NewGuid(), Name = "Confirm this name", IsActive = false };
         db.Organizations.Add(org);
         await db.SaveChangesAsync();
+        var method = usePost ? HttpMethod.Post : HttpMethod.Delete;
+        var path = usePost ? Path(org.Id) + "/deletion" : Path(org.Id);
         foreach (var json in new[] { "{}", "{\"confirmationName\":null}", "{\"confirmationName\":\"\"}", "{\"confirmationName\":\"confirm this name\"}", "{\"confirmationName\":\"Confirm this name \"}" })
         {
-            using var request = new HttpRequestMessage(HttpMethod.Delete, Path(org.Id)) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+            using var request = new HttpRequestMessage(method, path) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
             request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
             using var invalid = await fixture.Client.SendAsync(request);
             await Assert.That(invalid.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         }
-        using var noToken = new HttpRequestMessage(HttpMethod.Delete, Path(org.Id)) { Content = JsonContent.Create(new { confirmationName = org.Name }) };
+        using var noToken = new HttpRequestMessage(method, path) { Content = JsonContent.Create(new { confirmationName = org.Name }) };
         using var rejected = await fixture.Client.SendAsync(noToken);
         await AuthTestRequests.AssertProblemAsync(rejected, HttpStatusCode.BadRequest, "csrf_invalid");
         await Assert.That(await db.Organizations.AnyAsync(row => row.Id == org.Id)).IsTrue();
-        using var deleted = await DeleteAsync(fixture, org.Id, org.Name);
+        using var deleted = usePost
+            ? await AuthTestRequests.PostAsync(fixture, path, new { confirmationName = org.Name })
+            : await DeleteAsync(fixture, org.Id, org.Name);
         await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         await Assert.That(await db.Organizations.AnyAsync(row => row.Id == org.Id)).IsFalse();
     }
@@ -347,6 +353,77 @@ public sealed class OrganizationDeletionTests
         }
     }
 
+    [Test]
+    [Arguments("roster", HttpStatusCode.NoContent)]
+    [Arguments("assignment", HttpStatusCode.Created)]
+    [Arguments("duplicate", HttpStatusCode.Created)]
+    public async Task Delete_WaitsForInFlightWriterAndPurgesItsCommittedChanges(string operation, HttpStatusCode expected)
+    {
+        var rowLock = new RowLockPause(operation == "duplicate" ? "FROM projects WHERE id =" : "FROM classrooms WHERE id =");
+        var deletion = new LockProbe();
+        var failures = new CommandFailureProbe();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(rowLock, deletion, failures)),
+            environmentName: "Development");
+        var data = await ReviewSubmissionEndpointTests.SeedAsync(fixture, late: false);
+        using var educator = fixture.CreateClient();
+        await fixture.SignInAsync(data.Educator, educator);
+        var teacherToken = await fixture.GetCsrfAsync(educator);
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        var adminToken = await fixture.GetCsrfAsync();
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var organization = await db.Classrooms.Where(row => row.Id == data.ClassroomId)
+            .Select(row => row.OrganizationId).SingleAsync();
+        var classes = $"/api/v1/classes/{data.ClassroomId:D}";
+        using var remove = new HttpRequestMessage(HttpMethod.Delete, $"{classes}/members/{data.Student:D}");
+        remove.Headers.Add("X-CSRF-TOKEN", teacherToken);
+        rowLock.Armed = true;
+        var write = operation switch
+        {
+            "roster" => educator.SendAsync(remove),
+            "duplicate" => AuthTestRequests.PostAsync(fixture, $"/api/v1/projects/{data.ProjectId:D}/duplicate",
+                new { operationId = Guid.NewGuid(), title = "A copy", expectedRevision = 0 }, educator, teacherToken),
+            "assignment" => AuthTestRequests.PostAsync(fixture, $"{classes}/assignments", new
+            {
+                requestId = Guid.NewGuid(),
+                sourceProjectId = data.ProjectId,
+                sourceRevision = 0,
+                dueAtUnixSeconds = data.Due,
+                title = "Another assignment",
+                description = "Description",
+                instructions = "Instructions",
+                studentIds = new[] { data.Student },
+            }, educator, teacherToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        };
+        Task<HttpResponseMessage>? purge = null;
+        try
+        {
+            var writer = await rowLock.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            deletion.Armed = true;
+            purge = DeleteAsync(fixture, organization, token: adminToken);
+            var queued = await deletion.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await WaitBlockedAsync(db, queued, writer);
+            rowLock.Release.TrySetResult();
+            using var written = await write;
+            using var deleted = await purge;
+            await Assert.That(written.StatusCode).IsEqualTo(expected)
+                .Because(failures.Failure ?? "The request already held its child row and must finish before deletion.");
+            await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent)
+                .Because(failures.Failure ?? "Deletion must see the changes committed by the class writer.");
+            await Assert.That(await db.Organizations.AnyAsync(row => row.Id == organization)).IsFalse();
+            await Assert.That(await db.ClassAssignments.AnyAsync(row => row.OrganizationId == organization)).IsFalse();
+            await Assert.That(await db.Projects.AnyAsync(row => row.OrganizationId == organization)).IsFalse();
+        }
+        finally
+        {
+            rowLock.Release.TrySetResult();
+            using var drained = await write;
+            if (purge is not null) { using var drainedPurge = await purge; }
+        }
+    }
+
     private static async Task WaitBlockedAsync(ApplicationDbContext db, int waiter, int holder)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -402,6 +479,26 @@ public sealed class OrganizationDeletionTests
             {
                 Armed = false;
                 Entered.TrySetResult(((NpgsqlConnection)transaction.Connection!).ProcessID);
+                await Release.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
+            }
+            return result;
+        }
+    }
+
+    private sealed class RowLockPause(string target) : DbCommandInterceptor
+    {
+        public bool Armed;
+        public TaskCompletionSource<int> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+            DbDataReader result, CancellationToken cancellationToken = default)
+        {
+            if (Armed && command.CommandText.Contains(target, StringComparison.Ordinal)
+                && command.CommandText.Contains("FOR UPDATE", StringComparison.Ordinal))
+            {
+                Armed = false;
+                Entered.TrySetResult(((NpgsqlConnection)command.Connection!).ProcessID);
                 await Release.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
             }
             return result;

@@ -39,8 +39,8 @@ try {
       });
     assert.equal(request.headers()["x-spatia-account"], admin);
     if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "test-csrf" } });
-    if (request.method() === "DELETE") {
-      assert.equal(path, `/api/v1/admin/organizations/${orgId}`);
+    if (request.method() === "POST") {
+      assert.equal(path, `/api/v1/admin/organizations/${orgId}/deletion`);
       assert.equal(request.headers()["x-csrf-token"], "test-csrf");
       assert.deepEqual(request.postDataJSON(), { confirmationName: name });
       deletes++;

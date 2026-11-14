@@ -12,8 +12,10 @@ public static class AssetDeliveryEndpoints
     public static IEndpointRouteBuilder MapAssetDelivery(this IEndpointRouteBuilder endpoints)
     {
         // New selections see only active reviewed versions; retained project reads use a separate route below
-        endpoints.MapGet("/assets", async (ApplicationDbContext database, CancellationToken token) =>
-            Results.Ok(await database.AssetCandidates.AsNoTracking()
+        endpoints.MapGet("/assets", async (HttpContext context, ApplicationDbContext database, ProjectAccessService access,
+            CancellationToken token) =>
+        {
+            var rows = await database.AssetCandidates.AsNoTracking()
                 .Where(asset => asset.Status == "approved" && !asset.Hidden && !asset.Deleted && !asset.RemovedFromProjects)
                 .Select(asset => new
                 {
@@ -25,7 +27,10 @@ public static class AssetDeliveryEndpoints
                     asset.Sha256,
                     thumbnail = (string?)null
                 })
-                .Take(1000).ToArrayAsync(token))).RequireAuthorization(SecurityPolicies.FullAccount);
+                .OrderBy(asset => asset.id).Take(AssetIntakePolicy.CatalogueLimit).ToArrayAsync(token);
+            if (await RecheckAccountAsync(context, access, token) is { } denied) { return denied; }
+            return Results.Ok(rows);
+        }).RequireAuthorization(SecurityPolicies.FullAccount).RequireRateLimiting(SecurityPolicies.AssetCatalogueReadRateLimit);
         endpoints.MapGet("/projects/{projectId:guid}/assets", async (Guid projectId, HttpContext context,
             ApplicationDbContext database, ProjectAccessService access, ProjectDocumentService documents, CancellationToken token) =>
         {
@@ -50,16 +55,16 @@ public static class AssetDeliveryEndpoints
                     asset.Sha256,
                     thumbnail = (string?)null
                 }).ToArrayAsync(token);
-            if (context.Features.Get<ValidatedAccountSession>() is not { } session || session.Clock.GetUtcNow() >= session.ExpiresUtc)
-            { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+            if (await RecheckAccountAsync(context, access, token) is { } denied) { return denied; }
             context.Response.Headers.CacheControl = "private, no-store";
             return Results.Ok(rows);
-        }).RequireAuthorization(SecurityPolicies.FullAccount);
+        }).RequireAuthorization(SecurityPolicies.FullAccount).RequireRateLimiting(SecurityPolicies.AssetCatalogueReadRateLimit);
         endpoints.MapGet("/assets/{id:guid}/bytes", async (Guid id, HttpContext context,
-            ApplicationDbContext database, CancellationToken token) =>
+            ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
         {
             var asset = await database.AssetCandidates.AsNoTracking().SingleOrDefaultAsync(asset => asset.Id == id
                 && asset.Status == "approved" && !asset.Hidden && !asset.Deleted && !asset.RemovedFromProjects, token);
+            if (await RecheckAccountAsync(context, access, token) is { } denied) { return denied; }
             return Bytes(context, asset);
         }).RequireAuthorization(SecurityPolicies.FullAccount).RequireRateLimiting("AssetBytes");
         endpoints.MapGet("/projects/{projectId:guid}/assets/{id:guid}/bytes", async (Guid projectId, Guid id,
@@ -77,6 +82,7 @@ public static class AssetDeliveryEndpoints
             }
             var asset = await database.AssetCandidates.AsNoTracking().SingleOrDefaultAsync(asset => asset.Id == id
                 && asset.Status == "approved" && !asset.RemovedFromProjects, token);
+            if (await RecheckAccountAsync(context, access, token) is { } denied) { return denied; }
             return Bytes(context, asset);
         }).RequireAuthorization(SecurityPolicies.FullAccount).RequireRateLimiting("AssetBytes");
         return endpoints;
@@ -89,5 +95,12 @@ public static class AssetDeliveryEndpoints
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers.XContentTypeOptions = "nosniff";
         return Results.Bytes(asset.Bytes, AssetIntakePolicy.MediaType(asset.Kind));
+    }
+
+    private static async Task<IResult?> RecheckAccountAsync(HttpContext context, ProjectAccessService access, CancellationToken token)
+    {
+        var account = await access.ResolveCurrentAccountAsync(context, token);
+        if (account is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        return account.MustChangePassword ? ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired) : null;
     }
 }
