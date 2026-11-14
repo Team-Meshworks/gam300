@@ -429,7 +429,7 @@ try {
     const result = await recoveryPage.evaluate(
       async ({ project, accountId }) => {
         const { applySaveRecoverySession, clearConfirmedServerRecovery, getRecoverySession } =
-          await import("/persistence/local-drafts.ts");
+          await import("/persistence/recovery-session.ts");
         const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
         const database = new IndexedDBDraftDatabase();
         const assets = new Map([

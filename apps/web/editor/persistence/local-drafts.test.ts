@@ -9,7 +9,7 @@ import {
   clearConfirmedServerRecovery,
   getRecoverySession,
   type RecoverySession,
-} from "./local-drafts";
+} from "./recovery-session";
 import type { IDraftDatabase } from "./draft-db";
 import { createDocumentStore } from "../document-store";
 import { degreesToQuaternion } from "../ui/rotation-angles";
@@ -646,6 +646,106 @@ describe("server project session lifecycle", () => {
     await vi.advanceTimersByTimeAsync(5_000);
     expect(write).not.toHaveBeenCalled();
     expect(onStatus).toHaveBeenCalledTimes(count);
+  });
+
+  it("queues each recovery document with its captured history and storage revision", async () => {
+    const { store, database, write, session } = setup();
+    const originalObjects = store.getSnapshot().objects;
+    const firstObject = originalObjects[0];
+    const secondObject = originalObjects[1];
+    if (!firstObject || !secondObject) throw new Error("Fixture needs two objects");
+    const connect = database.getIndexedDB.bind(database);
+    let releaseOpen!: () => void;
+    const opening = new Promise<void>((resolve) => {
+      releaseOpen = resolve;
+    });
+    vi.spyOn(database, "getIndexedDB").mockImplementationOnce(async () => {
+      await opening;
+      return connect();
+    });
+    const stored = vi.spyOn(database.records, "set");
+    let finishWrite!: (result: ServerDraftResult) => void;
+    write.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishWrite = resolve;
+        }),
+    );
+
+    expect(store.deleteObject(firstObject.id).ok).toBe(true);
+    const firstHistory = store.getRecoveryHistory();
+    const flush = session.flush();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(database.getIndexedDB).toHaveBeenCalledTimes(1);
+    expect(store.deleteObject(secondObject.id).ok).toBe(true);
+    const secondHistory = store.getRecoveryHistory();
+    const checkpoint = session.prepareToLeave("recovery");
+    store.undo();
+
+    releaseOpen();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await checkpoint).toMatchObject({ ok: false });
+    expect(write).toHaveBeenCalledTimes(1);
+    const records = stored.mock.calls.map(
+      ([, record]) =>
+        record as {
+          revision: number;
+          document: string;
+          history: unknown;
+        },
+    );
+    expect(records).toMatchObject([
+      { revision: 1, history: firstHistory },
+      { revision: 2, history: secondHistory },
+    ]);
+    expect(records.map((record) => JSON.parse(record.document).scenes[0].objects.length)).toEqual([
+      originalObjects.length - 1,
+      originalObjects.length - 2,
+    ]);
+    const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
+    if (!recovered.ok || !recovered.value?.document) throw new Error("Missing queued recovery");
+    const reopened = createDocumentStore([]);
+    expect(
+      reopened.loadProject(
+        JSON.stringify(recovered.value.document),
+        assets,
+        recovered.value.history,
+      ).ok,
+    ).toBe(true);
+    expect(reopened.getSnapshot().canRedo).toBe(false);
+    reopened.undo();
+    expect(reopened.getSnapshot().objects).toHaveLength(originalObjects.length - 1);
+
+    finishWrite({ kind: "failed" });
+    await flush;
+    await session.dispose();
+  });
+
+  it("checkpoints a legacy scene after undoing its first hierarchy edit", async () => {
+    const { store, database, session, write } = setup();
+    expect(store.createGroup("Exhibits").ok).toBe(true);
+    await session.flush();
+    expect(write).toHaveBeenCalledTimes(1);
+    store.undo();
+    const current = store.getSnapshot().project;
+    expect(current?.schemaVersion).toBe(2);
+    expect(store.getSnapshot().canRedo).toBe(true);
+    await session.flush();
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(session.getStatus()).toBe("saved");
+    const restored = await getRecoverySession(assets, database, { accountId: "alice", projectId });
+    if (!restored.ok || !restored.value?.document) throw new Error("Missing undo checkpoint");
+    const reopened = createDocumentStore([]);
+    expect(
+      reopened.loadProject(JSON.stringify(restored.value.document), assets, restored.value.history)
+        .ok,
+    ).toBe(true);
+    expect(reopened.getSnapshot().canRedo).toBe(true);
+    reopened.redo();
+    expect(reopened.getSnapshot().project?.scenes[0]).toMatchObject({
+      groups: [{ name: "Exhibits" }],
+    });
+    await session.dispose();
   });
 
   it("saves a rotated crate and reopens the undo and redo history for another crate's rename", async () => {

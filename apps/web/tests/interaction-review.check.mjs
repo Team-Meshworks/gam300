@@ -40,7 +40,7 @@ async function backup(page, expectedUrl, count) {
   while (Date.now() < deadline) {
     const ready = await page.evaluate(
       async ({ expectedUrl, count }) => {
-        const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+        const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
         const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
         const result = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])), {
           accountId: "00000000-0000-4000-8000-000000000001",
@@ -134,7 +134,7 @@ try {
     await page.getByLabel("Interaction 1 do", { exact: true }).selectOption("open-link");
     await backup(page, "", 1); // Wait past the actual two-second debounce, leaving the URL empty.
     const restoredVersion = await page.evaluate(async () => {
-      const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+      const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
       const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
       return (
         await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])), {
@@ -172,7 +172,7 @@ try {
     );
     if (version === 2) {
       const mixed = await page.evaluate(async () => {
-        const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+        const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
         const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
         const result = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])), {
           accountId: "00000000-0000-4000-8000-000000000001",
@@ -257,7 +257,7 @@ try {
       throw new Error(`${error.message}\n${await boundaryPage.locator("body").innerText()}`);
     });
   await boundaryPage.evaluate(async (document) => {
-    const { applySaveRecoverySession } = await import("/persistence/local-drafts.ts");
+    const { applySaveRecoverySession } = await import("/persistence/recovery-session.ts");
     const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const confirmedJson = JSON.stringify(document);

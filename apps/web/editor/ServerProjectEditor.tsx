@@ -12,13 +12,13 @@ import { HOTSPOT_ASSET } from "../shared/asset-runtime/hotspot";
 import { createDocumentStore } from "./document-store";
 import { createAccountClient, type AccountRole } from "./accounts/account-client";
 import { LoginRedirect } from "./accounts/LoginRedirect";
+import { readServerAssets } from "./persistence/server-assets";
+import { readServerProject, type OpenedServerProject } from "./persistence/server-project-read";
 import {
-  readServerAssets,
-  readServerProject,
-  type OpenedServerProject,
-} from "./persistence/server-project-read";
-import { connectServerProjectSession } from "./persistence/server-project-session";
-import { loadRecoverySession, type RecoverySession } from "./persistence/local-drafts";
+  connectServerProjectSession,
+  type ServerSaveStatus,
+} from "./persistence/server-project-session";
+import { loadRecoverySession, type RecoverySession } from "./persistence/recovery-session";
 import {
   pickProjectDestination,
   projectFilename,
@@ -30,7 +30,6 @@ import { deserializeProject } from "../shared/project/project-deserialization";
 import { MAX_PROJECT_BYTES } from "../shared/project/project-limits";
 import { createWorkspaceClient, isId, isRecord, projectReceipt } from "./home/workspace-api";
 import { Icon } from "./ui/Icon";
-import type { ServerSaveStatus } from "./persistence/server-autosave";
 import { parseProgressContext, reviewReturnUrl } from "./projects/progress-navigation";
 
 const accounts = createAccountClient();

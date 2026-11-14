@@ -128,7 +128,7 @@ completion status remain outside this technical specification.
 2. Moving commits `setTransform`; Undo restores its previous transform. The store
    publishes a new snapshot for each committed operation.
 3. The server project session captures committed document and history snapshots after
-   a two-second editing pause. `local-drafts.ts` writes them to an account-and-project
+   a two-second editing pause. `recovery-session.ts` writes them to an account-and-project
    scoped IndexedDB record, checking the expected storage revision.
    Only a committed transaction reports success. Backup failures pause retries until Save.
 4. Server autosave uses revision-aware writes. An emergency project export can preserve

@@ -4,7 +4,7 @@ import type { ProjectDocument } from "../../shared/project/project-types";
 import { checkFields, invalid, isRecord } from "../../shared/project/validation-helpers";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
 import { validateRecoveryHistory, type RecoveryHistory } from "../recovery-history";
-import { IndexedDBDraftDatabase, type IDraftDatabase } from "./draft-db";
+import { IndexedDBDraftDatabase, SESSION_STORE_NAME, type IDraftDatabase } from "./draft-db";
 import { validateServerSaveRecovery, type ServerSaveRecovery } from "./server-save-recovery";
 
 function isCounter(value: unknown): value is number {
@@ -63,8 +63,8 @@ export async function getRecoverySession(
   }
   try {
     const raw: unknown = await new Promise((resolve, reject) => {
-      const tx = connection.transaction("session", "readonly");
-      const read = tx.objectStore("session").get(key);
+      const tx = connection.transaction(SESSION_STORE_NAME, "readonly");
+      const read = tx.objectStore(SESSION_STORE_NAME).get(key);
       tx.oncomplete = () => resolve(read.result);
       tx.onabort = () => reject(tx.error);
     });
@@ -196,8 +196,8 @@ export async function applySaveRecoverySession(
   return new Promise((resolve) => {
     let message = "Recovery backup failed; your current project is still open";
     try {
-      const tx = connection.transaction("session", "readwrite");
-      const store = tx.objectStore("session");
+      const tx = connection.transaction(SESSION_STORE_NAME, "readwrite");
+      const store = tx.objectStore(SESSION_STORE_NAME);
       const read = store.get(key);
       tx.onabort = () => {
         connection.close();
@@ -268,8 +268,8 @@ export async function clearConfirmedServerRecovery(
     let removed = false;
     try {
       // Compare and clear in one transaction so a newer tab's edits survive cleanup
-      const tx = connection.transaction("session", "readwrite");
-      const store = tx.objectStore("session");
+      const tx = connection.transaction(SESSION_STORE_NAME, "readwrite");
+      const store = tx.objectStore(SESSION_STORE_NAME);
       const read = store.get(key);
       tx.onabort = () => {
         connection.close();

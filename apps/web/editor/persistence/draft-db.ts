@@ -1,6 +1,6 @@
 const DATABASE_NAME = "vthere-local-drafts";
 const DATABASE_VERSION = 2;
-const SESSION_STORE_NAME = "session";
+export const SESSION_STORE_NAME = "session";
 
 function upgradeDatabase(database: IDBDatabase): void {
   // Keep the version-2 schema compatible with existing browser profiles and open tabs.

@@ -179,9 +179,8 @@
         "editor/persistence/server-project-session.ts",
         "editor/persistence/server-project-read.ts",
         "editor/persistence/server-assets.ts",
-        "editor/persistence/local-drafts.ts",
-        "editor/persistence/project-files.ts",
-        "editor/persistence/server-autosave.ts"
+        "editor/persistence/recovery-session.ts",
+        "editor/persistence/project-files.ts"
       ]
     },
     "ui-foundation": {
@@ -338,11 +337,11 @@
   "files": {
     "account-dev-server.ts": "e117343d2dda5bf2d1a2636bfffdb6d2559da9410db4a42fdc336a837259c6fd",
     "architecture.check.mjs": "4725617ff67e1bdfe64935e10f25a7a0199e138a9a39e064b2b693435235c2a3",
-    "architecture.mjs": "fb1fb962236faa10c01970ba484e62de46d3e6a4a4473f9dab5822ee72dfc2dc",
+    "architecture.mjs": "5421cd675571060f19be967659b92272b4ec7d6cf9a8882f948b168c030288c6",
     "asset-catalogue-plugin.ts": "9d13b4b5a45ddd6b5e6b2f91e5bc57897628a33aff42afa2f1ce3ec630be95a9",
     "editor/App.tsx": "9710b06bd5b50f1bcb8e516e7e5bb0e0fa20eb867a921bbd653aa1bd7c96cd59",
     "editor/Scenes.tsx": "afaa76820b30e011b31a76b739a8c16a1f6c336eb723e25de82b1f60f6baa7d5",
-    "editor/ServerProjectEditor.tsx": "8445a650df84e4fda6e39adfb3c1a5b68860f61966461e73600a36ce52539d30",
+    "editor/ServerProjectEditor.tsx": "fcc64232a0f93d9604adc1eb0e83bf4df0d314548ab71feb6b80b88628ab88f8",
     "editor/Viewpoints.tsx": "78c54d8fb8b886651fff4b1a977892926d6ebec53568429d7f557368c9748aeb",
     "editor/accounts/LoginRedirect.tsx": "717e26f1bbab1de317bee11eeb9c3a5c3a27d562ad0ac3c23d67f5a7f5e15e60",
     "editor/accounts/WorkspaceAccountGate.tsx": "ffd4aab7ab451a50d655767c3085a191b80b7c9b7579e3d59469a455f1838a91",
@@ -478,21 +477,21 @@
     "editor/interaction/triggerHandler.ts": "3228e032e7456c93ba66d34e488363da2ffc48674a67676609160c06a6592c97",
     "editor/main.tsx": "dccf78ac598296fc3cfe8215c75e687f701159125dc0e2e7591282b803ebb6c3",
     "editor/object-copy.test.ts": "5bc349da3a6a6469cab579d162d66263614cafa3180a92ab5bd1884abfaccca6",
-    "editor/persistence/draft-db.ts": "4e874b102cdbbf919f3ca960efbae007a05fd59ff05bb285cc9713837ded3634",
-    "editor/persistence/local-drafts.test.ts": "6fd9527bf7b91e297a1794e5324b9a85fb39a9eb930a0272ed4b34182810a6cc",
-    "editor/persistence/local-drafts.ts": "6e89080d7bd5ec19ce3adb5e99e86f9818962cbfa7053345d1df5ecd536378cb",
+    "editor/persistence/draft-db.ts": "8416ed65d5502f1b586b1a9a212ada28f0eda2791b32f900bd52b7c68d80b17e",
+    "editor/persistence/local-drafts.test.ts": "df1eb527899510282c8f1686b41a6432c811d5203be93754dae592b175265391",
     "editor/persistence/project-files.ts": "4eeb35e1c6f4448b3e984de97d9e025d27ee086e52e85323627dd750b3c0c9e5",
+    "editor/persistence/recovery-session.ts": "9f37ab2776e63867c98032f4d9b39059c5bd59e59b4b87c943646ed449e079ee",
     "editor/persistence/server-assets.test.ts": "1f85a922a7840fdae48bdccff800d4f6c0762189f55e889e06a2afcbbd646dec",
     "editor/persistence/server-assets.ts": "e429f99bb08dacb0a95b335effab21c68b749dc8f1fd873f155f05f9c69644e7",
-    "editor/persistence/server-autosave.test.ts": "d55368936aeb41291cebfb51c4b2629378af5866b75de3c965ad22c261901f60",
-    "editor/persistence/server-autosave.ts": "c93e8f4edebbfdb500a98a87c9082d7fe58012966e3a92b5028dcd9ad150ed00",
+    "editor/persistence/server-autosave.test.ts": "52ec119721ece08dfa24827128c3302ccf36dabd5b8e0601397d897fbcbc1f95",
+    "editor/persistence/server-autosave.ts": "f3c506e078ba8b363558885c1e16e648ec80ca9be211a6bd1f1fbdadb1e3cedf",
     "editor/persistence/server-draft-write.test.ts": "d3d16a214bcb1f140281a757baded102e524c8c25cedefecce91322823f6219b",
     "editor/persistence/server-draft-write.ts": "ae618b3efd9a89fe422054e1aabe7d5cdc4ea418a11fc1e74c9d4b3648445489",
     "editor/persistence/server-project-read.test.ts": "9d0628021f741b023bb3205c982f679446dda41b19da67341ccb858140f94f06",
-    "editor/persistence/server-project-read.ts": "abb11a2fc8eaa5cab0e4ca46d46f104005dd4d2c4157b2ad4574928b755ad28f",
-    "editor/persistence/server-project-session.ts": "5655bae1370d0cdf8c2521d4bbf7aeb5b1c58f69bc9303de9f77f8fe5df26815",
-    "editor/persistence/server-save-progress.test.ts": "4eb3091bc78c665e7c9ccdfc2dd5fed6f77ec57dde1625b3ec5a5652ede7cf76",
-    "editor/persistence/server-save-progress.ts": "2d3d5af618775239cae849d948cbefb65d2e604c3918fb5d48845c9a5724957d",
+    "editor/persistence/server-project-read.ts": "bfee6f0a73904d23bf577bf1af5268a3b574f43e82da4fa431d8bd98dddcec7f",
+    "editor/persistence/server-project-session.ts": "bde049d13f609abc39b8e37d3eeab8a64d694606bd7e23d591852ac8c315a506",
+    "editor/persistence/server-save-progress.test.ts": "7da95697e6799faa8c075afb8cbdf87960aa91fdf6ddb29a5106c9c547f140c4",
+    "editor/persistence/server-save-progress.ts": "d91693f1c6fad40440804ba0015e93a51e01f0ea60cf9b201eb78fb52138a254",
     "editor/persistence/server-save-recovery.test.ts": "4f29c6adc1b909927a70f1281c14012cb0e8791ecd3e78e4e6d166884539cd21",
     "editor/persistence/server-save-recovery.ts": "12a82434949e6b61bd94396cbc5e0f62e1d376341a36edaecd6d682582dc5225",
     "editor/persistence/server-save-timer.test.ts": "18df63843852b27255844ab646d0212d86b834273b2f2c4bc6c2d793e9db1b5d",
@@ -543,7 +542,7 @@
     "editor/recovery-history.test.ts": "8083087ab03c353b7003566313250206513105e7dbd7c103c99d2ea7870dde31",
     "editor/recovery-history.ts": "23343f2a19a8bc7a1faaea9fe24aa0b7a9346f4f181eda6c6eaf37580666cf5a",
     "editor/reviews/EducatorReviewLink.tsx": "ce0cacd14d790807ab6a9467570308dc24914ab873e0d26051a52b012ccfb26c",
-    "editor/reviews/FacilitatorProjectView.tsx": "16299457ef7ef594df8a1734d0d38283ee221a47823011d632083f8eb6ec6167",
+    "editor/reviews/FacilitatorProjectView.tsx": "8f70643f5d37ad7f5566a5a347497839b5e8d899e9a2e3453873fb58f9fdc769",
     "editor/reviews/ProgressReviews.tsx": "424dc5319f54922d1b0e6389f32c86aa960e9dbf8e6a07cef7e136a9ac015cdc",
     "editor/reviews/ProjectReview.tsx": "717677809ec674a687310b318b3616549a764c84e704b29c4eec579f51c353b9",
     "editor/reviews/RequestApproval.tsx": "20e010aeaf04a02d4b27b8df8bd3478a5d46b62574c6863b46d94c9ac1d63bf1",
@@ -713,7 +712,7 @@
     "tests/display-placement-cancellation.mjs": "21190a6584b4ea7bef3e42c220504bd55dafa1b441d894662ee20b1fce721afa",
     "tests/display-tools.check.mjs": "a161fb55ad8085a11f3b6672ec9a2e9bf18dcc8eac7ef2cbcc679c7181b31cd3",
     "tests/editor-build.check.mjs": "891b21639ae7cbfbb194325022b63c38baadc3b8830969cdc7b14a94806ab857",
-    "tests/editor-integration.check.mjs": "a5889f2bde9ff1a33b04e04b6bc98dbeb44bb24eeebb898dc052d086938fa405",
+    "tests/editor-integration.check.mjs": "739a5e553781ebab0484307644c6a0adf11fdff6b4d5a13d1b89e6e5d1e13fae",
     "tests/editor-library-previews.check.mjs": "6a31aca2f84f89ee80c91ddf8805e13225cf04949beca26132e59a6bf94fdbcf",
     "tests/editor-session-loading.check.mjs": "28d2078d8fab7085dc8f325969d6cd8a574ca48dba5b446dfae246407e5bf1be",
     "tests/editor-shell.check.mjs": "85e1d20d38f37948ada5f0807035f153cfa3d55628cbdb888334fc74dedbc738",
@@ -723,14 +722,14 @@
     "tests/entry.check.mjs": "f9b60756120a26f7f0266f6d3f04bf8079ad018b92d318ca074e07f181f620b9",
     "tests/first-person-sandbox.check.mjs": "1105127c48ab22754d93c53365f024a556c7cd513a401fd71466f4876d58357a",
     "tests/furniture-tools.check.mjs": "b14a7ab37f816327517b7a84983b6e571a928d76845f682a25a5264f49afb220",
-    "tests/history-recovery.check.mjs": "77560522a6d9566e1c7be742c95c6c0482a53a9f6739397c89dba3ccfa4bc1d1",
+    "tests/history-recovery.check.mjs": "5809b761c68154520f3680d1d9a2cdf8fc2852788536a7272010388062518f66",
     "tests/home-welcome.check.mjs": "9503d6a90591c2e22a640d8d8ec5e4eec97059ce60446608632e19d7649d9fd2",
     "tests/home.check.mjs": "b4efabedf0a2fd9a3644860ba5aa7889c9aef90e1c82187e466710e980ee40e5",
     "tests/hotspot-deletion.check.mjs": "d807bcdbce8dca32404a7db4c903f50815621f90a1eb3ec0d58810292e1137b7",
     "tests/hotspot-placement.check.mjs": "0f70423ae8d15a3084c0e2337c34df4686ecca577dadc88d66320340f896858e",
     "tests/hotspot-rendering.check.mjs": "a8dfef8c40b58bbf3c8955f2a0d312db754b7fdafa79ab4a5d74e1423a4c3b26",
     "tests/interaction-navigation.check.mjs": "aeb46c885ed614483d238b79a11e7cb5ca0327e55a5ab1a910004432b399b300",
-    "tests/interaction-review.check.mjs": "88c5079c25fa18a08925dbca2c4b8ee6eda31767d0fc858b8c7c27357561adc1",
+    "tests/interaction-review.check.mjs": "4fb0077bd284302ccfd816d7c8c1b4a5cc4b6e4c26a6c5e73f53e546d03b938c",
     "tests/login-real-api.check.mjs": "8b5bfa63ddb1cf8a932d0d16c532c25813dfd0810e612df997e03968ee5c16fa",
     "tests/moving-room-collision.check.mjs": "c2882f8f7e2214428335c61a3f6083f2c0176bdc92e02b2cd8dc8e170f87a112",
     "tests/new-project.check.mjs": "b7b4033f85565fedbfaa0e410ef152c2cee02d9a8eaee1f91ee9e572625de0e0",
@@ -760,7 +759,7 @@
     "tests/room-preview.check.mjs": "1b7ac6554a198f1a35a86135f70ed8e10ec18986f9698c07ec50788670d08040",
     "tests/scene-authoring-flow.check.mjs": "f0835c2c75dde83316f6526b42347b5fee69bd70717f7ae60dbdbb524c5ab86d",
     "tests/scene-deletion.check.mjs": "91afe1b84433304da13b1413daada20a8929c7b35a7d1daf8b6c54a4774e4c2e",
-    "tests/server-autosave.check.mjs": "0b9b5fb2e8cb5afa8f44a14f6d105b66989bc974f020ce70b38e6cdcf31e3bd2",
+    "tests/server-autosave.check.mjs": "2511a75ced818578028c398a667695062366c4ad119ff3608b409a48bf1cb30a",
     "tests/starter-room-transform.check.mjs": "e094c8695624ad0ff8e021266c523d0dff71ccfd4e78662707331e67f98e54f8",
     "tests/teacher-assignment-edit-storage.check.mjs": "622574d4b3ae3533d74e3040f24bbfb15a655f3c5d2e51b7eb319e6fa20184e3",
     "tests/teacher-assignment-edit.check.mjs": "231b7ad6bdbb8087314300dd870fed858a7587f6dc13eaa5115077d0746f4ce0",
@@ -1637,6 +1636,15 @@
       "file": "editor/ServerProjectEditor.tsx",
       "line": 15,
       "kind": "static",
+      "specifier": "./persistence/server-assets",
+      "target": "editor/persistence/server-assets.ts",
+      "from": "editor",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/ServerProjectEditor.tsx",
+      "line": 16,
+      "kind": "static",
       "specifier": "./persistence/server-project-read",
       "target": "editor/persistence/server-project-read.ts",
       "from": "editor",
@@ -1644,7 +1652,7 @@
     },
     {
       "file": "editor/ServerProjectEditor.tsx",
-      "line": 20,
+      "line": 17,
       "kind": "static",
       "specifier": "./persistence/server-project-session",
       "target": "editor/persistence/server-project-session.ts",
@@ -1655,8 +1663,8 @@
       "file": "editor/ServerProjectEditor.tsx",
       "line": 21,
       "kind": "static",
-      "specifier": "./persistence/local-drafts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "./persistence/recovery-session",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "editor",
       "to": "persistence"
     },
@@ -1717,15 +1725,6 @@
     {
       "file": "editor/ServerProjectEditor.tsx",
       "line": 33,
-      "kind": "type",
-      "specifier": "./persistence/server-autosave",
-      "target": "editor/persistence/server-autosave.ts",
-      "from": "editor",
-      "to": "persistence"
-    },
-    {
-      "file": "editor/ServerProjectEditor.tsx",
-      "line": 34,
       "kind": "static",
       "specifier": "./projects/progress-navigation",
       "target": "editor/projects/progress-navigation.ts",
@@ -1734,7 +1733,7 @@
     },
     {
       "file": "editor/ServerProjectEditor.tsx",
-      "line": 84,
+      "line": 83,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -8502,8 +8501,8 @@
       "file": "editor/persistence/local-drafts.test.ts",
       "line": 7,
       "kind": "static",
-      "specifier": "./local-drafts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "./recovery-session",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "checks",
       "to": "persistence"
     },
@@ -8562,7 +8561,7 @@
       "to": "persistence"
     },
     {
-      "file": "editor/persistence/local-drafts.ts",
+      "file": "editor/persistence/recovery-session.ts",
       "line": 1,
       "kind": "static",
       "specifier": "../../shared/project/project-serialization",
@@ -8571,7 +8570,7 @@
       "to": "project"
     },
     {
-      "file": "editor/persistence/local-drafts.ts",
+      "file": "editor/persistence/recovery-session.ts",
       "line": 2,
       "kind": "static",
       "specifier": "../../shared/project/project-deserialization",
@@ -8580,7 +8579,7 @@
       "to": "project"
     },
     {
-      "file": "editor/persistence/local-drafts.ts",
+      "file": "editor/persistence/recovery-session.ts",
       "line": 3,
       "kind": "type",
       "specifier": "../../shared/project/project-types",
@@ -8589,7 +8588,7 @@
       "to": "project"
     },
     {
-      "file": "editor/persistence/local-drafts.ts",
+      "file": "editor/persistence/recovery-session.ts",
       "line": 4,
       "kind": "static",
       "specifier": "../../shared/project/validation-helpers",
@@ -8598,7 +8597,7 @@
       "to": "project"
     },
     {
-      "file": "editor/persistence/local-drafts.ts",
+      "file": "editor/persistence/recovery-session.ts",
       "line": 5,
       "kind": "type",
       "specifier": "../../shared/project/validation-helpers",
@@ -8607,7 +8606,7 @@
       "to": "project"
     },
     {
-      "file": "editor/persistence/local-drafts.ts",
+      "file": "editor/persistence/recovery-session.ts",
       "line": 6,
       "kind": "static",
       "specifier": "../recovery-history",
@@ -8616,7 +8615,7 @@
       "to": "document"
     },
     {
-      "file": "editor/persistence/local-drafts.ts",
+      "file": "editor/persistence/recovery-session.ts",
       "line": 7,
       "kind": "static",
       "specifier": "./draft-db",
@@ -8625,7 +8624,7 @@
       "to": "persistence"
     },
     {
-      "file": "editor/persistence/local-drafts.ts",
+      "file": "editor/persistence/recovery-session.ts",
       "line": 8,
       "kind": "static",
       "specifier": "./server-save-recovery",
@@ -8745,15 +8744,6 @@
       "to": "persistence"
     },
     {
-      "file": "editor/persistence/server-autosave.test.ts",
-      "line": 6,
-      "kind": "type",
-      "specifier": "./server-save-recovery",
-      "target": "editor/persistence/server-save-recovery.ts",
-      "from": "checks",
-      "to": "persistence"
-    },
-    {
       "file": "editor/persistence/server-autosave.ts",
       "line": 1,
       "kind": "type",
@@ -8801,7 +8791,7 @@
     {
       "file": "editor/persistence/server-autosave.ts",
       "line": 6,
-      "kind": "static",
+      "kind": "type",
       "specifier": "./server-draft-write",
       "target": "editor/persistence/server-draft-write.ts",
       "from": "persistence",
@@ -8918,15 +8908,6 @@
       "to": "project"
     },
     {
-      "file": "editor/persistence/server-project-read.ts",
-      "line": 6,
-      "kind": "static",
-      "specifier": "./server-assets",
-      "target": "editor/persistence/server-assets.ts",
-      "from": "persistence",
-      "to": "persistence"
-    },
-    {
       "file": "editor/persistence/server-project-session.ts",
       "line": 1,
       "kind": "type",
@@ -8939,15 +8920,6 @@
       "file": "editor/persistence/server-project-session.ts",
       "line": 2,
       "kind": "static",
-      "specifier": "../../shared/project/project-deserialization",
-      "target": "shared/project/project-deserialization.ts",
-      "from": "persistence",
-      "to": "project"
-    },
-    {
-      "file": "editor/persistence/server-project-session.ts",
-      "line": 3,
-      "kind": "static",
       "specifier": "../../shared/project/project-serialization",
       "target": "shared/project/project-serialization.ts",
       "from": "persistence",
@@ -8955,7 +8927,7 @@
     },
     {
       "file": "editor/persistence/server-project-session.ts",
-      "line": 4,
+      "line": 3,
       "kind": "static",
       "specifier": "../../shared/project/validation-helpers",
       "target": "shared/project/validation-helpers.ts",
@@ -8964,7 +8936,7 @@
     },
     {
       "file": "editor/persistence/server-project-session.ts",
-      "line": 5,
+      "line": 4,
       "kind": "static",
       "specifier": "./draft-db",
       "target": "editor/persistence/draft-db.ts",
@@ -8973,16 +8945,16 @@
     },
     {
       "file": "editor/persistence/server-project-session.ts",
-      "line": 6,
+      "line": 5,
       "kind": "static",
-      "specifier": "./local-drafts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "./recovery-session",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "persistence",
       "to": "persistence"
     },
     {
       "file": "editor/persistence/server-project-session.ts",
-      "line": 11,
+      "line": 10,
       "kind": "static",
       "specifier": "./server-autosave",
       "target": "editor/persistence/server-autosave.ts",
@@ -8991,7 +8963,16 @@
     },
     {
       "file": "editor/persistence/server-project-session.ts",
-      "line": 12,
+      "line": 15,
+      "kind": "static",
+      "specifier": "./server-autosave",
+      "target": "editor/persistence/server-autosave.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-project-session.ts",
+      "line": 16,
       "kind": "static",
       "specifier": "./server-draft-write",
       "target": "editor/persistence/server-draft-write.ts",
@@ -9015,6 +8996,24 @@
       "specifier": "./server-save-progress",
       "target": "editor/persistence/server-save-progress.ts",
       "from": "checks",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-save-progress.ts",
+      "line": 1,
+      "kind": "type",
+      "specifier": "./server-draft-write",
+      "target": "editor/persistence/server-draft-write.ts",
+      "from": "persistence",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/persistence/server-save-progress.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "./server-save-recovery",
+      "target": "editor/persistence/server-save-recovery.ts",
+      "from": "persistence",
       "to": "persistence"
     },
     {
@@ -11205,6 +11204,15 @@
       "file": "editor/reviews/FacilitatorProjectView.tsx",
       "line": 10,
       "kind": "static",
+      "specifier": "../persistence/server-assets",
+      "target": "editor/persistence/server-assets.ts",
+      "from": "editor",
+      "to": "persistence"
+    },
+    {
+      "file": "editor/reviews/FacilitatorProjectView.tsx",
+      "line": 11,
+      "kind": "static",
       "specifier": "../persistence/server-project-read",
       "target": "editor/persistence/server-project-read.ts",
       "from": "editor",
@@ -11212,7 +11220,7 @@
     },
     {
       "file": "editor/reviews/FacilitatorProjectView.tsx",
-      "line": 15,
+      "line": 12,
       "kind": "static",
       "specifier": "../projects/assignment-api",
       "target": "editor/projects/assignment-api.ts",
@@ -11221,7 +11229,7 @@
     },
     {
       "file": "editor/reviews/FacilitatorProjectView.tsx",
-      "line": 16,
+      "line": 13,
       "kind": "static",
       "specifier": "../projects/progress-navigation",
       "target": "editor/projects/progress-navigation.ts",
@@ -11230,7 +11238,7 @@
     },
     {
       "file": "editor/reviews/FacilitatorProjectView.tsx",
-      "line": 22,
+      "line": 19,
       "kind": "static",
       "specifier": "../document-store",
       "target": "editor/document-store.ts",
@@ -11239,7 +11247,7 @@
     },
     {
       "file": "editor/reviews/FacilitatorProjectView.tsx",
-      "line": 23,
+      "line": 20,
       "kind": "static",
       "specifier": "../App",
       "target": "editor/App.tsx",
@@ -11248,7 +11256,7 @@
     },
     {
       "file": "editor/reviews/FacilitatorProjectView.tsx",
-      "line": 24,
+      "line": 21,
       "kind": "static",
       "specifier": "./review-client",
       "target": "editor/reviews/review-client.ts",
@@ -11257,7 +11265,7 @@
     },
     {
       "file": "editor/reviews/FacilitatorProjectView.tsx",
-      "line": 25,
+      "line": 22,
       "kind": "static",
       "specifier": "../../shared/ui/Button",
       "target": "shared/ui/Button.tsx",
@@ -11266,7 +11274,7 @@
     },
     {
       "file": "editor/reviews/FacilitatorProjectView.tsx",
-      "line": 26,
+      "line": 23,
       "kind": "static",
       "specifier": "./ProgressReviews",
       "target": "editor/reviews/ProgressReviews.tsx",
@@ -11275,7 +11283,7 @@
     },
     {
       "file": "editor/reviews/FacilitatorProjectView.tsx",
-      "line": 27,
+      "line": 24,
       "kind": "static",
       "specifier": "./reviews.css",
       "target": "editor/reviews/reviews.css",
@@ -11284,7 +11292,7 @@
     },
     {
       "file": "editor/reviews/FacilitatorProjectView.tsx",
-      "line": 28,
+      "line": 25,
       "kind": "static",
       "specifier": "./facilitator-project.css",
       "target": "editor/reviews/facilitator-project.css",
@@ -11293,7 +11301,7 @@
     },
     {
       "file": "editor/reviews/FacilitatorProjectView.tsx",
-      "line": 219,
+      "line": 216,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -18356,8 +18364,8 @@
       "file": "tests/editor-integration.check.mjs",
       "line": 112,
       "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "/persistence/recovery-session.ts",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "checks",
       "to": "persistence"
     },
@@ -18893,8 +18901,8 @@
       "file": "tests/history-recovery.check.mjs",
       "line": 65,
       "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "/persistence/recovery-session.ts",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "checks",
       "to": "persistence"
     },
@@ -18911,8 +18919,8 @@
       "file": "tests/history-recovery.check.mjs",
       "line": 170,
       "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "/persistence/recovery-session.ts",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "checks",
       "to": "persistence"
     },
@@ -18938,8 +18946,8 @@
       "file": "tests/history-recovery.check.mjs",
       "line": 264,
       "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "/persistence/recovery-session.ts",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "checks",
       "to": "persistence"
     },
@@ -18974,8 +18982,8 @@
       "file": "tests/history-recovery.check.mjs",
       "line": 304,
       "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "/persistence/recovery-session.ts",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "checks",
       "to": "persistence"
     },
@@ -19365,8 +19373,8 @@
       "file": "tests/interaction-review.check.mjs",
       "line": 43,
       "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "/persistence/recovery-session.ts",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "checks",
       "to": "persistence"
     },
@@ -19383,8 +19391,8 @@
       "file": "tests/interaction-review.check.mjs",
       "line": 137,
       "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "/persistence/recovery-session.ts",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "checks",
       "to": "persistence"
     },
@@ -19401,8 +19409,8 @@
       "file": "tests/interaction-review.check.mjs",
       "line": 175,
       "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "/persistence/recovery-session.ts",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "checks",
       "to": "persistence"
     },
@@ -19419,8 +19427,8 @@
       "file": "tests/interaction-review.check.mjs",
       "line": 260,
       "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "/persistence/recovery-session.ts",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "checks",
       "to": "persistence"
     },
@@ -20639,8 +20647,8 @@
       "file": "tests/server-autosave.check.mjs",
       "line": 432,
       "kind": "dynamic",
-      "specifier": "/persistence/local-drafts.ts",
-      "target": "editor/persistence/local-drafts.ts",
+      "specifier": "/persistence/recovery-session.ts",
+      "target": "editor/persistence/recovery-session.ts",
       "from": "checks",
       "to": "persistence"
     },

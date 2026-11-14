@@ -62,7 +62,7 @@ try {
     while (Date.now() < deadline) {
       const ready = await page.evaluate(
         async ({ count, futureCount, hotspots, interactions }) => {
-          const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+          const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
           const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
           const result = await loadRecoverySession(
             new Map(assets.map((asset) => [asset.id, asset.kind])),
@@ -167,7 +167,7 @@ try {
 
   const storageResults = await page.evaluate(async () => {
     const { loadRecoverySession, applySaveRecoverySession } =
-      await import("/persistence/local-drafts.ts");
+      await import("/persistence/recovery-session.ts");
     const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const kinds = new Map(assets.map((a) => [a.id, a.kind]));
@@ -261,7 +261,7 @@ try {
   await compatibilityPage.goto(compatibilityProject.url);
   await compatibilityPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await compatibilityPage.evaluate(async (fixture) => {
-    const { applySaveRecoverySession } = await import("/persistence/local-drafts.ts");
+    const { applySaveRecoverySession } = await import("/persistence/recovery-session.ts");
     const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
     const { createDocumentStore } = await import("/document-store.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
@@ -301,7 +301,7 @@ try {
       // Await IndexedDB explicitly; an async predicate is itself truthy to DOM polling.
       const ready = await compatibilityPage.evaluate(
         async ({ activeId, name, hotspotCount, ruleCount }) => {
-          const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+          const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
           const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
           const result = await loadRecoverySession(
             new Map(assets.map((a) => [a.id, a.kind])),
