@@ -12,7 +12,15 @@ function Visitor() {
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
+    const initialTitle = document.title;
     const signal = combineAbortSignals([controller.signal, AbortSignal.timeout(20000)]);
+    function unavailable(message: string) {
+      if (controller.signal.aborted) return;
+      controller.abort();
+      document.title = initialTitle;
+      setExhibition(null);
+      setError(message);
+    }
     void loadPublication(publicationId, signal)
       .then((value) => {
         if (!controller.signal.aborted) {
@@ -22,33 +30,34 @@ function Visitor() {
         }
       })
       .catch((failure: unknown) => {
-        if (!controller.signal.aborted)
-          setError(failure instanceof Error ? failure.message : "The exhibition is unavailable.");
+        unavailable(failure instanceof Error ? failure.message : "The exhibition is unavailable.");
       });
+    let latestAccessCheck = 0;
+    let latestAccessDecision = 0;
     const recheck = () => {
-      if (document.hidden) return;
+      if (document.hidden || controller.signal.aborted) return;
+      const check = ++latestAccessCheck;
       void fetch(`/api/v1/publications/${publicationId}/manifest`, {
         signal: controller.signal,
         cache: "no-store",
         credentials: "same-origin",
       })
         .then((response) => {
-          if (!response.ok && !controller.signal.aborted) {
-            setExhibition(null);
-            setError("This exhibition is unavailable or your account does not have access.");
-          }
+          if (check < latestAccessDecision) return;
+          latestAccessDecision = check;
+          if (!response.ok)
+            unavailable("This exhibition is unavailable or your account does not have access.");
         })
         .catch(() => {
-          if (!controller.signal.aborted) {
-            setExhibition(null);
-            setError("Access could not be checked. Reconnect and retry.");
-          }
+          if (check >= latestAccessDecision)
+            unavailable("Access could not be checked. Reconnect and retry.");
         });
     };
     window.addEventListener("focus", recheck);
     const timer = window.setInterval(recheck, 30000);
     return () => {
       controller.abort();
+      document.title = initialTitle;
       clearInterval(timer);
       window.removeEventListener("focus", recheck);
     };

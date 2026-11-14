@@ -69,6 +69,10 @@ public static partial class AccountDirectoryEndpoints
             var projectIds = database.Projects.Where(row => row.OrganizationId == id).Select(row => row.Id);
             var submissionIds = database.ReviewSubmissions.Where(row => projectIds.Contains(row.ProjectId)).Select(row => row.Id);
             var publicationIds = database.Publications.Where(row => projectIds.Contains(row.ProjectId)).Select(row => row.Id);
+            var classroomIds = database.Classrooms.Where(row => row.OrganizationId == id).Select(row => row.Id);
+            // Retain operation keys as tombstones so a delayed retry cannot recreate deleted resources.
+            await database.Set<CreationReceipt>().Where(row => row.Kind == "class" ? classroomIds.Contains(row.ResourceId) : projectIds.Contains(row.ResourceId))
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.ResponseJson, (string?)null), cancellationToken);
 
             // This transaction-local scope permits DELETE only for this organisation's immutable evidence.
             // Ordinary edits/deletes remain forbidden; publication IDs are permanently retired by the trigger.

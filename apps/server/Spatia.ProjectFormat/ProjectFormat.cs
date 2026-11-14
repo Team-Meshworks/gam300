@@ -226,6 +226,8 @@ public static partial class ProjectFormat
         void Rotation(double[] rotation)
         {
             var length = QuaternionLength(rotation);
+            // Preserve already-unit roundoff across browser and server save/read cycles.
+            if (Math.Abs(length - 1) <= 4 * (Math.BitIncrement(1.0) - 1.0)) { return; }
             for (var i = 0; i < 4; i++)
             {
                 rotation[i] /= length;

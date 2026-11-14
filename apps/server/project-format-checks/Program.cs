@@ -47,6 +47,13 @@ var originals = new Dictionary<string, JsonNode>
     ["m1"] = JsonNode.Parse(File.ReadAllText(Path.Combine(fixtures, "m1-project.json")))!,
     ["m2"] = JsonNode.Parse(File.ReadAllText(Path.Combine(fixtures, "m2-project.json")))!,
 };
+var rotated = originals["m1"].DeepClone();
+double[] unitRotation = [0, 0.9205048534524405, 0, -0.39073112848927366];
+rotated["scenes"]![0]!["objects"]![1]!["transform"]!["rotation"] = JsonSerializer.SerializeToNode(unitRotation);
+var rotatedProject = Format.Deserialize(rotated.ToJsonString(), assets);
+Check(rotatedProject.Value is LegacyProject rotatedLegacy
+    && rotatedLegacy.Scenes[0].Objects[1].Transform.Rotation.SequenceEqual(unitRotation),
+    "Reopening a checked rotation must preserve its authored precision");
 var count = 0;
 foreach (var test in manifest["cases"]!.AsArray())
 {

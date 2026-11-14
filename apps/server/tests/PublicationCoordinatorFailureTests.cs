@@ -78,7 +78,8 @@ public sealed partial class PublicationCoordinatorTests
         await using var database = fixture.Database(commit);
         var result = await fixture.Coordinator(database).PublishAsync(fixture.Context(), fixture.ProjectId, request);
         await AssertNoAcknowledgementAsync(result);
-        await Assert.That(result.AccessFailure).IsEqualTo((ProjectAccessFailure?)ProjectAccessFailure.AuthenticationRequired);
+        await Assert.That(result.RepresentationWithheld).IsEqualTo(stage == "commit");
+        await Assert.That(result.AccessFailure).IsEqualTo(stage == "commit" ? null : (ProjectAccessFailure?)ProjectAccessFailure.AuthenticationRequired);
         await fixture.AssertCountAsync(stage == "commit" ? 1 : 0);
         fixture.Integration.BeforePrepare = null;
         fixture.Integration.OnStage = null;

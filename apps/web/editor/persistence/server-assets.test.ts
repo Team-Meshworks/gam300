@@ -12,6 +12,19 @@ const asset = {
   thumbnail: null,
   category: null,
 };
+it("accepts an operator-expanded catalogue beyond the original capacity", async () => {
+  const rows = Array.from({ length: 1001 }, (_, index) => {
+    const entryId = `11111111-1111-4111-8111-${index.toString(16).padStart(12, "0")}`;
+    return { ...asset, id: entryId, url: `/api/v1/assets/${entryId}/bytes` };
+  });
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json(rows));
+  expect(await readServerAssets("alice", new AbortController().signal, fetcher)).toHaveLength(1001);
+});
+
+it("keeps an expanded catalogue bounded", async () => {
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json(Array(100001).fill(asset)));
+  await expect(readServerAssets("alice", new AbortController().signal, fetcher)).rejects.toThrow();
+});
 it("retains measured room geometry for an approved matching room asset", async () => {
   const manifest = JSON.parse(
     readFileSync(new URL("../../../../assets/manifest.json", import.meta.url), "utf8"),

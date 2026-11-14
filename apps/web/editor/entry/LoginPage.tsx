@@ -91,7 +91,7 @@ export function LoginPage({ siteRoot }: { siteRoot: boolean }) {
     setError("");
     try {
       const next = session?.mustChangePassword
-        ? await client.changePassword(password, newPassword)
+        ? await client.changePassword(password, newPassword, session.userId)
         : await client.signIn(username, password);
       if (mounted.current) setSession(next);
     } catch (failure) {
@@ -109,13 +109,13 @@ export function LoginPage({ siteRoot }: { siteRoot: boolean }) {
     }
   }
   async function signOut() {
-    if (busy.current) return;
+    if (!session || busy.current) return;
     busy.current = true;
     generation.current++;
     setPending(true);
     setError("");
     try {
-      await client.signOut();
+      await client.signOut(session.userId);
       if (mounted.current) setSession(null);
     } catch (failure) {
       if (mounted.current)

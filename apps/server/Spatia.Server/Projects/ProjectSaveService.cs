@@ -107,6 +107,10 @@ public sealed class ProjectSaveService(ApplicationDbContext database, ProjectAcc
             {
                 return ProjectSaveResult.Rejected(decision, project.Revision);
             }
+            if (!await ProjectDocumentService.CanWriteDraftAsync(database, serialized.Value!, project.UnvalidatedDocumentJson, cancellationToken))
+            {
+                return ProjectSaveResult.Invalid();
+            }
             var staged = await new ProjectSaveWriter(database).TryStageAsync(project, envelope.ExpectedRevision,
                 envelope.ClientMutationId, document.Value!.SchemaVersion, serialized.Value!, digest, cancellationToken);
             if (HasExpired(context))
@@ -131,7 +135,7 @@ public sealed class ProjectSaveService(ApplicationDbContext database, ProjectAcc
         await transaction.CommitAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         return HasExpired(context)
-            ? ProjectSaveResult.Denied(ProjectAccessFailure.AuthenticationRequired)
+            ? ProjectSaveResult.Withheld()
             : ProjectSaveResult.Committed(acknowledgement);
     }
 

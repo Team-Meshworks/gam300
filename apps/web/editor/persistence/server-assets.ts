@@ -23,7 +23,7 @@ export async function readServerAssets(
   if (!response.ok)
     throw new Error("Approved assets could not be loaded. Retry opening this project.");
   const rows: unknown = await response.json();
-  if (!Array.isArray(rows) || rows.length > (projectId ? 100_000 : 1000))
+  if (!Array.isArray(rows) || rows.length > 100_000)
     throw new Error("Invalid approved asset catalogue.");
   const seen = new Set<string>();
   return rows.map((row: unknown) => {

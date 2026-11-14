@@ -114,6 +114,7 @@ function fixture(
     content as unknown as HTMLElement,
     navigate,
     report,
+    vi.fn(),
   );
   return { runtime, nodes, owners, panels, report };
 }

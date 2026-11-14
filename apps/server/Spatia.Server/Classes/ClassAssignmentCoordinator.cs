@@ -133,7 +133,7 @@ internal static class ClassAssignmentCoordinator
                 CanPublish = true,
             }).Append(new ProjectAssignment { ProjectId = projectId, UserId = student, CanEdit = true, CanPublish = true }).ToArray();
             var copy = ProjectLifecycleEndpoints.Copy(document.Value!, projectId, request.Title!);
-            if (!ProjectLifecycleEndpoints.StageDraft(database, documents, organizationId, copy, grants, imageId))
+            if (ProjectLifecycleEndpoints.StageDraft(database, documents, organizationId, copy, grants, imageId) is null)
             {
                 return ApiProblems.Create(context, 503, "project_unavailable", "The project is unavailable.");
             }

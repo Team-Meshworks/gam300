@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createDashboardClient } from "./dashboard-client";
 
 const actor = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
@@ -12,6 +12,16 @@ const project = {
   isPublic: false,
   permissions: { canEdit: true, canManage: true, canPublish: true },
 };
+beforeEach(() => {
+  const records = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => records.get(key) ?? null,
+    setItem: (key: string, value: string) => records.set(key, value),
+    removeItem: (key: string) => records.delete(key),
+  });
+});
+afterEach(() => vi.unstubAllGlobals());
+
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 
@@ -173,6 +183,84 @@ it("does not submit an organisation with an invalid token or retry an uncertain 
   expect(uncertain).toHaveBeenCalledTimes(4);
 });
 
+it("keeps a committed organisation with a lost reply from being created again after reopening", async () => {
+  const created: string[] = [];
+  const request = vi.fn<typeof fetch>(async (path, init) => {
+    if (path === "/api/v1/auth/csrf") return json({ requestToken: "csrf" });
+    const { name } = JSON.parse(String(init?.body)) as { name: string };
+    created.push(name);
+    throw new TypeError("The reply was lost after commit");
+  });
+  await expect(
+    createDashboardClient(actor, request).createOrganization("School"),
+  ).rejects.toThrow();
+  await expect(
+    createDashboardClient(actor, request).createOrganization("School"),
+  ).rejects.toThrow();
+  expect(created).toEqual(["School"]);
+});
+
+it("keeps an uncertain creation when another tab acknowledges a superseded attempt", async () => {
+  const request = vi.fn<typeof fetch>(async (path) => {
+    if (path === "/api/v1/auth/csrf") return json({ requestToken: "csrf" });
+    if (String(path).startsWith("/api/v1/admin/organizations?"))
+      return json({ items: [], nextCursor: null });
+    return new Response(null, { status: 503 });
+  });
+  const client = createDashboardClient(actor, request);
+  await expect(client.createOrganization("First School")).rejects.toThrow("confirmed");
+  const first = client.pendingOrganization()!;
+  await client.acknowledgeOrganization(first);
+  await expect(client.createOrganization("Another School")).rejects.toThrow("confirmed");
+  await expect(client.acknowledgeOrganization(first)).rejects.toThrow("changed");
+  expect(client.pendingOrganization()?.name).toBe("Another School");
+});
+
+it("accepts the existing active organisation returned to another profile and releases a definite name conflict", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(json({ id: actor, name: "  NORTH School ", isActive: true }, 200))
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(json({ code: "organization_name_in_use" }, 409));
+  const client = createDashboardClient(actor, request);
+  await client.createOrganization("North School");
+  expect(client.pendingOrganization()).toBeNull();
+  await expect(client.createOrganization("Old campus")).rejects.toThrow("directory");
+  expect(client.pendingOrganization()).toBeNull();
+  expect(request).toHaveBeenCalledTimes(4);
+});
+
+it("unlocks a definite rejection and keeps a mismatched confirmation for review", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(new Response(null, { status: 400 }))
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(json({ id: actor, name: "Another school", isActive: true }, 201));
+  const client = createDashboardClient(actor, request);
+  await expect(client.createOrganization("School")).rejects.toThrow("name");
+  expect(client.pendingOrganization()).toBeNull();
+  await expect(client.createOrganization("School")).rejects.toThrow("confirmed");
+  expect(client.pendingOrganization()?.name).toBe("School");
+});
+
+it("lets the administrator reconcile an unreadable marker without sending or clearing a replacement", async () => {
+  const key = `spatia.organization-create:${actor}`;
+  const request = vi.fn<typeof fetch>().mockResolvedValue(json({ items: [], nextCursor: null }));
+  const client = createDashboardClient(actor, request);
+  localStorage.setItem(key, "{partial");
+  const earlier = client.pendingOrganization()!;
+  expect(earlier.name).toBeNull();
+  await expect(client.createOrganization("School")).rejects.toThrow("directory");
+  expect(request).not.toHaveBeenCalled();
+  localStorage.setItem(key, "newer marker");
+  await expect(client.acknowledgeOrganization(earlier)).rejects.toThrow("changed");
+  const replacement = client.pendingOrganization()!;
+  await client.acknowledgeOrganization(replacement);
+  expect(client.pendingOrganization()).toBeNull();
+});
+
 it("resolves project class progress with authorised reads and rejects mismatched ownership", async () => {
   const organizationId = "ef580108-e406-4c8e-ac76-75cd41e9d2dc";
   let responseProject = project.projectId;
@@ -253,4 +341,51 @@ it("sends a selected moderation action as one authenticated batch request", asyn
     projectIds: ids,
     action: "hide",
   });
+});
+
+it("retains an organisation attempt when its dispatched write returns 401", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(json({}, 401));
+  const client = createDashboardClient(actor, request);
+  await expect(client.createOrganization("School")).rejects.toThrow();
+  expect(client.pendingOrganization()?.name).toBe("School");
+});
+
+it.each([401, 403])(
+  "does not create an organisation marker when preflight returns %s",
+  async (status) => {
+    const request = vi.fn<typeof fetch>().mockResolvedValueOnce(json({}, status));
+    const client = createDashboardClient(actor, request);
+    await expect(client.createOrganization("School")).rejects.toThrow();
+    expect(client.pendingOrganization()).toBeNull();
+    expect(request).toHaveBeenCalledTimes(1);
+  },
+);
+
+it("does not clear an organisation attempt without an authorized directory read", async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValue(json({}, 401));
+  const client = createDashboardClient(actor, request);
+  localStorage.setItem(
+    `spatia.organization-create:${actor}`,
+    JSON.stringify({ attemptId: actor, name: "School" }),
+  );
+  await expect(client.acknowledgeOrganization(client.pendingOrganization()!)).rejects.toThrow();
+  expect(client.pendingOrganization()?.name).toBe("School");
+});
+
+it("does not dispatch an organisation create when the recovery marker cannot be stored", async () => {
+  vi.stubGlobal("localStorage", {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error("quota");
+    },
+    removeItem: () => {},
+  });
+  const request = vi.fn<typeof fetch>().mockResolvedValue(json({ requestToken: "csrf" }));
+  await expect(
+    createDashboardClient(actor, request).createOrganization("School"),
+  ).rejects.toThrow();
+  expect(request).toHaveBeenCalledTimes(1);
 });

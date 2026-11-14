@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { assets } from "virtual:asset-catalogue";
 import { App } from "./App";
+import { playUiSound } from "./audio/ui-sounds";
 import { BaseModelChooser } from "./home/BaseModelChooser";
 import { needsBaseModel } from "./home/base-model";
 import { RequestApproval } from "./reviews/RequestApproval";
@@ -11,13 +12,13 @@ import { HOTSPOT_ASSET } from "../shared/asset-runtime/hotspot";
 import { createDocumentStore } from "./document-store";
 import { createAccountClient, type AccountRole } from "./accounts/account-client";
 import { LoginRedirect } from "./accounts/LoginRedirect";
+import { readServerAssets } from "./persistence/server-assets";
+import { readServerProject, type OpenedServerProject } from "./persistence/server-project-read";
 import {
-  readServerAssets,
-  readServerProject,
-  type OpenedServerProject,
-} from "./persistence/server-project-read";
-import { connectServerProjectSession } from "./persistence/server-project-session";
-import { loadRecoverySession, type RecoverySession } from "./persistence/local-drafts";
+  connectServerProjectSession,
+  type ServerSaveStatus,
+} from "./persistence/server-project-session";
+import { loadRecoverySession, type RecoverySession } from "./persistence/recovery-session";
 import {
   pickProjectDestination,
   projectFilename,
@@ -29,7 +30,11 @@ import { deserializeProject } from "../shared/project/project-deserialization";
 import { MAX_PROJECT_BYTES } from "../shared/project/project-limits";
 import { createWorkspaceClient, isId, isRecord, projectReceipt } from "./home/workspace-api";
 import { Icon } from "./ui/Icon";
-import type { ServerSaveStatus } from "./persistence/server-autosave";
+import {
+  createOperationKey,
+  sendCreateOperation,
+  readCreateOperation,
+} from "./home/create-operation";
 import { parseProgressContext, reviewReturnUrl } from "./projects/progress-navigation";
 
 const accounts = createAccountClient();
@@ -38,6 +43,7 @@ const workspace = createWorkspaceClient();
 type Candidate = {
   opened: OpenedServerProject;
   recovery: RecoverySession | null;
+  storageRevision: number;
   controller: AbortController;
 };
 type Active = {
@@ -52,6 +58,8 @@ const saveErrors: Partial<Record<ServerSaveStatus, string>> = {
   failed: "Save failed. Your edits are still here. Retry or export a copy.",
   conflict:
     "Another revision was saved. Export your edits or open the server version; nothing will be overwritten automatically.",
+  invalid:
+    "Save needs changes. Check your document and assets, then try again. Your edits are still here.",
   rejected:
     "Saving is unavailable for this account or project. Keep a recovery copy or export your edits before leaving.",
 };
@@ -351,7 +359,7 @@ function ServerProjectSession({
       store,
       assetKinds: kinds,
       revision: recovery?.serverSave?.revision ?? opened.revision,
-      storageRevision: next.recovery?.revision ?? 0,
+      storageRevision: next.storageRevision,
       signal: controller.signal,
       onStatus: setStatus,
       ...(recovery ? { recovery } : {}),
@@ -403,7 +411,12 @@ function ServerProjectSession({
           throw new Error("This project is read-only. Your stored recovery copy was kept.");
         if (retained.current) {
           await install(
-            { opened: result.value, recovery: retained.current.recovery, controller },
+            {
+              opened: result.value,
+              recovery: retained.current.recovery,
+              storageRevision: retained.current.recovery.revision,
+              controller,
+            },
             true,
           );
           owner = current.current;
@@ -415,8 +428,13 @@ function ServerProjectSession({
         });
         if (controller.signal.aborted) return;
         if (!recovery.ok) throw new Error(recovery.error.message);
-        const next = { opened: result.value, recovery: recovery.value, controller };
-        if (recovery.value) setCandidate(next);
+        const next = {
+          opened: result.value,
+          recovery: recovery.value?.document ? recovery.value : null,
+          storageRevision: recovery.value?.revision ?? 0,
+          controller,
+        };
+        if (next.recovery) setCandidate(next);
         else {
           await install(next, false);
           owner = current.current;
@@ -572,6 +590,7 @@ function ServerProjectSession({
         saved = active.session.getStatus() === "saved";
       }
     });
+    if (saved && !active?.controller.signal.aborted) playUiSound("save");
     return saved;
   }
 
@@ -588,9 +607,16 @@ function ServerProjectSession({
         throw new Error(imported.error.message);
       }
       const key = `spatia:uncertain-project-creation:${active.accountId}`;
-      if (sessionStorage.getItem(key) === "1") {
+      if (
+        sessionStorage.getItem(key) !== null &&
+        !readCreateOperation(
+          localStorage,
+          createOperationKey(active.accountId, "import"),
+          active.accountId,
+        )
+      ) {
         throw new Error(
-          "Check All Projects before importing again; an earlier creation may have completed",
+          "Review the earlier creation warning in All Projects before importing another file",
         );
       }
       // Keep this draft safe and import into a new project instead of overwriting it
@@ -613,24 +639,32 @@ function ServerProjectSession({
       if (!organizationId) {
         throw new Error("The project organisation could not be verified; your draft is unchanged");
       }
-      sessionStorage.setItem(key, "1");
-      if (sessionStorage.getItem(key) !== "1") {
-        throw new Error("Browser storage is unavailable; import was not sent");
-      }
-      const result = await workspace.write(active.accountId, "/api/v1/projects", "POST", {
-        title: imported.value.title,
-        document: imported.value,
-        orgId: organizationId,
-      });
+      const result = await sendCreateOperation(
+        localStorage,
+        createOperationKey(active.accountId, "import"),
+        active.accountId,
+        workspace.write,
+        projectReceipt,
+        {
+          path: "/api/v1/projects",
+          retainBody: false,
+          retry: true,
+          body: {
+            title: imported.value.title,
+            document: imported.value,
+            orgId: organizationId,
+          },
+        },
+      );
       if (result.kind === "rejected") {
-        sessionStorage.removeItem(key);
         throw new Error(result.message);
       }
       // A lost receipt may already have created the project; keep the existing creation guard
       if (result.kind !== "confirmed" || !projectReceipt(result.value) || !isRecord(result.value)) {
-        throw new Error("Import could not be confirmed; check All Projects before trying again");
+        throw new Error(
+          "Import could not be confirmed; select the same file again to safely retry this import",
+        );
       }
-      sessionStorage.removeItem(key);
       const preserved = await active.session.prepareToLeave("save");
       if (!preserved.ok || !preserved.value) {
         throw new Error(
@@ -646,6 +680,7 @@ function ServerProjectSession({
     if (active?.session.getStatus() === "saved") {
       void leave("save", destination);
     } else {
+      playUiSound("warning");
       setDeparture(destination);
     }
   }
@@ -743,7 +778,7 @@ function ServerProjectSession({
             store,
             title: active.title,
             dirty: status !== "saved",
-            failed: ["failed", "conflict", "rejected"].includes(status),
+            failed: ["failed", "conflict", "rejected", "invalid"].includes(status),
             saving: status === "saving",
             departing: departure !== null || busy || choosingBase,
             busy: busy || choosingBase,

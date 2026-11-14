@@ -87,6 +87,7 @@ try {
   let projectReads = 0;
   let adminProjectReads = 0;
   let creations = 0;
+  let loseCreationReply = false;
   // Keep mock catalogue previews independent of Vite source paths and build hashing.
   const assetThumbnail = await readFile("editor/home/assets/default-project-neutral.jpg");
   await page.route("**/test-fixtures/admin-asset-thumbnail.jpg", (route) =>
@@ -155,8 +156,11 @@ try {
       }
       if (url.pathname === "/api/v1/admin/organizations") {
         assert.equal(request.headers()["x-spatia-account"], userId);
-        assert.deepEqual(request.postDataJSON(), { name: "New School" });
+        assert.deepEqual(request.postDataJSON(), {
+          name: loseCreationReply ? "Unconfirmed School" : "New School",
+        });
         creations++;
+        if (loseCreationReply) return route.abort("failed");
         await new Promise((resolve) => setTimeout(resolve, 150));
         return route.fulfill({
           status: 201,
@@ -931,6 +935,33 @@ try {
   assert.equal(await page.getByLabel("Search organisations").inputValue(), "Ridgeview");
   await page.getByRole("link", { name: "Close organisations", exact: true }).click();
   await page.waitForURL(origin + "/admin/dashboard");
+  loseCreationReply = true;
+  await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
+  dialog = page.getByRole("dialog", { name: "Add Organisation", exact: true });
+  await dialog.getByLabel("Organisation name").fill("Unconfirmed School");
+  let create = dialog.getByRole("button", { name: "Create Organisation", exact: true });
+  await create.click();
+  await dialog.getByRole("alert").waitFor();
+  if ((await create.isVisible()) && (await create.isEnabled())) {
+    await create.click();
+    await dialog.getByRole("alert").waitFor();
+  }
+  assert.equal(creations, 2, "Losing the receipt must not allow a second creation");
+  await page.reload();
+  await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
+  dialog = page.getByRole("dialog", { name: "Add Organisation", exact: true });
+  await dialog.getByRole("alert").filter({ hasText: "Unconfirmed School" }).waitFor();
+  await dialog.getByRole("button", { name: "Check organisation directory" }).click();
+  await page.getByRole("heading", { name: "All Organisations", level: 1, exact: true }).waitFor();
+  await page.getByRole("link", { name: "Close organisations", exact: true }).click();
+  await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
+  dialog = page.getByRole("dialog", { name: "Add Organisation", exact: true });
+  await dialog.getByRole("button", { name: "I checked the directory" }).click();
+  await dialog.getByLabel("Organisation name").fill("Different School");
+  create = dialog.getByRole("button", { name: "Create Organisation", exact: true });
+  assert.equal(await create.isEnabled(), true);
+  await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
+  loseCreationReply = false;
   for (const [button, path, title, expected, excluded, noun] of [
     [
       "View Environments",

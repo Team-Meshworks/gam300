@@ -66,8 +66,8 @@ missing ID have the same public result.
 | `GET /api/v1/projects` | Current authorized summaries; default limit 10, maximum 20; exclusive UUID cursor grants no authority. `archived=false` is the default; `true` selects archived projects. |
 | `GET /api/v1/projects/{id}` | `projectId`, validated current `document`, `revision`, `updatedAt` and effective `permissions`. This response has no `archived` field; list summaries include it. Authorized archived drafts remain readable. |
 | `GET /api/v1/projects/{id}/assignments` | Manager/admin read of `{projectId,organizationId,revision,archived,assignments}`; each stored grant has `userId`, `canEdit`, `canManage`, `canPublish`. Includes disabled accounts and noncanonical flags; archived projects remain readable. Visible Creators get 403; inaccessible IDs get generic 404. No query parameters, directory details or document content. |
-| `POST /api/v1/projects` | Required title and exactly one approved `environmentAssetId` or validated `document`. Derives organization from current membership; an Administrator selects an active `orgId`. Commits a new ID, revision 0 and initial authority together; returns 201 metadata. |
-| `POST /api/v1/projects/{id}/duplicate` | Requires `expectedRevision`, title and edit authority on a nonarchived source. Produces an independent revision-0 document with a new project ID and preserved internal references. Does not change the source or copy its grants/retry metadata. Returns 201 metadata. |
+| `POST /api/v1/projects` | Requires a title. A stable operation ID supports direct creation and replay. An unkeyed request first requires explicit resolution. An approved `environmentAssetId` or validated `document` is optional and mutually exclusive. Derives organization from current membership. Administrator creation is forbidden. |
+| `POST /api/v1/projects/{id}/duplicate` | Requires `expectedRevision`, title and edit authority on a nonarchived source. A stable operation ID supports direct creation and replay. An unkeyed request first requires explicit resolution. The independent copy preserves internal references and does not copy grants or retry metadata. |
 | `PATCH /api/v1/projects/{id}/assignments` | Requires `expectedRevision` and all three arrays: `managedByUserIds`, `assignedCreatorIds`, `canPublishUserIds`. Replaces the entire direct assignment set, including possible removal of the caller. Active same-organization Educators are managers; Creators are editors; creator publishers must be a subset of those editors. Requires management authority and a nonarchived project. Returns 200 metadata. |
 | `PATCH /api/v1/projects/{id}/archive` | Requires `expectedRevision` and `archived`. Management authority is required; either current archive state is allowed. Returns 200 metadata. |
 
@@ -77,6 +77,8 @@ authority. Source assignments are not copied on duplication. Creation/import do
 not confer class classification or approval. See
 [the server request contract](../apps/server/README.md#scrum-6645-protected-save-and-project-lifecycle)
 for title, array, document and request-size bounds.
+
+Supply the operation ID in JSON `operationId` or as one raw hyphenated UUID in `Idempotency-Key`. Both must agree if supplied. An unresolved request without either is rejected before creation and offers a resolution URL. See [API write recovery](api-recovery.md#project-and-class-creation) for validation, replay and generation guards.
 
 Grant reads take one repeatable-read snapshot and are `no-store`. The snapshot can
 become stale immediately: PATCH reauthorizes, compares the revision and validates
@@ -93,9 +95,11 @@ receipts. A maximum-revision project cannot accept another metadata revision but
 can be duplicated into a new revision-0 project. Reopen computes permissions from current assignments; it does
 not restore an old grant set.
 
-Creation/duplication are not idempotent. After an uncertain response, refresh the
-authorized list before offering another attempt; do not promise that this can
-uniquely identify a prior request. After an uncertain metadata response, reopen
+Creation and duplication accept exact retries with the original operation ID and request.
+Server generations support discovery and explicit acknowledgement across browser profiles.
+For historical unkeyed work, inspect the authorized list without assuming a matching title
+identifies the prior request. See [API write recovery](api-recovery.md#project-and-class-creation).
+After an uncertain metadata response, reopen
 before deciding on another revisioned operation. A lost acknowledgement, session
 cutoff or cancellation after commit can leave a durable change. PUT keeps its
 separate [durable retry contract](../apps/server/README.md#draft-save-retry-contract).

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { launchBrowser } from "./browser-security.mjs";
+import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5182";
 const browser = await launchBrowser({ target: origin });
@@ -74,7 +75,9 @@ try {
         });
       });
     }
+    const receipts = creationRecoveryFixture();
     await page.route("**/api/v1/**", async (route) => {
+      if (await receipts.handle(route, userId)) return;
       const request = route.request();
       const path = new URL(request.url()).pathname;
       if (path === "/api/v1/auth/session") {

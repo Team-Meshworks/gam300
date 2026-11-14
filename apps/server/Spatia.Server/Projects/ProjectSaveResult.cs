@@ -40,6 +40,10 @@ public sealed class ProjectSaveResult
     /// </summary>
     public bool InvalidDocument { get; }
 
+    internal bool RepresentationWithheld { get; private init; }
+
+    internal static ProjectSaveResult Withheld() => new(null, null, null, null) { RepresentationWithheld = true };
+
     internal static ProjectSaveResult Invalid() => new(null, null, null, null, true);
 
     internal static ProjectSaveResult Committed(ProjectSaveAcknowledgement acknowledgement) =>

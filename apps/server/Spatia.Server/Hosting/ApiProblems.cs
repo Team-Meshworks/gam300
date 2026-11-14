@@ -18,6 +18,10 @@ public static class ApiProblems
     public static ProblemHttpResult Create(HttpContext context, int status, string code, string title)
     {
         context.Response.Headers.CacheControl = "no-store";
+        if (status == StatusCodes.Status401Unauthorized)
+        {
+            context.Response.Headers.WWWAuthenticate = "SpatiaSession realm=\"Spatia\", login_uri=\"/api/v1/auth/login\"";
+        }
         return TypedResults.Problem(
             statusCode: status,
             title: title,

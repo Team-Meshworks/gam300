@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
+import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 
 const teacher = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const org = "ef580108-e406-4c8e-ac76-75cd41e9d2dc";
@@ -44,7 +45,9 @@ try {
     releaseHistory = resolve;
   });
   const enrolId = "de000000-0000-4000-8000-000000000006";
+  const receipts = creationRecoveryFixture();
   await page.route("**/api/v1/**", async (route) => {
+    if (await receipts.handle(route, teacher)) return;
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/v1/projects/" + studentProjectId)
       return route.fulfill({ json: { projectId: studentProjectId, revision: 1 } });

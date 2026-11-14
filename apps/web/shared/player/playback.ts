@@ -18,9 +18,9 @@ export function createVisitorPlayback(
   controls: { target: THREE.Vector3; update(): void },
   roots: Map<string, THREE.Object3D>,
   content: HTMLElement,
-  navigate: (sceneId: string, viewpointId: string) => boolean | void,
+  navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean | void,
   report: (message: string) => void,
-  beginInput: () => void = () => {},
+  beginNavigationEvent: () => void = () => {},
 ) {
   // Keep timing, zone entry and camera movement scoped to this visit rather than the saved rules
   let started = false,
@@ -152,7 +152,7 @@ export function createVisitorPlayback(
     anchor.click();
   }
   // Older WHEN/DO rows share the same effect handlers as the versioned rule vocabulary
-  function legacy(action: InteractionAction) {
+  function legacy(action: InteractionAction, deliberate = false) {
     switch (action.type) {
       case "open-link":
         link(action.url);
@@ -167,7 +167,7 @@ export function createVisitorPlayback(
         view(action.viewpointId);
         break;
       case "navigate-scene":
-        departing = navigate(action.sceneId, "") !== false;
+        departing = navigate(action.sceneId, "", deliberate) !== false;
         break;
     }
   }
@@ -177,10 +177,15 @@ export function createVisitorPlayback(
       legacy(action);
       return departing;
     },
+    runClicked(action) {
+      if (departing || disposed) return true;
+      legacy(action, true);
+      return departing;
+    },
     stop() {},
   });
   // Execute in authored order and stop the old scene immediately after navigation
-  function execute(actions: readonly ProjectAction[]) {
+  function execute(actions: readonly ProjectAction[], deliberate: boolean) {
     for (const action of actions) {
       if (departing || disposed) break;
       switch (action.type) {
@@ -220,23 +225,23 @@ export function createVisitorPlayback(
           view(action.viewpointId, action.durationSeconds);
           break;
         case "navigateScene":
-          departing = navigate(action.sceneId, action.viewpointId) !== false;
+          departing = navigate(action.sceneId, action.viewpointId, deliberate) !== false;
           break;
       }
     }
   }
-  function run(matches: (rule: ProjectRule) => boolean) {
+  function run(matches: (rule: ProjectRule) => boolean, deliberate = false) {
     dispatchRules(
       rules,
       (rule) => rule.enabled && !departing && !disposed && matches(rule),
       (rule) => {
-        execute(rule.actions);
+        execute(rule.actions, deliberate);
         return departing || disposed;
       },
     );
   }
   function start() {
-    if (disposed) return;
+    if (disposed || departing) return;
     // A user gesture unlocks browser audio; tracks keep their own play/pause controls
     if (!listener) {
       listener = new THREE.AudioListener();
@@ -284,14 +289,22 @@ export function createVisitorPlayback(
     legacySession.sceneStarted();
     run((rule) => rule.trigger.type === "sceneStart");
   }
+  function clickRules(targets: string[]) {
+    run(
+      (rule) =>
+        rule.trigger.type === "click" &&
+        targets.some((id) => equal(id, rule.trigger.type === "click" ? rule.trigger.targetId : "")),
+      true,
+    );
+  }
   // A clicked model also activates its attached legacy and component hotspot identities
   function click(objectId: string) {
     if (disposed || departing) {
       return;
     }
-    beginInput();
-    start();
     if (root(objectId)?.visible === false) return;
+    beginNavigationEvent();
+    start();
     const targets = [
       objectId,
       ...hotspots.filter((item) => equal(item.objectId, objectId)).map((item) => item.id),
@@ -304,20 +317,28 @@ export function createVisitorPlayback(
           .map((item) => item.id) ?? []),
       );
     legacySession.objectClicked(objectId);
-    run(
-      (rule) =>
-        rule.trigger.type === "click" &&
-        targets.some((id) => equal(id, rule.trigger.type === "click" ? rule.trigger.targetId : "")),
-    );
+    clickRules(targets);
   }
   const activate = (event: Event) => click((event as CustomEvent<string>).detail);
+  const activatePoint = (event: Event) => {
+    if (disposed || departing) {
+      event.preventDefault();
+      return;
+    }
+    beginNavigationEvent();
+    start();
+    clickRules([(event as CustomEvent<string>).detail]);
+    if (departing) event.preventDefault();
+  };
   const closePanel = (event: Event) => {
-    beginInput();
+    if (disposed || departing) return;
+    beginNavigationEvent();
     start();
     run(
       (rule) =>
         rule.trigger.type === "panelClose" &&
         equal(rule.trigger.panelId, (event as CustomEvent<string>).detail),
+      true,
     );
   };
 
@@ -342,6 +363,7 @@ export function createVisitorPlayback(
   content.addEventListener("loadeddata", mediaReady, true);
   content.addEventListener("exhibit-start", start);
   content.addEventListener("exhibit-activate", activate);
+  content.addEventListener("exhibit-navigation-point", activatePoint);
   content.addEventListener("exhibit-panel-close", closePanel);
   document.addEventListener("visibilitychange", visibility);
 
@@ -424,6 +446,7 @@ export function createVisitorPlayback(
       content.removeEventListener("loadeddata", mediaReady, true);
       content.removeEventListener("exhibit-start", start);
       content.removeEventListener("exhibit-activate", activate);
+      content.removeEventListener("exhibit-navigation-point", activatePoint);
       content.removeEventListener("exhibit-panel-close", closePanel);
       document.removeEventListener("visibilitychange", visibility);
       content.querySelectorAll<HTMLMediaElement>("audio,video").forEach((node) => node.pause());

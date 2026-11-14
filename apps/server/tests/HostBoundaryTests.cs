@@ -13,6 +13,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using Spatia.Server.Accounts;
 using Spatia.Server.Hosting;
 using Spatia.Server.Persistence;
 
@@ -94,10 +95,15 @@ public sealed class HostBoundaryTests
             "GET /api/v1/admin/users", "GET /api/v1/admin/users/{id:guid}", "GET /api/v1/admin/organizations", "GET /api/v1/admin/organizations/{id:guid}",
             "PATCH /api/v1/admin/users/{id:guid}/active", "DELETE /api/v1/admin/users/{id:guid}",
             "PATCH /api/v1/admin/users/{id:guid}", "GET /api/v1/admin/organizations/{id:guid}/projects",
+            "GET /api/v1/admin/organizations/{orgId:guid}/bulk-imports",
+            "PUT /api/v1/admin/organizations/{orgId:guid}/bulk-imports/{operationId:guid}",
+            "POST /api/v1/admin/organizations/{orgId:guid}/bulk-imports/{operationId:guid}/receipt",
+            "POST /api/v1/admin/organizations/{orgId:guid}/bulk-imports/{operationId:guid}/acknowledge",
+            "POST /api/v1/admin/organizations/{orgId:guid}/bulk-imports/{operationId:guid}/abandon",
             "PATCH /api/v1/admin/organizations/{id:guid}/active",
-            "GET /api/v1/admin/organizations/{id:guid}/deletion", "DELETE /api/v1/admin/organizations/{id:guid}",
+            "GET /api/v1/admin/organizations/{id:guid}/deletion", "POST /api/v1/admin/organizations/{id:guid}/deletion", "DELETE /api/v1/admin/organizations/{id:guid}",
             "GET /api/v1/projects/", "GET /api/v1/projects/{id:guid}", "GET /api/v1/projects/{id:guid}/assignments", "PUT /api/v1/projects/{id:guid}",
-            "POST /api/v1/projects/", "POST /api/v1/projects/{id:guid}/duplicate", "POST /api/v1/projects/{id:guid}/submissions", "PATCH /api/v1/projects/{id:guid}/assignments", "PATCH /api/v1/projects/{id:guid}/archive",
+            "POST /api/v1/projects/", "POST /api/v1/projects/{id:guid}/duplicate", "PUT /api/v1/projects/legacy-resolution", "PUT /api/v1/projects/{id:guid}/duplicate/legacy-resolution", "POST /api/v1/projects/{id:guid}/submissions", "PATCH /api/v1/projects/{id:guid}/assignments", "PATCH /api/v1/projects/{id:guid}/archive",
             "GET /api/v1/projects/{id:guid}/submissions", "GET /api/v1/projects/{id:guid}/submissions/{submissionId:guid}",
             "GET /api/v1/projects/{id:guid}/image",
             "GET /api/v1/projects/{projectId:guid}/exhibition", "GET /api/v1/projects/{projectId:guid}/exhibitions/{publicationId:guid}/assets/{assetId}/bytes",
@@ -105,9 +111,11 @@ public sealed class HostBoundaryTests
             "POST /api/v1/projects/{id:guid}/submissions/{submissionId:guid}/decisions",
             "GET /api/v1/classes/", "GET /api/v1/classes/{id:guid}", "GET /api/v1/classes/{id:guid}/roster", "GET /api/v1/classes/{id:guid}/eligible-students",
             "GET /api/v1/classes/{id:guid}/assignments", "GET /api/v1/classes/{id:guid}/assignments/{assignmentId:guid}", "PATCH /api/v1/classes/{id:guid}/assignments/{assignmentId:guid}",
-            "POST /api/v1/classes/", "POST /api/v1/classes/{id:guid}/assignments", "PUT /api/v1/classes/{id:guid}/members/{userId:guid}", "DELETE /api/v1/classes/{id:guid}/members/{userId:guid}",
+            "POST /api/v1/classes/", "PUT /api/v1/classes/legacy-resolution", "POST /api/v1/classes/{id:guid}/assignments", "PUT /api/v1/classes/{id:guid}/members/{userId:guid}", "DELETE /api/v1/classes/{id:guid}/members/{userId:guid}",
+            "GET /api/v1/creation-operations/{purpose}", "POST /api/v1/creation-operations/{purpose}/{operationId:guid}/acknowledge",
             "GET /api/v1/admin/assets/", "GET /api/v1/admin/assets/{id:guid}/bytes", "POST /api/v1/admin/assets/", "POST /api/v1/admin/assets/{id:guid}/approve",
-            "POST /api/v1/admin/assets/{id:guid}/availability", "GET /api/v1/assets", "GET /api/v1/assets/{id:guid}/bytes",
+            "POST /api/v1/admin/assets/{id:guid}/availability", "PUT /api/v1/admin/assets/{id:guid}/removals/{operationId:guid}",
+            "POST /api/v1/admin/assets/{id:guid}/removals/{operationId:guid}/reconcile", "GET /api/v1/assets", "GET /api/v1/assets/{id:guid}/bytes",
             "GET /api/v1/projects/{projectId:guid}/assets/{id:guid}/bytes", "GET /api/v1/projects/{projectId:guid}/assets", "GET /api/v1/projects/{projectId:guid}/publication-links", "GET /api/v1/projects/publication-links",
             "GET,HEAD /api/v1/publications/{publicationId}", "GET /api/v1/publications/{publicationId}/manifest", "GET,HEAD /api/v1/publications/{publicationId}/assets/{assetId}/bytes",
             "GET /api/v1/publications/{publicationId:guid}/access", "POST /api/v1/publications/{publicationId:guid}/access",
@@ -130,16 +138,24 @@ public sealed class HostBoundaryTests
             var assetBytes = path.EndsWith("/bytes", StringComparison.Ordinal);
             var upload = path == "/api/v1/admin/assets/" && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Single() == "POST";
             var classroom = path.StartsWith("/api/v1/classes", StringComparison.Ordinal);
+            var creation = path.StartsWith("/api/v1/creation-operations", StringComparison.Ordinal);
             await Assert.That(endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null).IsEqualTo(csrf || login || publicationRead);
             if (!csrf && !login && !publicationRead)
             {
                 await Assert.That(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(data =>
                     data.Policy == (path.StartsWith("/api/v1/admin/", StringComparison.Ordinal)
-                        ? SecurityPolicies.Administrator : project || classroom || publication ? SecurityPolicies.FullAccount : SecurityPolicies.CurrentAccount))).IsTrue();
+                        ? SecurityPolicies.Administrator : project || classroom || publication || creation ? SecurityPolicies.FullAccount : SecurityPolicies.CurrentAccount))).IsTrue();
             }
             var method = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.First();
+            var assetCatalogue = method == "GET" && (path.TrimEnd('/') is "/api/v1/assets" or "/api/v1/admin/assets"
+                || path == "/api/v1/projects/{projectId:guid}/assets");
+            if (assetCatalogue)
+            {
+                await Assert.That(endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName)
+                    .IsEqualTo(SecurityPolicies.AssetCatalogueReadRateLimit);
+            }
             if (assetBytes || (!csrf && !session && method != "GET"
-                && (!(project || classroom) || method is "POST" or "PATCH" || (classroom && method is "PUT" or "DELETE"))))
+                && (!(project || classroom) || method is "POST" or "PATCH" || path.EndsWith("/legacy-resolution", StringComparison.Ordinal) || (classroom && method is "PUT" or "DELETE"))))
             {
                 await Assert.That(endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName)
                     .IsEqualTo(login ? SecurityPolicies.AuthenticationRateLimit : assetBytes ? "AssetBytes" : upload ? "AssetIntake" : SecurityPolicies.AccountWriteRateLimit);
@@ -327,6 +343,24 @@ public sealed class HostBoundaryTests
         using var otherRequest = RequestSecurityTests.CreateWrite("/_test/rate-write", await fixture.GetCsrfAsync(other));
         using var otherResponse = await other.SendAsync(otherRequest);
         await Assert.That(otherResponse.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+    }
+
+    [Test]
+    public async Task RateLimit_AssetCatalogueReadsAreBoundedWithoutSpendingWriteCapacity()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync();
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        var token = await fixture.GetCsrfAsync();
+        for (var index = 0; index < 60; index++)
+        {
+            using var accepted = await fixture.Client.GetAsync("/api/v1/admin/assets");
+            await Assert.That(accepted.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        }
+        using var limited = await fixture.Client.GetAsync("/api/v1/admin/assets");
+        await AssertRateLimitedAsync(limited);
+        using var request = RequestSecurityTests.CreateWrite("/_test/rate-write", token);
+        using var written = await fixture.Client.SendAsync(request);
+        await Assert.That(written.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
     }
 
     [Test]

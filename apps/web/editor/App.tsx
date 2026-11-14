@@ -2,7 +2,15 @@ import { environmentObject } from "../shared/project/selection-transform";
 import { AudioLibrary, type AudioLibraryMode } from "./ui/AudioLibrary";
 import { ExhibitPopups } from "./ui/ExhibitPopups";
 import type { ContentObject } from "../shared/project/project-content";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   isStarterRoomEnvironment,
   isRoomModel,
@@ -179,18 +187,23 @@ export function App({
   const [dragging, setDragging] = useState<string | null>(null);
   const [audioLibrary, setAudioLibrary] = useState<AudioLibraryMode | null>(null);
   const [placingAssetId, setPlacingAssetId] = useState<string | null>(null);
+  const placementVersion = useRef(0);
+  const cancelPlacement = useCallback(() => {
+    placementVersion.current++;
+    setPlacingAssetId(null);
+  }, []);
   const [showExhibitTools, setShowExhibitTools] = useState(false);
 
   useEffect(() => {
     function cancel(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setPlacingAssetId(null);
+        cancelPlacement();
         setPendingText(null);
       }
     }
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
-  }, []);
+  }, [cancelPlacement]);
   const [feedback, setFeedback] = useState({ text: "", sequence: 0 });
   const notice = feedback.text;
   const [error, setError] = useState("");
@@ -362,6 +375,10 @@ export function App({
   useEffect(() => (manager === null ? undefined : manager.subscribe(setModeState)), [manager]);
 
   const { departing } = server;
+  useLayoutEffect(
+    () => cancelPlacement,
+    [activeSceneId, loadGeneration, visitor, departing, viewCamera, cancelPlacement],
+  );
 
   const deleteSelection = useCallback(() => {
     if (visitor) return;
@@ -858,7 +875,7 @@ export function App({
             setShowExhibitTools(true);
           }}
           placingAssetId={placingAssetId}
-          onPlacementCancel={() => setPlacingAssetId(null)}
+          onPlacementCancel={cancelPlacement}
           editingEnabled={!departing && !readOnlyPreview}
           allowInspection={readOnlyPreview}
           navigationTool={pendingText ? "orbit" : navigationTool}
@@ -873,7 +890,7 @@ export function App({
           onSceneUpdate={onSceneUpdate}
           onPlace={(...args) => {
             place(...args);
-            setPlacingAssetId(null);
+            cancelPlacement();
           }}
           onDragFinish={() => {
             setDragging(null);
@@ -984,10 +1001,12 @@ export function App({
               ready={status === "ready"}
               thumbnailFor={thumbnailFor}
               onAudio={(mode) => {
-                setPlacingAssetId(null);
+                cancelPlacement();
                 setAudioLibrary(mode);
               }}
               onAdd={async (assetId) => {
+                cancelPlacement();
+                const version = placementVersion.current;
                 const before = store.getSnapshot();
                 const adjoiningRoom =
                   projectScene?.environmentAssetId && assetKinds.get(assetId) === "environment";
@@ -1001,7 +1020,11 @@ export function App({
                   setError("An approved room model is required to add an adjoining room.");
                   return;
                 }
-                if (!(await viewCamera?.prepareAsset(modelId)) || store.getSnapshot() !== before)
+                if (
+                  !(await viewCamera?.prepareAsset(modelId)) ||
+                  placementVersion.current !== version ||
+                  store.getSnapshot() !== before
+                )
                   return;
                 setShowExhibitTools(false);
                 // Supplied rooms are complete environment layouts, selected at the scene origin.
@@ -1010,7 +1033,6 @@ export function App({
                   !isStarterRoomEnvironment(assets, assetId) &&
                   !projectScene?.environmentAssetId
                 ) {
-                  setPlacingAssetId(null);
                   place(assetId, [0, 0, 0]);
                   return;
                 }
@@ -1022,6 +1044,7 @@ export function App({
                 setNavigationTool("select");
               }}
               onDragChange={(assetId) => {
+                if (assetId !== null) cancelPlacement();
                 if (
                   assetId &&
                   projectScene?.environmentAssetId &&
@@ -1036,13 +1059,11 @@ export function App({
                   return;
                 }
                 setDragging(assetId);
-                if (assetId !== null) {
-                  setPlacingAssetId(null);
-                  setShowExhibitTools(false);
-                }
+                if (assetId !== null) setShowExhibitTools(false);
               }}
               tool={navigationTool}
               onToolChange={(tool) => {
+                cancelPlacement();
                 setView("third");
                 setNavigationTool(tool);
               }}
@@ -1099,7 +1120,7 @@ export function App({
                 sceneId: activeSceneId,
                 generation: loadGeneration,
               });
-              setPlacingAssetId(null);
+              cancelPlacement();
               setDragging(null);
               setView("third");
               return { ok: true, value: true };

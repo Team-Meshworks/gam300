@@ -29,7 +29,7 @@ public sealed class OrganizationLifecycleTests
         await fixture.SignInAsync(administrator);
         var captured = cookies.GetCookies(fixture.Address)[fixture.CookieName]!.Value;
         using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects",
-            new { title = "Retained project", environmentAssetId = "test-room-v1" }, memberClient);
+            new { operationId = Guid.NewGuid(), title = "Retained project", environmentAssetId = "test-room-v1" }, memberClient);
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var projectId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
         var orgId = await OrganizationIdAsync(fixture, member);

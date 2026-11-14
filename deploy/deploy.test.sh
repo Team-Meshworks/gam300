@@ -53,6 +53,7 @@ cat > "$temporary/bin/curl" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 url=${!#}
+[[ "${url#*://}" != *//* ]] || exit 22
 config=''
 if [[ " $* " == *' --config - '* ]]; then config=$(cat); fi
 if [[ "$url" == https://* && "${FAKE_BASIC_GATE:-0}" == 1 ]]; then
@@ -67,6 +68,20 @@ case "$url" in
   */login) true ;;
   */api/v1/auth/csrf) [[ "${FAKE_FAIL_API:-0}" == 0 ]] ;;
   */api/v1/auth/session) printf '%s' "${FAKE_SESSION_STATUS:-401}" ;;
+  */api/v1/creation-operations/project|*/api/v1/projects/legacy-resolution)
+    status=${FAKE_INNER_CREATION_STATUS:-401}
+    if [[ "$url" == https://* ]]; then status=${FAKE_PUBLIC_CREATION_STATUS:-401}; fi
+    if [[ "$url" == */legacy-resolution ]]; then
+      [[ " $* " == *' --request PUT '* ]] || exit 22
+      status=${FAKE_INNER_RESOLUTION_STATUS:-401}
+      if [[ "$url" == https://* ]]; then status=${FAKE_PUBLIC_RESOLUTION_STATUS:-401}; fi
+    fi
+    printf '%s' "$status"
+    if [[ "$*" == *'%header{www-authenticate}'* ]]; then
+      challenge='SpatiaSession realm="Spatia", login_uri="/api/v1/auth/login"'
+      printf ' %s' "${FAKE_CREATION_CHALLENGE-$challenge}"
+    fi
+    ;;
   *) cat "$FAKE_STATE/$port" ;;
 esac
 MOCK
@@ -136,7 +151,17 @@ grep -q 'Public deployment probe failed: https://127.0.0.1:8082/version.txt' "$t
 [[ ! -e "$FAKE_STATE/8082-api" ]]
 if FAKE_BASIC_GATE=1 DEPLOY_BASIC_AUTH_USERNAME=probe DEPLOY_BASIC_AUTH_PASSWORD=wrong "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 if FAKE_BASIC_GATE=1 DEPLOY_BASIC_AUTH_USERNAME=probe DEPLOY_BASIC_AUTH_PASSWORD=correct-password FAKE_SESSION_STATUS=200 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
-FAKE_BASIC_GATE=1 DEPLOY_BASIC_AUTH_USERNAME=probe DEPLOY_BASIC_AUTH_PASSWORD=correct-password "${deploy[@]}" dev "$image" "$first" "$api" "$migration"
+if FAKE_PUBLIC_CREATION_STATUS=404 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
+[[ ! -e "$FAKE_STATE/8082-api" ]]
+if FAKE_INNER_CREATION_STATUS=200 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
+[[ ! -e "$FAKE_STATE/8082-api" ]]
+if FAKE_CREATION_CHALLENGE='Basic realm="gateway"' "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
+[[ ! -e "$FAKE_STATE/8082-api" ]]
+if FAKE_PUBLIC_RESOLUTION_STATUS=404 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
+[[ ! -e "$FAKE_STATE/8082-api" ]]
+if FAKE_INNER_RESOLUTION_STATUS=405 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
+[[ ! -e "$FAKE_STATE/8082-api" ]]
+APP_URL=https://127.0.0.1:8082/ FAKE_BASIC_GATE=1 DEPLOY_BASIC_AUTH_USERNAME=probe DEPLOY_BASIC_AUTH_PASSWORD=correct-password "${deploy[@]}" dev "$image" "$first" "$api" "$migration"
 ! grep -R -q 'correct-password' "$DEPLOY_ROOT"
 
 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"

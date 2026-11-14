@@ -246,7 +246,7 @@ try {
     }, video.id);
     for (const input of ["walk", "look"]) {
       await page.getByRole("button", { name: "Next room", exact: true }).click();
-      await page.getByText("Navigation stopped: scene-start interactions form a loop.").waitFor();
+      await page.getByText("Automatic scene navigation stopped at a repeated scene.").waitFor();
       assert.equal(await page.getByRole("combobox").inputValue(), "1");
       const canvas = page.getByLabel("Exhibition view", { exact: true });
       await canvas.focus();

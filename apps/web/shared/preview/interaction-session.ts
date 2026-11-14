@@ -7,7 +7,11 @@ import type {
 import { dispatchRules } from "./rule-dispatch";
 
 type Action = InteractionAction;
-export type ActionRunner = Readonly<{ run(action: Action): boolean | void; stop(): void }>;
+export type ActionRunner = Readonly<{
+  run(action: Action): boolean | void;
+  runClicked?(action: Action): boolean | void;
+  stop(): void;
+}>;
 
 export type SceneInteractions = Readonly<{
   schemaVersion: 1;
@@ -48,9 +52,12 @@ export function createInteractionSession(
     else attached.push(interaction);
   }
 
-  function execute(action: Action): boolean {
+  function execute(action: Action, deliberate = false): boolean {
     try {
-      return actions.run(action) === true;
+      return (
+        (deliberate && actions.runClicked ? actions.runClicked(action) : actions.run(action)) ===
+        true
+      );
     } catch {
       // One failed action must not prevent later actions from running
       return false;
@@ -74,20 +81,15 @@ export function createInteractionSession(
       dispatchRules(
         interactionsByObject.get(objectId.toLowerCase()) ?? [],
         () => true,
-        (interaction) => execute(interaction.do),
+        (interaction) => execute(interaction.do, true),
       );
     },
     update(deltaSeconds) {
       if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return;
       elapsedSeconds += deltaSeconds;
-      let started = false;
       for (const interaction of interactions) {
         if (interaction.when.type !== "time-elapsed" || fired.has(interaction)) continue;
         if (elapsedSeconds < (interaction.when.seconds ?? 2)) continue;
-        if (!started) {
-          beginEvent();
-          started = true;
-        }
         fired.add(interaction);
         if (execute(interaction.do)) break;
       }

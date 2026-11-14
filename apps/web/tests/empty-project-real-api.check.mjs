@@ -49,6 +49,9 @@ try {
     timezoneId: "Asia/Singapore",
   });
   const page = await login(teacher, process.env.SPATIA_TEST_EDUCATOR);
+  const identityResponse = await teacher.request.get(`${origin}/api/v1/auth/session`);
+  assert.equal(identityResponse.status(), 200);
+  const identity = await identityResponse.json();
   const catalogue = await teacher.request.get(`${origin}/api/v1/assets`);
   assert.equal(catalogue.status(), 200);
   assert.deepEqual(await catalogue.json(), [], "The fixture has no approved assets");
@@ -69,17 +72,27 @@ try {
       new URL(response.url()).pathname === "/api/v1/projects" &&
       response.request().method() === "POST",
   );
+  void creating.catch(() => {});
   const initialAssignment = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname.endsWith("/assignments") &&
       response.request().method() === "POST",
   );
+  void initialAssignment.catch(() => {});
   await page.getByRole("button", { name: "Create project", exact: true }).click();
   const created = await creating;
   assert.equal(created.status(), 201);
-  assert.deepEqual(created.request().postDataJSON(), {
+  const createBody = created.request().postDataJSON();
+  assert.match(
+    createBody.operationId,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+  assert.deepEqual(createBody, {
     title: "Empty source project",
+    operationId: createBody.operationId,
+    creationGuard: { purpose: "assignment-source", previousOperationId: null },
   });
+  assert.equal(created.request().headers()["x-spatia-account"], identity.userId);
   const receipt = await created.json();
   const sourceId = receipt.projectId;
   assert.ok(sourceId);

@@ -21,12 +21,14 @@ export function ExhibitionCanvas({
   sceneIndex,
   viewpoint,
   navigate,
-  beginInput,
+  beginNavigationEvent,
+  onPlaybackReady,
 }: {
   exhibition: PlayerSnapshot;
   sceneIndex: number;
-  navigate: (sceneId: string, viewpointId: string) => boolean;
-  beginInput: () => void;
+  navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean;
+  beginNavigationEvent(): void;
+  onPlaybackReady(ready: boolean): void;
   viewpoint?: Readonly<{ id: string }> | undefined;
 }) {
   const mount = useRef<HTMLDivElement>(null);
@@ -91,7 +93,7 @@ export function ExhibitionCanvas({
     const camera = new THREE.PerspectiveCamera(starting.fovDegrees, 1, 0.01, 2000);
     const fps = new FpsControls(camera, renderer.domElement);
     fps.setFlightAllowed(false);
-    fps.onNavigationInput = beginInput;
+    fps.onNavigationInput = beginNavigationEvent;
     fps.onCaptureChange = () => setCaptured(fps.isCaptured());
     const controls = {
       target: new THREE.Vector3(),
@@ -403,10 +405,11 @@ export function ExhibitionCanvas({
                   failed: false,
                 });
             },
-            beginInput,
+            beginNavigationEvent,
           );
           play.current = playback.start;
           playback.begin();
+          onPlaybackReady(true);
         }
         fps.engage();
         setResult({
@@ -442,6 +445,7 @@ export function ExhibitionCanvas({
     return () => {
       controller.abort();
       document.removeEventListener("visibilitychange", visibilityChanged);
+      onPlaybackReady(false);
       playback?.dispose();
       renderer.domElement.removeEventListener("pointerdown", down);
       renderer.domElement.removeEventListener("pointerup", click);
@@ -464,7 +468,7 @@ export function ExhibitionCanvas({
       reset.current = () => {};
       selectView.current = () => {};
     };
-  }, [exhibition, sceneIndex, entryView, attempt, navigate, beginInput]);
+  }, [exhibition, sceneIndex, entryView, attempt, navigate, beginNavigationEvent, onPlaybackReady]);
   useEffect(() => {
     if (viewpoint && viewpoint !== entryView) selectView.current(viewpoint.id);
   }, [viewpoint, entryView]);
@@ -485,7 +489,7 @@ export function ExhibitionCanvas({
         <button onClick={() => play.current()}>Enable audio</button>
         <button
           onClick={() => {
-            beginInput();
+            beginNavigationEvent();
             reset.current();
           }}
         >
@@ -495,7 +499,7 @@ export function ExhibitionCanvas({
           <button
             key={view.id}
             onClick={() => {
-              beginInput();
+              beginNavigationEvent();
               selectView.current(view.id);
             }}
           >

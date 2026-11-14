@@ -287,6 +287,25 @@ rollout removes an obsolete `server-recovery-required` marker; existing recovery
 and backups are retained. Editor-only releases retain their runtime rollback. An interrupted
 process may leave candidate services running; inspect their state before recovery.
 
+Deploy the receipt and generation migrations with the API before serving clients that use
+server-backed creation recovery. The deployment checks the anonymous creation-operation
+route and a bodyless legacy-resolution PUT through both the public and inner gateways. Both
+must return 401 with the `SpatiaSession` challenge, distinguishing the application response
+from an outer Basic challenge. The checks use no application credentials and make no writes.
+After migrations and grants, the database setup selects receipt fields and all nine
+`public.legacy_creation_bindings` columns with `LIMIT 0` as the API role. Missing columns or
+insufficient read permission stop startup. Apply `20261114170716_AddLegacyCreationBindings`
+with the receipt and generation migrations. The legacy-binding migration does not backfill
+historical creates. Downgrades are blocked when the respective history exists.
+
+Stop and drain old hosts and unkeyed writers during rollout, before enabling the release or
+header-only keys. Old hosts could ignore the header or accept an unkeyed request without a
+resolution. After the upgraded fleet is serving, unchanged integrations may resume and use
+the explicit resolution flow. Clients can prepare body keys where supported. A new key cannot
+identify an earlier unkeyed commit. Older server binaries cannot safely replace the upgraded
+server after the migrations. Review backup and forward recovery before rollout, and follow the
+[creation recovery contract](api-recovery.md#project-and-class-creation) for pre-upgrade work.
+
 Do not blindly restore a backup: migrations are not reversed and restoring a backup can
 discard later writes. Database restoration requires a reviewed procedure during downtime.
 Keep backups outside the VM as well.
@@ -316,7 +335,9 @@ only public UI files and cannot serve the catalogue; use `compose.server.yaml` f
 asset access. Vite's local development/preview server is not the deployment access boundary.
 Run `node apps/web/tests/restricted-catalogue.check.mjs` to check both build modes, and after
 an editor build run `CADDY_BINARY=/path/to/caddy node deploy/restricted-assets.check.mjs` to
-verify direct byte denial and authenticated delivery with the pinned Caddy version.
+verify direct byte denial, authenticated delivery, both organization deletion methods and a
+legacy-resolution PUT through the pinned Caddy gateways. The browser uses POST for deletion;
+versioned DELETE remains compatible.
 CI also checks the real image's separate roots and an anonymous GLB request against the
 API stack. These access controls do not approve redistribution: SCRUM-73 still requires
 redistribution-ready replacements before the development catalogue is publication-ready.

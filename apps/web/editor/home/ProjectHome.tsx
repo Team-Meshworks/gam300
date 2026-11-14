@@ -16,6 +16,15 @@ import type { FormNavigationState } from "../projects/NewProjectForm";
 import defaultProjectImage from "./assets/default-project-neutral.jpg";
 import { projectCover } from "./dashboard";
 
+import {
+  createOperationKey,
+  readCreateOperation,
+  sendCreateOperation,
+  duplicateCreateReceipt,
+} from "./create-operation";
+
+import { PendingCreateRecovery } from "./PendingCreateRecovery";
+
 const api = createWorkspaceClient();
 const accounts = createAccountClient();
 
@@ -49,6 +58,40 @@ export function ProjectHome({
   const [message, setMessage] = useState("");
   const [grantProject, setGrantProject] = useState<ProjectSummary | null>(null);
   const inFlight = useRef(false);
+  const operationKey = createOperationKey(session.userId, "duplicate");
+  const [recoverable, setRecoverable] = useState(true);
+  async function retryCopy() {
+    if (inFlight.current || !active) return;
+    inFlight.current = true;
+    setPhase("pending");
+    const outcome = await sendCreateOperation(
+      localStorage,
+      operationKey,
+      session.userId,
+      api.write,
+      (value) =>
+        duplicateCreateReceipt(
+          value,
+          readCreateOperation(localStorage, operationKey, session.userId),
+        ),
+    );
+    inFlight.current = false;
+    try {
+      setRecoverable(readCreateOperation(localStorage, operationKey, session.userId) !== null);
+    } catch {
+      setRecoverable(true);
+    }
+    setPhase(outcome.kind === "unknown" ? "unknown" : "ready");
+    setMessage(
+      outcome.kind === "confirmed"
+        ? "Project duplicated."
+        : outcome.kind === "rejected"
+          ? outcome.message
+          : "The copy is still unconfirmed. Retry the same saved request.",
+    );
+    if (outcome.kind === "confirmed") setAction(null);
+    setVersion((value) => value + 1);
+  }
   useEffect(() => {
     if (phase !== "pending") return;
     const preventLoss = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -76,14 +119,33 @@ export function ProjectHome({
     setPhase("pending");
     setMessage("");
     const { project, kind } = action;
-    const outcome = await api.write(
-      session.userId,
-      `/api/v1/projects/${encodeURIComponent(project.projectId)}/${kind === "duplicate" ? "duplicate" : "archive"}`,
-      kind === "duplicate" ? "POST" : "PATCH",
+    const outcome =
       kind === "duplicate"
-        ? { expectedRevision: project.revision, title: title.trim() }
-        : { expectedRevision: project.revision, archived: !project.archived },
-    );
+        ? await sendCreateOperation(
+            localStorage,
+            operationKey,
+            session.userId,
+            api.write,
+            (value) => projectReceipt(value, project),
+            {
+              path: "/api/v1/projects/" + encodeURIComponent(project.projectId) + "/duplicate",
+              body: { expectedRevision: project.revision, title: title.trim() },
+            },
+          )
+        : await api.write(
+            session.userId,
+            "/api/v1/projects/" + encodeURIComponent(project.projectId) + "/archive",
+            "PATCH",
+            {
+              expectedRevision: project.revision,
+              archived: !project.archived,
+            },
+          );
+    try {
+      setRecoverable(readCreateOperation(localStorage, operationKey, session.userId) !== null);
+    } catch {
+      setRecoverable(true);
+    }
     inFlight.current = false;
     if (
       outcome.kind === "confirmed" &&
@@ -114,11 +176,49 @@ export function ProjectHome({
   const items = current?.items?.filter((project) =>
     project.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
   );
+  const canRetry = (() => {
+    try {
+      const operation = readCreateOperation(localStorage, operationKey, session.userId);
+      return operation !== null && !operation.receipt;
+    } catch {
+      return false;
+    }
+  })();
+  const recoveryPanel = (
+    <PendingCreateRecovery
+      actorId={session.userId}
+      purpose="duplicate"
+      refreshKey={phase + message}
+      onPendingChange={setRecoverable}
+      onRecovered={(value) => {
+        setAction(null);
+        onOpenProject(value.id);
+      }}
+      active={active && phase !== "pending"}
+      onReleased={() => {
+        setPhase("ready");
+        setAction(null);
+        setVersion((value) => value + 1);
+        setMessage(
+          "The saved copy request was released. Its outcome remains unknown. A new copy is a separate creation.",
+        );
+      }}
+    />
+  );
   return (
     <section
       className={`sp-home-projects sp-home-projects--${session.role.toLowerCase()}`}
       aria-label="Projects"
     >
+      {canRetry && !action && (
+        <p role="alert">
+          An earlier project copy needs confirmation.
+          <Button disabled={!active || phase === "pending"} onClick={() => void retryCopy()}>
+            Retry same copy
+          </Button>
+        </p>
+      )}
+      {!action && recoveryPanel}
       <div className="sp-page-heading sp-between">
         <div>
           {session.role === "Administrator" ? (
@@ -192,6 +292,9 @@ export function ProjectHome({
                 />
                 <div className="sp-home-project-copy">
                   <h2>{project.title}</h2>
+                  <p className="sp-muted">
+                    Project ID: <code>{project.projectId}</code>
+                  </p>
                   <p className="sp-muted">Updated {new Date(project.updatedAt).toLocaleString()}</p>
                   <div className="sp-actions">
                     <Button
@@ -213,9 +316,11 @@ export function ProjectHome({
                     {project.permissions.canEdit && !project.archived && (
                       <Button
                         variant="quiet"
+                        disabled={recoverable}
                         onClick={() => {
                           setTitle(`${project.title} (copy)`.slice(0, 256));
                           setMessage("");
+                          if (recoverable) return;
                           setAction({ project, kind: "duplicate" });
                         }}
                       >
@@ -293,6 +398,9 @@ export function ProjectHome({
             }
           }}
         >
+          {action.kind === "duplicate" && canRetry && phase !== "pending" && (
+            <Button onClick={() => void retryCopy()}>Retry same copy</Button>
+          )}
           {phase === "unknown" ? (
             <p role="alert">{message}</p>
           ) : (
@@ -333,6 +441,7 @@ export function ProjectHome({
               </fieldset>
             </form>
           )}
+          {action.kind === "duplicate" && recoveryPanel}
         </Dialog>
       )}
     </section>
