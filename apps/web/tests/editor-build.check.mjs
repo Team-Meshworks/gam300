@@ -154,54 +154,51 @@ try {
   await contentPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await contentPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
   await contentPage.getByRole("button", { name: "Preview", exact: true }).click();
-  await contentPage.locator(".editor-shell.is-previewing").waitFor();
-  const targets = contentPage.getByRole("navigation", { name: "Interactive objects" });
-  await targets.getByRole("button", { name: "First crate", exact: true }).click();
-  await targets.getByRole("button", { name: "Second-scene crate", exact: true }).waitFor();
-  assert.equal(await contentPage.locator(".editor-shell.is-previewing").count(), 1);
-  await targets.getByRole("button", { name: "Second-scene crate", exact: true }).click();
-  await targets.getByRole("button", { name: "First crate", exact: true }).waitFor();
+  await contentPage.getByRole("region", { name: "Exhibition", exact: true }).waitFor();
+  await contentPage.getByText("Exhibit information", { exact: true }).click();
+  const targets = contentPage.getByRole("region", { name: "Exhibit information" });
+  await targets.getByRole("button", { name: "Activate First crate", exact: true }).click();
+  await targets.getByRole("button", { name: "Activate Second-scene crate", exact: true }).waitFor();
+  assert.equal(
+    await contentPage.getByRole("region", { name: "Exhibition", exact: true }).count(),
+    1,
+  );
+  await targets.getByRole("button", { name: "Activate Second-scene crate", exact: true }).click();
+  await targets.getByRole("button", { name: "Activate First crate", exact: true }).waitFor();
   await contentPage.getByRole("button", { name: "Exit preview", exact: true }).click();
   await contentPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
-  assert.equal(await contentPage.locator(".editor-shell.is-previewing").count(), 0);
+  assert.equal(
+    await contentPage.getByRole("region", { name: "Exhibition", exact: true }).count(),
+    0,
+  );
   await contentPage.close();
 
-  // Rich v2 rules are still unsupported, even when the project's scene navigation is supported.
-  const unsupported = structuredClone(content);
-  unsupported.scenes[0].rules = [
+  // Rich v2 scene-start rules execute in the packaged shared player.
+  const rich = structuredClone(content);
+  rich.scenes[0].rules = [
     {
       id: "30000000-0000-4000-8000-000000000003",
       enabled: true,
       trigger: { type: "sceneStart" },
-      actions: [
-        {
-          type: "moveCamera",
-          viewpointId: unsupported.scenes[0].viewpoints[0].id,
-          durationSeconds: 1,
-        },
-      ],
+      actions: [{ type: "setVisible", objectId: rich.scenes[0].objects[0].id, visible: false }],
     },
   ];
-  const unsupportedPage = await browser.newPage();
-  unsupportedPage.on("pageerror", (error) => errors.push(error.message));
-  const unsupportedProject = await serveProject(unsupportedPage, url, unsupported);
-  await unsupportedPage.goto(unsupportedProject.url);
-  await unsupportedPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await unsupportedPage.getByRole("button", { name: "Preview", exact: true }).click();
-  await unsupportedPage
-    .getByRole("status")
-    .filter({ hasText: "This preview does not support all the scenes and interactions" })
-    .waitFor();
-  assert.match(
-    await unsupportedPage
-      .getByRole("status")
-      .filter({ hasText: "This preview does not support" })
-      .innerText(),
-    /trigger:sceneStart at project\.scenes\[0\]\.rules\[0\]\.trigger/,
+  const richPage = await browser.newPage();
+  richPage.on("pageerror", (error) => errors.push(error.message));
+  const richProject = await serveProject(richPage, url, rich);
+  await richPage.goto(richProject.url);
+  await richPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await richPage.getByRole("button", { name: "Preview", exact: true }).click();
+  await richPage.getByRole("region", { name: "Exhibition", exact: true }).waitFor();
+  const hiddenExhibit = richPage.locator('[data-owner-id="' + rich.scenes[0].objects[0].id + '"]');
+  await hiddenExhibit.waitFor({ state: "attached" });
+  await richPage.waitForFunction(
+    (id) => document.querySelector(`[data-owner-id="${id}"]`)?.hidden === true,
+    rich.scenes[0].objects[0].id,
   );
-  assert.equal(await unsupportedPage.locator(".editor-shell.is-previewing").count(), 0);
-  assert.equal(await unsupportedPage.locator(".object-row").count(), 2);
-  await unsupportedPage.close();
+  await richPage.getByRole("button", { name: "Exit preview", exact: true }).click();
+  assert.equal(await richPage.locator(".object-row").count(), 2);
+  await richPage.close();
 
   // Use a fresh document so an already-evaluated module cannot hide a failed download
   const failed = await browser.newPage();
@@ -218,7 +215,7 @@ try {
   assert.deepEqual(errors, []);
   await failed.close();
   console.log(
-    `PASS: ${isDevelopment ? "development" : "production"} build controls, shell before renderer, chunk budget, placement, scene navigation, unsupported rules and chunk recovery`,
+    `PASS: ${isDevelopment ? "development" : "production"} build controls, shell before renderer, chunk budget, placement, scene navigation, rich rules and chunk recovery`,
   );
   console.log(JSON.stringify({ chunks }));
 

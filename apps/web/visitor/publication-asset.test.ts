@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { fetchPublicationAsset } from "./publication-asset";
+import { fetchPlayerAsset } from "../shared/player/player-asset";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -15,7 +15,7 @@ it("recovers transient saturation while preserving authenticated delivery", asyn
     .mockResolvedValueOnce(new Response(null, { status: 503 }))
     .mockResolvedValueOnce(new Response("retained bytes"));
   vi.stubGlobal("fetch", request);
-  const pending = fetchPublicationAsset(
+  const pending = fetchPlayerAsset(
     "/api/v1/publications/test/assets/test/bytes",
     new AbortController().signal,
   );
@@ -42,7 +42,7 @@ it("waits through six seconds of saturated permits instead of failing on the fif
         : new Response("retained bytes"),
     );
   vi.stubGlobal("fetch", request);
-  const pending = fetchPublicationAsset("/bytes", new AbortController().signal);
+  const pending = fetchPlayerAsset("/bytes", new AbortController().signal);
   await vi.advanceTimersByTimeAsync(10000);
   expect(await (await pending).text()).toBe("retained bytes");
   expect(request.mock.calls.length).toBeGreaterThan(5);
@@ -59,7 +59,7 @@ it("allows a slow permitted transfer to release a slot after thirty seconds", as
         : new Response("retained bytes"),
     );
   vi.stubGlobal("fetch", request);
-  const pending = fetchPublicationAsset("/bytes", new AbortController().signal);
+  const pending = fetchPlayerAsset("/bytes", new AbortController().signal);
   await vi.advanceTimersByTimeAsync(70000);
   expect(await (await pending).text()).toBe("retained bytes");
 });
@@ -70,7 +70,7 @@ it("bounds retries by elapsed time and never retries permanent access denials", 
     .fn<typeof fetch>()
     .mockImplementation(async () => new Response(null, { status: 429 }));
   vi.stubGlobal("fetch", request);
-  const pending = fetchPublicationAsset("/bytes", new AbortController().signal);
+  const pending = fetchPlayerAsset("/bytes", new AbortController().signal);
   const outcome = pending.then(
     () => ({ name: "UnexpectedSuccess" }),
     (error: unknown) => error,
@@ -82,7 +82,7 @@ it("bounds retries by elapsed time and never retries permanent access denials", 
   expect(request).toHaveBeenCalledTimes(attempts);
   expect(attempts).toBeLessThan(70);
   request.mockClear().mockResolvedValue(new Response(null, { status: 403 }));
-  expect((await fetchPublicationAsset("/bytes", new AbortController().signal)).status).toBe(403);
+  expect((await fetchPlayerAsset("/bytes", new AbortController().signal)).status).toBe(403);
   expect(request).toHaveBeenCalledTimes(1);
 });
 
@@ -102,7 +102,7 @@ it.each(["12", "Thu, 01 Jan 2026 00:00:12 GMT"])(
       )
       .mockResolvedValueOnce(new Response("retained bytes"));
     vi.stubGlobal("fetch", request);
-    const pending = fetchPublicationAsset("/bytes", new AbortController().signal);
+    const pending = fetchPlayerAsset("/bytes", new AbortController().signal);
     await vi.advanceTimersByTimeAsync(11999);
     expect(request).toHaveBeenCalledTimes(1);
     expect(cancelled).toHaveBeenCalledTimes(1);
@@ -117,7 +117,7 @@ it("expires instead of retrying early when Retry-After exceeds the remaining bud
     .fn<typeof fetch>()
     .mockResolvedValue(new Response(null, { status: 429, headers: { "Retry-After": "600" } }));
   vi.stubGlobal("fetch", request);
-  const outcome = fetchPublicationAsset("/bytes", new AbortController().signal).catch(
+  const outcome = fetchPlayerAsset("/bytes", new AbortController().signal).catch(
     (error: unknown) => error,
   );
   await vi.advanceTimersByTimeAsync(300000);
@@ -130,7 +130,7 @@ it("cancels a pending retry when the scene is disposed", async () => {
   const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 429 }));
   vi.stubGlobal("fetch", request);
   const controller = new AbortController();
-  const pending = fetchPublicationAsset("/bytes", controller.signal);
+  const pending = fetchPlayerAsset("/bytes", controller.signal);
   const rejected = expect(pending).rejects.toMatchObject({ name: "AbortError" });
   await vi.advanceTimersByTimeAsync(0);
   controller.abort();

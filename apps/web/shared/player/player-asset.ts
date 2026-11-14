@@ -1,7 +1,7 @@
-import { combineAbortSignals } from "../shared/network/abort-signals";
+import { combineAbortSignals } from "../network/abort-signals";
 // Give waiting visitors time behind 20 MB transfers without increasing the two-permit server budget.
 // The deadline also bounds the accepted response's body download; disposal cancels immediately.
-export async function fetchPublicationAsset(url: string, signal: AbortSignal): Promise<Response> {
+export async function fetchPlayerAsset(url: string, signal: AbortSignal): Promise<Response> {
   const budget = 5 * 60 * 1000;
   const deadline = Date.now() + budget;
   const bounded = combineAbortSignals([signal, AbortSignal.timeout(budget)]);

@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import * as THREE from "three";
-import { createVisitorPlayback } from "./visitor-playback";
+import { createVisitorPlayback } from "../shared/player/playback";
 import type { ProjectRule } from "../shared/project/project-content";
+import type { Interaction } from "../shared/project/project-types";
+import { createInteractionHandler } from "../editor/interaction/interactionHandler";
 const resume = vi.hoisted(() => vi.fn<() => Promise<void>>());
 beforeEach(() => resume.mockReset().mockResolvedValue());
 
@@ -48,7 +50,12 @@ it("does not publish a late recovery status after the visit is disposed", async 
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function fixture(count = 1, rules: readonly ProjectRule[] = []) {
+function fixture(
+  count = 1,
+  rules: readonly ProjectRule[] = [],
+  interactions: readonly Interaction[] = [],
+  navigate: (scene: string, viewpoint: string) => boolean | void = vi.fn(),
+) {
   vi.stubGlobal("document", Object.assign(new EventTarget(), { hidden: false }));
   const owners = Array.from({ length: count }, (_, index) => ({
     dataset: { ownerId: `owner-${index}` },
@@ -94,7 +101,7 @@ function fixture(count = 1, rules: readonly ProjectRule[] = []) {
       environmentAssetId: null,
       startCamera: { position: [0, 0, 5], rotation: [0, 0, 0, 1], fovDegrees: 40 },
       objects: [],
-      interactions: [],
+      interactions,
       hotspots: [],
       groups: [],
       zones: [],
@@ -105,11 +112,52 @@ function fixture(count = 1, rules: readonly ProjectRule[] = []) {
     { target: new THREE.Vector3(), update() {} },
     new Map(),
     content as unknown as HTMLElement,
-    vi.fn(),
+    navigate,
     report,
   );
   return { runtime, nodes, owners, panels, report };
 }
+
+it("continues ordered scene-start actions after a failure in both preview and visitor", () => {
+  const alert = vi.fn().mockImplementationOnce(() => {
+    throw new Error("blocked");
+  });
+  vi.stubGlobal("window", { alert });
+  const interactions: Interaction[] = [
+    { when: { type: "scene-starts" }, do: { type: "print-hi" } },
+    { when: { type: "scene-starts" }, do: { type: "print-hi" } },
+  ];
+  const preview = createInteractionHandler(interactions, []);
+  preview.sceneStarted();
+  expect(alert).toHaveBeenCalledTimes(2);
+  alert.mockClear().mockImplementationOnce(() => {
+    throw new Error("blocked");
+  });
+  const { runtime } = fixture(0, [], interactions);
+  expect(() => runtime.begin()).not.toThrow();
+  expect(alert).toHaveBeenCalledTimes(2);
+  runtime.dispose();
+});
+
+it("continues to the next scene-start rule when an action fails", () => {
+  const { runtime, owners } = fixture(1, [
+    {
+      id: "first",
+      enabled: true,
+      trigger: { type: "sceneStart" },
+      actions: [{ type: "showPanel", panelId: "0" }],
+    },
+    {
+      id: "second",
+      enabled: true,
+      trigger: { type: "sceneStart" },
+      actions: [{ type: "setVisible", objectId: "owner-0", visible: false }],
+    },
+  ]);
+  expect(() => runtime.begin()).not.toThrow();
+  expect(owners[0]!.hidden).toBe(true);
+  runtime.dispose();
+});
 
 function visibilityRule(seconds: number, visible: boolean): ProjectRule {
   return {
@@ -247,5 +295,22 @@ it("keeps the warning until every blocked track has recovered", async () => {
   nodes[1]!.play.mockResolvedValueOnce();
   runtime.start();
   await vi.waitFor(() => expect(report).toHaveBeenLastCalledWith("Exhibition ready"));
+  runtime.dispose();
+});
+
+it("keeps the current scene playable when a navigation request is rejected", () => {
+  const alert = vi.fn();
+  vi.stubGlobal("window", { alert });
+  const { runtime } = fixture(
+    0,
+    [],
+    [
+      { when: { type: "scene-starts" }, do: { type: "navigate-scene", sceneId: "missing" } },
+      { when: { type: "scene-starts" }, do: { type: "print-hi" } },
+    ],
+    () => false,
+  );
+  runtime.begin();
+  expect(alert).toHaveBeenCalledWith("hi");
   runtime.dispose();
 });

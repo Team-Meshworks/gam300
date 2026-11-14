@@ -86,17 +86,12 @@ try {
   ])
     await page.keyboard.press(key);
   assert.equal(await page.evaluate(() => window.auditPickers), 0, "Navigation cannot open Save");
-  assert.equal(await page.locator(".object-row").count(), 1, "Navigation cannot edit the draft");
-  for (const selector of [".library", ".history-controls", ".project-card"])
-    assert.equal(await page.locator(selector).evaluate((element) => element.inert), true);
+  assert.equal(await page.locator(".object-row").count(), 0, "Preview removes editing controls");
   // Preview takes the whole bottom bar away, so got nothing left to click
   assert.equal(await page.locator(".bottom-dock").count(), 0, "Preview hides the asset library");
-  assert.equal(await page.locator(".object-row").count(), 1);
-  assert.equal(
-    await page.getByLabel("Selected position", { includeHidden: true }).textContent(),
-    position,
-  );
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
+  assert.equal(await page.locator(".object-row").count(), 1, "Navigation cannot edit the draft");
+  assert.equal(await page.getByLabel("Selected position").textContent(), position);
   await page.keyboard.press("Control+d");
   assert.equal(await page.locator(".object-row").count(), 2, "Authoring resumes on exit");
   await page.keyboard.press("Control+z");

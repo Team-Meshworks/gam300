@@ -12,7 +12,9 @@ import {
 import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
 import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object";
 import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
-import { missingProjectCapabilities } from "../shared/project/project-capabilities";
+import { StudentPreview } from "./StudentPreview";
+import { playbackIssue, type PlayerSnapshot } from "../shared/player/player-snapshot";
+import type { CameraPose } from "../shared/project/project-types";
 import { playUiSound, setUiSoundVolume } from "./audio/ui-sounds";
 import type { createDocumentStore } from "./document-store";
 import {
@@ -211,9 +213,15 @@ export function App({
   }, [feedback.sequence]);
   const [viewCamera, setViewCamera] = useState<ViewpointCamera | null>(null);
   const viewCameraRef = useRef<ViewpointCamera | null>(null);
+  const restoreCamera = useRef<CameraPose | null>(null);
+  const [preview, setPreview] = useState<PlayerSnapshot | null>(null);
   const receiveCamera = useCallback((camera: ViewpointCamera | null) => {
     viewCameraRef.current = camera;
     setViewCamera(camera);
+    if (camera && restoreCamera.current) {
+      camera.show(restoreCamera.current);
+      restoreCamera.current = null;
+    }
   }, []);
   useEffect(() => {
     if (pendingText) viewCamera?.locate(pendingText.objectId);
@@ -249,7 +257,7 @@ export function App({
   const selectedObject = roomSelected
     ? environmentObject(projectScene)
     : objects.find((object) => object.id === selection);
-  const visitor = readOnlyPreview || modeState?.mode === "visitor";
+  const visitor = preview !== null || readOnlyPreview || modeState?.mode === "visitor";
   const mobileDevice = isMobileTouchDevice();
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
   // Start inside the scene, the overview button switch to the orbit camera
@@ -328,10 +336,10 @@ export function App({
   const previewReady = !readOnlyPreview || modeState?.mode === "visitor";
   // Leaving Preview, replacing the handler or unmounting ends that preview session
   useEffect(() => {
-    if (!visitor || !previewReady) return;
+    if (!readOnlyPreview || !previewReady) return;
     interactionHandler.sceneStarted();
     return () => interactionHandler.reset();
-  }, [visitor, interactionHandler, previewReady]);
+  }, [readOnlyPreview, interactionHandler, previewReady]);
   const onObjectClick = useCallback((id: string) => {
     interactionHandlerRef.current.objectClicked(id);
   }, []);
@@ -653,6 +661,19 @@ export function App({
     [viewCamera, selection],
   );
 
+  if (preview) {
+    return (
+      <StudentPreview
+        snapshot={preview}
+        onExit={() => {
+          setStatus("loading");
+          setPreview(null);
+          playUiSound("goingBack");
+        }}
+      />
+    );
+  }
+
   return (
     <div
       className={`editor-shell${visitor ? " is-previewing" : ""}${walking ? " is-walking" : ""}`}
@@ -668,68 +689,18 @@ export function App({
         canRedo={canRedo}
         onUndo={store.undo}
         onRedo={store.redo}
-        canPreview={!pendingText && manager !== null && !departing}
+        canPreview={!pendingText && status === "ready" && manager !== null && !departing}
         onPreview={() => {
           const current = store.getSnapshot().project;
-          const unavailable =
-            current === null
-              ? []
-              : missingProjectCapabilities(
-                  current,
-                  new Set([
-                    "appearance",
-                    "multipleScenes",
-                    "content:text",
-                    "content:image",
-                    "content:video",
-                    "content:audio",
-                    "audio:global",
-                    "audio:spatial",
-                    "interaction:play-audio",
-                    "text:placement",
-                    "environment:transform",
-                    "environment:visibility",
-                    "text:style",
-                    "text:bold",
-                    "text:italic",
-                    "text:underline",
-                    "interaction:navigate-scene",
-                    "interaction:move-to-viewpoint",
-                  ]),
-                );
-          const unsupportedDisplay =
-            current?.schemaVersion === 2 &&
-            current.scenes.some((scene) =>
-              scene.objects.some((object) => {
-                const display = assets.find((asset) => asset.id === object.assetId);
-                const content = object.components.filter((component) =>
-                  ["text", "image", "video"].includes(component.type),
-                );
-                return (
-                  content.length > 0 &&
-                  !display?.displaySurface &&
-                  !(
-                    display?.displayRole === "physical" &&
-                    content.every((component) => component.type === "text")
-                  )
-                );
-              }),
-            );
-          if (unavailable.length > 0 || unsupportedDisplay) {
-            // Keep capability paths tied to the saved data so authors can find the blocked feature
-            const reasons = unavailable.map((issue) => `${issue.capability} at ${issue.path}`);
-            if (unsupportedDisplay) {
-              reasons.push("Place text, images and videos on a supported display");
-            }
-            setNotice(
-              `This preview does not support all the scenes and interactions in this project: ${reasons.join("; ")}`,
-            );
+          if (!current) return;
+          const issue = playbackIssue(current);
+          if (issue) {
+            setNotice(issue);
             return;
           }
-          navigation.start();
-          manager?.setMode("visitor");
+          restoreCamera.current = viewCamera?.capture() ?? null;
+          setPreview(structuredClone({ document: current, assets: editorAssets }));
           playUiSound("enterPreview");
-          document.getElementById("viewport")?.focus();
         }}
         onExitPreview={() => {
           manager?.setMode("editor");

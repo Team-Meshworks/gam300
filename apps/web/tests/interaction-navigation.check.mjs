@@ -150,8 +150,9 @@ try {
     assert.equal(restored.fov, editingCamera.fov, "Restore the editing field of view");
   };
   await page.getByRole("button", { name: "Preview", exact: true }).click();
-  const targets = page.getByRole("navigation", { name: "Interactive objects" });
-  await targets.getByRole("button", { name: "Detail view", exact: true }).click();
+  await page.getByText("Exhibit information", { exact: true }).click();
+  const targets = page.getByRole("region", { name: "Exhibit information" });
+  await targets.getByRole("button", { name: "Activate Detail view", exact: true }).click();
   await page
     .waitForFunction(
       () => window.navigationCamera?.position[0] === -5 && window.navigationCamera?.fov === 45,
@@ -182,31 +183,33 @@ try {
     (await page.evaluate(() => window.navigationCamera)).position[1] < pose(-5).position[1],
     "Preview never flies above a saved view",
   );
-  const canvas = await page.locator(".viewport-stage canvas").elementHandle();
-  await targets.getByRole("button", { name: "Next room", exact: true }).click();
-  await targets.getByRole("button", { name: "Back to first", exact: true }).waitFor();
+  const canvas = await page.locator(".visitor-viewer canvas").elementHandle();
+  await targets.getByRole("button", { name: "Activate Next room", exact: true }).click();
+  await targets.getByRole("button", { name: "Activate Back to first", exact: true }).waitFor();
   await page.waitForFunction(
     () => window.navigationCamera?.position[0] === 20 && window.navigationCamera?.fov === 70,
   );
-  assert.equal(await page.locator(".editor-shell.is-previewing").count(), 1);
+  assert.equal(await page.getByRole("region", { name: "Exhibition", exact: true }).count(), 1);
   assert.equal(
     await canvas.evaluate((element) => element.isConnected),
-    true,
-    "Scene changes retain the viewport",
+    false,
+    "Scene changes replace the previous scene viewport",
   );
   assert.deepEqual(alerts, ["hi"], "Destination scene-start fires exactly once");
-  await targets.getByRole("button", { name: "Back to first", exact: true }).click();
-  await targets.getByRole("button", { name: "Next room", exact: true }).waitFor();
-  await targets.getByRole("button", { name: "Next room", exact: true }).click();
-  await targets.getByRole("button", { name: "Back to first", exact: true }).waitFor();
+  await targets.getByRole("button", { name: "Activate Back to first", exact: true }).click();
+  await targets.getByRole("button", { name: "Activate Next room", exact: true }).waitFor();
+  await targets.getByRole("button", { name: "Activate Next room", exact: true }).click();
+  await targets.getByRole("button", { name: "Activate Back to first", exact: true }).waitFor();
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
-  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
+  if (!(await page.locator(".object-row").filter({ hasText: "Detail view" }).isVisible()))
+    await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page.locator(".object-row").filter({ hasText: "Detail view" }).waitFor();
-  assert.equal(await page.locator(".editor-shell.is-previewing").count(), 0);
+  assert.equal(await page.getByRole("region", { name: "Exhibition", exact: true }).count(), 0);
   await assertEditingCamera();
   // A second preview that stays in A also retains the editing camera.
   await page.getByRole("button", { name: "Preview", exact: true }).click();
-  await targets.getByRole("button", { name: "Detail view", exact: true }).click();
+  await page.getByText("Exhibit information", { exact: true }).click();
+  await targets.getByRole("button", { name: "Activate Detail view", exact: true }).click();
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
   await assertEditingCamera();
   // Restoration must not suppress the next ordinary editor scene change.
@@ -245,7 +248,10 @@ try {
       .getByRole("status")
       .filter({ hasText: "Navigation stopped: scene-start interactions form a loop." })
       .waitFor();
-    assert.equal(await chainPage.locator(".editor-shell.is-previewing").count(), 1);
+    assert.equal(
+      await chainPage.getByRole("region", { name: "Exhibition", exact: true }).count(),
+      1,
+    );
     await chainPage.getByRole("button", { name: "Exit preview", exact: true }).click();
     await chainPage.locator(".object-row").filter({ hasText: "Detail view" }).waitFor();
     assert.deepEqual(chainErrors, []);

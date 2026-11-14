@@ -24,7 +24,7 @@ import { roomAtPosition } from "./room-at-position";
 import { createDisplayContent } from "./display-content";
 import { createExhibitAppearance } from "./exhibit-appearance";
 import { createPlacementPreview } from "./placement-preview";
-import { createActiveClock } from "./active-clock";
+import { createActiveClock } from "../../shared/preview/active-clock";
 import { HOTSPOT_SIZE, hotspotAnchor, hotspotWorldSize } from "./hotspot-anchor";
 import { moveAttachedObjects } from "../../shared/project/attached-transforms";
 import type {

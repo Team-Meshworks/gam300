@@ -1,49 +1,53 @@
+import { displaySurface } from "../asset-runtime/display-surface";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { FpsControls, type FpsMobileControls } from "../shared/preview/FpsControls";
-import { MobileControls } from "../shared/preview/MobileControls";
-import { standOnPreviewFloor } from "../shared/preview/preview-start";
+import { createActiveClock } from "../preview/active-clock";
+import { FpsControls, type FpsMobileControls } from "../preview/FpsControls";
+import { MobileControls } from "../preview/MobileControls";
+import { standOnPreviewFloor } from "../preview/preview-start";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { STARTER_ROOM_SHA256 } from "../shared/asset-runtime/catalogue";
-import { disposeModels } from "../shared/asset-runtime/ModelCache";
-import { createExhibitAppearance } from "../shared/asset-runtime/exhibit-appearance";
-import { createTextTexture } from "../shared/asset-runtime/text-texture";
-import { createRoomEntrances } from "../shared/asset-runtime/room-entrances";
-import type { PublishedExhibition } from "./publication";
-import { createVisitorPlayback } from "./visitor-playback";
-import { fetchPublicationAsset } from "./publication-asset";
+import { STARTER_ROOM_SHA256 } from "../asset-runtime/catalogue";
+import { disposeModels } from "../asset-runtime/ModelCache";
+import { createExhibitAppearance } from "../asset-runtime/exhibit-appearance";
+import { containDisplay } from "../asset-runtime/display-layout";
+import { createTextTexture } from "../asset-runtime/text-texture";
+import { createRoomEntrances } from "../asset-runtime/room-entrances";
+import type { PlayerSnapshot } from "./player-snapshot";
+import { createVisitorPlayback } from "./playback";
+import { fetchPlayerAsset } from "./player-asset";
 
 export function ExhibitionCanvas({
   exhibition,
   sceneIndex,
   viewpoint,
   navigate,
+  beginInput,
 }: {
-  exhibition: PublishedExhibition;
+  exhibition: PlayerSnapshot;
   sceneIndex: number;
-  navigate: (sceneId: string, viewpointId: string) => void;
+  navigate: (sceneId: string, viewpointId: string) => boolean;
+  beginInput: () => void;
   viewpoint?: Readonly<{ id: string }> | undefined;
 }) {
   const mount = useRef<HTMLDivElement>(null);
   const play = useRef<() => void>(() => {});
   const reset = useRef<() => void>(() => {});
   const selectView = useRef<(id: string) => void>(() => {});
+  const [entryView] = useState(viewpoint);
   const [attempt, setAttempt] = useState(0);
   const [mobile, setMobile] = useState<FpsMobileControls | null>(null);
   const [captured, setCaptured] = useState(false);
   const [result, setResult] = useState<{
-    exhibition: PublishedExhibition;
+    exhibition: PlayerSnapshot;
     sceneIndex: number;
     attempt: number;
-    viewpoint: typeof viewpoint;
     message: string;
     failed: boolean;
   } | null>(null);
   const current =
     result?.exhibition === exhibition &&
     result.sceneIndex === sceneIndex &&
-    result.attempt === attempt &&
-    result.viewpoint === viewpoint
+    result.attempt === attempt
       ? result
       : null;
   useEffect(() => {
@@ -62,7 +66,7 @@ export function ExhibitionCanvas({
             exhibition,
             sceneIndex,
             attempt,
-            viewpoint,
+
             message:
               "This browser cannot display the 3D exhibition. Try a browser with WebGL enabled.",
             failed: true,
@@ -81,7 +85,7 @@ export function ExhibitionCanvas({
         (view) =>
           view.id.toLowerCase() ===
           (
-            viewpoint?.id ?? ("startViewpointId" in source ? source.startViewpointId : undefined)
+            entryView?.id ?? ("startViewpointId" in source ? source.startViewpointId : undefined)
           )?.toLowerCase(),
       )?.camera ?? source.startCamera;
     const camera = new THREE.PerspectiveCamera(starting.fovDegrees, 1, 0.01, 2000);
@@ -104,12 +108,12 @@ export function ExhibitionCanvas({
     };
     const start = () => {
       setView(starting);
-      if (!viewpoint?.id && !("startViewpointId" in source && source.startViewpointId)) {
+      if (!entryView?.id && !("startViewpointId" in source && source.startViewpointId)) {
         standOnPreviewFloor(camera, fps);
       }
     };
     selectView.current = (id) => {
-      const view = source.viewpoints?.find((item) => item.id === id);
+      const view = source.viewpoints?.find((item) => item.id.toLowerCase() === id.toLowerCase());
       if (view) setView(view.camera);
     };
     reset.current = start;
@@ -131,7 +135,11 @@ export function ExhibitionCanvas({
     let playback: ReturnType<typeof createVisitorPlayback> | undefined;
     const ray = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
+    const waitingForMedia = new Set<() => boolean>();
     let lastFrame = performance.now();
+    const clock = createActiveClock(lastFrame, !document.hidden);
+    const visibilityChanged = () => clock.setActive(performance.now(), !document.hidden);
+    document.addEventListener("visibilitychange", visibilityChanged);
     // Resolve visible model owners from child geometry for click and gaze triggers
     const picked = () => {
       for (const hit of ray.intersectObjects([...roots.values()], true)) {
@@ -195,8 +203,9 @@ export function ExhibitionCanvas({
       const id = picked();
       if (id) {
         playback?.click(id);
-        document
-          .querySelector<HTMLElement>(`[data-exhibition-scene="${source.id}"]`)
+        host
+          .closest(".visitor-preview")
+          ?.querySelector<HTMLElement>(`[data-exhibition-scene="${source.id}"]`)
           ?.dispatchEvent(new CustomEvent("exhibit-inspect", { detail: id }));
       } else playback?.start();
     };
@@ -213,8 +222,10 @@ export function ExhibitionCanvas({
       const now = performance.now();
       if (!document.hidden) fps.update(Math.min(0.1, (now - lastFrame) / 1000));
       ray.setFromCamera(new THREE.Vector2(), camera);
-      playback?.update(Math.min(0.1, (now - lastFrame) / 1000), picked());
+      const elapsed = clock.tick(now);
+      playback?.update(elapsed, picked());
       lastFrame = now;
+      for (const bind of waitingForMedia) if (bind()) waitingForMedia.delete(bind);
       renderer.render(scene, camera);
     });
 
@@ -246,14 +257,15 @@ export function ExhibitionCanvas({
       for (const object of objects) {
         const asset = exhibition.assets.find((row) => row.id === object.assetId);
         if (!asset) throw new Error("An exhibition asset is missing.");
-        const response = await fetchPublicationAsset(asset.url, controller.signal);
+        const response = await fetchPlayerAsset(asset.url, controller.signal);
         if (!response.ok)
           throw new Error("An exhibition asset is unavailable. Your access may have changed.");
         const bytes = await response.arrayBuffer();
         const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
           .map((byte) => byte.toString(16).padStart(2, "0"))
           .join("");
-        if (digest !== asset.sha256) throw new Error("An exhibition asset could not be verified.");
+        if (digest !== asset.sha256.toLowerCase())
+          throw new Error("An exhibition asset could not be verified.");
         const gltf = await loader.parseAsync(bytes, "");
         if (controller.signal.aborted) {
           disposeModels(gltf.scene);
@@ -272,6 +284,9 @@ export function ExhibitionCanvas({
         root.name = object.id;
         root.visible = !("visible" in object) || object.visible !== false;
         root.add(gltf.scene);
+        // Measure display surfaces in model-local coordinates before applying the authored root transform
+        const localSurface =
+          asset.displayRole === "physical" ? new THREE.Box3().setFromObject(gltf.scene) : undefined;
         if (object.transform) {
           root.position.fromArray(object.transform.position);
           root.quaternion.fromArray(object.transform.rotation);
@@ -280,15 +295,55 @@ export function ExhibitionCanvas({
         const authored =
           "rules" in source ? source.objects.find((item) => item.id === object.id) : undefined;
         if (authored && "appearance" in authored) appearances.apply(root, authored.appearance);
+        // Attach the same verified media element used by the information panel and rule actions
+        const surface = asset.displaySurface;
+        if (authored && surface) {
+          const component = authored.components.find(
+            (item) => item.type === "image" || item.type === "video",
+          );
+          if (component) {
+            waitingForMedia.add(() => {
+              const element = host
+                .closest(".visitor-preview")
+                ?.querySelector(
+                  `[data-component-id="${component.id}"] img, [data-component-id="${component.id}"] video`,
+                );
+              const image =
+                element instanceof HTMLImageElement && element.naturalWidth > 0 ? element : null;
+              const video =
+                element instanceof HTMLVideoElement && element.readyState >= 2 ? element : null;
+              if (!image && !video) return false;
+              const map = video ? new THREE.VideoTexture(video) : new THREE.Texture(image);
+              map.colorSpace = THREE.SRGBColorSpace;
+              map.needsUpdate = true;
+              const fit = containDisplay(
+                surface.width,
+                surface.height,
+                video?.videoWidth ?? image!.naturalWidth,
+                video?.videoHeight ?? image!.naturalHeight,
+              );
+              const mesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(fit.width, fit.height),
+                new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide, toneMapped: false }),
+              );
+              mesh.position.fromArray(surface.position);
+              mesh.quaternion.fromArray(surface.rotation);
+              mesh.translateZ(0.004);
+              root.add(mesh);
+              return true;
+            });
+          }
+        }
         // Placed text uses the editor's formatting and local placement on its exhibit
         if (authored && "components" in authored) {
           for (const component of authored.components) {
-            if (component.type !== "text" || !component.placement) continue;
-            const placement = component.placement;
+            if (component.type !== "text") continue;
+            const face = displaySurface(asset, component, localSurface);
+            if (!face) continue;
             const texture = createTextTexture(
               "",
-              placement.scale[0],
-              placement.scale[1],
+              face.width,
+              face.height,
               component.runs,
               (component.fontSize ?? 24) * 4,
               component.background === "transparent",
@@ -296,7 +351,7 @@ export function ExhibitionCanvas({
               component.background ?? "#fffaf0",
             );
             const panel = new THREE.Mesh(
-              new THREE.PlaneGeometry(placement.scale[0], placement.scale[1]),
+              new THREE.PlaneGeometry(face.width, face.height),
               new THREE.MeshBasicMaterial({
                 map: texture,
                 side: THREE.DoubleSide,
@@ -304,8 +359,8 @@ export function ExhibitionCanvas({
                 transparent: component.background === "transparent",
               }),
             );
-            panel.position.fromArray(placement.position);
-            panel.quaternion.fromArray(placement.rotation);
+            panel.position.fromArray(face.position);
+            panel.quaternion.fromArray(face.rotation);
             panel.translateZ(0.004);
             root.add(panel);
           }
@@ -329,9 +384,9 @@ export function ExhibitionCanvas({
       }
       if (!controller.signal.aborted) {
         entrances.sync(rooms);
-        const information = document.querySelector<HTMLElement>(
-          `[data-exhibition-scene="${source.id}"]`,
-        );
+        const information = host
+          .closest(".visitor-preview")
+          ?.querySelector<HTMLElement>(`[data-exhibition-scene="${source.id}"]`);
         if (information) {
           playback = createVisitorPlayback(
             source,
@@ -342,8 +397,9 @@ export function ExhibitionCanvas({
             navigate,
             (message) => {
               if (!controller.signal.aborted)
-                setResult({ exhibition, sceneIndex, attempt, viewpoint, message, failed: false });
+                setResult({ exhibition, sceneIndex, attempt, message, failed: false });
             },
+            beginInput,
           );
           play.current = playback.start;
           playback.begin();
@@ -353,7 +409,7 @@ export function ExhibitionCanvas({
           exhibition,
           sceneIndex,
           attempt,
-          viewpoint,
+
           message: "Exhibition ready",
           failed: false,
         });
@@ -368,7 +424,7 @@ export function ExhibitionCanvas({
           exhibition,
           sceneIndex,
           attempt,
-          viewpoint,
+
           message:
             failure instanceof DOMException && failure.name === "TimeoutError"
               ? "Loading the exhibition timed out. Please try again."
@@ -381,6 +437,7 @@ export function ExhibitionCanvas({
     });
     return () => {
       controller.abort();
+      document.removeEventListener("visibilitychange", visibilityChanged);
       playback?.dispose();
       renderer.domElement.removeEventListener("pointerdown", down);
       renderer.domElement.removeEventListener("pointerup", click);
@@ -403,7 +460,10 @@ export function ExhibitionCanvas({
       reset.current = () => {};
       selectView.current = () => {};
     };
-  }, [exhibition, sceneIndex, viewpoint, attempt]);
+  }, [exhibition, sceneIndex, entryView, attempt, navigate, beginInput]);
+  useEffect(() => {
+    if (viewpoint && viewpoint !== entryView) selectView.current(viewpoint.id);
+  }, [viewpoint, entryView]);
   return (
     <section className="visitor-viewer" aria-label="Exhibition viewer">
       <p

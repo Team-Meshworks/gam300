@@ -13,9 +13,15 @@ export const modules = {
     packages: [],
     public: ["shared/network/abort-signals.ts"],
   },
+  player: {
+    paths: ["shared/player/"],
+    uses: ["preview", "project", "catalogue", "asset-loading", "network"],
+    packages: ["react", "three"],
+    public: ["shared/player/ExhibitionPlayer.tsx", "shared/player/player-snapshot.ts"],
+  },
   visitor: {
     paths: ["visitor/"],
-    uses: ["project", "catalogue", "asset-loading", "network", "preview"],
+    uses: ["project", "catalogue", "network", "player"],
     packages: ["react", "react-dom", "three"],
     public: [],
   },
@@ -28,6 +34,7 @@ export const modules = {
       "shared/project/attached-transforms.ts",
       "shared/project/starting-view.ts",
       "shared/project/legacy-scene-import.ts",
+      "shared/project/legacy-scene-types.ts",
       "shared/project/project-content.ts",
       "shared/project/project-appearance.ts",
       "shared/project/room-placement.ts",
@@ -63,6 +70,7 @@ export const modules = {
       "shared/asset-runtime/exhibit-appearance.ts",
       "shared/asset-runtime/text-texture.ts",
       "shared/asset-runtime/display-layout.ts",
+      "shared/asset-runtime/display-surface.ts",
     ],
     uses: ["catalogue", "network", "project"],
     packages: ["three"],
@@ -72,14 +80,18 @@ export const modules = {
       "shared/asset-runtime/exhibit-appearance.ts",
       "shared/asset-runtime/text-texture.ts",
       "shared/asset-runtime/display-layout.ts",
+      "shared/asset-runtime/display-surface.ts",
     ],
   },
   preview: {
     paths: ["shared/preview/"],
-    uses: [],
+    uses: ["project"],
     packages: ["react", "three"],
     public: [
       "shared/preview/FpsControls.ts",
+      "shared/preview/active-clock.ts",
+      "shared/preview/interaction-session.ts",
+      "shared/preview/rule-dispatch.ts",
       "shared/preview/preview-start.ts",
       "shared/preview/MobileControls.tsx",
       "shared/preview/preview.css",
@@ -157,6 +169,7 @@ export const modules = {
   editor: {
     paths: ["editor/"],
     uses: [
+      "player",
       "project",
       "catalogue",
       "input",
@@ -189,6 +202,8 @@ export const modules = {
   checks: {
     paths: ["tests/"],
     uses: [
+      "preview",
+      "player",
       "visitor",
       "project",
       "catalogue",

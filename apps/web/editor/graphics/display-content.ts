@@ -1,3 +1,4 @@
+import { displaySurface } from "../../shared/asset-runtime/display-surface";
 import { textColorOn } from "../../shared/project/project-appearance";
 import * as THREE from "three";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
@@ -32,31 +33,7 @@ export function createDisplayContent(
     signature: string,
   ): Display | undefined {
     const physical = asset.displayRole === "physical";
-    let resolved = asset.displaySurface;
-    if (physical && content.type === "text") {
-      const model = models.get(asset.id);
-      if (!model) return;
-      const box = new THREE.Box3().setFromObject(model),
-        size = box.getSize(new THREE.Vector3());
-      const width = Math.max(0.2, size.x * 0.9);
-      resolved = {
-        position: [
-          (box.min.x + box.max.x) / 2,
-          box.min.y + (asset.displayTop ?? size.y) / 2,
-          box.max.z + 0.006,
-        ],
-        rotation: [0, 0, 0, 1],
-        width,
-        height: width * 0.6,
-      };
-    }
-    if (content.type === "text" && content.placement)
-      resolved = {
-        position: content.placement.position,
-        rotation: content.placement.rotation,
-        width: content.placement.scale[0],
-        height: content.placement.scale[1],
-      };
+    const resolved = displaySurface(asset, content, models.get(asset.id));
     if (!resolved) return;
     const surface = resolved;
     const appearance = (owner.userData.captionAppearance ?? {}) as {

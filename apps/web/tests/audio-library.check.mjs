@@ -20,21 +20,10 @@ try {
       window.spatialPanners.push(panner);
       return panner;
     };
-    const createSource = AudioContext.prototype.createBufferSource;
-    AudioContext.prototype.createBufferSource = function () {
-      const source = createSource.call(this);
-      const record = { source, started: false, stopped: false };
-      window.spatialSources.push(record);
-      const start = source.start.bind(source),
-        stop = source.stop.bind(source);
-      source.start = (...args) => {
-        record.started = true;
-        return start(...args);
-      };
-      source.stop = (...args) => {
-        record.stopped = true;
-        return stop(...args);
-      };
+    const createSource = AudioContext.prototype.createMediaElementSource;
+    AudioContext.prototype.createMediaElementSource = function (element) {
+      const source = createSource.call(this, element);
+      window.spatialSources.push({ source, element });
       return source;
     };
     const play = HTMLMediaElement.prototype.play;
@@ -252,50 +241,57 @@ try {
   await page.reload();
   await openSavedProject(page);
   await button("Preview").click();
+  await page.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
+  await button("Enable audio").click();
   await page.waitForFunction(
-    () =>
-      window.spatialPanners.length === 1 &&
-      window.spatialSources.some((entry) => entry.started && !entry.stopped),
+    () => window.spatialPanners.length === 1 && window.spatialSources.length === 1,
   );
   assert.equal(await page.evaluate(() => window.spatialPanners[0].panningModel), "HRTF");
-  const placed = (await document()).scenes[0].objects[0].transform.position;
-  const sourcePosition = await page.evaluate(() => {
-    const panner = window.spatialPanners[0];
-    return [panner.positionX.value, panner.positionY.value, panner.positionZ.value];
+  const spatial = page.locator("audio[data-spatial-owner]");
+  await spatial.waitFor({ state: "attached" });
+  await page.waitForFunction(() => {
+    const audio = document.querySelector("audio[data-spatial-owner]");
+    return audio?.src.startsWith("blob:") && !audio.paused && audio.currentTime > 0;
   });
-  placed.forEach((value, index) =>
-    assert.ok(Math.abs(value - sourcePosition[index]) < 0.01, "Spatial source follows its exhibit"),
+  assert.equal(
+    await page.evaluate(
+      () =>
+        window.spatialSources[0].element === document.querySelector("audio[data-spatial-owner]"),
+    ),
+    true,
   );
-  // A hidden tab pauses its sources and returning resumes them without orphaning playback
+  const placed = (await document()).scenes[0].objects[0].transform.position;
+  await page.waitForFunction((position) => {
+    const panner = window.spatialPanners[0];
+    return [panner.positionX.value, panner.positionY.value, panner.positionZ.value].every(
+      (value, index) => Math.abs(value - position[index]) < 0.01,
+    );
+  }, placed);
+  // A hidden tab pauses its media and returning resumes it without orphaning playback.
   await page.evaluate(() => {
     Object.defineProperty(document, "hidden", { configurable: true, value: true });
     document.dispatchEvent(new Event("visibilitychange"));
   });
-  assert.equal(
-    await page.evaluate(() => window.spatialSources.every((entry) => entry.stopped)),
-    true,
-  );
+  assert.equal(await spatial.evaluate((audio) => audio.paused), true);
   await page.evaluate(() => {
     Object.defineProperty(document, "hidden", { configurable: true, value: false });
     document.dispatchEvent(new Event("visibilitychange"));
   });
-  await page.waitForFunction(() =>
-    window.spatialSources.some((entry) => entry.started && !entry.stopped),
-  );
-  const target = page.locator(".preview-targets button").first();
+  await page.waitForFunction(() => !document.querySelector("audio[data-spatial-owner]")?.paused);
+  await page.getByText("Exhibit information", { exact: true }).click();
+  const target = page.getByRole("button", { name: "Activate Sample crate", exact: true });
   await target.click();
-  await page.waitForFunction(() =>
-    window.previewAudios.some((audio) => !audio.paused && audio.src.includes("ethereal-calm")),
-  );
+  await page.waitForFunction(() => {
+    const audio = document.querySelector("audio[data-background]:not([data-spatial-owner])");
+    return audio?.src.startsWith("blob:") && !audio.paused && audio.currentTime > 0;
+  });
   await button("Exit preview").click();
   assert.equal(
-    await page.evaluate(() => window.spatialSources.every((entry) => entry.stopped)),
+    await page.evaluate(() =>
+      window.spatialSources.every(({ element }) => element.paused && !element.isConnected),
+    ),
     true,
     "Leaving Preview stops spatial audio",
-  );
-  assert.equal(
-    await page.evaluate(() => window.previewAudios.every((audio) => audio.paused)),
-    true,
   );
   await page.locator(".object-row[data-object-id]").first().click();
   assert.equal(

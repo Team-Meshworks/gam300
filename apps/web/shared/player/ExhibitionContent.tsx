@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { ContentComponent } from "../shared/project/project-content";
-import type { VisitorScene } from "./visitor-playback";
-import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
-import { fetchPublicationAsset } from "./publication-asset";
+import type { ContentComponent } from "../project/project-content";
+import type { VisitorScene } from "./playback";
+import type { CatalogueAsset } from "../asset-runtime/catalogue";
+import { fetchPlayerAsset } from "./player-asset";
 
 function Media({
   component,
@@ -26,14 +26,15 @@ function Media({
     // Fetch through the publication route and verify the edition's exact bytes before displaying media
     void (async () => {
       if (!asset) throw new Error("This exhibition media is unavailable");
-      const response = await fetchPublicationAsset(asset.url, controller.signal);
+      const response = await fetchPlayerAsset(asset.url, controller.signal);
       if (!response.ok)
         throw new Error("This exhibition media is unavailable or your access changed");
       const bytes = await response.arrayBuffer();
       const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
         .map((value) => value.toString(16).padStart(2, "0"))
         .join("");
-      if (hash !== asset.sha256) throw new Error("This exhibition media could not be verified");
+      if (hash !== asset.sha256.toLowerCase())
+        throw new Error("This exhibition media could not be verified");
       if (controller.signal.aborted) return;
       blobUrl = URL.createObjectURL(
         new Blob([bytes], {
