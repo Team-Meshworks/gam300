@@ -136,7 +136,16 @@ export function ExhibitionContent({
       );
     if (item.type === "navigationPoint")
       return (
-        <button key={item.id} onClick={() => navigate(item.sceneId, item.viewpointId)}>
+        <button
+          key={item.id}
+          onClick={() => {
+            const action = new CustomEvent("exhibit-navigation-point", {
+              detail: item.id,
+              cancelable: true,
+            });
+            if (section.current?.dispatchEvent(action)) navigate(item.sceneId, item.viewpointId);
+          }}
+        >
           {item.label}
         </button>
       );

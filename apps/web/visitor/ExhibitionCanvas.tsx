@@ -18,10 +18,12 @@ export function ExhibitionCanvas({
   sceneIndex,
   viewpoint,
   navigate,
+  beginNavigationEvent,
 }: {
   exhibition: PublishedExhibition;
   sceneIndex: number;
-  navigate: (sceneId: string, viewpointId: string) => void;
+  navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean;
+  beginNavigationEvent(): void;
   viewpoint?: Readonly<{ id: string }> | undefined;
 }) {
   const mount = useRef<HTMLDivElement>(null);
@@ -209,9 +211,20 @@ export function ExhibitionCanvas({
     document.addEventListener("pointerlockchange", cancelPress);
     document.addEventListener("visibilitychange", cancelPress);
     window.addEventListener("blur", cancelPress);
+    const previousDirection = camera.quaternion.clone();
+    let moving = false;
     renderer.setAnimationLoop(() => {
       const now = performance.now();
-      if (!document.hidden) fps.update(Math.min(0.1, (now - lastFrame) / 1000));
+      if (!document.hidden) {
+        // Walking or looking deliberately starts a new navigation chain. Authored camera
+        // motion runs later in playback.update and must keep its automatic chain.
+        previousDirection.copy(camera.quaternion);
+        fps.update(Math.min(0.1, (now - lastFrame) / 1000));
+        const hasInput =
+          fps.hasMovementInput() || previousDirection.angleTo(camera.quaternion) > 0.00001;
+        if (hasInput && !moving) beginNavigationEvent();
+        moving = hasInput;
+      }
       ray.setFromCamera(new THREE.Vector2(), camera);
       playback?.update(Math.min(0.1, (now - lastFrame) / 1000), picked());
       lastFrame = now;
@@ -344,6 +357,7 @@ export function ExhibitionCanvas({
               if (!controller.signal.aborted)
                 setResult({ exhibition, sceneIndex, attempt, viewpoint, message, failed: false });
             },
+            beginNavigationEvent,
           );
           play.current = playback.start;
           playback.begin();

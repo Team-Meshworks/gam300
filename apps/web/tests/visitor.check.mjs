@@ -81,11 +81,28 @@ try {
     )
       duplicateRoots.push(message.text());
   });
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem("holdPublicationOpening")) return;
+    const readText = Response.prototype.text;
+    Response.prototype.text = async function () {
+      const body = await readText.call(this);
+      if (
+        new URL(this.url, location.origin).pathname.startsWith("/api/v1/publications/") &&
+        !this.url.endsWith("/manifest")
+      ) {
+        await new Promise((resolve) => {
+          window.releaseOpeningSnapshot = resolve;
+        });
+      }
+      return body;
+    };
+  });
   page.setDefaultTimeout(5000);
   page.on("request", (request) => requests.push(new URL(request.url()).pathname));
   await page.route("**/api/v1/publications/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (mode === "denied") return route.fulfill({ status: 404 });
+    if (mode === "offline") return route.abort("failed");
     if (path.endsWith("/manifest"))
       return route.fulfill({
         json: {
@@ -123,6 +140,83 @@ try {
   const canvas = page.locator("canvas[aria-label='Exhibition view']");
   assert.equal(await canvas.count(), 1);
   assert.ok(await canvas.evaluate((element) => element.width > 0 && element.height > 0));
+  // Let the real manifest request settle, then control when focus listeners receive the result.
+  const priorCanvas = await canvas.elementHandle();
+  await page.evaluate(() => {
+    const fetchManifest = window.fetch.bind(window);
+    window.manifestChecks = [];
+    window.fetch = async (...args) => {
+      if (!String(args[0]).endsWith("/manifest")) return fetchManifest(...args);
+      const result = await fetchManifest(...args).then(
+        (response) => response,
+        (failure) => failure,
+      );
+      window.manifestChecks.push(result instanceof Response ? result.status : "network error");
+      if (window.manifestChecks.length === 1)
+        await new Promise((resolve) => {
+          window.releaseManifest = resolve;
+        });
+      if (result instanceof Error) throw result;
+      return result;
+    };
+  });
+  for (const failure of ["denied", "offline"]) {
+    await page.evaluate(() => {
+      window.manifestChecks = [];
+    });
+    mode = failure;
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.waitForFunction(() => window.manifestChecks.length === 1);
+    mode = "allowed";
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.waitForFunction(() => window.manifestChecks.length === 2);
+    assert.deepEqual(await page.evaluate(() => window.manifestChecks), [
+      failure === "denied" ? 404 : "network error",
+      200,
+    ]);
+    await page.evaluate(async () => {
+      window.releaseManifest();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+    assert.equal(
+      await priorCanvas.evaluate((node) => node.isConnected),
+      true,
+      "A stale access check must not discard the current visit",
+    );
+  }
+  // A current denial still withdraws the scene and requires a fresh attempt.
+  mode = "denied";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.getByRole("heading", { name: "Exhibition unavailable" }).waitFor();
+  const revokedReadyTitle = await page.title();
+  mode = "allowed";
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("status").getByText("Exhibition ready").waitFor();
+
+  // Hold the authorized opening snapshot after its bytes arrive. A focus recheck
+  // can withdraw the visit while the original reader still owns that result.
+  await page.evaluate(() => sessionStorage.setItem("holdPublicationOpening", "1"));
+  await page.reload();
+  await page.waitForFunction(() => typeof window.releaseOpeningSnapshot === "function");
+  mode = "denied";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.getByRole("heading", { name: "Exhibition unavailable" }).waitFor();
+  await page.evaluate(async () => {
+    window.releaseOpeningSnapshot();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  assert.deepEqual(
+    { revokedReadyTitle, revokedOpeningTitle: await page.title(), canvases: await canvas.count() },
+    {
+      revokedReadyTitle: "Exhibition · Spatia",
+      revokedOpeningTitle: "Exhibition · Spatia",
+      canvases: 0,
+    },
+  );
+  mode = "allowed";
+  await page.evaluate(() => sessionStorage.removeItem("holdPublicationOpening"));
+  await page.reload();
+  await page.getByRole("status").getByText("Exhibition ready").waitFor();
   const bounds = await canvas.boundingBox();
   assert.deepEqual(
     bounds,

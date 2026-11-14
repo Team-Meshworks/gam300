@@ -215,6 +215,26 @@ try {
       (video) => video.src.length > 0 && !video.paused && video.muted && video.currentTime > 0.15,
     ),
   );
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  const toggleVideo = page.getByRole("button", { name: /^Play \/ pause / });
+  await toggleVideo.waitFor();
+  await page.waitForFunction(() =>
+    window.displayVideos.some((video) => video.currentSrc && !video.muted && video.paused),
+  );
+  await toggleVideo.click();
+  await page.waitForFunction(() =>
+    window.displayVideos.some(
+      (video) => video.currentSrc && !video.muted && !video.paused && video.currentTime > 0.15,
+    ),
+  );
+  await toggleVideo.click();
+  await page.waitForFunction(() =>
+    window.displayVideos.some((video) => video.currentSrc && !video.muted && video.paused),
+  );
+  await page.getByRole("button", { name: "Exit preview", exact: true }).click();
+  await page.waitForFunction(() =>
+    window.displayVideos.some((video) => video.currentSrc && video.muted && !video.paused),
+  );
   assert.equal(displayMedia.length, 1);
   assert.equal(
     fixtureSave.scenes[0].objects.find((object) => object.assetId === "display-cube-v1").components
