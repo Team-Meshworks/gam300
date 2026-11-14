@@ -387,7 +387,13 @@ export function AssignmentCreationScreen({
           },
           image,
         );
-        return { result, record: localStorage.getItem(key) };
+        const record =
+          result.kind === "unknown" ||
+          result.kind === "image-mismatch" ||
+          result.kind === "source-unavailable"
+            ? localStorage.getItem(key)
+            : null;
+        return { result, record };
       });
       if (result.kind === "unknown") {
         setSourceUncertain({ reason: "unknown", record });

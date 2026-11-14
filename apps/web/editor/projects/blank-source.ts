@@ -68,6 +68,7 @@ export async function createBlankSource(
   | { kind: "rejected"; message: string }
 > {
   const key = blankSourceKey(actorId);
+  let dispatched = false;
   try {
     const imageKey = image
       ? Array.from(
@@ -103,6 +104,7 @@ export async function createBlankSource(
     storage.setItem(key, marker);
     if (storage.getItem(key) !== marker)
       return { kind: "rejected", message: "The browser could not save recovery information." };
+    dispatched = true;
     const outcome = await write(actorId, "/api/v1/projects", "POST", {
       title,
       ...(environmentAssetId ? { environmentAssetId } : {}),
@@ -129,6 +131,11 @@ export async function createBlankSource(
       revision: Number(outcome.value.revision),
     };
   } catch {
-    return { kind: "unknown" };
+    if (dispatched) return { kind: "unknown" };
+    return {
+      kind: "rejected",
+      message:
+        "The browser could not save recovery information. Check browser storage and try again.",
+    };
   }
 }

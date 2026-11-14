@@ -232,6 +232,36 @@ try {
       await page.getByRole("combobox", { name: /^Class/ }).click();
       await page.getByRole("option", { name: "Class", exact: true }).click();
       await page.getByRole("checkbox", { name: /Alice/ }).check();
+      if (!missingSource && assetsStatus === 200) {
+        await page.evaluate((key) => {
+          const original = Storage.prototype.setItem;
+          Storage.prototype.setItem = function (name, value) {
+            if (name === key) {
+              Storage.prototype.setItem = original;
+              throw new DOMException("Storage full", "QuotaExceededError");
+            }
+            return original.call(this, name, value);
+          };
+        }, `spatia.assignment.source:${userId}`);
+        await page.getByRole("button", { name: "Create project" }).click();
+        await page
+          .getByRole("alert")
+          .filter({ hasText: /browser could not save recovery|could not be confirmed/i })
+          .first()
+          .waitFor();
+        assert.equal(writes.length, 0, "A source marker must exist before the project POST");
+        assert.equal(assignments.length, 0);
+        assert.equal(
+          await page.getByRole("button", { name: "I checked my projects" }).count(),
+          0,
+          "A failed preflight must leave the educator on the editable assignment form",
+        );
+        assert.equal(await page.getByLabel("Project title").inputValue(), "Blank project");
+        assert.equal(await page.getByLabel("Project description").inputValue(), "Description");
+        assert.equal(await page.getByLabel("Project instructions").inputValue(), "Instructions");
+        assert.equal(await page.getByLabel(/^Due date/).inputValue(), "2027-12-01");
+        assert.equal(await page.getByRole("checkbox", { name: /Alice/ }).isChecked(), true);
+      }
       await page.getByRole("button", { name: "Create project" }).click();
       if (missingSource) {
         await page.getByText(/project is no longer available or cannot be managed/i).waitFor();
