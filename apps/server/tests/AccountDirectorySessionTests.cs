@@ -65,6 +65,7 @@ public sealed class AccountDirectorySessionTests
     [Test]
     [Arguments("organization")]
     [Arguments("asset")]
+    [Arguments("keyedAsset")]
     public async Task CreateOrRemove_ExpiryAfterCommitRequiresAuthoritativeRecovery(string operation)
     {
         var commit = new CommitProbe();
@@ -73,7 +74,7 @@ public sealed class AccountDirectorySessionTests
             environmentName: "Development");
         var actor = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
         var assetId = Guid.NewGuid();
-        if (operation == "asset")
+        if (operation != "organization")
         {
             await using var scope = fixture.Database.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -102,12 +103,26 @@ public sealed class AccountDirectorySessionTests
         var cutoff = new DateTimeOffset(long.Parse(
             fixture.ReadTicket().Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey]!, CultureInfo.InvariantCulture), TimeSpan.Zero);
         var token = await fixture.GetCsrfAsync();
+        var operationId = Guid.NewGuid();
+        var removalPath = $"/api/v1/admin/assets/{assetId:D}/removals/{operationId:D}";
         commit.After = () => fixture.Clock.Set(cutoff);
-        using var response = operation == "organization"
-            ? await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/organizations", new { name = "Synthetic expiry school" }, token: token)
-            : await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{assetId:D}/availability", new AssetAvailabilityRequest("remove", true), token: token);
+        using var response = operation switch
+        {
+            "organization" => await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/organizations", new { name = "Synthetic expiry school" }, token: token),
+            "keyedAsset" => await AuthTestRequests.PutAsync(fixture.Client, removalPath, new { }, token),
+            _ => await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{assetId:D}/availability", new AssetAvailabilityRequest("remove", true), token: token)
+        };
         await AuthTestRequests.AssertProblemAsync(response, HttpStatusCode.Unauthorized, "authentication_required");
+        await Assert.That(response.Headers.Contains("X-Spatia-Operation-Id")).IsFalse();
         await fixture.SignInAsync(actor);
+        if (operation == "keyedAsset")
+        {
+            using var check = await AuthTestRequests.PostAsync(fixture, removalPath + "/reconcile", new { });
+            await Assert.That(check.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var receipt = await check.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(receipt.GetProperty("operationId").GetGuid()).IsEqualTo(operationId);
+            await Assert.That(receipt.GetProperty("outcome").GetString()).IsEqualTo("removed");
+        }
         using var recovered = await fixture.Client.GetAsync(operation == "organization" ? "/api/v1/admin/organizations" : "/api/v1/admin/assets");
         await Assert.That(recovered.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var result = await recovered.Content.ReadFromJsonAsync<JsonElement>();

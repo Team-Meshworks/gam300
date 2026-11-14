@@ -356,8 +356,8 @@
     "editor/admin/dashboard-client.ts": "51ee24fee5eaf125fcb314ba5bbf7f0c654f9add38f9ae7070f12a8d476e37c6",
     "editor/asset-administration/AssetAdministration.tsx": "9fb03ebaab2cc11dfd15e0db7f547b6856a7b2b54f1d70f2a69998be4d3aaf49",
     "editor/asset-administration/AssetSelect.tsx": "51d5fdde1515e02d1310b46ce964d34ccd6d574c074dc1698d42c00fc8ca1c49",
-    "editor/asset-administration/asset-administration-service.test.ts": "7814b74080cab58dbd2f5608390f698cb73d08292aa4e6199c154df18f6e4a1b",
-    "editor/asset-administration/asset-administration-service.ts": "f5cd7d287f2423c37730fe330075cefeb63d3af665aca097ead67500f12131b5",
+    "editor/asset-administration/asset-administration-service.test.ts": "f0ae68f39b33cd0f64280df8e11828cf7f01c7ae5f55a754f3da0551fdf628db",
+    "editor/asset-administration/asset-administration-service.ts": "7fd913f0c2c33ab1aafef2ed1792f602275e31be8cb49d2b33b7816688c63921",
     "editor/asset-administration/asset-administration.ts": "9d1b3e2325e8e974ebd41dd84f6024f1776a212f1b7b5a19986adecb9a9616d8",
     "editor/asset-administration/asset-previews.test.ts": "4ebd8e102cdce249a05631f39ba4efbd86ebfe263a53297916f7f585afda2fea",
     "editor/asset-administration/asset-previews.ts": "3af768e5868ea42b9a4ccd4030672f79c38aaa53d79a0a9f6fce998a9a74ced7",
@@ -688,6 +688,7 @@
     "tests/admin-project-grants-navigation.check.mjs": "93a9a9aed680f1b6779d7ce77572ed6c17255ebb5311dfde4eec31ba55871a40",
     "tests/asset-administration-fixture.tsx": "f384b003f24896fe9285d3fd18e1f87a7f58bc9969b005003fb03b999946a162",
     "tests/asset-administration.check.mjs": "50d0fc1cd5ffc8bd3ef53b3f33abeeb8c8df919ca4b890f46da6c21193e23945",
+    "tests/asset-removal-real-api.check.mjs": "d7f8b73b0475456020cf7758a73dbde18fe4735896e18420b9867b08e3f51825",
     "tests/assignment-real-api.check.mjs": "8b5a21dc519019b034f7b619cd989271e507ecc15603221eef5bf8f9ad66307e",
     "tests/assignment-screen.check.mjs": "418bf5e75184f4c1b8f0bac80f13e349681a7d5dcceead314fff0f46eee23986",
     "tests/audio-library.check.mjs": "85ff2ab335a72478047b8b51ddc9a89f241b2421542239b2d12d9c26d3cc431b",
@@ -731,7 +732,7 @@
     "tests/interaction-review.check.mjs": "4fb0077bd284302ccfd816d7c8c1b4a5cc4b6e4c26a6c5e73f53e546d03b938c",
     "tests/login-real-api.check.mjs": "8b5bfa63ddb1cf8a932d0d16c532c25813dfd0810e612df997e03968ee5c16fa",
     "tests/moving-room-collision.check.mjs": "c2882f8f7e2214428335c61a3f6083f2c0176bdc92e02b2cd8dc8e170f87a112",
-    "tests/new-project.check.mjs": "9fc11eb672a53a97027516ccbe8a66ccb5b0f49dfb18e09f3939db3baed49755",
+    "tests/new-project.check.mjs": "b7b4033f85565fedbfaa0e410ef152c2cee02d9a8eaee1f91ee9e572625de0e0",
     "tests/nonstarter-room-collision.check.mjs": "3cb7d2e75d7a25917baa5dfc3500eaeb6e8a7b15106360de7c9ac2c0388990e2",
     "tests/organization-deletion.check.mjs": "4c222b12f6ec2096577c348190c7077f9315bffcdef719075ad8d4e666afc900",
     "tests/placement-collision.check.mjs": "7b489febe0de7bb2431831e7dcfc8bc80e34c784f1bd4e6f716f9210cd28ef8c",
@@ -17059,6 +17060,85 @@
     {
       "file": "tests/asset-administration.check.mjs",
       "line": 4,
+      "kind": "static",
+      "specifier": "./browser-security.mjs",
+      "target": "tests/browser-security.mjs",
+      "from": "checks",
+      "to": "checks"
+    },
+    {
+      "file": "tests/asset-removal-real-api.check.mjs",
+      "line": 1,
+      "kind": "static",
+      "specifier": "node:assert/strict",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/asset-removal-real-api.check.mjs",
+      "line": 2,
+      "kind": "static",
+      "specifier": "vite",
+      "target": {
+        "package": "vite"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/asset-removal-real-api.check.mjs",
+      "line": 3,
+      "kind": "static",
+      "specifier": "node:http",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/asset-removal-real-api.check.mjs",
+      "line": 4,
+      "kind": "static",
+      "specifier": "node:https",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/asset-removal-real-api.check.mjs",
+      "line": 5,
+      "kind": "static",
+      "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/asset-removal-real-api.check.mjs",
+      "line": 6,
+      "kind": "static",
+      "specifier": "node:fs/promises",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/asset-removal-real-api.check.mjs",
+      "line": 7,
+      "kind": "static",
+      "specifier": "node:path",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/asset-removal-real-api.check.mjs",
+      "line": 8,
       "kind": "static",
       "specifier": "./browser-security.mjs",
       "target": "tests/browser-security.mjs",

@@ -19,9 +19,11 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
     signal: AbortSignal,
     init?: RequestInit,
     reconcile = true,
+    removalAssetId?: string,
   ): Promise<AssetAdministrationResult<T>> {
     let writeSent = false;
     let marker: string | null = null;
+    let pendingRemoval: { assetId: string; operationId: string } | null = null;
     try {
       if (reconcile) {
         try {
@@ -31,9 +33,20 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
         }
       }
       if (init?.method && marker !== null) return unknownWrite;
+      if (marker !== null && !init?.method && !isOperationId(marker)) {
+        const saved: unknown = JSON.parse(marker);
+        if (
+          !record(saved) ||
+          typeof saved.assetId !== "string" ||
+          !saved.assetId ||
+          !isOperationId(saved.operationId)
+        )
+          return unknownWrite;
+        pendingRemoval = { assetId: saved.assetId, operationId: saved.operationId };
+      }
       const headers = new Headers(init?.headers);
       headers.set("X-Spatia-Account", actorId);
-      if (init?.method) {
+      if (init?.method || pendingRemoval) {
         // Bind both token acquisition and the write to the account that opened this screen.
         const csrf = await fetch("/api/v1/auth/csrf", {
           credentials: "same-origin",
@@ -62,15 +75,57 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
         headers.set("X-CSRF-TOKEN", token.requestToken);
       }
 
+      if (pendingRemoval) {
+        headers.set("Content-Type", "application/json");
+        const response = await fetch(
+          `/api/v1/admin/assets/${encodeURIComponent(pendingRemoval.assetId)}/removals/${pendingRemoval.operationId}/reconcile`,
+          {
+            method: "POST",
+            body: "{}",
+            credentials: "same-origin",
+            cache: "no-store",
+            redirect: "error",
+            headers,
+            signal,
+          },
+        );
+        if (!response.ok) return failure(response.status);
+        const receipt: unknown = await response.json();
+        if (
+          response.status !== 200 ||
+          !record(receipt) ||
+          receipt.assetId !== pendingRemoval.assetId ||
+          receipt.operationId !== pendingRemoval.operationId ||
+          (receipt.outcome !== "removed" && receipt.outcome !== "notApplied")
+        )
+          return unknownWrite;
+      }
+
       // Send the bounded write only after obtaining a token; reads use the same account-bound origin
       if (init?.method) {
-        marker = crypto.randomUUID();
+        signal.throwIfAborted();
+        const operationId = crypto.randomUUID();
+        if (removalAssetId !== undefined) {
+          pendingRemoval = { assetId: removalAssetId, operationId };
+          marker = JSON.stringify(pendingRemoval);
+          path = `/api/v1/admin/assets/${encodeURIComponent(removalAssetId)}/removals/${operationId}`;
+          init = { ...init, method: "PUT", body: "{}" };
+        } else {
+          marker = operationId;
+        }
         localStorage.setItem(recoveryKey, marker);
         if (localStorage.getItem(recoveryKey) !== marker)
           throw new Error("Could not record asset write");
         writeSent = true;
       }
-      const response = await fetch(path, { ...init, credentials: "same-origin", headers, signal });
+      const response = await fetch(path, {
+        ...init,
+        credentials: "same-origin",
+        cache: "no-store",
+        redirect: "error",
+        headers,
+        signal,
+      });
       if (!response.ok) {
         if (writeSent && (response.status >= 500 || [401, 408].includes(response.status))) {
           const problem: unknown = await response.json().catch(() => null);
@@ -97,6 +152,18 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
           ? unknownWrite
           : { ok: false, kind: "unavailable", message: "Asset service returned invalid data" };
       }
+      if (
+        removalAssetId !== undefined &&
+        (response.status !== 200 ||
+          !isCandidate(value) ||
+          value.id !== removalAssetId ||
+          !value.removedFromProjects ||
+          !value.hidden ||
+          !value.deleted ||
+          response.headers.get("X-Spatia-Operation-Id") !== pendingRemoval?.operationId)
+      )
+        return unknownWrite;
+      signal.throwIfAborted();
       if (marker !== null && localStorage.getItem(recoveryKey) === marker)
         localStorage.removeItem(recoveryKey);
       return { ok: true, value: value as T };
@@ -120,6 +187,7 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
     path: string,
     signal: AbortSignal,
     init?: RequestInit,
+    removalAssetId?: string,
   ): Promise<AssetAdministrationResult<T>> {
     if (!navigator.locks && !init?.method) return requestLocked<T>(path, signal, init, false);
     if (!navigator.locks)
@@ -128,7 +196,9 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
         kind: "unavailable",
         message: "This browser cannot safely coordinate asset changes.",
       };
-    return navigator.locks.request(recoveryKey, () => requestLocked<T>(path, signal, init));
+    return navigator.locks.request(recoveryKey, () =>
+      requestLocked<T>(path, signal, init, true, removalAssetId),
+    );
   }
   // Translate server failures without claiming that an unacknowledged write succeeded
   function failure(status: number): AssetAdministrationResult<never> {
@@ -203,11 +273,16 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
 
     // Require the caller's explicit opt-in instead of inferring global removal from ordinary deletion
     changeAvailability: (id, action, signal, removeFromProjects = false) =>
-      request<AssetCandidate>(`${base}/${encodeURIComponent(id)}/availability`, signal, {
-        method: "POST",
-        body: JSON.stringify({ action, removeFromProjects }),
-        headers: { "Content-Type": "application/json" },
-      }),
+      request<AssetCandidate>(
+        `${base}/${encodeURIComponent(id)}/availability`,
+        signal,
+        {
+          method: "POST",
+          body: JSON.stringify({ action, removeFromProjects }),
+          headers: { "Content-Type": "application/json" },
+        },
+        action === "remove" ? id : undefined,
+      ),
   };
 }
 
@@ -277,5 +352,12 @@ function isAdministrationData(value: unknown): value is AssetAdministrationData 
     policy.categories.environment === null &&
     strings(policy.categories.model) &&
     (!policy.extensions.includes(".m4a") || strings(policy.categories.audio))
+  );
+}
+
+function isOperationId(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
   );
 }

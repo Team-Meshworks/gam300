@@ -466,6 +466,31 @@ namespace Spatia.Server.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Spatia.Server.Assets.AssetRemovalReceipt", b =>
+                {
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<bool>("Applied")
+                        .HasColumnType("boolean")
+                        .HasColumnName("applied");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("asset_id");
+
+                    b.HasKey("ActorId", "OperationId");
+
+                    b.HasIndex("AssetId");
+
+                    b.ToTable("asset_removal_receipts", (string)null);
+                });
+
             modelBuilder.Entity("Spatia.Server.Classes.ClassAssignment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1289,6 +1314,21 @@ namespace Spatia.Server.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("SubmittedBy")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Spatia.Server.Assets.AssetRemovalReceipt", b =>
+                {
+                    b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Assets.AssetCandidate", null)
+                        .WithMany()
+                        .HasForeignKey("AssetId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
