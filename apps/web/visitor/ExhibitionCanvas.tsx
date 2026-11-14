@@ -19,11 +19,13 @@ export function ExhibitionCanvas({
   viewpoint,
   navigate,
   beginNavigationEvent,
+  onPlaybackReady,
 }: {
   exhibition: PublishedExhibition;
   sceneIndex: number;
   navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean;
   beginNavigationEvent(): void;
+  onPlaybackReady(ready: boolean): void;
   viewpoint?: Readonly<{ id: string }> | undefined;
 }) {
   const mount = useRef<HTMLDivElement>(null);
@@ -361,6 +363,7 @@ export function ExhibitionCanvas({
           );
           play.current = playback.start;
           playback.begin();
+          onPlaybackReady(true);
         }
         fps.engage();
         setResult({
@@ -395,6 +398,7 @@ export function ExhibitionCanvas({
     });
     return () => {
       controller.abort();
+      onPlaybackReady(false);
       playback?.dispose();
       renderer.domElement.removeEventListener("pointerdown", down);
       renderer.domElement.removeEventListener("pointerup", click);
@@ -433,9 +437,22 @@ export function ExhibitionCanvas({
       )}
       <div className="visitor-controls">
         <button onClick={() => play.current()}>Enable audio</button>
-        <button onClick={() => reset.current()}>Reset view</button>
+        <button
+          onClick={() => {
+            beginNavigationEvent();
+            reset.current();
+          }}
+        >
+          Reset view
+        </button>
         {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
-          <button key={view.id} onClick={() => selectView.current(view.id)}>
+          <button
+            key={view.id}
+            onClick={() => {
+              beginNavigationEvent();
+              selectView.current(view.id);
+            }}
+          >
             {view.name}
           </button>
         ))}

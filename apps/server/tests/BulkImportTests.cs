@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -74,6 +75,29 @@ public sealed class BulkImportTests
         await Assert.That(await db.Database.SqlQuery<bool>($"""SELECT protected_handoff IS NULL AS "Value" FROM bulk_import_receipts WHERE operation_id = {operation}""").SingleAsync()).IsTrue();
     }
 
+    [Test]
+    public async Task ExpiredAfterCommit_OriginalAdminRecoversTheCommittedReceipt()
+    {
+        var probe = new LoseCommit();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(probe)));
+        var (admin, org) = await SetupAsync(fixture);
+        var operation = Guid.NewGuid();
+        var path = Path(org, operation);
+        var cutoff = new DateTimeOffset(long.Parse(
+            fixture.ReadTicket().Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey]!, CultureInfo.InvariantCulture), TimeSpan.Zero);
+        var token = await fixture.GetCsrfAsync();
+        probe.After = () => fixture.Clock.Set(cutoff);
+        using var lost = await PutAsync(fixture.Client, path, [Row(org, "expiry-race")], token);
+        await AuthTestRequests.AssertProblemAsync(lost, HttpStatusCode.Unauthorized, "authentication_required");
+        await fixture.SignInAsync(admin);
+        using var recovered = await AuthTestRequests.PostAsync(fixture, path + "/receipt", new { });
+        await Assert.That(recovered.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var receipt = await recovered.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(receipt.GetProperty("operationId").GetGuid()).IsEqualTo(operation);
+        await Assert.That(receipt.GetProperty("created").EnumerateArray().Single().GetProperty("userName").GetString()).IsEqualTo("expiry-race");
+        await Assert.That(receipt.GetProperty("credentials").EnumerateArray().Single().GetProperty("password").GetString()).IsEqualTo(Initial);
+    }
     [Test]
     public async Task Receipt_HandoffExpiringDuringCommitReturnsOnlyCreatedAccounts()
     {

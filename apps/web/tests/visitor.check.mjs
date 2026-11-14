@@ -144,6 +144,7 @@ try {
   const priorCanvas = await canvas.elementHandle();
   await page.evaluate(() => {
     const fetchManifest = window.fetch.bind(window);
+    window.originalFetch = fetchManifest;
     window.manifestChecks = [];
     window.fetch = async (...args) => {
       if (!String(args[0]).endsWith("/manifest")) return fetchManifest(...args);
@@ -184,6 +185,28 @@ try {
       "A stale access check must not discard the current visit",
     );
   }
+  // Repeated checks cannot postpone a completed denial indefinitely.
+  await page.evaluate(() => {
+    window.pendingChecks = [];
+    window.fetch = (...args) =>
+      String(args[0]).endsWith("/manifest")
+        ? new Promise((resolve) => window.pendingChecks.push(resolve))
+        : window.originalFetch(...args);
+  });
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("focus"));
+    window.dispatchEvent(new Event("focus"));
+    window.dispatchEvent(new Event("focus"));
+    window.pendingChecks[0](new Response(null, { status: 404 }));
+  });
+  await page.getByRole("heading", { name: "Exhibition unavailable" }).waitFor();
+  assert.equal(await canvas.count(), 0);
+  assert.equal(await page.title(), "Exhibition · Spatia");
+  await page.evaluate(() => {
+    window.fetch = window.originalFetch;
+  });
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("status").getByText("Exhibition ready").waitFor();
   // A current denial still withdraws the scene and requires a fresh attempt.
   mode = "denied";
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));

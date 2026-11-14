@@ -455,11 +455,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
           onClose={() => setModal(null)}
           onSave={save}
           resumeImport={modal === "create" ? resume : null}
-          bulkImport={
-            modal === "create" && (resume || (!importReadError && !localImport))
-              ? bulkImport
-              : undefined
-          }
+          bulkImport={modal === "create" ? bulkImport : undefined}
           onCheckDirectory={() => {
             setModal(null);
             refresh();

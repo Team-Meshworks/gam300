@@ -1092,6 +1092,7 @@ export function App({
               }}
               tool={navigationTool}
               onToolChange={(tool) => {
+                cancelPlacement();
                 setView("third");
                 setNavigationTool(tool);
               }}

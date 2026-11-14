@@ -227,6 +227,19 @@ try {
     { afterNewerChoice: "test-room-v1", afterCancel: "" },
     "A late asset preparation cannot replace the newer selection or re-arm canceled placement",
   );
+  for (const tool of ["Orbit", "Pan"]) {
+    const before = await delayedPicker.document();
+    await startDelayedPick();
+    await delayedPage.getByRole("button", { name: tool, exact: true }).click();
+    assert.equal(await finishDelayedPick(), "", `${tool} must cancel pending placement`);
+    assert.equal(
+      await delayedPage
+        .getByRole("button", { name: tool, exact: true })
+        .getAttribute("aria-pressed"),
+      "true",
+    );
+    assert.deepEqual(await delayedPicker.document(), before);
+  }
   await delayedPicker.choose("Starter room", "test-room-v1");
   await delayedPicker.waitForDocument("test-room-v1", 0);
   await startDelayedPick("test-room-module-v1");

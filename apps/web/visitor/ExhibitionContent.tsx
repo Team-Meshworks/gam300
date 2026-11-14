@@ -89,10 +89,12 @@ export function ExhibitionContent({
   scene,
   assets,
   navigate,
+  playbackReady,
 }: {
   scene: VisitorScene;
   assets: readonly CatalogueAsset[];
   navigate: (sceneId: string, viewpointId: string) => void;
+  playbackReady: boolean;
 }) {
   const hotspots = "hotspots" in scene ? scene.hotspots : [];
   const components = (object: VisitorScene["objects"][number]): readonly ContentComponent[] =>
@@ -138,6 +140,7 @@ export function ExhibitionContent({
       return (
         <button
           key={item.id}
+          disabled={!playbackReady}
           onClick={() => {
             const action = new CustomEvent("exhibit-navigation-point", {
               detail: item.id,

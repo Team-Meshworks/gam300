@@ -101,7 +101,9 @@ export function AccountDialog({
     setPending(true);
     setError("");
     try {
-      if (!account && csvSource.current && bulkImport) {
+      if (!account && csvSource.current) {
+        if (!bulkImport)
+          throw new Error("The import is unavailable. Check the organisation directory.");
         const values = importAccounts(csvSource.current, role).map((value, index) => ({
           ...value,
           initialPassword: credentials[index]!.initialPassword,

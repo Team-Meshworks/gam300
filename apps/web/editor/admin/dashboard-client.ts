@@ -120,7 +120,12 @@ export function createDashboardClient(
   return {
     pendingOrganization,
     acknowledgeOrganization: (attempt: OrganizationAttempt) =>
-      navigator.locks.request(organizationKey, async () => clearOrganization(attempt.record)),
+      navigator.locks.request(organizationKey, async () => {
+        if (pendingOrganization()?.record !== attempt.record)
+          throw new Error("The earlier request changed. Check the organisation directory again.");
+        await createDirectoryClient(request, accountId).organizations();
+        clearOrganization(attempt.record);
+      }),
     async projects(
       limit = 3,
       cursor: string | null = null,
@@ -299,7 +304,7 @@ export function createDashboardClient(
         } catch (reason) {
           if (
             reason instanceof DashboardRequestError &&
-            [400, 401, 403, 409, 429].includes(reason.status)
+            [400, 403, 409, 429].includes(reason.status)
           ) {
             clearOrganization(encoded);
             if (reason.status === 409)

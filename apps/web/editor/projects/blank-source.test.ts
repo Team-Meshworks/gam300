@@ -2,6 +2,20 @@ import { expect, it, vi } from "vitest";
 import { blankSourceKey, clearBlankSource, createBlankSource } from "./blank-source";
 const readCurrent = async () => ({ kind: "available" as const, revision: 0 });
 
+it("keeps the form retryable when the browser cannot store the first source marker", async () => {
+  const store = {
+    getItem: () => null,
+    setItem: () => {
+      throw new DOMException("Storage full", "QuotaExceededError");
+    },
+    removeItem: vi.fn(),
+  };
+  const write = vi.fn();
+  const result = await createBlankSource(store, write, "teacher", "Museum", "", readCurrent);
+  expect(write).not.toHaveBeenCalled();
+  expect(result.kind).toBe("rejected");
+});
+
 it("clears only the confirmed assignment's source and preserves a replacement receipt", async () => {
   const actor = "teacher";
   const older = "aefea67c-caca-4300-923c-937f1c785578";

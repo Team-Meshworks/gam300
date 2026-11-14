@@ -8,18 +8,29 @@ import type {
 
 // Keep all requests on the authenticated application origin; never send cookies to an upload URL
 export function createAssetAdministrationService(actorId: string): AssetAdministrationService {
+  const recoveryKey = `spatia.asset-write:${actorId}`;
   const unknownWrite = {
     ok: false,
     kind: "unknown",
     message: "The change may have been applied. Check the asset list before trying again.",
   } as const;
-  async function request<T>(
+  async function requestLocked<T>(
     path: string,
     signal: AbortSignal,
     init?: RequestInit,
+    reconcile = true,
   ): Promise<AssetAdministrationResult<T>> {
     let writeSent = false;
+    let marker: string | null = null;
     try {
+      if (reconcile) {
+        try {
+          marker = localStorage.getItem(recoveryKey);
+        } catch (error) {
+          if (init?.method) throw error;
+        }
+      }
+      if (init?.method && marker !== null) return unknownWrite;
       const headers = new Headers(init?.headers);
       headers.set("X-Spatia-Account", actorId);
       if (init?.method) {
@@ -39,7 +50,8 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
           !token ||
           typeof token !== "object" ||
           !("requestToken" in token) ||
-          typeof token.requestToken !== "string"
+          typeof token.requestToken !== "string" ||
+          !token.requestToken
         ) {
           return {
             ok: false,
@@ -51,10 +63,16 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
       }
 
       // Send the bounded write only after obtaining a token; reads use the same account-bound origin
-      writeSent = !!init?.method;
+      if (init?.method) {
+        marker = crypto.randomUUID();
+        localStorage.setItem(recoveryKey, marker);
+        if (localStorage.getItem(recoveryKey) !== marker)
+          throw new Error("Could not record asset write");
+        writeSent = true;
+      }
       const response = await fetch(path, { ...init, credentials: "same-origin", headers, signal });
       if (!response.ok) {
-        if (writeSent && (response.status >= 500 || response.status === 408)) {
+        if (writeSent && (response.status >= 500 || [401, 408].includes(response.status))) {
           const problem: unknown = await response.json().catch(() => null);
           if (
             !(
@@ -66,6 +84,8 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
             return unknownWrite;
           }
         }
+        if (writeSent && localStorage.getItem(recoveryKey) === marker)
+          localStorage.removeItem(recoveryKey);
         return failure(response.status);
       }
       // Treat confirmed responses as untrusted until their lifecycle fields pass validation
@@ -77,6 +97,8 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
           ? unknownWrite
           : { ok: false, kind: "unavailable", message: "Asset service returned invalid data" };
       }
+      if (marker !== null && localStorage.getItem(recoveryKey) === marker)
+        localStorage.removeItem(recoveryKey);
       return { ok: true, value: value as T };
 
       // Let cancellation reach the mounting screen while ordinary network failures preserve its draft
@@ -94,6 +116,20 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
     }
   }
 
+  async function request<T>(
+    path: string,
+    signal: AbortSignal,
+    init?: RequestInit,
+  ): Promise<AssetAdministrationResult<T>> {
+    if (!navigator.locks && !init?.method) return requestLocked<T>(path, signal, init, false);
+    if (!navigator.locks)
+      return {
+        ok: false,
+        kind: "unavailable",
+        message: "This browser cannot safely coordinate asset changes.",
+      };
+    return navigator.locks.request(recoveryKey, () => requestLocked<T>(path, signal, init));
+  }
   // Translate server failures without claiming that an unacknowledged write succeeded
   function failure(status: number): AssetAdministrationResult<never> {
     return {

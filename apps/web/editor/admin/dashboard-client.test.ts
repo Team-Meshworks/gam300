@@ -203,6 +203,8 @@ it("keeps a committed organisation with a lost reply from being created again af
 it("keeps an uncertain creation when another tab acknowledges a superseded attempt", async () => {
   const request = vi.fn<typeof fetch>(async (path) => {
     if (path === "/api/v1/auth/csrf") return json({ requestToken: "csrf" });
+    if (String(path).startsWith("/api/v1/admin/organizations?"))
+      return json({ items: [], nextCursor: null });
     return new Response(null, { status: 503 });
   });
   const client = createDashboardClient(actor, request);
@@ -245,7 +247,7 @@ it("unlocks a definite rejection and keeps a mismatched confirmation for review"
 
 it("lets the administrator reconcile an unreadable marker without sending or clearing a replacement", async () => {
   const key = `spatia.organization-create:${actor}`;
-  const request = vi.fn<typeof fetch>();
+  const request = vi.fn<typeof fetch>().mockResolvedValue(json({ items: [], nextCursor: null }));
   const client = createDashboardClient(actor, request);
   localStorage.setItem(key, "{partial");
   const earlier = client.pendingOrganization()!;
@@ -339,4 +341,51 @@ it("sends a selected moderation action as one authenticated batch request", asyn
     projectIds: ids,
     action: "hide",
   });
+});
+
+it("retains an organisation attempt when its dispatched write returns 401", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(json({}, 401));
+  const client = createDashboardClient(actor, request);
+  await expect(client.createOrganization("School")).rejects.toThrow();
+  expect(client.pendingOrganization()?.name).toBe("School");
+});
+
+it.each([401, 403])(
+  "does not create an organisation marker when preflight returns %s",
+  async (status) => {
+    const request = vi.fn<typeof fetch>().mockResolvedValueOnce(json({}, status));
+    const client = createDashboardClient(actor, request);
+    await expect(client.createOrganization("School")).rejects.toThrow();
+    expect(client.pendingOrganization()).toBeNull();
+    expect(request).toHaveBeenCalledTimes(1);
+  },
+);
+
+it("does not clear an organisation attempt without an authorized directory read", async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValue(json({}, 401));
+  const client = createDashboardClient(actor, request);
+  localStorage.setItem(
+    `spatia.organization-create:${actor}`,
+    JSON.stringify({ attemptId: actor, name: "School" }),
+  );
+  await expect(client.acknowledgeOrganization(client.pendingOrganization()!)).rejects.toThrow();
+  expect(client.pendingOrganization()?.name).toBe("School");
+});
+
+it("does not dispatch an organisation create when the recovery marker cannot be stored", async () => {
+  vi.stubGlobal("localStorage", {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error("quota");
+    },
+    removeItem: () => {},
+  });
+  const request = vi.fn<typeof fetch>().mockResolvedValue(json({ requestToken: "csrf" }));
+  await expect(
+    createDashboardClient(actor, request).createOrganization("School"),
+  ).rejects.toThrow();
+  expect(request).toHaveBeenCalledTimes(1);
 });

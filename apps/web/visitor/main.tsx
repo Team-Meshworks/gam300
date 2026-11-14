@@ -14,6 +14,12 @@ function Visitor() {
   const [scene, setScene] = useState(0);
   const [viewpoint, setViewpoint] = useState<Readonly<{ id: string }>>();
 
+  const [playbackReady, setPlaybackReady] = useState<Readonly<{
+    exhibition: PublishedExhibition;
+    scene: number;
+    viewpoint: typeof viewpoint;
+  }> | null>(null);
+
   const visitedScenes = useRef(new Set<string>());
   const [navigationLoop, setNavigationLoop] = useState(false);
   const currentSceneKey = exhibition?.document.scenes[scene]?.id.toLowerCase();
@@ -74,6 +80,7 @@ function Visitor() {
         unavailable(failure instanceof Error ? failure.message : "The exhibition is unavailable.");
       });
     let latestAccessCheck = 0;
+    let latestAccessDecision = 0;
     const recheck = () => {
       if (document.hidden || controller.signal.aborted) return;
       const check = ++latestAccessCheck;
@@ -83,11 +90,13 @@ function Visitor() {
         credentials: "same-origin",
       })
         .then((response) => {
-          if (!response.ok && check === latestAccessCheck)
+          if (check < latestAccessDecision) return;
+          latestAccessDecision = check;
+          if (!response.ok)
             unavailable("This exhibition is unavailable or your account does not have access.");
         })
         .catch(() => {
-          if (check === latestAccessCheck)
+          if (check >= latestAccessDecision)
             unavailable("Access could not be checked. Reconnect and retry.");
         });
     };
@@ -154,6 +163,9 @@ function Visitor() {
               viewpoint={viewpoint}
               navigate={navigate}
               beginNavigationEvent={beginNavigationEvent}
+              onPlaybackReady={(ready) =>
+                setPlaybackReady(ready ? { exhibition, scene, viewpoint } : null)
+              }
             />
             {navigationLoop && (
               <p className="visitor-status" role="status">
@@ -163,6 +175,11 @@ function Visitor() {
             <ExhibitionContent
               scene={exhibition.document.scenes[scene]!}
               assets={exhibition.assets}
+              playbackReady={
+                playbackReady?.exhibition === exhibition &&
+                playbackReady.scene === scene &&
+                playbackReady.viewpoint === viewpoint
+              }
               navigate={(id, view) => navigate(id, view, true)}
             />
           </>

@@ -55,6 +55,9 @@ if (process.argv.includes("--playback-only")) {
     release = resolve;
   });
   let assetRequests = 0;
+  let holdAssets = false;
+  let releaseAssets;
+  let assetGate;
   try {
     const page = await browser.newPage();
     page.on("pageerror", (error) => errors.push(error.message));
@@ -81,6 +84,7 @@ if (process.argv.includes("--playback-only")) {
       }
       if (path.endsWith("/bytes")) {
         assetRequests++;
+        if (holdAssets) await assetGate;
         return route.fulfill({
           contentType: "model/gltf-binary",
           body: path.includes(environmentId) ? room : model,
@@ -93,7 +97,9 @@ if (process.argv.includes("--playback-only")) {
     const componentPath = new URL("../visitor/ExhibitionCanvas.tsx", import.meta.url).pathname;
     const component = await page.request.get(`${origin}/@fs${componentPath}`);
     assert.ok(component.ok());
-    const threePath = (await component.text()).match(/import \* as THREE from "([^"]+)"/)?.[1];
+    const componentText = await component.text();
+    const threePath = componentText.match(/import \* as THREE from "([^"]+)"/)?.[1];
+    const fpsPath = componentText.match(/import \{ FpsControls \} from "([^"]+)"/)?.[1];
     assert.ok(threePath);
     await page.goto(`${origin}/p/${publicationId}`);
     await page.addScriptTag({
@@ -332,9 +338,21 @@ if (process.argv.includes("--playback-only")) {
       ],
     };
     first.rules.push(pointRule);
+    holdAssets = true;
+    assetGate = new Promise((resolve) => {
+      releaseAssets = resolve;
+    });
     await page.reload();
-    await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
     await page.locator(".visitor-information summary").click();
+    const earlyPoint = page.getByRole("button", { name: navigation.label, exact: true });
+    assert.equal(
+      await earlyPoint.isDisabled(),
+      true,
+      "Navigation point must wait for playback listeners",
+    );
+    holdAssets = false;
+    releaseAssets();
+    await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
     await page.evaluate(() => {
       window.pointActions = 0;
       document
@@ -455,6 +473,62 @@ if (process.argv.includes("--playback-only")) {
       second.id,
       first.id,
     ]);
+    // Explicit camera controls start a new chain before their destination enters a zone.
+    second.viewpoints.push({
+      id: "10000000-0000-4000-8000-000000000008",
+      name: "Zone view",
+      camera: { ...second.viewpoints[0].camera, position: [1.25, 1.6, 5] },
+    });
+    await page.reload();
+    await page.waitForFunction(
+      (id) => document.querySelector("[data-exhibition-scene]")?.dataset.exhibitionScene === id,
+      second.id,
+    );
+    await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Zone view", exact: true }).click();
+    await page.waitForFunction(
+      (id) => window.enteredScenes.includes(id) && window.enteredScenes.length >= 3,
+      first.id,
+    );
+    assert.deepEqual((await page.evaluate(() => window.enteredScenes)).slice(0, 3), [
+      first.id,
+      second.id,
+      first.id,
+    ]);
+
+    returnZone.transform.position = [0, 1.6, 5];
+    gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    await page.reload();
+    await page.addScriptTag({
+      type: "module",
+      content: `import * as THREE from ${JSON.stringify(threePath)};
+      import { FpsControls } from ${JSON.stringify(fpsPath)};
+      const sync = FpsControls.prototype.syncFromCamera;
+      FpsControls.prototype.syncFromCamera = function () { window.v2Fps = this; return sync.call(this); };
+      const update = THREE.PerspectiveCamera.prototype.updateProjectionMatrix;
+      THREE.PerspectiveCamera.prototype.updateProjectionMatrix = function () { window.v2Camera = this; return update.call(this); };`,
+    });
+    release();
+    await page
+      .getByRole("status")
+      .getByText(/automatic scene navigation/i)
+      .waitFor();
+    await page.evaluate(() => {
+      window.v2Camera.position.set(10, 1.6, 5);
+      window.v2Fps.syncFromCamera();
+    });
+    await page.waitForTimeout(500);
+    await page.getByRole("button", { name: "Reset view", exact: true }).click();
+    await page.waitForTimeout(500);
+    await page.waitForFunction(() => window.enteredScenes.length >= 3, null, { timeout: 5000 });
+    assert.deepEqual((await page.evaluate(() => window.enteredScenes)).slice(0, 3), [
+      first.id,
+      second.id,
+      first.id,
+    ]);
+    second.viewpoints.pop();
     first.rules[1].enabled = false;
 
     // Supported rules load normally; external legacy audio still fails before fetching assets
@@ -535,7 +609,7 @@ const controls={target:new THREE.Vector3(),update(){}};
 const roots=new Map(scene.objects.map(o=>{const root=new THREE.Group();root.visible=o.visible;return[o.id,root]}));
 const root=createRoot(document.getElementById("root"));
 const navigate=(scene,view)=>{calls.push([scene,view]);return true;};
-flushSync(()=>root.render(<><button id="start">Start exhibition</button><ExhibitionContent scene={scene as any} assets={data.assets} navigate={navigate}/></>));
+flushSync(()=>root.render(<><button id="start">Start exhibition</button><ExhibitionContent scene={scene as any} assets={data.assets} navigate={navigate} playbackReady={true}/></>));
 await new Promise(resolve=>requestAnimationFrame(resolve));
 const content=document.querySelector('[data-exhibition-scene]');
 const runtime=createVisitorPlayback(scene as any,camera,controls,roots,content,navigate,message=>reports.push(message),()=>{});
