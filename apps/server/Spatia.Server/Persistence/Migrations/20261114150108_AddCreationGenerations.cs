@@ -81,6 +81,7 @@ public partial class AddCreationGenerations : Migration
     protected override void Down(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.Sql("""
+            LOCK TABLE creation_receipts IN ACCESS EXCLUSIVE MODE;
             DO $$ BEGIN
                 IF EXISTS (SELECT 1 FROM creation_receipts) THEN
                     RAISE EXCEPTION 'Creation generation history must be retained; review the downgrade first.';

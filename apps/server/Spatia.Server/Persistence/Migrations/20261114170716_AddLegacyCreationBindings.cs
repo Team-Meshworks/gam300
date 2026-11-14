@@ -41,6 +41,7 @@ public partial class AddLegacyCreationBindings : Migration
     protected override void Down(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.Sql("""
+            LOCK TABLE legacy_creation_bindings IN ACCESS EXCLUSIVE MODE;
             DO $$ BEGIN
                 IF EXISTS (SELECT 1 FROM legacy_creation_bindings) THEN
                     RAISE EXCEPTION 'Legacy creation resolutions must be retained; review the downgrade first.';

@@ -194,6 +194,18 @@ The bulk-import and asset-removal migrations add empty operation logs to Postgre
 
 Previously, removing and reapplying either migration erased the evidence needed to reject a delayed request. The PostgreSQL regressions cover an empty downgrade and upgrade, a recorded cancellation, and a downgrade racing a committing writer for both tables. [Rollback regressions](../apps/server/tests/ReceiptMigrationRollbackTests.cs).
 
+### Creation receipt and legacy binding rollback
+
+The receipt and legacy binding migrations add empty tables. The generation migration adds recovery fields to existing keyed receipts. On downgrade, the receipt and generation migrations lock `creation_receipts`, and the legacy binding migration locks `legacy_creation_bindings`. Each takes an `ACCESS EXCLUSIVE` lock before checking for rows and holds it through the schema change. [Creation receipts](../apps/server/Spatia.Server/Persistence/Migrations/20261114135210_AddCreationReceipts.cs), [generations](../apps/server/Spatia.Server/Persistence/Migrations/20261114150108_AddCreationGenerations.cs), [legacy bindings](../apps/server/Spatia.Server/Persistence/Migrations/20261114170716_AddLegacyCreationBindings.cs).
+
+| Starting state | Event | Next state | Invariant |
+| --- | --- | --- | --- |
+| Checked table is empty | Downgrade takes the exclusive lock and checks for rows | Table or generation fields removed | Reapplying the migration restores the empty table or its fields. |
+| A creation or resolution writer holds the table | Downgrade begins before the writer finishes | Downgrade waits | The row check runs under the lock after the writer commits or rolls back. A committed row causes refusal. |
+| Checked table contains a row | Downgrade attempts to remove its history | Downgrade refused | The migration stays applied. A keyed retry keeps its receipt, a legacy retry returns the original resolution, and a fresh profile can recover an unacknowledged assignment source. |
+
+Previously, a first write could commit after the row check. A downgrade could then erase a receipt or legacy binding, or strip the purpose from an assignment-source receipt. In the last case, a fresh profile saw an empty assignment-source history and created a second project. Four PostgreSQL regressions cover these races, and the existing migration round-trip test covers empty history. [Concurrent downgrades](../apps/server/tests/CreationMigrationRollbackTests.cs), [empty downgrade and reapply](../apps/server/tests/CreationReceiptTests.cs).
+
 ## Assets, retirement and supporting UI
 
 | Starting state | Event and preconditions | Next state | Observable effect |
