@@ -46,6 +46,14 @@ public partial class AddAssetRemovalReceipts : Migration
     /// <inheritdoc />
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.Sql("""
+            LOCK TABLE asset_removal_receipts IN ACCESS EXCLUSIVE MODE;
+            DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM asset_removal_receipts) THEN
+                    RAISE EXCEPTION 'Asset removal receipt history must be retained; review the downgrade first.';
+                END IF;
+            END $$;
+            """);
         migrationBuilder.DropTable(
             name: "asset_removal_receipts");
     }
