@@ -56,6 +56,8 @@ function account(value: unknown): ManagedAccount {
     throw new Error("The account service returned an invalid account.");
   return value as unknown as ManagedAccount;
 }
+export class DirectoryWriteUnconfirmed extends Error {}
+
 export function createDirectoryClient(request: typeof fetch = fetch, accountId?: string) {
   async function send(path: string, init: RequestInit = {}, timeout = 15000): Promise<unknown> {
     let response: Response;
@@ -67,16 +69,21 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
         cache: "no-store",
         signal: AbortSignal.timeout(timeout),
       });
-    } catch {
-      throw new Error(
-        init.method === "DELETE"
-          ? "Deletion could not be confirmed. Close this window and refresh the directory before trying again."
-          : init.method
-            ? "The save could not be confirmed. Close this window and refresh the directory before trying again."
-            : "The directory could not be reached. Please try again.",
-      );
+    } catch (cause) {
+      if (init.method)
+        throw new DirectoryWriteUnconfirmed(
+          init.method === "DELETE"
+            ? "Deletion could not be confirmed. Close this window and refresh the directory before trying again."
+            : "The save could not be confirmed. Close this window and refresh the directory before trying again.",
+          { cause },
+        );
+      throw new Error("The directory could not be reached. Please try again.", { cause });
     }
     if (!response.ok) {
+      if (init.method && response.status >= 500)
+        throw new DirectoryWriteUnconfirmed(
+          "The save could not be confirmed. Refresh the directory.",
+        );
       const problem: unknown = await response.json().catch(() => null);
       const messages: Record<string, string> = {
         organization_confirmation_required:
@@ -111,8 +118,15 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
     if (response.status === 204) return null;
     try {
       return await response.json();
-    } catch {
-      throw new Error("The directory returned an invalid response. Refresh before trying again.");
+    } catch (cause) {
+      if (init.method)
+        throw new DirectoryWriteUnconfirmed(
+          "The directory returned an invalid response. Refresh before trying again.",
+          { cause },
+        );
+      throw new Error("The directory returned an invalid response. Refresh before trying again.", {
+        cause,
+      });
     }
   }
   async function write(path: string, method: string, body: object, timeout = 15000) {
@@ -233,9 +247,15 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
         values.map((value) => ({ ...value, orgId })),
         90000,
       );
+      const unconfirmed = "Creation could not be verified. Refresh the directory before retrying.";
       if (!Array.isArray(result) || result.length > values.length)
-        throw new Error("Creation could not be verified. Refresh the directory before retrying.");
-      const accounts = result.map(account);
+        throw new DirectoryWriteUnconfirmed(unconfirmed);
+      let accounts: ManagedAccount[];
+      try {
+        accounts = result.map(account);
+      } catch (cause) {
+        throw new DirectoryWriteUnconfirmed(unconfirmed, { cause });
+      }
       const expected = new Map(values.map((value) => [value.userName, value]));
       if (
         new Set(accounts.map((value) => value.userId)).size !== accounts.length ||
@@ -244,7 +264,7 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
           (item) => item.orgId !== orgId || expected.get(item.userName)?.role !== item.role,
         )
       )
-        throw new Error("Creation could not be verified. Refresh the directory before retrying.");
+        throw new DirectoryWriteUnconfirmed(unconfirmed);
       return accounts;
     },
     update: async (userId: string, values: AccountChanges) =>

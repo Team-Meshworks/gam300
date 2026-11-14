@@ -372,6 +372,13 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
           organizationName={organization.name}
           onClose={() => setModal(null)}
           onSave={save}
+          onCheckDirectory={() => {
+            setModal(null);
+            setNotice(
+              "Check the intended imported accounts. Open View Account to override a temporary password when needed.",
+            );
+            refresh();
+          }}
           onImport={async (values) => {
             const saved = await client.createBulk(organization.id, values);
             setAccounts((rows) => [...rows, ...saved]);

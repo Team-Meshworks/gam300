@@ -97,7 +97,11 @@ it("changes a forced password then fetches authoritative session state", async (
     .mockResolvedValueOnce(json({ requestToken: "new" }))
     .mockResolvedValueOnce(json(session));
   expect(
-    await createAccountClient(request).changePassword("old password value", "new password value"),
+    await createAccountClient(request).changePassword(
+      "old password value",
+      "new password value",
+      session.userId,
+    ),
   ).toEqual({ ...session, developmentAssetsAllowed: false });
   expect(request.mock.calls[1]).toEqual([
     "/api/v1/auth/password",
@@ -109,6 +113,25 @@ it("changes a forced password then fetches authoritative session state", async (
     }),
   ]);
 });
+it("binds a forced-password change and its confirmation to the displayed account", async () => {
+  const changed = { ...session, userId: "6d0d9b7f-6851-4dc6-91e4-d41aadd299be" };
+  const request = vi.fn<typeof fetch>(async (url) => {
+    if (url === "/api/v1/auth/session") return json(changed);
+    if (url === "/api/v1/auth/password") return new Response(null, { status: 204 });
+    return json({ requestToken: "token" });
+  });
+  await expect(
+    createAccountClient(request).changePassword(
+      "old password value",
+      "new password value",
+      session.userId,
+    ),
+  ).rejects.toThrow();
+  for (const [, init] of request.mock.calls.slice(0, 2)) {
+    expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe(session.userId);
+  }
+});
+
 it("only confirms logout after a fresh session check returns signed out", async () => {
   const request = vi
     .fn<typeof fetch>()
@@ -116,7 +139,7 @@ it("only confirms logout after a fresh session check returns signed out", async 
     .mockResolvedValueOnce(new Response(null, { status: 204 }))
     .mockResolvedValueOnce(json({ requestToken: "new" }))
     .mockResolvedValueOnce(new Response(null, { status: 401 }));
-  await expect(createAccountClient(request).signOut()).resolves.toBeUndefined();
+  await expect(createAccountClient(request).signOut(session.userId)).resolves.toBeUndefined();
   expect(request.mock.calls.map(([url]) => url)).toEqual([
     "/api/v1/auth/csrf",
     "/api/v1/auth/logout",
