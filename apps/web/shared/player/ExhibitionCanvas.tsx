@@ -10,7 +10,7 @@ import { STARTER_ROOM_SHA256 } from "../asset-runtime/catalogue";
 import { disposeModels } from "../asset-runtime/ModelCache";
 import { createExhibitAppearance } from "../asset-runtime/exhibit-appearance";
 import { containDisplay } from "../asset-runtime/display-layout";
-import { createTextTexture } from "../asset-runtime/text-texture";
+import { createDisplayText } from "../asset-runtime/display-text";
 import { createRoomEntrances } from "../asset-runtime/room-entrances";
 import type { PlayerSnapshot } from "./player-snapshot";
 import { createVisitorPlayback } from "./playback";
@@ -91,8 +91,12 @@ export function ExhibitionCanvas({
     const camera = new THREE.PerspectiveCamera(starting.fovDegrees, 1, 0.01, 2000);
     const fps = new FpsControls(camera, renderer.domElement);
     fps.setFlightAllowed(false);
+    fps.onNavigationInput = beginInput;
     fps.onCaptureChange = () => setCaptured(fps.isCaptured());
-    const controls = { target: new THREE.Vector3(), update: () => fps.syncFromCamera() };
+    const controls = {
+      target: new THREE.Vector3(),
+      update: () => fps.syncFromCamera(),
+    };
     queueMicrotask(() => {
       if (!controller.signal.aborted) setMobile(fps.mobileControls);
     });
@@ -329,7 +333,11 @@ export function ExhibitionCanvas({
               );
               const mesh = new THREE.Mesh(
                 new THREE.PlaneGeometry(fit.width, fit.height),
-                new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide, toneMapped: false }),
+                new THREE.MeshBasicMaterial({
+                  map,
+                  side: THREE.DoubleSide,
+                  toneMapped: false,
+                }),
               );
               mesh.position.fromArray(surface.position);
               mesh.quaternion.fromArray(surface.rotation);
@@ -345,29 +353,14 @@ export function ExhibitionCanvas({
             if (component.type !== "text") continue;
             const face = displaySurface(asset, component, localSurface);
             if (!face) continue;
-            const texture = createTextTexture(
-              "",
-              face.width,
-              face.height,
-              component.runs,
-              (component.fontSize ?? 24) * 4,
-              component.background === "transparent",
-              component.color ?? "#292522",
-              component.background ?? "#fffaf0",
+            root.add(
+              createDisplayText(
+                face,
+                component,
+                asset.displayRole === "physical",
+                authored.appearance,
+              ),
             );
-            const panel = new THREE.Mesh(
-              new THREE.PlaneGeometry(face.width, face.height),
-              new THREE.MeshBasicMaterial({
-                map: texture,
-                side: THREE.DoubleSide,
-                toneMapped: false,
-                transparent: component.background === "transparent",
-              }),
-            );
-            panel.position.fromArray(face.position);
-            panel.quaternion.fromArray(face.rotation);
-            panel.translateZ(0.004);
-            root.add(panel);
           }
         }
         scene.add(root);
@@ -402,7 +395,13 @@ export function ExhibitionCanvas({
             navigate,
             (message) => {
               if (!controller.signal.aborted)
-                setResult({ exhibition, sceneIndex, attempt, message, failed: false });
+                setResult({
+                  exhibition,
+                  sceneIndex,
+                  attempt,
+                  message,
+                  failed: false,
+                });
             },
             beginInput,
           );
@@ -484,9 +483,22 @@ export function ExhibitionCanvas({
       )}
       <div className="visitor-controls">
         <button onClick={() => play.current()}>Enable audio</button>
-        <button onClick={() => reset.current()}>Reset view</button>
+        <button
+          onClick={() => {
+            beginInput();
+            reset.current();
+          }}
+        >
+          Reset view
+        </button>
         {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
-          <button key={view.id} onClick={() => selectView.current(view.id)}>
+          <button
+            key={view.id}
+            onClick={() => {
+              beginInput();
+              selectView.current(view.id);
+            }}
+          >
             {view.name}
           </button>
         ))}
@@ -510,7 +522,9 @@ export function ExhibitionCanvas({
       <div
         className="visitor-canvas"
         ref={mount}
-        style={{ visibility: current && !current.failed ? "visible" : "hidden" }}
+        style={{
+          visibility: current && !current.failed ? "visible" : "hidden",
+        }}
       />
     </section>
   );

@@ -1,5 +1,6 @@
 import { displaySurface } from "../../shared/asset-runtime/display-surface";
-import { textColorOn } from "../../shared/project/project-appearance";
+import { createDisplayText } from "../../shared/asset-runtime/display-text";
+import { disposeModels } from "../../shared/asset-runtime/ModelCache";
 import * as THREE from "three";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { ContentComponent, ContentObject } from "../../shared/project/project-content";
@@ -12,10 +13,10 @@ type Display = {
   signature: string;
   group: THREE.Group;
   dispose: () => void;
-  pause: () => void;
-  resume: () => void;
-  setPreview: (active: boolean) => void;
-  toggle: () => void;
+  pause?: () => void;
+  resume?: () => void;
+  setPreview?: (active: boolean) => void;
+  toggle?: () => void;
 };
 
 export function createDisplayContent(
@@ -37,26 +38,23 @@ export function createDisplayContent(
     const resolved = displaySurface(asset, content, models.get(asset.id));
     if (!resolved) return;
     const surface = resolved;
-    const appearance = (owner.userData.captionAppearance ?? {}) as {
-      color?: string;
-      material?: string;
-    };
-    const background = content.type === "text" ? content.background : undefined;
-    const transparent = background === "transparent" || (physical && background === undefined);
-    const ink =
-      (content.type === "text" ? content.color : undefined) ??
-      textColorOn(
-        background && background !== "transparent"
-          ? background
-          : physical && appearance.material !== "glass"
-            ? (appearance.color ?? "#ffffff")
-            : "#ffffff",
-      );
+    if (content.type === "text") {
+      const group = createDisplayText(surface, content, physical, owner.userData.captionAppearance);
+      owner.add(group);
+      return {
+        signature,
+        group,
+        dispose() {
+          group.removeFromParent();
+          disposeModels(group);
+        },
+      };
+    }
+    const transparent = physical;
     const group = new THREE.Group();
     group.name = "Display content";
     group.position.fromArray(surface.position);
     group.quaternion.fromArray(surface.rotation);
-    // Offset toward the viewer to avoid z-fighting with the exported panel surface.
     group.translateZ(0.004);
     owner.add(group);
     const textures = new Set<THREE.Texture>();
@@ -84,33 +82,20 @@ export function createDisplayContent(
       group.add(mesh);
       return mesh;
     }
-    const captionHeight =
-      content.type === "text" && content.caption
-        ? Math.min(surface.height * 0.25, surface.width * 0.22)
-        : 0;
-    const mediaHeight = surface.height - captionHeight;
+    const mediaHeight = surface.height;
     const main = plane(
       surface.width,
       mediaHeight,
-      captionHeight / 2,
+      0,
       textCanvas(
-        content.type === "text" ? "" : `Loading ${content.type}…`,
+        `Loading ${content.type}…`,
         surface.width,
         mediaHeight,
-        content.type === "text" ? content.runs : undefined,
-        content.type === "text" ? (content.fontSize ?? (physical ? 28 : 24)) * 4 : 32,
+        undefined,
+        32,
         transparent,
-        ink,
-        background && background !== "transparent" ? background : "#fffaf0",
       ),
     );
-    if (content.type === "text" && content.caption)
-      plane(
-        surface.width,
-        captionHeight,
-        -mediaHeight / 2,
-        textCanvas(content.caption, surface.width, captionHeight),
-      );
     function replace(texture: THREE.Texture, width = surface.width, height = mediaHeight) {
       if (disposed) {
         texture.dispose();
@@ -133,41 +118,39 @@ export function createDisplayContent(
           ),
         );
     }
-    if (content.type !== "text") {
-      const media = registry.get(content.assetId);
-      if (!media || media.kind !== content.type) failure();
-      else if (content.type === "image") {
-        image = new Image();
-        image.crossOrigin = "anonymous";
-        image.onload = () => {
-          if (disposed || !image) return;
-          const texture = new THREE.Texture(image);
-          texture.colorSpace = THREE.SRGBColorSpace;
-          texture.needsUpdate = true;
-          replace(texture, image.naturalWidth, image.naturalHeight);
-        };
-        image.onerror = failure;
-        image.src = media.url;
-      } else {
-        video = document.createElement("video");
-        video.crossOrigin = "anonymous";
-        video.preload = "metadata";
-        video.playsInline = true;
-        video.loop = !preview || content.loop;
-        video.volume = content.volume;
-        video.muted = true;
-        video.onloadeddata = () => {
-          if (disposed || !video) return;
-          videoReady = true;
-          const texture = new THREE.VideoTexture(video);
-          texture.colorSpace = THREE.SRGBColorSpace;
-          replace(texture, video.videoWidth, video.videoHeight);
-          if (wantsPlayback && !document.hidden) void video.play().catch(() => {});
-        };
-        video.onerror = failure;
-        video.src = media.url;
-        video.load();
-      }
+    const media = registry.get(content.assetId);
+    if (!media || media.kind !== content.type) failure();
+    else if (content.type === "image") {
+      image = new Image();
+      image.crossOrigin = "anonymous";
+      image.onload = () => {
+        if (disposed || !image) return;
+        const texture = new THREE.Texture(image);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.needsUpdate = true;
+        replace(texture, image.naturalWidth, image.naturalHeight);
+      };
+      image.onerror = failure;
+      image.src = media.url;
+    } else {
+      video = document.createElement("video");
+      video.crossOrigin = "anonymous";
+      video.preload = "metadata";
+      video.playsInline = true;
+      video.loop = !preview || content.loop;
+      video.volume = content.volume;
+      video.muted = true;
+      video.onloadeddata = () => {
+        if (disposed || !video) return;
+        videoReady = true;
+        const texture = new THREE.VideoTexture(video);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        replace(texture, video.videoWidth, video.videoHeight);
+        if (wantsPlayback && !document.hidden) void video.play().catch(() => {});
+      };
+      video.onerror = failure;
+      video.src = media.url;
+      video.load();
     }
     return {
       signature,
@@ -264,16 +247,16 @@ export function createDisplayContent(
     setPreview(active: boolean) {
       if (preview === active) return;
       preview = active;
-      displays.forEach((display) => display.setPreview(active));
+      displays.forEach((display) => display.setPreview?.(active));
     },
     pause() {
-      displays.forEach((display) => display.pause());
+      displays.forEach((display) => display.pause?.());
     },
     resume() {
-      if (!document.hidden) displays.forEach((display) => display.resume());
+      if (!document.hidden) displays.forEach((display) => display.resume?.());
     },
     toggle(id: string) {
-      displays.get(id)?.toggle();
+      displays.get(id)?.toggle?.();
     },
     dispose() {
       displays.forEach((display) => display.dispose());
