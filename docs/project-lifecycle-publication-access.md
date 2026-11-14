@@ -265,6 +265,28 @@ screens or add their implementation to SCRUM-69. SCRUM-94 must verify the chosen
 deletion policy after restore; this document does not select a backup-retention
 period or restoration mechanism.
 
+## Student publication flow confirmed 8 November 2026
+
+Rui Qin confirmed that students publish and share their own work after educator approval
+Class-created drafts grant their original student explicit publishing permission; a one-time migration enables untouched existing active student drafts without overriding permission changes
+Existing drafts with a revision above zero retain their current permission; a manager can grant publishing when appropriate
+The publisher still requires educator approval of the exact current saved revision; later edits require a fresh submission and approval
+Students cannot approve their own work, use the educator override or acquire project-management powers through publishing
+Students can choose public or unlisted access and share the acknowledged immutable edition's link and QR code
+
+## Publication decisions adopted 8 November 2026
+
+Rui Qin authorised choosing the remaining access policy on 8 November 2026
+These decisions supersede the unresolved D1, D3 and publication-access portions of D5 above
+
+- Public and unlisted editions permit anonymous reads and retain their original publisher identity through reassignment, roster changes, publisher disablement and organization-membership removal
+- Archive, hide, revocation, deletion and organization deletion deny visitor delivery for every audience; reopening or showing removes only that restriction
+- Each JSON, manifest, GET, HEAD, range and conditional asset request is authorised before delivery with private no-store responses; an already authorised request may finish while later requests observe the committed restriction
+- Publication deletion retains the immutable edition and shared assets, marks its policy deleted and inserts its ID into the immutable retired-publication ledger; retired IDs cannot be reused or delivered
+- Restoring a backup must occur with visitor delivery offline; reconcile the latest retirement ledger and deletion/revocation records before enabling delivery, including records newer than the selected backup
+- No automatic asset purge or 30-day retention period is introduced; backup retention and a tested restore procedure remain SCRUM-94 responsibilities
+- Public means anonymous access, without adding a public discovery catalogue; unlisted means anyone holding the link, not a confidential audience
+
 ## Shared transaction and class-review integration
 
 The existing [ProjectAccessService](../apps/server/Spatia.Server/Projects/ProjectAccessService.cs)

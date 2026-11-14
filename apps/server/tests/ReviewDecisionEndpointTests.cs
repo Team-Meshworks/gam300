@@ -20,6 +20,32 @@ namespace Spatia.Server.Tests;
 public sealed class ReviewDecisionEndpointTests
 {
     [Test]
+    public async Task DashboardAssignment_ReportsOnlyTheCurrentRevisionApproval()
+    {
+        await using var fixture = await CreateFixtureAsync(new FixtureAssets());
+        var data = await SeedAsync(fixture, false);
+        using var educator = fixture.CreateClient();
+        await fixture.SignInAsync(data.Educator, educator);
+        async Task<string?> ReadStateAsync(HttpClient client)
+        {
+            var page = await client.GetFromJsonAsync<JsonElement>($"/api/v1/classes/{data.ClassroomId:D}/assignments");
+            var assignment = page.GetProperty("items")[0];
+            await Assert.That(string.IsNullOrWhiteSpace(assignment.GetProperty("assignedBy").GetString())).IsFalse();
+            return assignment.GetProperty("projects").EnumerateArray()
+                .Single(row => row.GetProperty("projectId").GetGuid() == data.ProjectId).GetProperty("reviewState").GetString();
+        }
+
+        await Assert.That(await ReadStateAsync(fixture.Client)).IsEqualTo("draft");
+        var submission = Guid.NewGuid();
+        using var submitted = await SubmitAsync(fixture, data.ProjectId, submission, 0, true);
+        await Assert.That(await ReadStateAsync(educator)).IsEqualTo("pending");
+        using var approved = await DecideAsync(fixture, educator, data.ProjectId, submission, Guid.NewGuid(), 0, "approved", "");
+        await Assert.That(await ReadStateAsync(fixture.Client)).IsEqualTo("approved");
+        using var saved = await SaveAsync(fixture, data.ProjectId);
+        await Assert.That(await ReadStateAsync(educator)).IsEqualTo("outdated");
+    }
+
+    [Test]
     public async Task ReviewEvidence_RemainsPrivateAndReadableAfterEditAndRestart()
     {
         var resolver = new FixtureAssets();
@@ -30,6 +56,14 @@ public sealed class ReviewDecisionEndpointTests
         { await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created); }
         using var educator = fixture.CreateClient();
         await fixture.SignInAsync(data.Educator, educator);
+        using (var list = await educator.GetAsync($"/api/v1/projects/{data.ProjectId:D}/submissions?limit=1"))
+        {
+            await Assert.That(list.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var page = await list.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(page.GetProperty("projectId").GetGuid()).IsEqualTo(data.ProjectId);
+            await Assert.That(page.GetProperty("classId").GetGuid()).IsEqualTo(data.ClassroomId);
+            await Assert.That(page.GetProperty("assignmentId").GetGuid()).IsEqualTo(data.AssignmentId);
+        }
         using (var approved = await DecideAsync(fixture, educator, data.ProjectId, submissionId, Guid.NewGuid(), 0, "approved", "Well done"))
         { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
         using (var saved = await SaveAsync(fixture, data.ProjectId))

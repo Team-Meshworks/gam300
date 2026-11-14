@@ -27,6 +27,9 @@ public static partial class AccountDirectoryEndpoints
         group.MapGet("/organizations/{id:guid}/projects", ListOrganizationProjectsAsync);
         group.MapGet("/organizations/{id:guid}/deletion", GetOrganizationDeletionAsync);
         group.MapDelete("/organizations/{id:guid}", DeleteOrganizationAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
+        group.MapDelete("/users/{id:guid}", DeleteAccountAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
+        group.MapPost("/organizations/{id:guid}/students/hide", HideStudentsAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
+        group.MapPost("/organizations/{id:guid}/students/delete", DeleteStudentsAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPatch("/users/{id:guid}", UpdateUserAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPatch("/users/{id:guid}/active", SetUserActiveAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPatch("/organizations/{id:guid}/active", SetOrganizationActiveAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
@@ -65,11 +68,12 @@ public static partial class AccountDirectoryEndpoints
         if (user is null) { return ApiProblems.Create(context, 404, "account_not_found", "The account was not found."); }
         // Cookie renewal may already have tracked this user before waiting for the lifecycle lock
         await database.Entry(user).ReloadAsync(cancellationToken);
+        if (user.IsDeleted) { return ApiProblems.Create(context, 404, "account_not_found", "The account was not found."); }
         if (user.IsActive != request.IsActive)
         {
             if (!request.IsActive)
             {
-                var administrators = await database.Users.Where(row => row.IsActive
+                var administrators = await database.Users.Where(row => row.IsActive && !row.IsDeleted
                     && database.UserRoles.Any(role => role.UserId == row.Id && role.RoleId == ApplicationRoles.AdministratorId)
                     && !database.OrganizationMemberships.Any(member => member.UserId == row.Id))
                     .Select(row => row.Id).Take(2).ToListAsync(cancellationToken);
@@ -98,7 +102,7 @@ public static partial class AccountDirectoryEndpoints
         if (page is null) { return InvalidQuery(context); }
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
         if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
-        var query = database.Users.AsNoTracking();
+        var query = database.Users.AsNoTracking().Where(row => !row.IsDeleted);
         if (page.Cursor is { } cursor) { query = query.Where(row => row.Id.CompareTo(cursor) > 0); }
         if (page.IsActive is { } active) { query = query.Where(row => row.IsActive == active); }
         if (page.OrgId is { } orgId)
@@ -131,9 +135,33 @@ public static partial class AccountDirectoryEndpoints
         var query = database.Organizations.AsNoTracking();
         if (page.Cursor is { } cursor) { query = query.Where(row => row.Id.CompareTo(cursor) > 0); }
         if (page.IsActive is { } active) { query = query.Where(row => row.IsActive == active); }
-        if (page.SearchPattern is { } pattern) { query = query.Where(row => EF.Functions.ILike(row.Name, pattern, "\\")); }
+        if (page.SearchPattern is { } pattern)
+        {
+            // A member's account name or display name can lead back to the owning organisation
+            query = query.Where(row => EF.Functions.ILike(row.Name, pattern, "\\")
+                || (from membership in database.OrganizationMemberships
+                    join user in database.Users on membership.UserId equals user.Id
+                    where membership.OrganizationId == row.Id && !user.IsDeleted
+                        && (EF.Functions.ILike(user.UserName!, pattern, "\\")
+                            || EF.Functions.ILike(user.DisplayName ?? user.UserName!, pattern, "\\"))
+                    select user.Id).Any());
+        }
+
+        // Count this bounded page in the same authorised snapshot as its organisation records
         var rows = await query.OrderBy(row => row.Id).Take(page.Limit + 1)
-            .Select(row => new OrganizationResponse(row.Id, row.Name, row.IsActive)).ToListAsync(cancellationToken);
+            .Select(row => new
+            {
+                row.Id,
+                row.Name,
+                row.IsActive,
+                ProjectCount = database.Projects.Count(project => project.OrganizationId == row.Id),
+                FacilitatorCount = database.OrganizationMemberships.Count(member => member.OrganizationId == row.Id
+                    && member.RoleId == ApplicationRoles.EducatorId
+                    && database.Users.Any(user => user.Id == member.UserId && !user.IsDeleted)),
+                CreatorCount = database.OrganizationMemberships.Count(member => member.OrganizationId == row.Id
+                    && member.RoleId == ApplicationRoles.CreatorId
+                    && database.Users.Any(user => user.Id == member.UserId && !user.IsDeleted)),
+            }).ToListAsync(cancellationToken);
         var nextCursor = rows.Count > page.Limit ? rows[page.Limit - 1].Id : (Guid?)null;
         return await CompleteAsync(context, transaction,
             Results.Ok(new { items = rows.Take(page.Limit).ToArray(), nextCursor }), cancellationToken);
@@ -144,7 +172,7 @@ public static partial class AccountDirectoryEndpoints
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
         if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
-        var row = await Users(database, database.Users.AsNoTracking().Where(user => user.Id == id)).SingleOrDefaultAsync(cancellationToken);
+        var row = await Users(database, database.Users.AsNoTracking().Where(user => user.Id == id && !user.IsDeleted)).SingleOrDefaultAsync(cancellationToken);
         return await CompleteAsync(context, transaction, row is null
             ? ApiProblems.Create(context, 404, "account_not_found", "The account was not found.") : Results.Ok(row), cancellationToken);
     }

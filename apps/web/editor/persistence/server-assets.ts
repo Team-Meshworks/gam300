@@ -1,4 +1,6 @@
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { knownRoomGeometry } from "../../shared/asset-runtime/catalogue";
 import { isRecord } from "../../shared/project/validation-helpers";
 
 export async function readServerAssets(
@@ -15,7 +17,7 @@ export async function readServerAssets(
     credentials: "same-origin",
     cache: "no-store",
     redirect: "error",
-    signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+    signal: combineAbortSignals([signal, AbortSignal.timeout(15_000)]),
   });
   if (!response.ok)
     throw new Error("Approved assets could not be loaded. Retry opening this project.");
@@ -40,6 +42,10 @@ export async function readServerAssets(
     )
       throw new Error("Invalid approved asset catalogue.");
     seen.add(row.id.toLowerCase());
+    const measured =
+      row.kind === "environment" || row.kind === "model"
+        ? knownRoomGeometry[row.sha256.toLowerCase()]
+        : undefined;
     return {
       id: row.id,
       name: row.name,
@@ -47,6 +53,7 @@ export async function readServerAssets(
       url: row.url as string,
       sha256: row.sha256,
       thumbnail: null,
+      ...(measured ? { boundsMeters: measured, placement: "bottom-center" as const } : {}),
       ...(typeof row.category === "string" ? { category: row.category } : {}),
     };
   });

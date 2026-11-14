@@ -1,0 +1,124 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { expect, it, vi } from "vitest";
+import { StudentProjectDetails } from "./StudentProjects";
+import { CreatorProjectCard, CreatorApproval } from "./CreatorProjectCard";
+
+it("does not infer publication eligibility for a visible project without an assignment mapping", () => {
+  const html = renderToStaticMarkup(
+    createElement(CreatorProjectCard, {
+      row: {
+        project: {
+          projectId: "draft",
+          title: "Shared draft",
+          revision: 2,
+          updatedAt: "2026-11-08T00:00:00Z",
+          archived: false,
+          permissions: { canEdit: false, canManage: false, canPublish: false },
+        },
+        assignment: null,
+      },
+      name: "Student",
+      onOpen: vi.fn(),
+      onDetails: vi.fn(),
+    }),
+  );
+  expect(html).toContain("No review listed");
+  expect(html).toMatch(
+    /<button[^>]*disabled=""[^>]*><span[^>]*>Continue editing<\/span><\/button>/,
+  );
+});
+
+it("shows the selected student's project details and opens that project", () => {
+  const html = renderToStaticMarkup(
+    createElement(StudentProjectDetails, {
+      row: {
+        project: {
+          projectId: "project",
+          title: "Silk Road",
+          revision: 1,
+          updatedAt: "2026-11-05T00:00:00Z",
+          archived: false,
+          permissions: { canEdit: true, canManage: false, canPublish: false },
+        },
+        assignment: {
+          className: "History",
+          details: {
+            assignmentId: "assignment",
+            title: "Silk Road",
+            description: "Explore trade",
+            instructions: "Build a museum",
+            dueAtUnixSeconds: 1900000000,
+            projects: [{ studentId: "alice", projectId: "project" }],
+          },
+        },
+      },
+      feedback: [],
+      feedbackLoading: false,
+      feedbackError: "",
+      actorId: "student",
+      onClose: vi.fn(),
+      onOpen: vi.fn(),
+    }),
+  );
+  expect(html).toContain("Silk Road");
+  expect(html).toContain("Explore trade");
+  expect(html).toContain("Build a museum");
+  expect(html).toContain("Open project");
+  expect(html).toContain('aria-label="Reviews"');
+  expect(html).toMatch(/<button[^>]*aria-label="Close project details"[^>]*autofocus=""/);
+});
+
+it("offers Start Editing for a project with no saved revisions", () => {
+  const html = renderToStaticMarkup(
+    createElement(StudentProjectDetails, {
+      row: {
+        project: {
+          projectId: "project",
+          title: "New project",
+          revision: 0,
+          updatedAt: "2026-11-05T00:00:00Z",
+          archived: false,
+          permissions: { canEdit: true, canManage: false, canPublish: false },
+        },
+        assignment: null,
+      },
+      feedback: [],
+      feedbackLoading: false,
+      feedbackError: "",
+      actorId: "student",
+      onClose: vi.fn(),
+      onOpen: vi.fn(),
+    }),
+  );
+  expect(html).toContain("Start Editing");
+  expect(html).not.toContain('aria-label="Reviews"');
+});
+
+// A completed submission must update the visible badge before the list request settles.
+it.each([
+  ["pending", "Awaiting Approval"],
+  ["approved", "Approved"],
+] as const)(
+  "shows the confirmed %s state while refreshing project rows",
+  (submittedState, label) => {
+    const html = renderToStaticMarkup(
+      createElement(CreatorApproval, {
+        row: {
+          project: {
+            projectId: "project",
+            title: "Exhibit",
+            revision: 0,
+            updatedAt: "2026-11-10T00:00:00Z",
+            archived: false,
+            permissions: { canEdit: true, canManage: false, canPublish: false },
+          },
+          assignment: null,
+        },
+        submittedState,
+      }),
+    );
+    expect(html).toContain(label);
+    expect(html).not.toContain("No review listed");
+  },
+);

@@ -39,7 +39,7 @@ internal static class ClassAssignmentCoordinator
             var replay = await ReadProjectsAsync(database, existing.Id, cancellationToken);
             var validOrigins = await (from mapping in database.ClassAssignmentStudents
                                       join origin in database.ProjectProvenances on mapping.ProjectId equals origin.ProjectId
-                                      where mapping.AssignmentId == existing.Id && origin.Kind == ProjectProvenance.Class
+                                      where mapping.AssignmentId == existing.Id && mapping.OriginallyAssigned && origin.Kind == ProjectProvenance.Class
                                           && origin.ClassAssignmentId == mapping.AssignmentId && origin.StudentId == mapping.StudentId
                                       select mapping.ProjectId).CountAsync(cancellationToken);
             if (!replay.Select(row => row.StudentId).SequenceEqual(students) || validOrigins != students.Length)
@@ -117,6 +117,9 @@ internal static class ClassAssignmentCoordinator
         { return Conflict(context); }
         database.ChangeTracker.Clear();
 
+        // Keep one immutable image reference across every student draft without copying the uploaded bytes
+        var imageId = await database.Projects.Where(project => project.Id == source.ProjectId)
+            .Select(project => project.ImageId).SingleAsync(cancellationToken);
         var projects = new List<StudentProject>(students.Length);
         foreach (var student in students)
         {
@@ -128,9 +131,9 @@ internal static class ClassAssignmentCoordinator
                 CanEdit = true,
                 CanManage = true,
                 CanPublish = true,
-            }).Append(new ProjectAssignment { ProjectId = projectId, UserId = student, CanEdit = true }).ToArray();
+            }).Append(new ProjectAssignment { ProjectId = projectId, UserId = student, CanEdit = true, CanPublish = true }).ToArray();
             var copy = ProjectLifecycleEndpoints.Copy(document.Value!, projectId, request.Title!);
-            if (!ProjectLifecycleEndpoints.StageDraft(database, documents, organizationId, copy, grants))
+            if (!ProjectLifecycleEndpoints.StageDraft(database, documents, organizationId, copy, grants, imageId))
             {
                 return ApiProblems.Create(context, 503, "project_unavailable", "The project is unavailable.");
             }
@@ -160,7 +163,7 @@ internal static class ClassAssignmentCoordinator
 
     private static Task<StudentProject[]> ReadProjectsAsync(ApplicationDbContext database, Guid assignmentId,
         CancellationToken cancellationToken) => database.ClassAssignmentStudents.AsNoTracking()
-        .Where(row => row.AssignmentId == assignmentId).OrderBy(row => row.StudentId)
+        .Where(row => row.AssignmentId == assignmentId && row.OriginallyAssigned).OrderBy(row => row.StudentId)
         .Select(row => new StudentProject(row.StudentId, row.ProjectId)).ToArrayAsync(cancellationToken);
 
     private static IResult Conflict(HttpContext context) =>

@@ -1,3 +1,5 @@
+import { validProjectImage, type ProjectImage } from "../projects/project-image";
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import { createAccountClient } from "../accounts/account-client";
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -8,6 +10,8 @@ export const isId = (value: unknown): value is string =>
   value !== "00000000-0000-0000-0000-000000000000";
 
 export interface ProjectSummary {
+  isClassProject?: boolean;
+  image?: ProjectImage | null;
   projectId: string;
   title: string;
   revision: number;
@@ -22,12 +26,15 @@ export type WriteResult =
 
 export function createWorkspaceClient(request: typeof fetch = fetch) {
   const accounts = createAccountClient(request);
-  async function read(path: string, signal?: AbortSignal): Promise<unknown> {
+  async function read(path: string, signal?: AbortSignal, actorId?: string): Promise<unknown> {
+    if (actorId !== undefined && !isId(actorId))
+      throw new Error("The account could not be verified.");
     const response = await request(path, {
+      ...(actorId ? { headers: { "X-Spatia-Account": actorId } } : {}),
       credentials: "same-origin",
       cache: "no-store",
       signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+        ? combineAbortSignals([signal, AbortSignal.timeout(15000)])
         : AbortSignal.timeout(15000),
     });
     if (!response.ok || !response.headers.get("content-type")?.includes("application/json"))
@@ -38,7 +45,7 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
       );
     return response.json();
   }
-  async function pages(path: string, signal?: AbortSignal): Promise<unknown[]> {
+  async function pages(path: string, signal?: AbortSignal, actorId?: string): Promise<unknown[]> {
     const items: unknown[] = [];
     const seen = new Set<string>();
     let cursor: string | null = null;
@@ -46,6 +53,7 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
       const page = await read(
         `${path}${path.includes("?") ? "&" : "?"}limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
         signal,
+        actorId,
       );
       if (
         !isRecord(page) ||
@@ -73,8 +81,10 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
         (row.revision as number) < 0 ||
         typeof row.updatedAt !== "string" ||
         !Number.isFinite(Date.parse(row.updatedAt)) ||
+        (row.isClassProject !== undefined && typeof row.isClassProject !== "boolean") ||
         typeof row.archived !== "boolean" ||
         row.archived !== archived ||
+        !validProjectImage(row.image) ||
         !isRecord(row.permissions) ||
         ["canEdit", "canManage", "canPublish"].some(
           (key) => typeof (row.permissions as Record<string, unknown>)[key] !== "boolean",

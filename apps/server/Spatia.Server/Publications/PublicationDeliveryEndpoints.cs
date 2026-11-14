@@ -1,6 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 using System.Text.Json;
+using System.Security.Cryptography;
+using Spatia.Server.Accounts;
+using Spatia.Server.Classes;
 using Spatia.Server.Hosting;
+using Spatia.Server.Assets;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
 using Spatia.Server.Security;
@@ -12,37 +17,71 @@ internal static class PublicationDeliveryEndpoints
 {
     internal static void MapPublicationDelivery(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet("/projects/{projectId:guid}/publication-links", (Guid projectId,
+            HttpContext context, ApplicationDbContext database, ProjectAccessService access,
+            IConfiguration configuration, CancellationToken token) => ReadLinksAsync(projectId, context, database, access, configuration, token))
+            .RequireAuthorization(SecurityPolicies.FullAccount);
+        endpoints.MapGet("/projects/publication-links", (HttpContext context, ApplicationDbContext database, ProjectAccessService access,
+            IConfiguration configuration, CancellationToken token) => ReadLinksAsync(null, context, database, access, configuration, token))
+            .RequireAuthorization(SecurityPolicies.FullAccount);
+
         endpoints.MapGet("/publications/{publicationId}/manifest", async (string publicationId,
-            HttpContext context, ApplicationDbContext database, CancellationToken token) =>
+            HttpContext context, ApplicationDbContext database, IHostEnvironment environment, CancellationToken token) =>
         {
             var id = Guid.Parse(publicationId);
             var edition = await database.Publications.AsNoTracking().SingleAsync(row => row.Id == id, token);
             var references = JsonSerializer.Deserialize<PublicationAssetReference[]>(edition.AssetReferencesJson)
                 ?? throw new InvalidOperationException("The publication manifest is invalid.");
-            var ids = references.Select(reference => Guid.Parse(reference.AssetId)).ToArray();
+            var ids = references.Where(reference => Guid.TryParseExact(reference.AssetId, "D", out _))
+                .Select(reference => Guid.Parse(reference.AssetId)).ToArray();
             var assets = await database.AssetCandidates.AsNoTracking()
                 .Where(asset => ids.Contains(asset.Id) && asset.Status == "approved" && !asset.RemovedFromProjects)
                 .Select(asset => new { asset.Id, asset.Kind, asset.Sha256 }).ToListAsync(token);
-            if (assets.Count != references.Length || references.Any(reference =>
-                !assets.Any(asset => asset.Id == Guid.Parse(reference.AssetId) && asset.Sha256 == reference.Sha256)))
-            { return Unavailable(context); }
+            var result = new List<object>();
+            foreach (var reference in references)
+            {
+                if (Guid.TryParseExact(reference.AssetId, "D", out var assetId) && assetId.ToString() == reference.AssetId)
+                {
+                    var asset = assets.SingleOrDefault(row => row.Id == assetId && row.Sha256 == reference.Sha256);
+                    if (asset is null) { return Unavailable(context); }
+                    result.Add(new
+                    {
+                        id = reference.AssetId,
+                        kind = asset.Kind,
+                        sha256 = reference.Sha256,
+                        url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{assetId:D}/bytes"
+                    });
+                }
+                else
+                {
+                    if (!environment.IsDevelopment()) { return Unavailable(context); }
+                    var rows = await database.Database.SqlQuery<DevelopmentAssetMetadata>($"""
+                        SELECT asset_id AS "AssetId", kind AS "Kind", media_type AS "MediaType", sha256 AS "Sha256", placement AS "Placement"
+                        FROM development_publication_assets WHERE publication_id = {id} AND asset_id = {reference.AssetId}
+                            AND sha256 = {reference.Sha256}
+                        """).ToArrayAsync(token);
+                    if (rows.Length != 1) { return Unavailable(context); }
+                    result.Add(new
+                    {
+                        id = reference.AssetId,
+                        kind = rows[0].Kind,
+                        placement = rows[0].Placement,
+                        sha256 = reference.Sha256,
+                        url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{Uri.EscapeDataString(reference.AssetId)}/bytes"
+                    });
+                }
+            }
             return Results.Ok(new
             {
                 publicationId = id,
                 edition.ProjectId,
                 edition.SourceRevision,
-                assets = assets.Select(asset => new
-                {
-                    id = asset.Id.ToString("D"),
-                    kind = asset.Kind,
-                    sha256 = asset.Sha256,
-                    url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{asset.Id:D}/bytes",
-                }),
+                assets = result,
             });
         }).RequirePublicationRead(PublicationReadKind.Snapshot);
 
         // Let the shared filter explain malformed IDs before reading the captured edition
-        endpoints.MapGet("/publications/{publicationId}", async (string publicationId,
+        endpoints.MapMethods("/publications/{publicationId}", [HttpMethods.Get, HttpMethods.Head], async (string publicationId,
             ApplicationDbContext database, CancellationToken token) =>
         {
             var id = Guid.Parse(publicationId);
@@ -50,15 +89,27 @@ internal static class PublicationDeliveryEndpoints
             return Results.Content(edition.DocumentJson, "application/json");
         }).RequirePublicationRead(PublicationReadKind.Snapshot);
 
-        endpoints.MapGet("/publications/{publicationId}/assets/{assetId}/bytes", async (string assetId,
-            HttpContext context, ApplicationDbContext database, CancellationToken token) =>
+        endpoints.MapMethods("/publications/{publicationId}/assets/{assetId}/bytes", [HttpMethods.Get, HttpMethods.Head], async (string assetId,
+            string publicationId, HttpContext context, ApplicationDbContext database, IHostEnvironment environment, CancellationToken token) =>
         {
             // Recheck removal at byte loading too; never let a stale policy lookup bypass global removal
-            var id = Guid.Parse(assetId);
-            var asset = await database.AssetCandidates.AsNoTracking().SingleOrDefaultAsync(row => row.Id == id
-                && row.Status == "approved" && !row.RemovedFromProjects, token);
-            return asset is null ? ApiProblems.Create(context, 404, "asset_not_found", "Asset is unavailable")
-                : Results.Bytes(asset.Bytes, "model/gltf-binary");
+            if (Guid.TryParseExact(assetId, "D", out var id) && id.ToString() == assetId)
+            {
+                var asset = await database.AssetCandidates.AsNoTracking().SingleOrDefaultAsync(row => row.Id == id
+                    && row.Status == "approved" && !row.RemovedFromProjects, token);
+                return asset is null ? ApiProblems.Create(context, 404, "asset_not_found", "Asset is unavailable")
+                    : Results.Bytes(asset.Bytes, AssetIntakePolicy.MediaType(asset.Kind));
+            }
+            if (!environment.IsDevelopment() || !Guid.TryParseExact(publicationId, "D", out var editionId))
+            { return Unavailable(context); }
+            var rows = await database.Database.SqlQuery<DevelopmentAssetBytes>($"""
+                SELECT a.sha256 AS "Sha256", a.media_type AS "MediaType", b.bytes AS "Bytes"
+                FROM development_publication_assets a JOIN development_publication_blobs b ON b.sha256 = a.sha256
+                WHERE a.publication_id = {editionId} AND a.asset_id = {assetId}
+                """).ToArrayAsync(token);
+            if (rows.Length != 1 || Convert.ToHexStringLower(SHA256.HashData(rows[0].Bytes)) != rows[0].Sha256)
+            { return Unavailable(context); }
+            return Results.Bytes(rows[0].Bytes, rows[0].MediaType);
         }).RequirePublicationRead(PublicationReadKind.Asset).RequireRateLimiting("AssetBytes");
 
         // Management metadata explains the current audience without granting visitor or draft access
@@ -123,11 +174,10 @@ internal static class PublicationDeliveryEndpoints
                 && !(request.Action == "audience" && current.ActorId == edition.PublishedById && current.CanEdit && current.CanPublish)))
             { return Unavailable(context); }
 
-            // Match the publisher's unavailable result until public/unlisted lifecycle policy is agreed
-            // Existing stored editions retain their read policy; this cannot promote a restricted edition
-            if (request.Action == "audience" && audience is PublicationAudience.Public or PublicationAudience.Unlisted)
+            // Anonymous audiences have no named viewers; changing access still requires current authority
+            if (request.Action == "audience" && audience != PublicationAudience.Authenticated && ids.Length != 0)
             {
-                return ApiProblems.Create(context, 503, "publication_unavailable", "This audience is not available for new access changes.");
+                return ApiProblems.Create(context, 400, "invalid_publication_audience", "Public and unlisted access cannot include named viewers");
             }
 
             // Validate newly chosen viewers against the locked project's current organization
@@ -160,16 +210,104 @@ internal static class PublicationDeliveryEndpoints
             if (request.Action == "hide") { state.Hidden = true; }
             if (request.Action == "show") { state.Hidden = false; }
             if (request.Action == "revoke") { state.Revoked = true; }
-            if (request.Action == "delete") { state.Deleted = true; }
+            if (request.Action == "delete")
+            {
+                state.Deleted = true;
+
+                // Preserve permanent denial independently of the retained edition and its access row
+                await database.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO retired_publication_ids (id) VALUES ({publicationId}) ON CONFLICT DO NOTHING", token);
+            }
 
             // Acknowledge only after the policy and retained project lock commit together
             await database.SaveChangesAsync(token);
+            if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
             await transaction.CommitAsync(token);
+            token.ThrowIfCancellationRequested();
+            if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
             return Results.NoContent();
         }).RequireAuthorization(SecurityPolicies.FullAccount).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit)
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(16 * 1024));
     }
 
+    private static async Task<IResult> ReadLinksAsync(Guid? projectId, HttpContext context, ApplicationDbContext database,
+        ProjectAccessService access, IConfiguration configuration, CancellationToken token)
+    {
+        var limit = 1;
+        Guid? cursor = null;
+        if (projectId is null && !ClassroomEndpoints.TryPage(context, out limit, out cursor))
+        { return ApiProblems.Create(context, 400, "invalid_query", "Check the page size and cursor"); }
+
+        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, token);
+        var account = await access.ResolveCurrentAccountAsync(context, token);
+        if (account is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        if (account.MustChangePassword) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired); }
+        if (projectId is null && account.Role != ApplicationRoles.Creator)
+        { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden); }
+        var projects = access.VisibleProjects(account);
+        if (projectId is { } id)
+        {
+            projects = projects.Where(project => project.Id == id);
+            if (!await projects.AnyAsync(token)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound); }
+        }
+        if (!PublicationWriteEndpoints.TryOrigin(configuration, out var origin))
+        { return ApiProblems.Create(context, 503, "publication_unavailable", "Publication is not configured."); }
+        if (cursor is { } after) { projects = projects.Where(project => project.Id.CompareTo(after) > 0); }
+        var dashboard = account.Role == ApplicationRoles.Creator && (projectId is null || context.Request.Query["view"] == "dashboard");
+        var editions = from edition in database.Publications
+                       join state in database.PublicationAccess on edition.Id equals state.PublicationId
+                       where !state.Hidden && !state.Revoked && !state.Deleted
+                       where state.Audience == (int)PublicationAudience.Unlisted
+                           || (dashboard && state.Audience == (int)PublicationAudience.Public)
+                           || (dashboard && state.Audience == (int)PublicationAudience.Authenticated
+                               && (state.ViewerIds.Contains(account.UserId) || (edition.PublishedById == account.UserId
+                                   && database.ProjectAssignments.Any(grant => grant.ProjectId == edition.ProjectId
+                                       && grant.UserId == account.UserId && grant.CanPublish))))
+                       select new { edition.ProjectId, edition.Id, edition.SourceRevision, edition.CreatedAt, state.Audience };
+        var latestLinks = from project in projects
+                          where !project.IsArchived
+                          from link in editions.Where(row => row.ProjectId == project.Id)
+                              .OrderByDescending(row => row.CreatedAt).ThenByDescending(row => row.Id).Take(1)
+                          orderby project.Id
+                          select link;
+        var rows = await latestLinks.Take(limit + 1).ToArrayAsync(token);
+        var items = rows.Take(limit).Select(row => new
+        {
+            row.ProjectId,
+            publicationId = row.Id,
+            row.SourceRevision,
+            row.CreatedAt,
+            requiresSignIn = row.Audience == (int)PublicationAudience.Authenticated,
+            visitorUrl = new Uri(origin!, $"p/{row.Id:D}").AbsoluteUri
+        });
+        await transaction.CommitAsync(token);
+        if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        context.Response.Headers.CacheControl = "private, no-store";
+        return projectId.HasValue ? Results.Ok(new { items }) : Results.Ok(new
+        {
+            items,
+            nextCursor = rows.Length > limit ? rows[limit - 1].ProjectId : (Guid?)null
+        });
+    }
+
+    private static bool HasExpired(HttpContext context) =>
+        context.Features.Get<ValidatedAccountSession>() is not { } session || session.Clock.GetUtcNow() >= session.ExpiresUtc;
+
     private static IResult Unavailable(HttpContext context) =>
         ApiProblems.Create(context, 404, "publication_unavailable", "Publication is unavailable or access is not permitted");
+
+    private sealed class DevelopmentAssetMetadata
+    {
+        public string? Placement { get; set; }
+        public string AssetId { get; set; } = "";
+        public string Kind { get; set; } = "";
+        public string MediaType { get; set; } = "";
+        public string Sha256 { get; set; } = "";
+    }
+
+    private sealed class DevelopmentAssetBytes
+    {
+        public string Sha256 { get; set; } = "";
+        public string MediaType { get; set; } = "";
+        public byte[] Bytes { get; set; } = [];
+    }
 }

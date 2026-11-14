@@ -7,7 +7,20 @@ export async function checkDisplayPlacementCancellation(browser, origin) {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     try {
-      await page.goto(origin);
+      await page.route("**/__display-placement-cancellation", (route) =>
+        route.fulfill({
+          contentType: "text/html",
+          body: `<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/styles.css"><script type="module">
+            import RefreshRuntime from "/@react-refresh";
+            RefreshRuntime.injectIntoGlobalHook(window);
+            window.$RefreshReg$ = () => {};
+            window.$RefreshSig$ = () => (type) => type;
+            window.__vite_plugin_react_preamble_installed__ = true;
+          </script>`,
+        }),
+      );
+      await page.goto(new URL("/__display-placement-cancellation", origin).href);
+      await page.waitForFunction(() => window.__vite_plugin_react_preamble_installed__);
       // Resolve browser packages through Vite while preserving ordinary imports for the graph.
       await page.addScriptTag({
         type: "importmap",

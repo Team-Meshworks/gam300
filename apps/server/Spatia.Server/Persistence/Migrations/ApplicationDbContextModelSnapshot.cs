@@ -205,6 +205,9 @@ namespace Spatia.Server.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
@@ -401,7 +404,7 @@ namespace Spatia.Server.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_asset_candidate_approval", "status <> 'approved' OR (reviewed_by IS NOT NULL AND source IS NOT NULL AND license IS NOT NULL AND review_notes IS NOT NULL)");
 
-                            t.HasCheckConstraint("CK_asset_candidate_kind", "kind IN ('model', 'environment')");
+                            t.HasCheckConstraint("CK_asset_candidate_kind", "kind IN ('model', 'environment', 'audio')");
 
                             t.HasCheckConstraint("CK_asset_candidate_retirement", "(NOT deleted OR hidden) AND (NOT removed_from_projects OR deleted)");
 
@@ -440,6 +443,18 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("instructions");
 
+                    b.Property<Guid?>("LastEditActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_edit_actor_id");
+
+                    b.Property<byte[]>("LastEditDigest")
+                        .HasColumnType("bytea")
+                        .HasColumnName("last_edit_digest");
+
+                    b.Property<Guid?>("LastEditId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_edit_id");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organization_id");
@@ -448,6 +463,10 @@ namespace Spatia.Server.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("bytea")
                         .HasColumnName("request_digest");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
 
                     b.Property<Guid>("SourceProjectId")
                         .HasColumnType("uuid")
@@ -481,7 +500,11 @@ namespace Spatia.Server.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_class_assignments_instructions", "length(btrim(instructions)) > 0");
 
+                            t.HasCheckConstraint("CK_class_assignments_last_edit", "(last_edit_id IS NULL AND last_edit_actor_id IS NULL AND last_edit_digest IS NULL) OR (last_edit_id IS NOT NULL AND last_edit_actor_id IS NOT NULL AND last_edit_digest IS NOT NULL AND octet_length(last_edit_digest) = 32)");
+
                             t.HasCheckConstraint("CK_class_assignments_request_digest", "octet_length(request_digest) = 32");
+
+                            t.HasCheckConstraint("CK_class_assignments_revision", "revision BETWEEN 0 AND 9007199254740991");
 
                             t.HasCheckConstraint("CK_class_assignments_source_revision", "source_revision BETWEEN 0 AND 9007199254740991");
 
@@ -503,9 +526,21 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("classroom_id");
 
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organization_id");
+
+                    b.Property<bool>("OriginallyAssigned")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("originally_assigned");
 
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid")
@@ -609,6 +644,10 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("document");
 
+                    b.Property<Guid?>("ImageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("image_id");
+
                     b.Property<bool>("IsArchived")
                         .HasColumnType("boolean")
                         .HasColumnName("archived");
@@ -644,6 +683,8 @@ namespace Spatia.Server.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ImageId");
+
                     b.HasIndex("LastMutationActorId");
 
                     b.HasIndex("Id", "OrganizationId")
@@ -653,9 +694,9 @@ namespace Spatia.Server.Persistence.Migrations
 
                     b.ToTable("projects", null, t =>
                         {
-                            t.HasCheckConstraint("CK_projects_document", "(\r\n    jsonb_typeof(document) = 'object'\r\n    AND jsonb_typeof(document -> 'projectId') = 'string'\r\n    AND lower(document ->> 'projectId') = id::text\r\n    AND jsonb_typeof(document -> 'schemaVersion') = 'number'\r\n    AND document -> 'schemaVersion' = to_jsonb(schema_version)\r\n) IS TRUE");
+                            t.HasCheckConstraint("CK_projects_document", "(\n    jsonb_typeof(document) = 'object'\n    AND jsonb_typeof(document -> 'projectId') = 'string'\n    AND lower(document ->> 'projectId') = id::text\n    AND jsonb_typeof(document -> 'schemaVersion') = 'number'\n    AND document -> 'schemaVersion' = to_jsonb(schema_version)\n) IS TRUE");
 
-                            t.HasCheckConstraint("CK_projects_last_mutation", "(last_mutation_actor_id IS NULL AND last_mutation_id IS NULL AND last_mutation_digest IS NULL)\r\nOR (last_mutation_actor_id IS NOT NULL AND last_mutation_id IS NOT NULL\r\n    AND last_mutation_digest IS NOT NULL AND octet_length(last_mutation_digest) = 32)");
+                            t.HasCheckConstraint("CK_projects_last_mutation", "(last_mutation_actor_id IS NULL AND last_mutation_id IS NULL AND last_mutation_digest IS NULL)\nOR (last_mutation_actor_id IS NOT NULL AND last_mutation_id IS NOT NULL\n    AND last_mutation_digest IS NOT NULL AND octet_length(last_mutation_digest) = 32)");
 
                             t.HasCheckConstraint("CK_projects_revision", "revision BETWEEN 0 AND 9007199254740991");
 
@@ -694,6 +735,42 @@ namespace Spatia.Server.Persistence.Migrations
                     b.ToTable("project_assignments", (string)null);
                 });
 
+            modelBuilder.Entity("Spatia.Server.Projects.ProjectImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("content_type");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("data");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("project_images", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_project_images_content_type", "content_type IN ('image/png', 'image/jpeg', 'image/webp')");
+
+                            t.HasCheckConstraint("CK_project_images_data", "octet_length(data) BETWEEN 1 AND 2097152");
+
+                            t.HasCheckConstraint("CK_project_images_type", "type IN ('cover', 'panorama')");
+                        });
+                });
+
             modelBuilder.Entity("Spatia.Server.Projects.ProjectProvenance", b =>
                 {
                     b.Property<Guid>("ProjectId")
@@ -724,7 +801,7 @@ namespace Spatia.Server.Persistence.Migrations
 
                     b.ToTable("project_provenance", null, t =>
                         {
-                            t.HasCheckConstraint("CK_project_provenance_kind", "(kind = 'ordinary' AND class_assignment_id IS NULL AND student_id IS NULL)\r\nOR (kind = 'class' AND class_assignment_id IS NOT NULL AND student_id IS NOT NULL)");
+                            t.HasCheckConstraint("CK_project_provenance_kind", "(kind = 'ordinary' AND class_assignment_id IS NULL AND student_id IS NULL)\nOR (kind = 'class' AND class_assignment_id IS NOT NULL AND student_id IS NOT NULL)");
                         });
                 });
 
@@ -869,6 +946,51 @@ namespace Spatia.Server.Persistence.Migrations
                     b.HasKey("PublicationId");
 
                     b.ToTable("publication_access", (string)null);
+                });
+
+            modelBuilder.Entity("Spatia.Server.Reviews.ProgressReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("statement_timestamp()");
+
+                    b.Property<Guid>("EducatorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("educator_id");
+
+                    b.Property<string>("Feedback")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("feedback");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EducatorId");
+
+                    b.HasIndex("ProjectId", "Id");
+
+                    b.ToTable("progress_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_progress_reviews_feedback", "length(feedback) BETWEEN 1 AND 4000");
+
+                            t.HasCheckConstraint("CK_progress_reviews_revision", "revision BETWEEN 0 AND 9007199254740991");
+                        });
                 });
 
             modelBuilder.Entity("Spatia.Server.Reviews.ReviewDecision", b =>
@@ -1182,6 +1304,11 @@ namespace Spatia.Server.Persistence.Migrations
 
             modelBuilder.Entity("Spatia.Server.Projects.Project", b =>
                 {
+                    b.HasOne("Spatia.Server.Projects.ProjectImage", null)
+                        .WithMany()
+                        .HasForeignKey("ImageId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("LastMutationActorId")
@@ -1259,6 +1386,21 @@ namespace Spatia.Server.Persistence.Migrations
                     b.HasOne("Spatia.Server.Publications.Publication", null)
                         .WithOne()
                         .HasForeignKey("Spatia.Server.Publications.PublicationAccessState", "PublicationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Spatia.Server.Reviews.ProgressReview", b =>
+                {
+                    b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("EducatorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Spatia.Server.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

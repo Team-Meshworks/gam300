@@ -4,6 +4,7 @@
 
 # Dependencies
 node_modules/
+/apps/web/editor/home/assets/satoshi.woff2
 jspm_packages/
 
 # Package manager caches

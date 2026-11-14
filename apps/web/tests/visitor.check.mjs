@@ -116,27 +116,74 @@ try {
     return route.fulfill({ json: snapshot });
   });
   await page.goto(`${origin}/p/${publicationId}`);
-  await page.getByRole("heading", { name: "Visitor test exhibition" }).waitFor();
   await page.getByRole("status").getByText("Exhibition ready").waitFor();
+  console.log("Visitor loaded");
   assert.equal(transientAssetRequests, 2);
   mode = "allowed";
   const canvas = page.locator("canvas[aria-label='Exhibition view']");
   assert.equal(await canvas.count(), 1);
   assert.ok(await canvas.evaluate((element) => element.width > 0 && element.height > 0));
+  const bounds = await canvas.boundingBox();
+  assert.deepEqual(
+    bounds,
+    { x: 0, y: 0, width: 390, height: 844 },
+    "The exhibition fills the mobile viewport",
+  );
+  const titleBounds = await page
+    .getByRole("heading", { name: "Visitor test exhibition" })
+    .boundingBox();
+  assert.ok(titleBounds.width <= 1 && titleBounds.height <= 1, "Title does not occupy the preview");
+  assert.equal(await page.getByText(/Saved revision/).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Start exhibition" }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: /^Activate / }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: /edit|undo|redo|save/i }).count(), 0);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  const original = await canvas.screenshot();
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.waitForFunction(() => {
+    const bounds = document
+      .querySelector("canvas[aria-label='Exhibition view']")
+      ?.getBoundingClientRect();
+    return bounds?.width === innerWidth && bounds.height === innerHeight;
+  });
+  assert.deepEqual(await canvas.boundingBox(), { x: 0, y: 0, width: 1280, height: 720 });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector("canvas[aria-label='Exhibition view']");
+    const bounds = canvas?.getBoundingClientRect();
+    return (
+      bounds?.width === innerWidth &&
+      bounds.height === innerHeight &&
+      canvas.width === innerWidth * devicePixelRatio &&
+      canvas.height === innerHeight * devicePixelRatio
+    );
+  });
+  console.log("Viewport resize verified");
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await page.mouse.move(0, 0);
+  const screenshotHash = async () =>
+    createHash("sha256")
+      .update(await canvas.screenshot())
+      .digest("hex");
+  const original = await screenshotHash();
+  console.log("Initial canvas captured");
   await canvas.focus();
-  await page.keyboard.press("ArrowRight");
+  await page.keyboard.down("d");
+  await page.waitForTimeout(300);
+  await page.keyboard.up("d");
   assert.equal(await canvas.evaluate((element) => element === document.activeElement), true);
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
-  assert.notDeepEqual(await canvas.screenshot(), original, "Arrow key moves the visible camera");
+  assert.notEqual(await screenshotHash(), original, "Walking moves the visible camera");
   await page.getByRole("button", { name: "Reset view" }).click();
+  await page.mouse.move(0, 0);
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
-  assert.deepEqual(await canvas.screenshot(), original, "Reset restores the starting view");
+  assert.equal(await screenshotHash(), original, "Reset restores the starting view");
+  console.log("Walking and reset verified");
   const first = await canvas.elementHandle();
   await page.getByRole("combobox").selectOption("1");
   await page.getByRole("status").getByText("Exhibition ready").waitFor();
@@ -202,3 +249,5 @@ try {
 }
 
 await import("./visitor-rooms.check.mjs");
+
+await import("./visitor-v2.check.mjs");

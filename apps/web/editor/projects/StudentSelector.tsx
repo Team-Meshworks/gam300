@@ -12,10 +12,12 @@ export function StudentSelector({
   students: available,
   selected,
   onChange,
+  emptyMessage = "No matching students.",
 }: {
   students: readonly EligibleStudent[];
   selected: readonly string[];
   onChange: (ids: readonly string[]) => void;
+  emptyMessage?: string;
 }) {
   const id = useId();
   const [query, setQuery] = useState("");
@@ -99,15 +101,17 @@ export function StudentSelector({
           <p className="sp-list-empty" role="status">
             {tab === "selected" && !selected.length
               ? "No students selected yet."
-              : "No matching students."}
+              : search
+                ? "No matching students."
+                : emptyMessage}
           </p>
         )}
       </div>
       <p className="sp-students-footer">
         <FontAwesomeIcon icon={faUsers} aria-hidden="true" />
         <span>
-          Select students using the checkboxes above. Only students available in the selected class
-          can be assigned.
+          Select students using the checkboxes above. They'll be added to this project when you
+          choose Create project.
         </span>
       </p>
     </section>

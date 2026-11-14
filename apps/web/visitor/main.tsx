@@ -1,6 +1,8 @@
+import { combineAbortSignals } from "../shared/network/abort-signals";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { loadPublication, type PublishedExhibition } from "./publication";
+import { ExhibitionContent } from "./ExhibitionContent";
 import { ExhibitionCanvas } from "./ExhibitionCanvas";
 import "./visitor.css";
 
@@ -10,13 +12,33 @@ function Visitor() {
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [scene, setScene] = useState(0);
+  const [viewpoint, setViewpoint] = useState<Readonly<{ id: string }>>();
+
+  // Navigation changes only the visitor's current view; the published document stays unchanged
+  function navigate(sceneId: string, viewpointId: string) {
+    const index =
+      exhibition?.document.scenes.findIndex(
+        (item) => item.id.toLowerCase() === sceneId.toLowerCase(),
+      ) ?? -1;
+    if (index < 0) {
+      return;
+    }
+    setScene(index);
+
+    // A fresh request reapplies the saved camera even when the visitor chooses the same point again
+    setViewpoint({ id: viewpointId });
+  }
   useEffect(() => {
     const controller = new AbortController();
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]);
+    const signal = combineAbortSignals([controller.signal, AbortSignal.timeout(20000)]);
     void loadPublication(publicationId, signal)
       .then((value) => {
         if (!controller.signal.aborted) {
           setExhibition(value);
+
+          // A reloaded publication starts fresh rather than keeping a scene index from the old response
+          setScene(0);
+          setViewpoint(undefined);
           document.title = `${value.document.title} · Spatia`;
         }
       })
@@ -57,11 +79,10 @@ function Visitor() {
       <a className="skip" href="#exhibition">
         Skip to exhibition
       </a>
-      <header>
-        <a href="/landing">Spatia</a>
-        <a href="/home">My projects</a>
-      </header>
-      <main id="exhibition">
+      <main
+        id="exhibition"
+        className={exhibition && !error ? "visitor-preview is-walking" : "visitor-state"}
+      >
         {error ? (
           <>
             <h1>Exhibition unavailable</h1>
@@ -81,19 +102,37 @@ function Visitor() {
           </>
         ) : exhibition ? (
           <>
-            <h1>{exhibition.document.title}</h1>
-            <p>Published edition · Saved revision {exhibition.sourceRevision}</p>
-            <label>
-              Scene
-              <select value={scene} onChange={(event) => setScene(Number(event.target.value))}>
-                {exhibition.document.scenes.map((item, index) => (
-                  <option key={item.id} value={index}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <ExhibitionCanvas key={scene} exhibition={exhibition} sceneIndex={scene} />
+            <h1 className="sr-only">{exhibition.document.title}</h1>
+            <div className="visitor-scene-picker">
+              <label>
+                Scene
+                <select
+                  value={scene}
+                  onChange={(event) => {
+                    setScene(Number(event.target.value));
+                    setViewpoint(undefined);
+                  }}
+                >
+                  {exhibition.document.scenes.map((item, index) => (
+                    <option key={item.id} value={index}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <ExhibitionCanvas
+              key={scene}
+              exhibition={exhibition}
+              sceneIndex={scene}
+              viewpoint={viewpoint}
+              navigate={navigate}
+            />
+            <ExhibitionContent
+              scene={exhibition.document.scenes[scene]!}
+              assets={exhibition.assets}
+              navigate={navigate}
+            />
           </>
         ) : (
           <p role="status">Opening exhibition…</p>

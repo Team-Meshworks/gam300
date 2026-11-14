@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCircleInfo, faImage } from "@fortawesome/free-solid-svg-icons";
+import { Icon } from "@iconify/react/offline";
+import infoIcon from "@iconify-icons/lucide/info";
+import imageIcon from "@iconify-icons/lucide/image";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { playUiSound } from "../audio/ui-sounds";
@@ -33,6 +34,8 @@ export function NewProjectForm({
   classes,
   students,
   showImageOptions = true,
+  initialClassId = "",
+  dateOnly = false,
   onClassChange,
   onSubmit,
   onCreated,
@@ -45,6 +48,8 @@ export function NewProjectForm({
   classes: readonly ProjectClass[];
   students: readonly EligibleStudent[];
   showImageOptions?: boolean;
+  initialClassId?: string;
+  dateOnly?: boolean;
   onClassChange?: (classId: string) => void;
   onSubmit?: (draft: NewProjectDraft) => Promise<ProjectCreationResult>;
   onCreated?: (projectId: string) => void;
@@ -68,13 +73,18 @@ export function NewProjectForm({
   useEffect(() => {
     if (error) errorRef.current?.focus();
   }, [error]);
-  const [form, setForm] = useState(emptyForm);
+  const [initialForm] = useState(() => ({
+    ...emptyForm,
+    classId: initialClassId,
+  }));
+  const [form, setForm] = useState(initialForm);
   const [selectorReset, setSelectorReset] = useState(0);
   const [selected, setSelected] = useState<readonly string[]>([]);
   const [coverImage, setCoverImage] = useState<File | null>(null);
+  const [gallerySelected, setGallerySelected] = useState(false);
   const dirty =
     phase === "editing" &&
-    (JSON.stringify(form) !== JSON.stringify(emptyForm) ||
+    (JSON.stringify(form) !== JSON.stringify(initialForm) ||
       selected.length > 0 ||
       coverImage !== null);
   useLayoutEffect(() => {
@@ -102,6 +112,7 @@ export function NewProjectForm({
       { ...form, studentIds: selected, ...(coverImage ? { coverImage } : {}) },
       classes,
       students,
+      dateOnly,
     );
     if (!checked.ok) {
       setError(checked.message);
@@ -206,6 +217,7 @@ export function NewProjectForm({
             </Field>
             <div className="sp-form-row">
               <ClassSelect
+                custom={dateOnly}
                 id="project-class"
                 classes={classes}
                 value={form.classId}
@@ -216,14 +228,20 @@ export function NewProjectForm({
                   onClassChange?.(value);
                 }}
               />
-              <Field id="project-due" label="Due date and time" required>
-                <input
-                  id="project-due"
-                  type="datetime-local"
-                  required
-                  value={form.dueDate}
-                  onChange={(event) => update("dueDate", event.target.value)}
-                />
+              <Field id="project-due" label={dateOnly ? "Due date" : "Due date and time"} required>
+                <div
+                  className={dateOnly ? "sp-date-control" : undefined}
+                  data-empty={!form.dueDate}
+                >
+                  <input
+                    id="project-due"
+                    type={dateOnly ? "date" : "datetime-local"}
+                    required
+                    value={form.dueDate}
+                    onChange={(event) => update("dueDate", event.target.value)}
+                  />
+                  {dateOnly && !form.dueDate && <span aria-hidden="true">Choose a date</span>}
+                </div>
               </Field>
             </div>
             {showImageOptions && (
@@ -236,41 +254,46 @@ export function NewProjectForm({
                         <Button
                           key={type}
                           className="sp-gallery-button"
+                          aria-pressed={gallerySelected}
                           onClick={() => {
-                            update("imageType", "Cover image");
                             coverInputRef.current?.click();
                           }}
                         >
-                          <FontAwesomeIcon icon={faImage} aria-hidden="true" />
+                          <Icon icon={imageIcon} aria-hidden="true" />
                           <span>Gallery</span>
                         </Button>
                       ) : (
-                        <label key={type}>
+                        <label key={type} data-active={!gallerySelected && form.imageType === type}>
                           <input
                             type="radio"
                             name="image-type"
                             value={type}
                             checked={form.imageType === type}
-                            onChange={() => update("imageType", type)}
+                            onChange={() => {
+                              setGallerySelected(false);
+                              update("imageType", type);
+                            }}
                           />
-                          <FontAwesomeIcon icon={faImage} aria-hidden="true" />
+                          <Icon icon={imageIcon} aria-hidden="true" />
                           <span>{type}</span>
                         </label>
                       ),
                     )}
                   </div>
                   <p className="sp-hint">
-                    Select a cover picture from your device. The 360° viewer is not connected yet.
+                    Choose the type of image students will use for this project. You can change this
+                    later.
                   </p>
                 </fieldset>
-                <div hidden={form.imageType !== "Cover image"}>
-                  <CoverImagePicker
-                    key={selectorReset}
-                    file={coverImage}
-                    onChange={setCoverImage}
-                    inputRef={coverInputRef}
-                  />
-                </div>
+                <CoverImagePicker
+                  key={selectorReset}
+                  file={coverImage}
+                  onChange={(file) => {
+                    setCoverImage(file);
+                    setGallerySelected(file !== null);
+                  }}
+                  inputRef={coverInputRef}
+                />
               </>
             )}
             <Field id="project-description" label="Project description" required>
@@ -299,14 +322,23 @@ export function NewProjectForm({
                 placeholder="Add the steps, exhibit requirements and submission guidelines students should follow."
               />
             </Field>
-            <p className="sp-hint">
-              <FontAwesomeIcon icon={faCircleInfo} aria-hidden="true" /> Each selected student
-              receives an independent draft with these instructions.
+            <p className="sp-hint sp-project-edit-hint">
+              <span title="Project details, students and the due date can be edited later.">
+                <Icon icon={infoIcon} width={14} height={14} aria-hidden="true" />
+              </span>{" "}
+              {dateOnly
+                ? "You can edit project details, students and the due date later."
+                : "Each selected student receives an independent draft with these instructions."}
             </p>
           </div>
           <StudentSelector
             key={selectorReset}
             students={available}
+            emptyMessage={
+              form.classId
+                ? "No enrolled students are available in this class."
+                : "Choose a class to see its students."
+            }
             selected={selected}
             onChange={setSelected}
           />
@@ -316,9 +348,7 @@ export function NewProjectForm({
             <strong>
               {selected.length} {selected.length === 1 ? "student" : "students"} selected
             </strong>
-            <p className="sp-hint">
-              Check your project details and select up to 20 students before creating.
-            </p>
+            <p className="sp-hint">Choose students to assign this project when you create it.</p>
           </div>
           <div className="sp-actions">
             <Button

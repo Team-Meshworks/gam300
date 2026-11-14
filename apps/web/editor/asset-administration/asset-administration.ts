@@ -7,6 +7,7 @@ export type AssetCandidate = Readonly<{
   kind: CatalogueAsset["kind"];
   category: string | null;
   inspectionUrl?: string | null;
+  sha256?: string;
   source?: string | null;
   license?: string | null;
   reviewNotes?: string | null;
@@ -30,6 +31,7 @@ export type AssetAdministrationData = Readonly<{
     // Null leaves a kind unconfigured; All belongs to browsing and is never saved as a category
     categories: Readonly<Partial<Record<CatalogueAsset["kind"], readonly string[] | null>>>;
     canSubmit: boolean;
+    canSubmitByKind?: Readonly<Partial<Record<CatalogueAsset["kind"], boolean>>>;
     canForceRemove: boolean;
   }>;
 }>;
@@ -43,8 +45,14 @@ export type AssetAdministrationResult<T> =
 // Implementations must enforce account permissions and validate bytes on the server
 export interface AssetAdministrationService {
   load(signal: AbortSignal): Promise<AssetAdministrationResult<AssetAdministrationData>>;
+  download(id: string, signal: AbortSignal): Promise<AssetAdministrationResult<Blob>>;
   submit(
-    input: { file: File; kind: CatalogueAsset["kind"]; category: string | null },
+    input: {
+      file: File;
+      kind: CatalogueAsset["kind"];
+      category: string | null;
+      review: { source: string; license: string; reviewNotes: string };
+    },
     signal: AbortSignal,
   ): Promise<AssetAdministrationResult<AssetCandidate>>;
   review(

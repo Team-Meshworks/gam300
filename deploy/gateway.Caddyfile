@@ -11,6 +11,19 @@
 			profile shortlived
 		}
 	}
+	import application {args[0]}
+}
+
+(domain-site) {
+	tls {
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+		}
+	}
+	import application {args[0]}
+}
+
+(application) {
 	@status path /healthz /version.txt
 	handle @status {
 		reverse_proxy {args[0]}
@@ -21,6 +34,18 @@
 		# server.Caddyfile also authorizes restricted catalogue bytes before serving them.
 		reverse_proxy {args[0]}
 	}
+}
+
+http://{$SITE_HOST} {
+	redir https://{$SITE_HOST}{uri} permanent
+}
+
+https://{$SITE_HOST}:443 {
+	import domain-site 127.0.0.1:8081
+}
+
+https://{$SITE_HOST}:8443 {
+	import domain-site 127.0.0.1:8082
 }
 
 http://{$SITE_IP} {

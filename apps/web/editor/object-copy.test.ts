@@ -1,18 +1,159 @@
+import { createLoadedStore, testRoom } from "../tests/project-store-fixture";
 import { expect, it, vi } from "vitest";
 import { createDocumentStore } from "./document-store";
 import { handleObjectShortcut } from "./history-shortcuts";
+import m1 from "../shared/project/fixtures/m1-project.json";
+import type { ContentObject } from "../shared/project/project-content";
+import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
+
+const projectAssets: CatalogueAsset[] = ["test-room-v1", "test-crate-v1"].map((id) => ({
+  id,
+  name: id,
+  kind: id === "test-room-v1" ? "environment" : "model",
+  url: `${id}.glb`,
+  sha256: "0".repeat(64),
+  thumbnail: null,
+}));
+const camera = { position: [1, 2, 3] as const, rotation: [0, 0, 0, 1] as const, fovDegrees: 45 };
+function legacyProject() {
+  const store = createDocumentStore(projectAssets);
+  expect(
+    store.loadProject(
+      JSON.stringify(m1),
+      new Map(projectAssets.map((asset) => [asset.id, asset.kind])),
+    ).ok,
+  ).toBe(true);
+  expect(store.getSnapshot().project?.schemaVersion).toBe(1);
+  return store;
+}
+
+it("normalizes a v1 clipboard object when a viewpoint upgrades the destination", () => {
+  const store = legacyProject();
+  const source = store.getSnapshot().objects[0]!;
+  expect(store.copyObject(source.id).ok).toBe(true);
+  expect(store.addViewpoint("Entrance", camera).ok).toBe(true);
+  expect(store.getSnapshot().project?.schemaVersion).toBe(2);
+  const result = store.pasteObject();
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error(result.error.message);
+  expect(result.value).toMatchObject({ parentId: null, visible: true, components: [] });
+  const pasted = store.getSnapshot().project;
+  store.undo();
+  expect(store.getSnapshot().objects).toHaveLength(m1.scenes[0]!.objects.length);
+  store.redo();
+  expect(store.getSnapshot().project).toEqual(pasted);
+});
+
+it("rejects v2 clipboard content in v1 without losing it or changing undo history", () => {
+  const store = legacyProject();
+  expect(store.addViewpoint("Entrance", camera).ok).toBe(true);
+  const object = store.getSnapshot().objects[0]!;
+  const text = {
+    id: crypto.randomUUID(),
+    type: "text" as const,
+    runs: [{ text: "A story", marks: [] }],
+    caption: "",
+  };
+  expect(
+    store.editExhibit(object.id, object, {
+      name: object.name,
+      transform: object.transform,
+      components: [text],
+    }).ok,
+  ).toBe(true);
+  expect(store.copyObject(object.id).ok).toBe(true);
+  store.undo();
+  store.undo();
+  const before = store.getSnapshot();
+  expect(before.project?.schemaVersion).toBe(1);
+  expect(store.pasteObject().ok).toBe(false);
+  expect(store.getSnapshot()).toBe(before);
+  store.redo();
+  store.redo();
+  const result = store.pasteObject();
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error(result.error.message);
+  expect((result.value as ContentObject).components).toEqual([{ ...text, id: expect.any(String) }]);
+  expect((result.value as ContentObject).components[0]!.id).not.toBe(text.id);
+});
+
+it("rejects v2 appearance when pasting into a v1 project", () => {
+  const store = legacyProject();
+  expect(store.addViewpoint("Entrance", camera).ok).toBe(true);
+  const object = store.getSnapshot().objects[0]!;
+  expect(store.setAppearance(object.id, { color: "#bd2949", material: "wood" }).ok).toBe(true);
+  expect(store.copyObject(object.id).ok).toBe(true);
+  store.undo();
+  store.undo();
+  const before = store.getSnapshot();
+  expect(before.project?.schemaVersion).toBe(1);
+  expect(store.pasteObject().ok).toBe(false);
+  expect(store.getSnapshot()).toBe(before);
+});
+
+it("rejects copied canonical rules in v1 even when the object has no components", () => {
+  const store = legacyProject();
+  expect(store.addViewpoint("Entrance", camera).ok).toBe(true);
+  const document = structuredClone(
+    store.getSnapshot().project!,
+  ) as import("../shared/project/project-content").ContentProject;
+  const source = document.scenes[0]!.objects[0]!;
+  const rule = {
+    id: crypto.randomUUID(),
+    enabled: true,
+    trigger: { type: "click" as const, targetId: source.id },
+    actions: [{ type: "setVisible" as const, objectId: source.id, visible: false }],
+  };
+  const withRule = {
+    ...document,
+    scenes: document.scenes.map((scene, index) =>
+      index === 0 ? { ...scene, rules: [rule] } : scene,
+    ),
+  };
+  const history = structuredClone(store.getRecoveryHistory()!);
+  const recovery = { ...history, documents: { ...history.documents!, current: withRule } };
+  expect(
+    store.loadProject(
+      JSON.stringify(withRule),
+      new Map(projectAssets.map((asset) => [asset.id, asset.kind])),
+      recovery,
+    ).ok,
+  ).toBe(true);
+  expect(store.copyObject(source.id).ok).toBe(true);
+  store.undo();
+  const before = store.getSnapshot();
+  expect(before.project?.schemaVersion).toBe(1);
+  expect(store.pasteObject().ok).toBe(false);
+  expect(store.getSnapshot()).toBe(before);
+  store.redo();
+  const result = store.pasteObject();
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error(result.error.message);
+  const project = store.getSnapshot().project;
+  if (project?.schemaVersion !== 2) throw new Error("Expected v2 project");
+  expect(project.scenes[0]!.rules).toContainEqual({
+    ...rule,
+    id: expect.any(String),
+    trigger: { type: "click", targetId: result.value.id },
+    actions: [{ type: "setVisible", objectId: result.value.id, visible: false }],
+  });
+});
 
 function setup() {
-  const store = createDocumentStore([
-    {
-      id: "crate",
-      name: "Crate",
-      kind: "model",
-      url: "crate.glb",
-      sha256: "0".repeat(64),
-      thumbnail: null,
-    },
-  ]);
+  const store = createLoadedStore(
+    [
+      testRoom,
+      {
+        id: "crate",
+        name: "Crate",
+        kind: "model",
+        url: "crate.glb",
+        sha256: "0".repeat(64),
+        thumbnail: null,
+      },
+    ],
+    testRoom.id,
+  );
   store.addObject("crate", [1, 2, 3]);
   return store;
 }

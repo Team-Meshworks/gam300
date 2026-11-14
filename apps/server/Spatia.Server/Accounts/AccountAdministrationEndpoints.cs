@@ -35,6 +35,14 @@ public static class AccountAdministrationEndpoints
                 ? Results.Json(outcome.Account, statusCode: StatusCodes.Status201Created)
                 : ToProblem(context, outcome.Result);
         });
+        group.MapPost("/users/bulk", async (ProvisionAccountRequest[] requests, AccountAdministrationService administration,
+            HttpContext context, CancellationToken cancellationToken) =>
+        {
+            var outcome = await administration.ProvisionAccountsAsync(requests, cancellationToken);
+            return outcome.Result.Succeeded
+                ? Results.Json(outcome.Accounts, statusCode: outcome.Accounts!.Count > 0 ? StatusCodes.Status201Created : StatusCodes.Status200OK)
+                : ToProblem(context, outcome.Result);
+        });
         group.MapPost("/users/{id:guid}/password", async (Guid id, ResetAccountPasswordRequest request,
             AccountAdministrationService administration, HttpContext context, CancellationToken cancellationToken) =>
         {

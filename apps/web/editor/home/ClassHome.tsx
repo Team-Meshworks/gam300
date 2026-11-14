@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
 import { AssignmentListScreen } from "../projects/AssignmentScreens";
+import { Icon } from "@iconify/react/offline";
+import closeIcon from "@iconify-icons/lucide/x";
+import { Select } from "../../shared/ui/Select";
+import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { Dialog } from "../../shared/ui/Dialog";
@@ -26,14 +30,20 @@ export function ClassHome({
   active,
   onCreateAssignment,
   onOpenProject,
+  onClose,
 }: {
   session: AccountSession;
   active: boolean;
-  onCreateAssignment: () => void;
+  onCreateAssignment: (classId: string) => void;
   onOpenProject: (projectId: string) => void;
+  onClose?: () => void;
 }) {
   const [classes, setClasses] = useState<Classroom[] | null>(null);
-  const [classId, setClassId] = useState("");
+  const organisationView =
+    session.role === "Educator" && new URLSearchParams(location.search).get("organisation") === "1";
+  const [classId, setClassId] = useState(
+    () => new URLSearchParams(location.search).get("classId") ?? "",
+  );
   const [refresh, setRefresh] = useState(0);
   const [error, setError] = useState("");
   const [roster, setRoster] = useState<{
@@ -174,62 +184,106 @@ export function ClassHome({
       setRefresh((value) => value + 1);
     }
   }
+  function openClassForm() {
+    setName("");
+    setOrganizationId("");
+    setOrganizations(null);
+    setOrganizationError("");
+    setNotice("");
+    setDialog("create");
+  }
   const currentRoster = roster?.key === rosterKey && !rosterError ? roster : null;
   const studentNames = Object.fromEntries(
     currentRoster?.members.map((member) => [member.userId, member.userName]) ?? [],
   );
   return (
-    <section aria-label="Classes" className="sp-class-home">
+    <section
+      aria-label="Classes"
+      className={`sp-class-home${organisationView ? " sp-organisation-view" : ""}`}
+    >
+      {organisationView && (
+        <Button
+          className="sp-close-button sp-organisation-close"
+          aria-label="Close organisation"
+          disabled={phase === "pending"}
+          onClick={onClose}
+        >
+          <Icon icon={closeIcon} aria-hidden="true" />
+        </Button>
+      )}
       <div className="sp-page-heading sp-between">
         <div>
-          <h1>Classes</h1>
-          <p>Find your class, assignments and instructions.</p>
+          <h1>{organisationView ? "Organisation Details" : "Classes"}</h1>
+          <p>
+            {organisationView
+              ? "View your organisation’s classes and their members."
+              : "Find your class, assignments and instructions."}
+          </p>
         </div>
         {manager && (
           <div className="sp-actions">
             <Button
-              onClick={() => {
-                setName("");
-                setOrganizationId("");
-                setOrganizations(null);
-                setOrganizationError("");
-                setNotice("");
-                setDialog("create");
-              }}
+              variant="primary"
+              disabled={organisationView && !classId}
+              onClick={() =>
+                organisationView
+                  ? location.assign(`/new-project?${new URLSearchParams({ classId })}`)
+                  : onCreateAssignment(classId)
+              }
             >
-              New class
-            </Button>
-            <Button variant="primary" onClick={onCreateAssignment}>
-              New assignment
+              {organisationView ? "New Project" : "New assignment"}
             </Button>
           </div>
         )}
       </div>
+      {organisationView && (
+        <div className="sp-organisation-identity">
+          <Avatar name={session.orgName ?? "Organisation"} />
+          <h2>{session.orgName ?? "Your Organisation"}</h2>
+        </div>
+      )}
       <div className="sp-home-toolbar">
-        <Field id="home-class" label="Class">
-          <select
-            id="home-class"
+        {organisationView ? (
+          <Select
+            label="Class"
             value={classId}
-            onChange={(event) => {
-              setClassId(event.target.value);
+            placeholder="Select a class"
+            options={classes?.map((row) => ({ value: row.id, label: row.name })) ?? []}
+            disabled={!classes?.length}
+            className="sp-organisation-class-select"
+            menuClassName="sp-organisation-class-menu"
+            onChange={(value) => {
+              setClassId(value);
               setRosterError("");
             }}
-          >
-            <option value="">Choose a class</option>
-            {classes?.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+          />
+        ) : (
+          <Field id="home-class" label="Class">
+            <select
+              id="home-class"
+              value={classId}
+              onChange={(event) => {
+                setClassId(event.target.value);
+                setRosterError("");
+              }}
+            >
+              <option value="">Choose a class</option>
+              {classes?.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {organisationView && <Button onClick={openClassForm}>New Class</Button>}
         <Button
           onClick={() => {
             setRosterError("");
             setRefresh((value) => value + 1);
           }}
         >
-          Refresh classes
+          {organisationView ? "Refresh" : "Refresh classes"}
         </Button>
       </div>
       {error ? (
@@ -252,15 +306,22 @@ export function ClassHome({
               classId={classId}
               studentNames={studentNames}
               ownProject={session.role === "Creator"}
+              {...(organisationView
+                ? {
+                    onOpenAssignment: (assignmentId: string) =>
+                      location.assign(`/home?${new URLSearchParams({ classId, assignmentId })}`),
+                  }
+                : {})}
               onOpenProject={onOpenProject}
             />
           </div>
           {manager && (
             <section aria-label="Class roster" className="sp-card">
-              <h2>Class roster</h2>
+              <h2>{organisationView ? "Class Members" : "Class roster"}</h2>
               <p className="sp-hint">
-                Enrolled students can receive independent assignment drafts. Removing a member ends
-                their class access.
+                {organisationView
+                  ? "Facilitators and students in the selected class."
+                  : "Enrolled students can receive independent assignment drafts. Removing a member ends their class access."}
               </p>
               {rosterError ? (
                 <p role="alert">{rosterError}</p>
@@ -270,55 +331,96 @@ export function ClassHome({
                 <>
                   <Table
                     caption="Current class members"
-                    headings={["Name", "Role", "Account", "Class access"]}
+                    headings={
+                      organisationView
+                        ? ["Account", "Role", "Status"]
+                        : ["Name", "Role", "Account", "Class access"]
+                    }
                   >
                     {currentRoster.members.map((member) => (
                       <tr key={member.userId}>
-                        <th scope="row">{member.userName}</th>
-                        <td>{member.role === "Educator" ? "Teacher" : "Student"}</td>
-                        <td>{member.accountActive ? "Active" : "Inactive"}</td>
+                        <th scope="row">
+                          {organisationView ? `@${member.userName}` : member.userName}
+                        </th>
                         <td>
-                          <Button
-                            onClick={() => {
-                              setNotice("");
-                              setDialog({
-                                userId: member.userId,
-                                name: member.userName,
-                                enrolled: true,
-                              });
-                            }}
-                          >
-                            Remove {member.userName}
-                          </Button>
+                          {member.role === "Educator"
+                            ? organisationView
+                              ? "Facilitator"
+                              : "Teacher"
+                            : "Student"}
                         </td>
+                        <td data-active={member.accountActive}>
+                          {member.accountActive ? "Active" : "Inactive"}
+                        </td>
+                        {!organisationView && (
+                          <td>
+                            <Button
+                              aria-label={`Remove ${member.userName}`}
+                              title="Remove class access; saved work is retained"
+                              onClick={() => {
+                                setNotice("");
+                                setDialog({
+                                  userId: member.userId,
+                                  name: member.userName,
+                                  enrolled: true,
+                                });
+                              }}
+                            >
+                              {organisationView ? "Remove" : `Remove ${member.userName}`}
+                            </Button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </Table>
                   {!currentRoster.members.length && <p role="status">No members are enrolled.</p>}
-                  <h3 className="sp-home-notice">Add students</h3>
-                  <ul className="sp-class-students">
-                    {currentRoster.eligible
-                      .filter((student) => !student.enrolled)
-                      .map((student) => (
-                        <li key={student.userId}>
-                          <span>{student.userName}</span>
-                          <Button
-                            onClick={() => {
-                              setNotice("");
-                              setDialog({
-                                userId: student.userId,
-                                name: student.userName,
-                                enrolled: false,
-                              });
-                            }}
-                          >
-                            Enrol {student.userName}
-                          </Button>
-                        </li>
-                      ))}
-                  </ul>
-                  {!currentRoster.eligible.some((student) => !student.enrolled) && (
-                    <p className="sp-hint">No other eligible students are available.</p>
+                  {organisationView &&
+                    !currentRoster.eligible.some((student) => !student.enrolled) && (
+                      <p className="sp-organisation-account-hint">
+                        Your administrator creates accounts for new students.
+                      </p>
+                    )}
+                  {(!organisationView ||
+                    currentRoster.eligible.some((student) => !student.enrolled)) && (
+                    <>
+                      <h3 className="sp-home-notice">
+                        {organisationView ? "Add Students" : "Add students"}
+                      </h3>
+                      {organisationView && (
+                        <p className="sp-hint">
+                          Choose existing student accounts from your organisation.
+                        </p>
+                      )}
+                      <ul className="sp-class-students">
+                        {currentRoster.eligible
+                          .filter((student) => !student.enrolled)
+                          .map((student) => (
+                            <li key={student.userId}>
+                              <span>{student.userName}</span>
+                              <Button
+                                aria-label={
+                                  organisationView
+                                    ? `Add ${student.userName} to class`
+                                    : `Enrol ${student.userName}`
+                                }
+                                onClick={() => {
+                                  setNotice("");
+                                  setDialog({
+                                    userId: student.userId,
+                                    name: student.userName,
+                                    enrolled: false,
+                                  });
+                                }}
+                              >
+                                {organisationView ? "Add to Class" : `Enrol ${student.userName}`}
+                              </Button>
+                            </li>
+                          ))}
+                      </ul>
+                      {!currentRoster.eligible.some((student) => !student.enrolled) && (
+                        <p className="sp-hint">No other eligible students are available.</p>
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -328,12 +430,19 @@ export function ClassHome({
       )}
       {dialog && active && (
         <Dialog
+          {...(organisationView
+            ? { variant: "admin" as const, className: "sp-organisation-dialog" }
+            : {})}
           title={
             dialog === "create"
-              ? "New class"
+              ? organisationView
+                ? "New Class"
+                : "New class"
               : dialog.enrolled
                 ? "Remove class member"
-                : "Enrol student"
+                : organisationView
+                  ? "Add Student to Class"
+                  : "Enrol student"
           }
           onClose={() => {
             if (phase !== "pending") {
@@ -398,6 +507,17 @@ export function ClassHome({
                   </p>
                 )}
                 {notice && <p role="alert">{notice}</p>}
+                {organisationView && (
+                  <Button
+                    disabled={phase === "pending"}
+                    onClick={() => {
+                      setDialog(null);
+                      setPhase("ready");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                )}
                 <Button
                   type="submit"
                   variant="primary"
@@ -406,7 +526,13 @@ export function ClassHome({
                     (!name.trim() || (session.role === "Administrator" && !organizationId))
                   }
                 >
-                  {phase === "pending" ? "Saving…" : "Confirm"}
+                  {phase === "pending"
+                    ? "Saving…"
+                    : organisationView
+                      ? dialog === "create"
+                        ? "Create Class"
+                        : "Add to Class"
+                      : "Confirm"}
                 </Button>
               </fieldset>
             </form>

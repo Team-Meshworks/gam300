@@ -123,8 +123,13 @@ describe("action handler", () => {
 
 it("resolves the current scene track by ID and stops playback when preview ends", () => {
   vi.stubGlobal("Audio", FakeAudio);
+  const spatial = vi.fn();
   const resolve = vi.fn((id: string) =>
-    id === "track" ? { url: "/media/bgm.m4a", loop: true, volume: 0.4 } : undefined,
+    id === "track"
+      ? { url: "/media/bgm.m4a", loop: true, volume: 0.4 }
+      : id === "spatial"
+        ? { url: "/media/sound.m4a", loop: false, volume: 1, play: spatial }
+        : undefined,
   );
   const player = createActionRunner(undefined, resolve);
   player.run({ type: "play-audio", mediaId: "missing" });
@@ -134,6 +139,9 @@ it("resolves the current scene track by ID and stops playback when preview ends"
   expect(FakeAudio.latest!.play).toHaveBeenCalledOnce();
   player.stop();
   expect(FakeAudio.latest!.pause).toHaveBeenCalledOnce();
+  player.run({ type: "play-audio", mediaId: "spatial" });
+  expect(spatial).toHaveBeenCalledOnce();
+  expect(FakeAudio.latest?.src).toBe("/media/bgm.m4a");
 });
 
 it("does not restart an already-playing linked track on repeated hotspot clicks", () => {

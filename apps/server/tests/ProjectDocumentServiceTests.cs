@@ -10,6 +10,23 @@ namespace Spatia.Server.Tests;
 public sealed class ProjectDocumentServiceTests
 {
     [Test]
+    [Arguments("room-space1-module-v1")]
+    [Arguments("room-doors-1-module-v1")]
+    public async Task Documents_AdjoiningRoomModelsRoundTrip(string assetId)
+    {
+        var fixture = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json"));
+        var json = fixture.Replace("test-crate-v1", assetId, StringComparison.Ordinal);
+        var id = Guid.Parse(JsonNode.Parse(json)!["projectId"]!.GetValue<string>());
+        var service = Create("Development");
+        var parsed = service.Read(id, json);
+        await Assert.That(parsed.Ok).IsTrue();
+        var saved = service.Serialize(parsed.Value!);
+        await Assert.That(saved.Ok).IsTrue();
+        await Assert.That(service.Read(id, saved.Value!).Ok).IsTrue();
+        await Assert.That(Create("Production").Read(id, json).Ok).IsFalse();
+    }
+
+    [Test]
     public async Task Documents_UseOnlyThePackagedDevelopmentCatalogue()
     {
         var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json"));

@@ -20,9 +20,11 @@ API error text is mapped locally rather than displaying arbitrary server content
 
 - The workspace uses existing server-saved projects. It does not upload local editor
   files or implement the SCRUM-67/126/127 server save/session handoff.
-- Production submissions still require the SCRUM-164/73 approved retained-asset
-  resolver. The default server registration returns review_assets_unavailable; the
-  UI reports that failure and does not fabricate a successful submission.
+- Temporarily, a submission can commit its exact saved document with an empty asset
+  manifest if asset resolution is incomplete or unavailable. When all approved
+  retained assets resolve, the complete manifest is recorded. Unresolved asset bytes
+  are not retained, so this does not establish their historical appearance.
+  Publication still independently requires approved retained assets.
 - The retained document is available as read-only scene/object data. Protected 3D
   asset rendering remains unavailable pending the retained asset/delivery contract.
 - SCRUM-70/85 and SCRUM-71 own publishing and protected delivery. Publication stays
@@ -46,10 +48,8 @@ browser test uses HTTP fixtures and covers the mounted student/educator workflow
 cancellation, preserved feedback, duplicate-safe retries, later revisions,
 administrator denial and 390/768/1366-pixel layouts.
 
-ReviewScreensIntegrationTests adds two real HTTPS/PostgreSQL browser scenarios to
-the server suite: the default unavailable asset resolver, and the established
-test-only asset resolver. The latter exercises submit, approve, student feedback,
-a real later draft save, and retained historical content. It does not prove
+ReviewScreensIntegrationTests exercises the review workflow through real
+HTTPS/PostgreSQL browser scenarios. Fixture asset references do not prove
 production asset retention or protected byte delivery.
 
 With the repository's disposable PostgreSQL test database configured, run from

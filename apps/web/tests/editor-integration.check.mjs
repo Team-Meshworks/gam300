@@ -1,5 +1,6 @@
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
+import { blankProject, serveProject } from "./authoring-project-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
@@ -62,7 +63,8 @@ try {
       return request;
     };
   });
-  await page.goto(url);
+  const project = await serveProject(page, url);
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await addAsset(page, "Starter room");
   await page.waitForFunction(() => typeof window.finishBackup === "function");
@@ -111,6 +113,10 @@ try {
       const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
       const saved = await loadRecoverySession(
         new Map(assets.map((asset) => [asset.id, asset.kind])),
+        {
+          accountId: "00000000-0000-4000-8000-000000000001",
+          projectId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        },
       );
       return saved.ok &&
         saved.value?.document.scenes[0].objects.length === 1 &&
@@ -139,10 +145,8 @@ try {
     .project(camera);
   await page.waitForFunction(
     ({ x, y }) => {
-      const newButton = [...document.querySelectorAll(".draft-menu button")].find(
-        (button) => button.textContent === "New",
-      );
-      if (newButton.disabled) return false;
+      const leave = document.querySelector('[aria-label="Leave editor"]');
+      if (!leave || leave.disabled) return false;
       const wheel = new WheelEvent("wheel", {
         deltaY: -120,
         clientX: x,
@@ -152,19 +156,19 @@ try {
       });
       document.querySelector("canvas").dispatchEvent(wheel);
       if (!wheel.defaultPrevented) throw new Error("Wheel fixture missed the selected object");
-      newButton.click();
+      leave.click();
       return true;
     },
     { x: box.x + ((point.x + 1) * box.width) / 2, y: box.y + ((1 - point.y) * box.height) / 2 },
   );
   await page.getByRole("dialog").waitFor();
   await page.waitForTimeout(300);
-  await page.getByRole("button", { name: "Don’t Save", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "detached" });
   assert.equal(
     await page.locator(".object-row").count(),
-    0,
-    "Pending transforms cannot defeat New",
+    1,
+    "Cancelling departure keeps the project open",
   );
   await page.close();
 
@@ -1127,7 +1131,8 @@ try {
   });
   const phonePage = await phone.newPage();
   phonePage.on("pageerror", (error) => errors.push(error.message));
-  await phonePage.goto(url);
+  const phoneProject = await serveProject(phonePage, url, blankProject);
+  await phonePage.goto(phoneProject.url);
   await phonePage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   for (const viewport of [
     { width: 320, height: 568 },

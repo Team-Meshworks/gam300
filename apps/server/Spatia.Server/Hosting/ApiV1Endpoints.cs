@@ -23,14 +23,18 @@ public static class ApiV1Endpoints
         endpoints.MapAssetAdministration();
         endpoints.MapAssetDelivery();
         endpoints.MapPublicationDelivery();
+        endpoints.MapProjectPublicationModeration();
         endpoints.MapPublicationWrites();
         endpoints.MapAccountAdministration();
         endpoints.MapAccountDirectory();
         endpoints.MapAccountSessions();
         endpoints.MapProjectReads();
+        endpoints.MapProjectExhibitions();
+        endpoints.MapProjectImages();
         endpoints.MapProjectSaves();
         endpoints.MapProjectLifecycle();
         endpoints.MapClassrooms();
         endpoints.MapReviewSubmissions();
+        endpoints.MapProgressReviews();
     }
 }

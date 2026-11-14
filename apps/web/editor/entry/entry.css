@@ -1,3 +1,7 @@
+:root {
+  --login-button-surface: #000;
+  --login-redirect-surface: #fff;
+}
 .entry-page {
   color: #1f1b17;
   background: #fffdfa;
@@ -463,11 +467,14 @@
   justify-self: end;
   font-size: 13px !important;
 }
+.login-page .entry-brand {
+  font-weight: 400;
+}
 .login-page .login-submit {
   height: 56px;
   border-radius: 999px;
   color: white;
-  background: #1f1b17;
+  background: var(--login-button-surface);
   font-size: 16px;
   font-weight: 700;
 }
@@ -685,4 +692,9 @@
   .login-form {
     padding: 20px 0;
   }
+}
+
+.login-redirect {
+  min-height: 100dvh;
+  background: var(--login-redirect-surface);
 }

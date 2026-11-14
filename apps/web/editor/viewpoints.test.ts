@@ -1,5 +1,5 @@
+import { createLoadedStore } from "../tests/project-store-fixture";
 import { describe, expect, it } from "vitest";
-import { createDocumentStore } from "./document-store";
 import { validateRecoveryHistory } from "./recovery-history";
 import { serializeProject } from "../shared/project/project-serialization";
 import { validateProject } from "../shared/project/project-validation";
@@ -17,8 +17,7 @@ const assets: CatalogueAsset[] = ["room", "crate"].map((id) => ({
 const kinds = new Map(assets.map((a) => [a.id, a.kind]));
 const camera: CameraPose = { position: [1, 2, 3], rotation: [0, 0, 0, 1], fovDegrees: 45 };
 function setup() {
-  const store = createDocumentStore(assets);
-  store.createProject("room");
+  const store = createLoadedStore(assets, "room");
   return store;
 }
 function views(store: ReturnType<typeof setup>) {

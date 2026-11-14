@@ -96,7 +96,7 @@ public sealed class ProjectAccessService(
     /// Consumers must validate stored content and expose only public summaries
     /// </remarks>
     public async Task<ProjectListAccessResult> ListAsync(HttpContext context, Guid? cursor, int limit, bool archived,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool published = false)
     {
         ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
@@ -125,6 +125,13 @@ public sealed class ProjectAccessService(
         }
 
         var query = VisibleProjects(account).Where(project => project.IsArchived == archived);
+        if (published)
+        {
+            var retired = database.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM retired_publication_ids");
+            query = query.Where(project => database.Publications.Any(edition => edition.ProjectId == project.Id
+                && !retired.Contains(edition.Id)
+                && !database.PublicationAccess.Any(state => state.PublicationId == edition.Id && state.Deleted)));
+        }
         if (cursor is { } after)
         {
             query = query.Where(project => project.Id.CompareTo(after) > 0);
@@ -228,7 +235,12 @@ public sealed class ProjectAccessService(
         {
             return ProjectAccessResult.Denied(ProjectAccessFailure.OperationForbidden);
         }
-        if (purpose != ProjectLockPurpose.ChangeArchiveState && snapshot.IsArchived)
+        if (purpose == ProjectLockPurpose.ModeratePublications
+            && account.Role != ApplicationRoles.Administrator && !snapshot.CanManage)
+        {
+            return ProjectAccessResult.Denied(ProjectAccessFailure.OperationForbidden);
+        }
+        if (purpose is not (ProjectLockPurpose.ChangeArchiveState or ProjectLockPurpose.ModeratePublications) && snapshot.IsArchived)
         {
             return ProjectAccessResult.Denied(ProjectAccessFailure.ProjectReadOnly);
         }
@@ -302,7 +314,7 @@ public sealed class ProjectAccessService(
                     && assignment.UserId == account.UserId && assignment.CanEdit)
                 && (!database.ClassAssignmentStudents.Any(mapping => mapping.ProjectId == project.Id)
                     || database.ClassAssignmentStudents.Any(mapping => mapping.ProjectId == project.Id
-                        && mapping.StudentId == account.UserId
+                        && mapping.StudentId == account.UserId && mapping.IsActive
                         && database.ClassroomMembers.Any(member => member.ClassroomId == mapping.ClassroomId
                             && member.UserId == account.UserId && member.RoleId == ApplicationRoles.CreatorId && member.IsActive)))),
             _ => projects.Where(_ => false),
@@ -317,7 +329,9 @@ public sealed class ProjectAccessService(
             project.SchemaVersion, project.DocumentJson, project.UpdatedAt, project.LastMutationActorId,
             project.LastMutationId,
             project.LastMutationDigest is { } digest ? ImmutableArray.CreateRange(digest) : null,
-            !project.IsArchived, account.Role != ApplicationRoles.Creator, !project.IsArchived && canPublish);
+            !project.IsArchived && account.Role != ApplicationRoles.Administrator,
+            account.Role == ApplicationRoles.Educator,
+            !project.IsArchived && account.Role != ApplicationRoles.Administrator && canPublish);
     }
 
     private static bool HasExpired(ValidatedAccountSession session) => session.Clock.GetUtcNow() >= session.ExpiresUtc;

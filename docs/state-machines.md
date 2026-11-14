@@ -13,15 +13,15 @@ Inventory for [SCRUM-180](https://meshworkss.atlassian.net/browse/SCRUM-180), ba
 
 | State | Event and guard | Next state / effect |
 | --- | --- | --- |
-| Editor session checking | Active session without forced password change | Ready; mount editor |
-| Checking | No session or forced change | Signed out; offer sign-in |
+| Project entry checking | Session and project context resolved | Open the editable draft, facilitator view, or published view according to role and access |
+| Checking | No session or forced password change | Prompt for sign-in before editing |
 | Checking | Request fails | Error; retry checks again; cleanup suppresses stale result |
 | Workspace loading | Session and role resolved | Available home, administration, review or editor route; denied/error otherwise |
 | Active account/session | Disable, security-stamp change, forced password change, or hard expiry | Server rejects or restricts subsequent requests |
 | Project active | Authorized manager archives | Archived: editing, publishing and assignment changes disallowed |
 | Archived | Authorized manager restores | Active, subject to current grants and class membership |
 
-Sources: [editor gate](../apps/web/editor/accounts/EditorSessionGate.tsx), [workspace](../apps/web/editor/workspace/WorkspacePage.tsx), [account client](../apps/web/editor/accounts/account-client.ts), [server editor](../apps/web/editor/ServerProjectEditor.tsx), [account resolver](../apps/server/Spatia.Server/Security/CurrentAccountResolver.cs), [cookie events](../apps/server/Spatia.Server/Security/CurrentAccountCookieEvents.cs), [session service](../apps/server/Spatia.Server/Accounts/AccountSessionService.cs), and [project access](../apps/server/Spatia.Server/Projects/ProjectAccessService.cs). Dirty/pending editor work also constrains departure; see [project confirmation](../apps/web/editor/ProjectConfirmation.tsx).
+Sources: [project entry](../apps/web/editor/reviews/FacilitatorProjectView.tsx), [workspace](../apps/web/editor/workspace/WorkspacePage.tsx), [account client](../apps/web/editor/accounts/account-client.ts), [server editor](../apps/web/editor/ServerProjectEditor.tsx), [account resolver](../apps/server/Spatia.Server/Security/CurrentAccountResolver.cs), [cookie events](../apps/server/Spatia.Server/Security/CurrentAccountCookieEvents.cs), [session service](../apps/server/Spatia.Server/Accounts/AccountSessionService.cs), and [project access](../apps/server/Spatia.Server/Projects/ProjectAccessService.cs). Dirty/pending editor work also constrains departure; see [departure choices](../apps/web/editor/ServerProjectEditor.tsx).
 
 ### Identity and administration details
 
@@ -53,22 +53,21 @@ Sources: [account session](../apps/server/Spatia.Server/Accounts/AccountSessionS
 
 History recovery validates snapshots and limit; invalid history can be discarded while retaining the document. Sources: [command history](../apps/web/editor/command-history.ts), [transform command](../apps/web/editor/transform-command.ts), [recovery history](../apps/web/editor/recovery-history.ts), [app](../apps/web/editor/App.tsx), [renderer](../apps/web/editor/graphics/scene.ts), and [spatial validation](../apps/web/shared/project/spatial-validation.ts).
 
-## Local file and browser recovery
+## Browser recovery, import and file export
 
 | State | Event and guard | Next state / effect |
 | --- | --- | --- |
-| Clean / dirty | Committed edit | Dirty; schedule recovery after editing pause |
-| Recovery pending | IndexedDB transaction commits at expected storage revision | Backup document, history and baseline |
-| Recovery pending | Failure or revision conflict | Preserve memory; surface failure and pause retries until explicit save |
-| Confirmed server recovery | Clear after confirmed work | Replace private payload with a strict `{revision, cleared: true}` marker retaining its revision; loading reports an empty session with that revision |
-| Cleared marker | New backup at its current revision | Store new payload at the next revision; stale writers with an earlier revision conflict |
-| File connected | Save | Acquire exclusive writable; compare disk text to baseline while holding it; write and close before updating baseline and clean state |
-| File connected | Exclusive writer unavailable, disk changed, permission/write fails or cancel | Abort acquired stream on mismatch/failure; preserve document and previous baseline; report failure/conflict |
-| Download fallback | Export JSON | Download initiated; no proof of disk completion and no clean-state transition |
-| New/open with unsaved work | Confirm and replacement backup commits | Replace project; otherwise retain existing work |
-| Reload | Valid recovery | Restore document, valid history and baseline; file permission reconnects on save |
+| Account/project open | Committed edit | Queue a browser checkpoint with the document, undo history and server retry metadata |
+| Checkpoint pending | IndexedDB transaction commits at the expected storage revision | Advance the storage revision |
+| Checkpoint pending | Storage failure or stale expected revision | Preserve in-memory edits and the newer stored copy. Offer recovery or export on departure |
+| Confirmed recovery | Dispose after the final checkpoint | Replace the payload with a strict `{revision, cleared: true}` marker |
+| Cleared marker | Reopen, then save a new checkpoint | Open the server version without a recovery prompt and use the retained revision. The next write advances it and excludes stale writers |
+| Recoverable document | Reopen with matching account and project | Offer stored changes or the server version. An older backup without retry metadata can be exported |
+| Export chosen | Destination selected | Acquire the exclusive writer, compare the file to the captured baseline, write, and confirm on close. Abort the acquired stream on mismatch or failure |
+| Download fallback or canceled export | No confirmed file write | Keep the editor open during a departure decision |
+| Import chosen | Valid file and allowed account | Create a separate server project. A lost create response retains the uncertainty marker until reconciliation |
 
-Sources: [session coordinator](../apps/web/editor/persistence/use-project-session.ts), [local drafts](../apps/web/editor/persistence/local-drafts.ts), [file operations](../apps/web/editor/persistence/project-files.ts), and [database](../apps/web/editor/persistence/draft-db.ts). Expected storage revisions prevent silent replacement of another browser session's recovery. Clearing a record must not reset or reuse its counter: an older tab may still hold that counter. The cleared marker contains no project document or private payload. Older code can reject the new marker on reopen; already-open older tabs must reload to obtain the corrected cleanup behavior. Local backup and disk save have distinct confirmation boundaries.
+The signed-in editor reads and writes account/project keys in the version-2 database. The former standalone editor’s unscoped records stay untouched. File export, a browser checkpoint and a server receipt each confirm a different destination. See [server editor](../apps/web/editor/ServerProjectEditor.tsx), [recovery storage](../apps/web/editor/persistence/local-drafts.ts), [export writer](../apps/web/editor/persistence/project-files.ts) and [database schema](../apps/web/editor/persistence/draft-db.ts).
 
 ## Server autosave and recovery
 
@@ -191,7 +190,7 @@ A theoretical interleaving alone is not proof of a reproduced product bug. Table
 
 | Source / representation | Inventory |
 | --- | --- |
-| [WorkspacePage](../apps/web/editor/workspace/WorkspacePage.tsx): `loading`, `error`, `ready`; [EditorSessionGate](../apps/web/editor/accounts/EditorSessionGate.tsx): `checking`, `ready`, `signed-out`, `error`; [LoginPage](../apps/web/editor/entry/LoginPage.tsx): session/pending | Identity and account sequencing |
+| [WorkspacePage](../apps/web/editor/workspace/WorkspacePage.tsx): `loading`, `error`, `ready`; [ProjectEntry](../apps/web/editor/reviews/FacilitatorProjectView.tsx) selects the authorized editor, review or published view; [LoginPage](../apps/web/editor/entry/LoginPage.tsx): session/pending | Identity and account sequencing |
 | [asset-library](../apps/web/editor/asset-library.ts): `closed`, `browsing`, `placing` (tested helper, not production wired); [mode manager](../apps/web/editor/graphics/modeManager.ts): editor/visitor × first/third × capture | Placement and camera |
 | [server autosave](../apps/web/editor/persistence/server-autosave.ts): `saved`, `unsaved`, `saving`, `failed`, `conflict`, `rejected`, `invalid`; [draft result](../apps/web/editor/persistence/server-draft-write.ts): `saved`, `conflict`, `rejected`, `failed`, `invalid` | Persistence and confirmed findings |
 | [NewProjectForm](../apps/web/editor/projects/NewProjectForm.tsx), [ClassAssignmentForm](../apps/web/editor/projects/ClassAssignmentForm.tsx), [ProjectCreation](../apps/web/editor/home/ProjectCreation.tsx), [ProjectGrantEditor](../apps/web/editor/home/ProjectGrantEditor.tsx), [ProjectHome](../apps/web/editor/home/ProjectHome.tsx), [ClassHome](../apps/web/editor/home/ClassHome.tsx) | Distinct UI write lifecycles |

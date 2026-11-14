@@ -1,0 +1,479 @@
+import * as THREE from "three";
+function isTextEditingTarget(target: EventTarget): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      target.closest('input, textarea, select, [role="textbox"]') !== null)
+  );
+}
+
+export const EYE_HEIGHT = 0.9;
+// Slower than before, 5 and 12 m/s made people feel sick
+const WALK_SPEED = 3;
+const SPRINT_SPEED = 7;
+const ACCELERATION = 60;
+const GRAVITY = 20;
+const JUMP_SPEED = 6;
+// Two Space presses this close together turn flying on or off, like Minecraft creative
+const DOUBLE_TAP_MS = 300;
+const LOOK_SPEED = 0.002;
+const MAX_LOOK_STEP = 100;
+const MAX_PITCH = Math.PI / 2 - 0.01;
+const PHYSICS_DT = 1 / 240;
+const LOCK_RETRY_MS = 2000;
+
+// C goes down instead of Ctrl, Ctrl+W closes the tab and Ctrl is kept for snapping
+const HANDLED_KEYS = new Set([
+  "KeyW",
+  "KeyA",
+  "KeyS",
+  "KeyD",
+  "KeyC",
+  "Space",
+  "ShiftLeft",
+  "ShiftRight",
+]);
+
+const _forward = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _wish = new THREE.Vector3();
+
+export interface FpsMobileControls {
+  setMove(x: number, z: number): void;
+  setLook(x: number, y: number): void;
+  jump(): void;
+}
+
+export class FpsControls {
+  private readonly camera: THREE.Camera;
+  private readonly domElement: HTMLElement;
+  private readonly keys = new Set<string>();
+  private readonly velocity = new THREE.Vector3();
+  private yaw = 0;
+  private pitch = 0;
+  private roll = 0;
+  private minimumHeight = EYE_HEIGHT;
+  private dragging = false;
+  private engaged = false;
+  private flying = false;
+  private lastSpace = -Infinity;
+  private captured = false;
+  private capturePending = false;
+  private releasedAt = -Infinity;
+  private ignoreNextCapturedMove = false;
+  // Embedded browsers can refuse the lock for good, then dragging is how you look around
+  private lockable: boolean;
+  // Alt let go of the mouse, so letting go of Alt should take it back
+  private altFreed = false;
+  // Turning a held object uses the mouse, so the camera doesnt look around meanwhile
+  private lookHeld = false;
+  // Preview walks like a visitor, nothing starts flying there
+  private flightAllowed = true;
+  // Preview holds a saved camera above the floor until the visitor moves, then they drop down
+  private perched = false;
+  private readonly _euler = new THREE.Euler(0, 0, 0, "YXZ");
+  private readonly physicsPosition = new THREE.Vector3();
+  private readonly previousPhysics = new THREE.Vector3();
+  private accumulated = 0;
+  private mobileMoveX = 0;
+  private mobileMoveZ = 0;
+  private mobileLookX = 0;
+  private mobileLookY = 0;
+  private mobileJump = false;
+  private lastMobileJump = -Infinity;
+  readonly mobileControls: FpsMobileControls = {
+    setMove: (x, z) => {
+      this.mobileMoveX = THREE.MathUtils.clamp(x, -1, 1);
+      this.mobileMoveZ = THREE.MathUtils.clamp(z, -1, 1);
+    },
+    setLook: (x, y) => {
+      this.mobileLookX += x;
+      this.mobileLookY += y;
+    },
+    jump: () => {
+      const now = performance.now();
+      if (this.flightAllowed && now - this.lastMobileJump < DOUBLE_TAP_MS) {
+        this.flying = !this.flying;
+        this.velocity.y = 0;
+        this.lastMobileJump = -Infinity;
+      } else {
+        this.lastMobileJump = now;
+        this.mobileJump = true;
+      }
+    },
+  };
+  onCaptureChange: () => void = () => {};
+
+  constructor(camera: THREE.Camera, domElement: HTMLElement) {
+    this.camera = camera;
+    this.domElement = domElement;
+    this.lockable = typeof domElement.requestPointerLock === "function";
+    domElement.addEventListener("mousedown", this.onPointerDown);
+    document.addEventListener("mousemove", this.onPointerMove);
+    document.addEventListener("mouseup", this.onPointerUp);
+    document.addEventListener("pointerlockchange", this.onLockChange);
+    document.addEventListener("pointerlockerror", this.onLockError);
+  }
+
+  engage(): void {
+    if (this.engaged) return;
+    this.engaged = true;
+    this.keys.clear();
+    this.dragging = false;
+    this.resetMobileInput();
+    this.sync();
+    addEventListener("keydown", this.onKeyDown);
+    addEventListener("keyup", this.onKeyUp);
+    addEventListener("blur", this.clearInput);
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
+  }
+
+  // Pick up from wherever the camera is now. Starting in the air means flying, so nothing drops.
+  // Preview cant fly, so a raised camera is held there instead
+  sync(): void {
+    this.stopMotion();
+    const raised = this.camera.position.y > EYE_HEIGHT + 1e-4;
+    this.flying = raised && this.flightAllowed;
+    this.perched = raised && !this.flightAllowed;
+    this._euler.setFromQuaternion(this.camera.quaternion, "YXZ");
+    this.yaw = this._euler.y;
+    this.pitch = this._euler.x;
+    this.roll = this._euler.z;
+    // Below eye height is an authored low viewpoint, stand there rather than jump up
+    this.minimumHeight = Math.min(EYE_HEIGHT, this.camera.position.y);
+    this.applyRotation();
+  }
+
+  lookAt(target: THREE.Vector3): void {
+    if (this.camera.position.distanceToSquared(target) < 1e-8) return;
+    this.camera.lookAt(target);
+    this._euler.setFromQuaternion(this.camera.quaternion, "YXZ");
+    this.yaw = this._euler.y;
+    this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this._euler.x));
+    // Turning to face something is always upright
+    this.roll = 0;
+    this.applyRotation();
+  }
+
+  // Pose restoration resets physics; selecting or manipulating an object must not
+  private stopMotion(): void {
+    this.velocity.set(0, 0, 0);
+    this.physicsPosition.copy(this.camera.position);
+    this.previousPhysics.copy(this.camera.position);
+    this.accumulated = 0;
+  }
+
+  // Ballistic jump/fall and decaying velocity are not deliberate carry input
+  hasMovementInput(): boolean {
+    const x = (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0) + this.mobileMoveX;
+    const z = (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0) + this.mobileMoveZ;
+    return x !== 0 || z !== 0 || (this.flying && (this.keys.has("Space") || this.keys.has("KeyC")));
+  }
+
+  // A plain left click on the scene grabs the mouse instead of doing anything else
+  wantsCapture(event: MouseEvent): boolean {
+    return (
+      this.engaged &&
+      !this.captured &&
+      !event.altKey &&
+      event.button === 0 &&
+      (!(event instanceof PointerEvent) || event.pointerType === "mouse") &&
+      this.lockable
+    );
+  }
+
+  isCaptured(): boolean {
+    return this.captured;
+  }
+
+  isEngaged(): boolean {
+    return this.engaged;
+  }
+
+  canCapture(): boolean {
+    return this.lockable;
+  }
+
+  holdLook(held: boolean): void {
+    this.lookHeld = held;
+  }
+
+  setFlightAllowed(allowed: boolean): void {
+    this.flightAllowed = allowed;
+    if (allowed) {
+      this.perched = false;
+    } else if (this.flying) {
+      this.flying = false;
+      this.perched = true;
+    }
+  }
+
+  // A viewpoint or saved camera just moved the camera, carry on from exactly that pose
+  syncFromCamera(): void {
+    this.clearInput();
+    this.sync();
+  }
+
+  disengage(): void {
+    if (!this.engaged) return;
+    this.engaged = false;
+    this.capturePending = false;
+    this.dragging = false;
+    this.altFreed = false;
+    this.keys.clear();
+    this.velocity.set(0, 0, 0);
+    this.resetMobileInput();
+    if (this.captured) document.exitPointerLock();
+    removeEventListener("keydown", this.onKeyDown);
+    removeEventListener("keyup", this.onKeyUp);
+    removeEventListener("blur", this.clearInput);
+    document.removeEventListener("visibilitychange", this.onVisibilityChange);
+  }
+
+  dispose(): void {
+    this.disengage();
+    this.domElement.removeEventListener("mousedown", this.onPointerDown);
+    document.removeEventListener("mousemove", this.onPointerMove);
+    document.removeEventListener("mouseup", this.onPointerUp);
+    document.removeEventListener("pointerlockchange", this.onLockChange);
+    document.removeEventListener("pointerlockerror", this.onLockError);
+  }
+
+  update(delta: number): void {
+    if (!this.engaged) return;
+
+    this.applyRotation();
+
+    this.accumulated += Math.min(delta, 0.25);
+    while (this.accumulated >= PHYSICS_DT) {
+      this.previousPhysics.copy(this.physicsPosition);
+      this.step(PHYSICS_DT);
+      // Consume a queued tap only after a physics step
+      this.mobileJump = false;
+      this.accumulated -= PHYSICS_DT;
+    }
+
+    this.camera.position
+      .copy(this.previousPhysics)
+      .lerp(this.physicsPosition, this.accumulated / PHYSICS_DT);
+  }
+
+  private step(delta: number): void {
+    const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
+    const space = this.keys.has("Space") || this.mobileJump;
+    const maxSpeed = sprint ? SPRINT_SPEED : WALK_SPEED;
+    if (!this.flightAllowed) this.flying = false;
+    if (this.perched) {
+      // Stay on the saved view until any movement, which leaves it and falls to the floor
+      if (!space && !this.hasMovementInput()) {
+        this.velocity.set(0, 0, 0);
+        return;
+      }
+      this.perched = false;
+    }
+
+    const inputZ =
+      (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0) + this.mobileMoveZ;
+    const inputX =
+      (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0) + this.mobileMoveX;
+    _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    if (!this.flying) _forward.y = 0;
+    if (_forward.lengthSq() < 1e-8) {
+      _forward.set(0, 0, -1);
+    } else {
+      _forward.normalize();
+    }
+
+    _right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    _right.y = 0;
+    _right.normalize();
+
+    _wish.set(0, 0, 0).addScaledVector(_forward, inputZ).addScaledVector(_right, inputX);
+    if (_wish.lengthSq() > 0) _wish.normalize().multiplyScalar(maxSpeed);
+
+    const smoothing = 1 - Math.exp(-ACCELERATION * delta);
+    const previous = this.velocity.clone();
+    if (this.flying) {
+      // In flight, the mobile forward stick follows the camera pitch. Keyboard
+      // vertical input remains available without overriding that direction.
+      _wish.y += ((space ? 1 : 0) - (this.keys.has("KeyC") ? 1 : 0)) * WALK_SPEED;
+      this.velocity.lerp(_wish, smoothing);
+    } else {
+      // Only the sideways part eases in, up and down is jumping and gravity
+      let fall = this.velocity.y - GRAVITY * delta;
+      if (space && this.onFloor()) fall = JUMP_SPEED;
+      this.velocity.lerp(_wish, smoothing);
+      this.velocity.y = fall;
+    }
+    this.physicsPosition.addScaledVector(previous.lerp(this.velocity, 0.5), delta);
+    // An authored low viewpoint is the floor until you climb back to eye height
+    if (this.physicsPosition.y >= EYE_HEIGHT) this.minimumHeight = EYE_HEIGHT;
+    if (this.physicsPosition.y <= this.minimumHeight) {
+      this.physicsPosition.y = this.minimumHeight;
+      this.velocity.y = Math.max(this.velocity.y, 0);
+      // Touching the floor stops flying, same as Minecraft
+      this.flying = false;
+    }
+  }
+
+  private onFloor(): boolean {
+    return this.physicsPosition.y <= this.minimumHeight + 1e-4;
+  }
+
+  private capture(): void {
+    if (!this.engaged || !this.lockable || this.capturePending) return;
+    this.capturePending = true;
+    // Some browsers return nothing, others a promise that rejects when the lock is refused
+    try {
+      Promise.resolve(this.domElement.requestPointerLock()).catch(this.onCaptureFailure);
+    } catch (error) {
+      this.onCaptureFailure(error);
+    }
+  }
+
+  private readonly onCaptureFailure = (error?: unknown) => {
+    if (!this.capturePending) return;
+    this.capturePending = false;
+    if (!this.engaged) return;
+    // Escape temporarily refuses recapture; an initial sandbox denial must enable drag fallback
+    if (
+      performance.now() - this.releasedAt < LOCK_RETRY_MS &&
+      (error === undefined || (error instanceof DOMException && error.name === "SecurityError"))
+    )
+      return;
+    this.lockable = false;
+    this.onCaptureChange();
+  };
+
+  private readonly onLockError = () => this.onCaptureFailure();
+
+  private readonly onPointerDown = (event: MouseEvent) => {
+    if (!this.engaged || event.button !== 0) return;
+    if (this.wantsCapture(event)) this.capture();
+    // Without the lock (touch, Alt held, or refused), dragging still turns the camera
+    if (!this.captured) this.dragging = true;
+  };
+
+  private readonly onPointerMove = (event: MouseEvent) => {
+    if (!this.engaged || this.lookHeld || (!this.captured && !this.dragging)) return;
+    if (this.captured && this.ignoreNextCapturedMove) {
+      this.ignoreNextCapturedMove = false;
+      return;
+    }
+    // Browsers can report stale, very large, or non-finite deltas when pointer
+    // lock is acquired or restored. Ignore those events instead of teleporting.
+    if (
+      !Number.isFinite(event.movementX) ||
+      !Number.isFinite(event.movementY) ||
+      Math.abs(event.movementX) > MAX_LOOK_STEP ||
+      Math.abs(event.movementY) > MAX_LOOK_STEP
+    )
+      return;
+    const movementX = event.movementX;
+    const movementY = event.movementY;
+    this.yaw -= movementX * LOOK_SPEED;
+    this.pitch -= movementY * LOOK_SPEED;
+    this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
+  };
+
+  private readonly onPointerUp = () => {
+    this.dragging = false;
+  };
+
+  private readonly onLockChange = () => {
+    const captured = document.pointerLockElement === this.domElement;
+    if (captured === this.captured) return;
+    this.captured = captured;
+    if (captured) this.capturePending = false;
+    else this.releasedAt = performance.now();
+    this.dragging = false;
+    this.ignoreNextCapturedMove = captured;
+    this.onCaptureChange();
+  };
+
+  private readonly onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Alt") {
+      // Stops Windows from jumping to the browser menu when Alt is let go
+      event.preventDefault();
+      // Ask the browser, the lock change event can arrive after a quick Alt press
+      if (document.pointerLockElement === this.domElement && !event.repeat) {
+        this.altFreed = true;
+        document.exitPointerLock();
+      }
+      return;
+    }
+    if (
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey ||
+      event.composedPath().some(isTextEditingTarget) ||
+      (event.target instanceof Element && event.target.closest("button, summary, dialog[open]"))
+    )
+      return;
+    if (!HANDLED_KEYS.has(event.code)) return;
+    event.preventDefault();
+    if (event.code === "Space" && !event.repeat) {
+      if (this.flightAllowed && event.timeStamp - this.lastSpace < DOUBLE_TAP_MS) {
+        this.flying = !this.flying;
+        this.velocity.y = 0;
+        this.lastSpace = -Infinity;
+      } else {
+        this.lastSpace = event.timeStamp;
+      }
+    }
+    this.keys.add(event.code);
+  };
+
+  private readonly onKeyUp = (event: KeyboardEvent) => {
+    if (event.key === "Alt") {
+      event.preventDefault();
+      if (!this.altFreed) return;
+      this.altFreed = false;
+      // Clicking a button with Alt held moves focus there, so the mouse stay free for the UI
+      const active = document.activeElement;
+      if (active === null || active === document.body || active.contains(this.domElement)) {
+        this.capture();
+      }
+      return;
+    }
+    if (HANDLED_KEYS.has(event.code)) this.keys.delete(event.code);
+  };
+
+  private readonly clearInput = () => {
+    this.keys.clear();
+    this.velocity.set(0, 0, 0);
+    this.dragging = false;
+    this.resetMobileInput();
+    this.altFreed = false;
+    this.physicsPosition.copy(this.camera.position);
+    this.previousPhysics.copy(this.camera.position);
+    this.accumulated = 0;
+  };
+
+  private readonly onVisibilityChange = () => {
+    if (document.hidden) this.clearInput();
+  };
+
+  private applyRotation(): void {
+    this.yaw -= this.mobileLookX * LOOK_SPEED;
+    // Clamp deliberate look input, never an untouched authored vertical pose
+    if (this.mobileLookY !== 0) {
+      this.pitch -= this.mobileLookY * LOOK_SPEED;
+      this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
+    }
+    this.mobileLookX = 0;
+    this.mobileLookY = 0;
+    this.camera.rotation.set(this.pitch, this.yaw, this.roll, "YXZ");
+  }
+
+  private resetMobileInput(): void {
+    this.mobileMoveX = 0;
+    this.mobileMoveZ = 0;
+    this.mobileLookX = 0;
+    this.mobileLookY = 0;
+    this.mobileJump = false;
+    this.lastMobileJump = -Infinity;
+  }
+}

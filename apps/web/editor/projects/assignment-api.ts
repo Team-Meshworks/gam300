@@ -1,20 +1,51 @@
+import { validProjectImage, type ProjectImage } from "./project-image";
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import type { EligibleStudent, ProjectClass } from "./new-project-form";
 
 export type AssignmentSession = {
   userId: string;
   displayName: string;
+  userName?: string;
   role: string;
   orgId: string | null;
+  orgName?: string | null;
   mustChangePassword?: boolean;
 };
-export type SourceProject = { projectId: string; title: string; revision: number };
-export type AssignmentProject = { studentId: string; projectId: string; studentName?: string };
+export type SourceProject = {
+  projectId: string;
+  title: string;
+  revision: number;
+};
+const reviewStates = ["draft", "outdated", "pending", "approved", "returned", "revoked"] as const;
+export type AssignmentProject = {
+  studentId: string;
+  projectId: string;
+  studentName?: string;
+  studentUserName?: string;
+  reviewState?: (typeof reviewStates)[number] | null;
+  approvalStatus?:
+    | "not-submitted"
+    | "awaiting-approval"
+    | "approved"
+    | "returned"
+    | "revoked"
+    | "changes-since-submission";
+  published?: boolean;
+  isPublic?: boolean;
+};
 export type AssignmentDetails = {
+  image?: ProjectImage | null;
   assignmentId: string;
   title: string;
   description: string;
   instructions: string;
+  assignedBy?: string | null;
   dueAtUnixSeconds: number;
+  revision?: number;
+  sourceProjectId?: string | null;
+  organizationName?: string;
+  creatorName?: string;
+  creatorUserName?: string;
   projects: AssignmentProject[];
 };
 export type PendingAssignment = {
@@ -41,7 +72,7 @@ async function readJson(path: string, signal?: AbortSignal): Promise<unknown> {
     credentials: "same-origin",
     cache: "no-store",
     signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+      ? combineAbortSignals([signal, AbortSignal.timeout(15000)])
       : AbortSignal.timeout(15000),
   });
   if (!response.ok) throw new Error("The requested information is unavailable.");
@@ -91,8 +122,12 @@ export async function assignmentSession(signal?: AbortSignal): Promise<Assignmen
   return {
     userId: value.userId,
     displayName: value.displayName,
+    ...(typeof value.userName === "string" && value.userName.trim()
+      ? { userName: value.userName }
+      : {}),
     role: value.role,
     orgId: value.orgId,
+    orgName: typeof value.orgName === "string" && value.orgName.trim() ? value.orgName : null,
     mustChangePassword: value.mustChangePassword === true,
   };
 }
@@ -149,6 +184,9 @@ export async function enrolledStudents(
         !record(row) ||
         typeof row.userId !== "string" ||
         typeof row.userName !== "string" ||
+        (row.displayName !== undefined &&
+          row.displayName !== null &&
+          typeof row.displayName !== "string") ||
         typeof row.enrolled !== "boolean",
     )
   )
@@ -156,10 +194,14 @@ export async function enrolledStudents(
   return rows
     .filter((row) => (row as { enrolled: boolean }).enrolled)
     .map((row) => {
-      const student = row as { userId: string; userName: string };
+      const student = row as {
+        userId: string;
+        userName: string;
+        displayName?: string | null;
+      };
       return {
         id: student.userId,
-        name: student.userName,
+        name: student.displayName?.trim() || student.userName,
         account: student.userName,
         classIds: [classId],
       };
@@ -239,7 +281,11 @@ export async function submitAssignment(
         const projects = receipt(await response.json(), pending);
         if ((await assignmentSession()).userId !== pending.actorId) return { kind: "unknown" };
         return projects
-          ? { kind: "confirmed", assignmentId: pending.body.requestId, projects }
+          ? {
+              kind: "confirmed",
+              assignmentId: pending.body.requestId,
+              projects,
+            }
           : { kind: "unknown" };
       } catch {
         return { kind: "unknown" };
@@ -266,22 +312,45 @@ export async function submitAssignment(
   }
 }
 
-function assignmentDetails(value: unknown): AssignmentDetails {
+export function assignmentDetails(value: unknown): AssignmentDetails {
   if (
     !record(value) ||
+    !validProjectImage(value.image) ||
     typeof value.assignmentId !== "string" ||
     typeof value.title !== "string" ||
     typeof value.description !== "string" ||
     typeof value.instructions !== "string" ||
+    !(value.assignedBy == null || typeof value.assignedBy === "string") ||
     typeof value.dueAtUnixSeconds !== "number" ||
     !Number.isSafeInteger(value.dueAtUnixSeconds) ||
+    (value.revision !== undefined &&
+      (!Number.isSafeInteger(value.revision) || (value.revision as number) < 0)) ||
+    (value.sourceProjectId !== undefined &&
+      value.sourceProjectId !== null &&
+      typeof value.sourceProjectId !== "string") ||
+    (value.organizationName !== undefined && typeof value.organizationName !== "string") ||
+    (value.creatorName !== undefined && typeof value.creatorName !== "string") ||
+    !validStudentName(value.creatorUserName) ||
     !Array.isArray(value.projects) ||
     value.projects.some(
       (row) =>
         !record(row) ||
         typeof row.studentId !== "string" ||
         typeof row.projectId !== "string" ||
-        !validStudentName(row.studentName),
+        !validStudentName(row.studentName) ||
+        !validStudentName(row.studentUserName) ||
+        !(row.reviewState == null || reviewStates.some((state) => state === row.reviewState)) ||
+        (row.approvalStatus !== undefined &&
+          ![
+            "not-submitted",
+            "awaiting-approval",
+            "approved",
+            "returned",
+            "revoked",
+            "changes-since-submission",
+          ].includes(String(row.approvalStatus))) ||
+        (row.published !== undefined && typeof row.published !== "boolean") ||
+        (row.isPublic !== undefined && typeof row.isPublic !== "boolean"),
     )
   )
     throw new Error("The assignment is unavailable.");

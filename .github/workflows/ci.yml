@@ -166,30 +166,47 @@ jobs:
               viewpoints
               placement-collision
               moving-room-collision
+              starter-room-transform
+              nonstarter-room-collision
+              empty-project-room
               caching
           - name: recovery
             checks: |
-              recovery
               history
               interactions
               server-autosave
+              empty-project-editor
           # Workspace routes and admin dashboard run against the packaged app in check.
           - name: workspace
             checks: |
               accounts
+              admin-navigation
               organization-deletion
               sounds
               entry
               ui /ui-preview.html
               home
+              home-welcome
+              dashboards
+              account-header
           - name: projects
             checks: |
               new-project /ui-preview.html#new-project
               classes /ui-preview.html
               assignment-screen /ui-preview/assignment-test.html
               project-creation
+              blank-project
               project-grants
               workspace-assignments
+              teacher-assignment-flow
+              teacher-assignment-edit
+              teacher-assignment-edit-storage
+              teacher-details-flow
+              teacher-review-refresh
+              teacher-editor-actions
+              editor-library-previews
+              teacher-roster-account-switch
+              teacher-choices-account-switch
               deadline /ui-preview.html
               review-directory /ui-preview.html
           - name: publication
@@ -197,6 +214,7 @@ jobs:
               asset-admin
               reviews
               publication
+              publication-access
               publication-readiness
               visitor
     defaults:
@@ -221,6 +239,7 @@ jobs:
       - name: Start Vite server
         run: |
           mkdir -p test-results
+          node prepare-dashboard-font.mjs
           node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort \
             > "test-results/dev-server-${{ matrix.name }}.log" 2>&1 &
           echo $! > vite.pid
@@ -329,6 +348,7 @@ jobs:
           docker cp "$web:/srv-restricted/." test-results/packaged-restricted/
           docker run --rm --entrypoint /bin/cat caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b /usr/bin/caddy > "$RUNNER_TEMP/spatia-caddy"
           chmod +x "$RUNNER_TEMP/spatia-caddy"
+          CADDY_BINARY="$RUNNER_TEMP/spatia-caddy" node ../../deploy/gateway.check.mjs
           CADDY_BINARY="$RUNNER_TEMP/spatia-caddy" node ../../deploy/restricted-assets.check.mjs test-results/packaged-public test-results/packaged-restricted --browser
           mkdir -p dist/editor
           docker cp "$(docker compose -f ../../compose.yaml -p vthere-ci ps -q web):/srv/." dist/editor/
@@ -355,7 +375,10 @@ jobs:
           test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' https://localhost:8444/api/v1/auth/session)" = 401
           model=$(node -e "console.log(require('node:fs').readdirSync('test-results/packaged-restricted').find(name => name.endsWith('.glb')))")
           test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' "https://localhost:8444/restricted-assets/$model")" = 401
-          test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc 'SELECT count(*) FROM public."__EFMigrationsHistory"')" -ge 2
+          migrations=$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc 'SELECT count(*) FROM public."__EFMigrationsHistory"')
+          test "$migrations" -ge 2
+          "${stack[@]}" run --rm --no-deps migrate
+          test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc 'SELECT count(*) FROM public."__EFMigrationsHistory"')" = "$migrations"
           test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc "SELECT rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = 'spatia_api'")" = 'f|f|f'
       - name: Capture container diagnostics
         if: always()
@@ -536,13 +559,18 @@ jobs:
         run: |
           docker load -i ci-artifacts/image.tar
           tag="ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_REF_NAME-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          docker tag "vthere-ci:$GITHUB_SHA" "$tag"
-          docker push "$tag"
-          image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")
-          for component in api migrations; do
-            docker tag "vthere-$component-ci:$GITHUB_SHA" "$tag-$component"
-            docker push "$tag-$component"
+          pids=()
+          for suffix in '' -api -migrations; do
+            docker tag "vthere$suffix-ci:$GITHUB_SHA" "$tag$suffix"
+            docker push "$tag$suffix" &
+            pids+=("$!")
           done
+          failed=0
+          for pid in "${pids[@]}"; do
+            wait "$pid" || failed=1
+          done
+          test "$failed" -eq 0
+          image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")
           api_image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag-api")
           migration_image=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag-migrations")
           jq -n --arg image "$image" --arg apiImage "$api_image" --arg migrationImage "$migration_image" \

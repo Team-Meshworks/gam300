@@ -39,22 +39,42 @@ public sealed class AccountSessionTests
         await Assert.That(session.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var json = await session.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(json.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(
-            new[] { "developmentAssetsAllowed", "displayName", "mustChangePassword", "orgId", "role", "userId" })).IsTrue();
+            new[] { "developmentAssetsAllowed", "displayName", "mustChangePassword", "orgId", "orgName", "role", "userId", "userName" })).IsTrue();
         await Assert.That(json.GetProperty("userId").GetGuid()).IsEqualTo(id);
         await Assert.That(json.GetProperty("displayName").GetString()).IsEqualTo(name);
+        await Assert.That(json.GetProperty("userName").GetString()).IsEqualTo(name);
         await Assert.That(json.GetProperty("role").GetString()).IsEqualTo(role);
         await Assert.That(json.GetProperty("mustChangePassword").GetBoolean()).IsEqualTo(forced);
         await Assert.That(json.GetProperty("developmentAssetsAllowed").GetBoolean()).IsFalse();
         await Assert.That(json.GetProperty("orgId").ValueKind == JsonValueKind.Null).IsEqualTo(role == ApplicationRoles.Administrator);
+        await Assert.That(json.GetProperty("orgName").ValueKind == JsonValueKind.Null).IsEqualTo(role == ApplicationRoles.Administrator);
         if (role != ApplicationRoles.Administrator)
         {
             await using var scope = fixture.Database.Services.CreateAsyncScope();
             var organization = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().OrganizationMemberships
                 .Where(member => member.UserId == id).Select(member => member.OrganizationId).SingleAsync();
             await Assert.That(json.GetProperty("orgId").GetGuid()).IsEqualTo(organization);
+            var orgName = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Organizations
+                .Where(row => row.Id == organization).Select(row => row.Name).SingleAsync();
+            await Assert.That(json.GetProperty("orgName").GetString()).IsEqualTo(orgName);
         }
         await Assert.That(session.Headers.CacheControl?.NoStore == true).IsTrue();
         await AuthTestRequests.AssertSafeAsync(fixture, session);
+
+        // Separate browsers keep their own signed-in account even when both users have the same role
+        var peerId = await fixture.CreateAccountAsync(role, forced);
+        using var peer = fixture.CreateClient();
+        using var peerSignedIn = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login", new
+        {
+            userName = await AuthTestRequests.UserNameAsync(fixture, peerId),
+            password = AuthTestRequests.CurrentPassword
+        }, peer);
+        await Assert.That(peerSignedIn.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        var concurrentSessions = await Task.WhenAll(fixture.Client.GetAsync("/api/v1/auth/session"), peer.GetAsync("/api/v1/auth/session"));
+        using var originalSession = concurrentSessions[0];
+        using var peerSession = concurrentSessions[1];
+        await Assert.That((await originalSession.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid()).IsEqualTo(id);
+        await Assert.That((await peerSession.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid()).IsEqualTo(peerId);
     }
 
     [Test]

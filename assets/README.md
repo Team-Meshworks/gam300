@@ -17,16 +17,18 @@ the existing development-only catalogue and pending provenance convention.
 
 The 16 user-supplied room GLBs are preserved byte-for-byte under `source/rooms/`
 and `delivery/rooms/`. `Space1` and every combination of Doors 1–4 have separate
-versioned environment IDs. The supplied numbering guide is `source/rooms/door-reference.png`.
-They appear in the editor's Rooms picker with generated elevated model previews.
-Selecting a layout replaces the scene environment and retains authored exhibits;
-Starter room keeps its existing adjoining-module placement behavior.
+versioned environment IDs and matching placeable model IDs. The supplied numbering
+guide is `source/rooms/door-reference.png`. They appear in the editor's Rooms picker
+with generated elevated model previews. The first room establishes the scene
+environment; a subsequent choice places its matching approved model as an adjoining
+room. If no approved matching model is available, another copy cannot be placed.
 
 Bounds in the manifest were measured from transformed vertices. Bottom-centre
 normalization removes export offsets without rescaling; the environment placement
 root preserves this normalization under scene transforms. These are complete
-layouts, not Starter room modules, and do not use its 10-metre snapping or automatic
-door cutting. They use the existing development-only catalogue and retain pending
+layouts, not Starter room modules. Adjoining placement snaps using the rooms' bounds
+within the 80-metre grid. These layouts do not use the Starter room's automatic door
+cutting. They use the existing development-only catalogue and retain pending
 provenance status. Validate using `node tools/validate-assets.mjs` and, with Vite
 running, `node tests/room-layouts.check.mjs http://127.0.0.1:5185/` from `apps/web/`.
 
@@ -87,6 +89,13 @@ Eight user-supplied GLBs are preserved unchanged in `source/stands-displays/` an
 `delivery/stands-displays/`, with immutable versioned IDs and hashes in the manifest.
 Their original filenames and unconfirmed provenance are recorded there. They are
 explicitly allowlisted development assets, not approved production distributions.
+
+The in-progress development publication integration verifies referenced built-in delivery
+bytes against this manifest, captures them in private immutable content-addressed database
+blobs, and links them to the publication. Delivery uses the publication's access and
+membership checks, including anonymous access for unlisted links. Production does not
+resolve or serve these built-in publication assets; approved database assets retain their
+existing delivery path. Redistribution terms remain unconfirmed.
 Generated thumbnails use the actual model renderer.
 
 The four physical cases/plinths expose `displayRole: physical` and a `displayTop`

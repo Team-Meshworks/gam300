@@ -31,7 +31,8 @@ public sealed class ProjectPersistenceTests
         project.LastMutationDigest = Enumerable.Repeat((byte)42, 32).ToArray();
         var forgotten = CreateProject(Guid.NewGuid());
         forgotten.Revision = 9;
-        database.Projects.Add(forgotten);
+        await LegacyProjectSeed.InsertAsync(database, forgotten);
+        database.Projects.Attach(forgotten);
         await database.SaveChangesAsync();
 
         await database.Database.MigrateAsync();
@@ -71,9 +72,8 @@ public sealed class ProjectPersistenceTests
         var exception = await Assert.ThrowsAsync<PostgresException>(() => database.Database.MigrateAsync());
         await Assert.That(exception!.SqlState).IsEqualTo(PostgresErrorCodes.CheckViolation);
         await Assert.That(await database.Database.SqlQuery<bool>($"SELECT to_regclass('project_save_receipts') IS NULL AS \"Value\"").SingleAsync()).IsTrue();
-        var stored = await database.Projects.AsNoTracking().SingleAsync();
-        await Assert.That(stored.Revision).IsEqualTo(0L);
-        await Assert.That(stored.LastMutationId).IsEqualTo((Guid?)MutationId);
+        await Assert.That(await database.Database.SqlQuery<long>($"""SELECT revision AS "Value" FROM projects""").SingleAsync()).IsEqualTo(0L);
+        await Assert.That(await database.Database.SqlQuery<Guid?>($"""SELECT last_mutation_id AS "Value" FROM projects""").SingleAsync()).IsEqualTo((Guid?)MutationId);
         await Assert.That((await database.Database.GetAppliedMigrationsAsync()).Last()).IsEqualTo("20261029094707_AddPublicationSnapshots");
     }
 
@@ -598,8 +598,9 @@ public sealed class ProjectPersistenceTests
         database.Organizations.Add(new Organization { Id = OrganizationId, Name = "Synthetic project school" });
         await LegacyAccountSeed.InsertAsync(database, new ApplicationUser { Id = UserId, UserName = "project-user", NormalizedUserName = "PROJECT-USER" });
         var project = CreateProject(ProjectId);
-        database.Projects.Add(project);
         await database.SaveChangesAsync();
+        await LegacyProjectSeed.InsertAsync(database, project);
+        database.Projects.Attach(project);
         return project;
     }
 

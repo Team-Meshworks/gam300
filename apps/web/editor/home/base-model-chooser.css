@@ -1,0 +1,155 @@
+/* First-open selection stays modal so scene controls cannot bypass setup. */
+.sp-base-model-dialog {
+  --base-paper: #fff;
+  --base-preview: #ebebeb;
+  --base-ink: #332e2a;
+  --base-copy: #6e685f;
+  --base-selection: #968b7d;
+  --base-backdrop: rgb(41 39 35 / 35%);
+  box-sizing: border-box;
+  width: min(720px, calc(100% - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 28px;
+  background: var(--base-paper);
+  color: var(--base-ink);
+  font: 400 13px/20px var(--sp-font, Inter, sans-serif);
+  overflow: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--base-selection) transparent;
+}
+.sp-base-model-dialog::backdrop {
+  background: var(--base-backdrop);
+}
+.sp-base-model-panel {
+  --base-grid-height: min(320px, 40dvh);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 48px);
+  box-sizing: border-box;
+  padding: 28px;
+}
+.sp-base-model-panel header {
+  flex: none;
+  padding-right: 36px;
+  padding-left: 8px;
+}
+.sp-base-model-panel h1 {
+  margin: 0;
+  font: 700 28px/36px var(--sp-font, Inter, sans-serif);
+}
+.sp-base-model-panel header p {
+  margin: 4px 0 20px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--base-copy);
+}
+.sp-base-model-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  grid-auto-rows: calc((var(--base-grid-height) - 16px) / 2);
+  height: calc(var(--base-grid-height) + 16px);
+  min-height: 0;
+  flex: 0 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.sp-base-model-grid button {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  place-items: center;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 16px;
+  background: var(--base-preview);
+  color: var(--base-copy);
+  font: inherit;
+  cursor: pointer;
+}
+.sp-base-model-grid img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+}
+.sp-base-model-grid button:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+.sp-base-model-grid button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 3px var(--base-selection);
+}
+.sp-base-model-grid button:focus-visible {
+  outline: 3px solid var(--base-selection);
+  outline-offset: -3px;
+}
+.sp-base-model-panel footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+  gap: 11px;
+  flex: none;
+}
+.sp-base-model-panel footer .sp-button {
+  min-height: 40px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--base-ink);
+  color: var(--base-paper);
+  font: 600 14px/20px var(--sp-font, Inter, sans-serif);
+}
+.sp-base-model-panel footer .sp-button:focus-visible {
+  outline: 3px solid var(--base-selection);
+  outline-offset: 3px;
+}
+.sp-base-model-panel button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+@media (max-width: 520px) {
+  .sp-base-model-panel {
+    padding: 24px;
+  }
+  .sp-base-model-panel h1 {
+    font-size: 25px;
+    line-height: 32px;
+  }
+}
+
+.sp-base-model-panel footer .sp-button--secondary {
+  background: #eeeae6;
+  color: var(--base-ink);
+}
+.sp-base-model-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sp-close-surface, #f3f4f6);
+  color: var(--base-ink);
+  cursor: pointer;
+}
+.sp-base-model-close svg {
+  width: 20px;
+  height: 20px;
+}
+.sp-base-model-close:focus-visible {
+  outline: 3px solid var(--base-selection);
+  outline-offset: 3px;
+}

@@ -8,6 +8,29 @@
   },
   "cases": [
     {
+      "name": "v1 scene still requires an environment",
+      "base": "m1",
+      "valid": false,
+      "path": "project.scenes[0].environmentAssetId",
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentAssetId"],
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "v2 scene without an environment",
+      "base": "m2",
+      "valid": true,
+      "patches": [
+        {
+          "path": ["scenes", 0, "environmentAssetId"],
+          "value": null
+        }
+      ]
+    },
+    {
       "name": "v2 preserves deleted initial room",
       "base": "m2",
       "valid": true,

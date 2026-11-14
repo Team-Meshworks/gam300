@@ -32,6 +32,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// </summary>
     public DbSet<Project> Projects => Set<Project>();
 
+    /// <summary>Gets immutable private cover and panorama bytes</summary>
+    public DbSet<ProjectImage> ProjectImages => Set<ProjectImage>();
+
     /// <summary>
     /// Gets the durable acknowledgements of accepted project save mutations
     /// </summary>
@@ -65,6 +68,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     /// <summary>Gets the append-only educator review decisions.</summary>
     public DbSet<ReviewDecision> ReviewDecisions => Set<ReviewDecision>();
 
+    /// <summary>Gets educator comments on student work in progress.</summary>
+    public DbSet<ProgressReview> ProgressReviews => Set<ProgressReview>();
+
     /// <summary>
     /// Gets immutable publication editions; current audience and lifecycle authorization are checked separately
     /// </summary>
@@ -82,6 +88,24 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         base.OnModelCreating(builder);
         builder.ApplyConfiguration(new AssetCandidateConfiguration());
         builder.ApplyConfiguration(new PublicationConfiguration());
+        builder.Entity<ProgressReview>(review =>
+        {
+            review.ToTable("progress_reviews", table =>
+            {
+                table.HasCheckConstraint("CK_progress_reviews_feedback", "length(feedback) BETWEEN 1 AND 4000");
+                table.HasCheckConstraint("CK_progress_reviews_revision", $"revision BETWEEN 0 AND {Project.MaxRevision}");
+            });
+            review.HasKey(row => row.Id);
+            review.Property(row => row.Id).HasColumnName("id");
+            review.Property(row => row.ProjectId).HasColumnName("project_id");
+            review.Property(row => row.EducatorId).HasColumnName("educator_id");
+            review.Property(row => row.Revision).HasColumnName("revision");
+            review.Property(row => row.Feedback).HasColumnName("feedback").HasMaxLength(4000).IsRequired();
+            review.Property(row => row.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("statement_timestamp()");
+            review.HasIndex(row => new { row.ProjectId, row.Id });
+            review.HasOne<Project>().WithMany().HasForeignKey(row => row.ProjectId).OnDelete(DeleteBehavior.Restrict);
+            review.HasOne<ApplicationUser>().WithMany().HasForeignKey(row => row.EducatorId).OnDelete(DeleteBehavior.Restrict);
+        });
         builder.Entity<PublicationAccessState>(policy =>
         {
             policy.ToTable("publication_access");
@@ -95,6 +119,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             user.Property(account => account.UserName).IsRequired();
             user.Property(account => account.NormalizedUserName).IsRequired();
             user.Property(account => account.DisplayName).HasMaxLength(256);
+            user.Property(account => account.IsDeleted).IsRequired();
         });
 
         builder.Entity<IdentityRole<Guid>>().HasData(
@@ -150,6 +175,21 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        builder.Entity<ProjectImage>(image =>
+        {
+            image.ToTable("project_images", table =>
+            {
+                table.HasCheckConstraint("CK_project_images_type", "type IN ('cover', 'panorama')");
+                table.HasCheckConstraint("CK_project_images_content_type", "content_type IN ('image/png', 'image/jpeg', 'image/webp')");
+                table.HasCheckConstraint("CK_project_images_data", "octet_length(data) BETWEEN 1 AND 2097152");
+            });
+            image.HasKey(row => row.Id);
+            image.Property(row => row.Id).HasColumnName("id");
+            image.Property(row => row.Type).HasColumnName("type").HasMaxLength(8);
+            image.Property(row => row.ContentType).HasColumnName("content_type").HasMaxLength(10);
+            image.Property(row => row.Data).HasColumnName("data").IsRequired();
+        });
+
         builder.Entity<Project>(project =>
         {
             project.ToTable("projects", table =>
@@ -180,6 +220,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             project.Property(record => record.OrganizationId).HasColumnName("organization_id");
             project.Property(record => record.IsArchived).HasColumnName("archived");
             project.Property(record => record.Revision).HasColumnName("revision").IsConcurrencyToken();
+            project.Property(record => record.ImageId).HasColumnName("image_id");
+            project.HasOne<ProjectImage>().WithMany().HasForeignKey(record => record.ImageId).OnDelete(DeleteBehavior.Restrict);
             project.Property(record => record.SchemaVersion).HasColumnName("schema_version");
             project.Property(record => record.DocumentJson).HasColumnName("document").HasColumnType("jsonb").IsRequired();
             project.Property(record => record.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamp with time zone");
@@ -282,6 +324,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 table.HasCheckConstraint("CK_class_assignments_due", $"due_at_unix_seconds BETWEEN {ClassAssignment.MinimumUnixSeconds} AND {ClassAssignment.MaximumUnixSeconds}");
                 table.HasCheckConstraint("CK_class_assignments_source_revision", $"source_revision BETWEEN 0 AND {Project.MaxRevision}");
                 table.HasCheckConstraint("CK_class_assignments_request_digest", "octet_length(request_digest) = 32");
+                table.HasCheckConstraint("CK_class_assignments_revision", $"revision BETWEEN 0 AND {Project.MaxRevision}");
+                table.HasCheckConstraint("CK_class_assignments_last_edit", "(last_edit_id IS NULL AND last_edit_actor_id IS NULL AND last_edit_digest IS NULL) OR (last_edit_id IS NOT NULL AND last_edit_actor_id IS NOT NULL AND last_edit_digest IS NOT NULL AND octet_length(last_edit_digest) = 32)");
             });
             assignment.HasKey(record => record.Id);
             assignment.HasAlternateKey(record => new { record.Id, record.ClassroomId, record.OrganizationId });
@@ -296,6 +340,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             assignment.Property(record => record.Description).HasColumnName("description").IsRequired();
             assignment.Property(record => record.Instructions).HasColumnName("instructions").IsRequired();
             assignment.Property(record => record.RequestDigest).HasColumnName("request_digest").IsRequired();
+            assignment.Property(record => record.Revision).HasColumnName("revision");
+            assignment.Property(record => record.LastEditId).HasColumnName("last_edit_id");
+            assignment.Property(record => record.LastEditActorId).HasColumnName("last_edit_actor_id");
+            assignment.Property(record => record.LastEditDigest).HasColumnName("last_edit_digest");
             assignment.HasIndex(record => new { record.ClassroomId, record.Id });
             assignment.HasOne<Classroom>().WithMany()
                 .HasForeignKey(record => new { record.ClassroomId, record.OrganizationId })
@@ -322,6 +370,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             student.Property(record => record.StudentId).HasColumnName("student_id");
             student.Property(record => record.RoleId).HasColumnName("role_id");
             student.Property(record => record.ProjectId).HasColumnName("project_id");
+            student.Property(record => record.IsActive).HasColumnName("is_active").HasDefaultValue(true).HasSentinel(true);
+            student.Property(record => record.OriginallyAssigned).HasColumnName("originally_assigned").HasDefaultValue(true).HasSentinel(true);
             student.HasIndex(record => record.ProjectId).IsUnique();
             student.HasIndex(record => new { record.StudentId, record.AssignmentId });
             student.HasOne<ClassAssignment>().WithMany()

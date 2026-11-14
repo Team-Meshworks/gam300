@@ -31,10 +31,12 @@ export function WorkspaceNavigation({
     { id: "classes", label: "Classes", href: "/classes", action: onClasses },
     ...(role === "Administrator"
       ? [
-          { id: "accounts", label: "Accounts", href: "/accounts" },
+          { id: "organisations", label: "Organisations", href: "/organisations" },
           { id: "dashboard", label: "Dashboard", href: "/admin/dashboard" },
         ]
-      : [{ id: "reviews", label: "Submissions and reviews", href: "/review" }]),
+      : role === "Creator"
+        ? [{ id: "reviews", label: "Submissions and reviews", href: "/review" }]
+        : []),
   ];
 
   return (

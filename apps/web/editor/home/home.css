@@ -1,10 +1,67 @@
-.sp-home-gate {
-  display: grid;
+.sp-teacher-detail-head p {
+  color: #77716a;
+}
+.sp-teacher-new-project,
+.sp-teacher-detail {
+  background: rgb(255 253 251 / 78%);
+  border-radius: 50px;
+  padding: 50px;
+  min-height: 660px;
+}
+.sp-teacher-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
   gap: 24px;
+}
+.sp-teacher-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 540fr) minmax(0, 588fr);
+  gap: 50px;
+  margin-top: 30px;
+}
+.sp-teacher-info {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.sp-teacher-info h2 {
+  margin-bottom: 8px;
+}
+.sp-teacher-value {
+  border: 1px solid #e7e2dc;
+  background: #fffdfb;
+  border-radius: 12px;
+  padding: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sp-teacher-students {
+  border: 1px solid #e7e2dc;
+  background: #fffdfb;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.sp-teacher-students > .sp-search,
+.sp-teacher-students > h3 {
+  margin: 20px;
+}
+.sp-teacher-student {
+  border-top: 1px solid #e7e2dc;
+  display: grid;
+  gap: 14px;
   justify-items: start;
-  max-width: 680px;
-  margin: 100px auto;
-  padding: 24px;
+  padding: 20px;
+}
+@media (max-width: 760px) {
+  .sp-teacher-new-project,
+  .sp-teacher-detail {
+    padding: 24px;
+    border-radius: 24px;
+  }
+  .sp-teacher-columns {
+    grid-template-columns: 1fr;
+  }
 }
 .sp-grant-options,
 .sp-grant-person {
@@ -56,6 +113,45 @@
   display: grid;
   gap: 20px;
 }
+.sp-home-projects--educator .sp-home-project-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+.sp-home-projects--educator .sp-home-project-card {
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  padding: 0 0 20px;
+}
+.sp-home-projects--educator .sp-home-project-copy {
+  width: 100%;
+  padding: 0 20px;
+}
+.sp-home-projects--educator .sp-home-project-card > .sp-badge,
+.sp-home-projects--educator .sp-home-project-card > a {
+  margin: 0 20px;
+}
+.sp-home-project-preview {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24%;
+  min-height: 150px;
+  border-radius: 24px;
+  background: var(--sp-soft);
+  color: var(--sp-muted);
+  font-size: 13px;
+}
+.sp-home-projects--educator .sp-home-project-preview {
+  width: 100%;
+  min-height: 126px;
+  flex: none;
+  border-radius: 0;
+}
+.sp-home-projects--creator .sp-home-project-card {
+  border-radius: 50px;
+}
+.sp-home-project-copy {
+  flex: 1;
+}
 .sp-home-project-card {
   display: flex;
   justify-content: space-between;
@@ -66,6 +162,13 @@
   padding: 28px;
   background: white;
   box-shadow: 0 8px 24px rgb(41 39 35 / 0.025);
+}
+.sp-home-project-cover {
+  width: 136px;
+  height: 92px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  object-fit: cover;
 }
 .sp-home-project-copy {
   display: grid;
@@ -147,6 +250,16 @@
 .sp-class-home .sp-table td {
   overflow-wrap: anywhere;
 }
+@media (min-width: 850px) {
+  .sp-home-projects--educator .sp-home-project-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1200px) {
+  .sp-home-projects--educator .sp-home-project-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 @media (max-width: 600px) {
   .sp-home-projects > .sp-page-heading,
   .sp-home-project-card {
@@ -162,5 +275,12 @@
   }
   .sp-home-project-card {
     padding: 22px;
+  }
+  .sp-home-projects--educator .sp-home-project-card {
+    padding: 0 0 20px;
+  }
+  .sp-home-project-preview {
+    align-self: stretch;
+    flex: none;
   }
 }

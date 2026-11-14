@@ -146,6 +146,7 @@ grep -qx "API_IMAGE=$api" "$configuration/.env"
 grep -qx "MIGRATION_IMAGE=$migration" "$configuration/.env"
 grep -qx 'SERVER_ENVIRONMENT=Development' "$configuration/.env"
 grep -qx 'SERVER_NETWORK_PREFIX=172.30.92' "$configuration/.env"
+grep -qx 'PUBLICATION_ORIGIN=https://127.0.0.1:8082' "$configuration/.env"
 [[ -f "$configuration/compose.server.yaml" ]]
 [[ -f "$DEPLOY_ROOT/development/gateway-$first/server.Caddyfile" ]]
 [[ "$(stat -c %a "$configuration/.env")" == 600 ]]

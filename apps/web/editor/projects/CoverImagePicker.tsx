@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
-import { Button } from "../../shared/ui/Button";
 
 export function CoverImagePicker({
   file,
@@ -25,7 +24,7 @@ export function CoverImagePicker({
         ref={inputRef}
         id={id}
         type="file"
-        accept="image/*"
+        accept="image/png,image/jpeg,image/webp"
         className="sp-sr-only"
         tabIndex={-1}
         aria-label="Choose cover image"
@@ -33,26 +32,17 @@ export function CoverImagePicker({
           const selected = event.currentTarget.files?.[0];
           event.currentTarget.value = "";
           if (!selected) return;
-          if (selected.type && !selected.type.startsWith("image/")) {
-            setError("Choose an image from your device.");
+          if (
+            !["image/png", "image/jpeg", "image/webp"].includes(selected.type) ||
+            selected.size > 2 * 1024 * 1024
+          ) {
+            setError("Choose a JPEG, PNG or WebP image no larger than 2 MB.");
             return;
           }
           setError("");
           onChange(selected);
         }}
       />
-      <div className="sp-actions">
-        {file && (
-          <Button
-            onClick={() => {
-              onChange(null);
-              setError("");
-            }}
-          >
-            Remove cover image
-          </Button>
-        )}
-      </div>
       {file ? (
         <figure>
           <img
@@ -65,15 +55,22 @@ export function CoverImagePicker({
               onChange(null);
             }}
           />
-          <figcaption>{file.name}</figcaption>
+          <figcaption>
+            <span>{file.name}</span>
+            <button
+              type="button"
+              className="sp-cover-remove"
+              aria-label="Remove cover image"
+              onClick={() => {
+                onChange(null);
+                setError("");
+              }}
+            >
+              Remove image
+            </button>
+          </figcaption>
         </figure>
-      ) : (
-        <p className="sp-hint">No cover image selected.</p>
-      )}
-      <p className="sp-hint">
-        Choose a picture from your device’s gallery or files. This preview stays on this device and
-        is not uploaded.
-      </p>
+      ) : null}
       {error && <p role="alert">{error}</p>}
     </section>
   );

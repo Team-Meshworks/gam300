@@ -19,6 +19,116 @@ public sealed class AdministrationEndpointTests
     private const string ReplacementPassword = "Synthetic replacement password 2!";
 
     [Test]
+    public async Task BulkAccounts_SkipExistingUserNamesAndRejectInvalidRoles()
+    {
+        await using var fixture = await AdministratorFixtureAsync();
+        var orgId = await CreateOrganizationAsync(fixture);
+        var prefix = "bulk-" + Guid.NewGuid().ToString("N");
+        object Account(string suffix, string role = ApplicationRoles.Creator) => new { userName = prefix + suffix, displayName = "CSV learner", initialPassword = InitialPassword, role, orgId };
+        using (var created = await SendAsync(fixture, "/api/v1/admin/users/bulk", new[] { Account("a"), Account("b", ApplicationRoles.Educator) }))
+        {
+            await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+            var accounts = await created.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(accounts.GetArrayLength()).IsEqualTo(2);
+            await Assert.That(accounts[1].GetProperty("role").GetString()).IsEqualTo(ApplicationRoles.Educator);
+            await Assert.That(accounts[0].GetProperty("mustChangePassword").GetBoolean()).IsTrue();
+        }
+        using (var duplicate = await SendAsync(fixture, "/api/v1/admin/users/bulk", new[] { Account("c"), Account("a") }))
+        {
+            await Assert.That(duplicate.StatusCode).IsEqualTo(HttpStatusCode.Created);
+            var created = await duplicate.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(created.GetArrayLength()).IsEqualTo(1);
+            await Assert.That(created[0].GetProperty("userName").GetString()).IsEqualTo(prefix + "c");
+        }
+        using (var repeat = await SendAsync(fixture, "/api/v1/admin/users/bulk", new[] { Account("a"), Account("c") }))
+        {
+            await Assert.That(repeat.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That((await repeat.Content.ReadFromJsonAsync<JsonElement>()).GetArrayLength()).IsEqualTo(0);
+        }
+        using var invalid = await SendAsync(fixture, "/api/v1/admin/users/bulk", new[] {
+            new { userName = prefix + "admin", initialPassword = InitialPassword, role = ApplicationRoles.Administrator, orgId = (Guid?)null }
+        });
+        await Assert.That(invalid.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
+    public async Task OrganisationClassFlow_ProvisionedAccountsEnrolBeforeReceivingIndependentProjects()
+    {
+        await using var fixture = await AdministratorFixtureAsync();
+        var organization = await CreateOrganizationAsync(fixture);
+        var otherOrganization = await CreateOrganizationAsync(fixture);
+        async Task<(Guid Id, string Name)> Provision(string role, Guid orgId)
+        {
+            var name = "class-flow-" + Guid.NewGuid().ToString("N");
+            using var response = await SendAsync(fixture, "/api/v1/admin/users", new
+            { userName = name, initialPassword = InitialPassword, role, orgId });
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
+            return ((await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid(), name);
+        }
+        var educator = await Provision(ApplicationRoles.Educator, organization);
+        var student = await Provision(ApplicationRoles.Creator, organization);
+        var foreign = await Provision(ApplicationRoles.Creator, otherOrganization);
+        async Task Login(HttpClient client, string name)
+        {
+            using var login = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/login",
+                new { userName = name, password = InitialPassword }, client);
+            await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+            using var session = await client.GetAsync("/api/v1/auth/session");
+            await Assert.That((await session.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("mustChangePassword").GetBoolean()).IsTrue();
+            using var password = await AuthTestRequests.PostAsync(fixture, "/api/v1/auth/password",
+                new { currentPassword = InitialPassword, newPassword = ReplacementPassword }, client);
+            await Assert.That(password.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        }
+        using var teacher = fixture.CreateClient();
+        using var learner = fixture.CreateClient();
+        await Login(teacher, educator.Name);
+        await Login(learner, student.Name);
+        using var createdClass = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name = "History" }, teacher);
+        await Assert.That(createdClass.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var classId = (await createdClass.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        using var eligible = await teacher.GetAsync($"/api/v1/classes/{classId:D}/eligible-students");
+        var candidates = (await eligible.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").EnumerateArray().ToArray();
+        await Assert.That(candidates.Length).IsEqualTo(1);
+        await Assert.That(candidates[0].GetProperty("userId").GetGuid()).IsEqualTo(student.Id);
+        await Assert.That(candidates[0].GetProperty("enrolled").GetBoolean()).IsFalse();
+        using (var unavailable = await learner.GetAsync($"/api/v1/classes/{classId:D}"))
+        { await Assert.That(unavailable.StatusCode).IsEqualTo(HttpStatusCode.NotFound); }
+        async Task<HttpResponseMessage> Enrol(Guid id)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/classes/{classId:D}/members/{id:D}");
+            request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync(teacher));
+            return await teacher.SendAsync(request);
+        }
+        using (var denied = await Enrol(foreign.Id))
+        { await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity); }
+        using (var enrolled = await Enrol(student.Id))
+        { await Assert.That(enrolled.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
+        using (var visible = await learner.GetAsync($"/api/v1/classes/{classId:D}"))
+        { await Assert.That(visible.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        using var source = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/", new { title = "History source" }, teacher);
+        await Assert.That(source.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var sourceId = (await source.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
+        using var assigned = await AuthTestRequests.PostAsync(fixture, $"/api/v1/classes/{classId:D}/assignments", new
+        {
+            requestId = Guid.NewGuid(),
+            sourceProjectId = sourceId,
+            sourceRevision = 0,
+            dueAtUnixSeconds = 2_000_000_000,
+            title = "History exhibit",
+            description = "Research",
+            instructions = "Build an exhibit",
+            studentIds = new[] { student.Id },
+        }, teacher);
+        await Assert.That(assigned.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var draft = (await assigned.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects")[0].GetProperty("projectId").GetGuid();
+        await Assert.That(draft).IsNotEqualTo(sourceId);
+        using var opened = await learner.GetAsync($"/api/v1/projects/{draft:D}");
+        await Assert.That(opened.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var protectedSource = await learner.GetAsync($"/api/v1/projects/{sourceId:D}");
+        await Assert.That(protectedSource.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
     [Arguments(ApplicationRoles.Administrator)]
     [Arguments(ApplicationRoles.Educator)]
     [Arguments(ApplicationRoles.Creator)]

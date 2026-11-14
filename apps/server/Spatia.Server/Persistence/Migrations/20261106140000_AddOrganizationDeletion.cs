@@ -59,9 +59,10 @@ public sealed class AddOrganizationDeletion : Migration
                     WHERE id = OLD."PublicationId" AND organization_purge_matches(project_id)) THEN
                     RETURN OLD;
                 END IF;
-                IF TG_OP = 'DELETE' OR (OLD."Deleted" AND NOT NEW."Deleted") THEN
+                IF TG_OP = 'DELETE' OR OLD."PublicationId" IS DISTINCT FROM NEW."PublicationId"
+                    OR (OLD."Deleted" AND NOT NEW."Deleted") THEN
                     RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'CK_publication_access_permanent',
-                        MESSAGE = 'Publication deletion cannot be reversed or replaced.';
+                        MESSAGE = 'Publication policy identity and permanent deletion cannot be changed.';
                 END IF;
                 RETURN NEW;
             END;
@@ -107,9 +108,10 @@ public sealed class AddOrganizationDeletion : Migration
             END $$;
             CREATE OR REPLACE FUNCTION retain_publication_access_deletion() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
-                IF TG_OP = 'DELETE' OR (OLD."Deleted" AND NOT NEW."Deleted") THEN
+                IF TG_OP = 'DELETE' OR OLD."PublicationId" IS DISTINCT FROM NEW."PublicationId"
+                    OR (OLD."Deleted" AND NOT NEW."Deleted") THEN
                     RAISE EXCEPTION USING ERRCODE = '23514', CONSTRAINT = 'CK_publication_access_permanent',
-                        MESSAGE = 'Publication deletion cannot be reversed or replaced.';
+                        MESSAGE = 'Publication policy identity and permanent deletion cannot be changed.';
                 END IF;
                 RETURN NEW;
             END $$;

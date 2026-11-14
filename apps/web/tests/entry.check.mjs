@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5181";
-const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
+const browser = await launchBrowser({
+  target: origin,
+  args: ["--enable-unsafe-swiftshader"],
+});
 const session = {
   userId: "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e",
   displayName: "Test Teacher",
@@ -14,11 +17,36 @@ const session = {
 const screenshots = "../../.artifacts/ui-foundation/entry-check";
 await mkdir(screenshots, { recursive: true });
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const withoutSegmenter = await browser.newPage();
+  await withoutSegmenter.addInitScript(() => {
+    Intl.Segmenter = undefined;
+  });
+  let fallbackSession = null;
+  await withoutSegmenter.route("**/api/v1/auth/session", (route) =>
+    route.fulfill(fallbackSession ? { json: fallbackSession } : { status: 401 }),
+  );
+  await withoutSegmenter.route("**/api/v1/projects", (route) =>
+    route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await withoutSegmenter.route("**/api/v1/classes", (route) =>
+    route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await withoutSegmenter.goto(origin + "/");
+  await withoutSegmenter.getByRole("heading", { name: "Welcome back." }).waitFor({ timeout: 5000 });
+  assert.equal(await withoutSegmenter.getByLabel("Username", { exact: true }).isVisible(), true);
+  fallbackSession = { ...session, role: "Creator", displayName: "😀 Creator" };
+  await withoutSegmenter.goto(origin + "/home");
+  await withoutSegmenter.getByText("😀 Creator", { exact: true }).waitFor();
+  assert.equal(await withoutSegmenter.locator(".sp-header-account .sp-avatar").textContent(), "😀");
+  await withoutSegmenter.close();
+  const page = await browser.newPage({
+    viewport: { width: 1440, height: 900 },
+  });
   page.setDefaultTimeout(5000);
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   let mode = "anonymous";
+  let role = session.role;
   let loginRequests = 0;
   let passwordRequests = 0;
   let releaseLogin;
@@ -34,7 +62,10 @@ try {
           contentType: "text/html",
           body: "<html>Unavailable</html>",
         });
-      return route.fulfill({ status: 200, json: { requestToken: "browser-test-token" } });
+      return route.fulfill({
+        status: 200,
+        json: { requestToken: "browser-test-token" },
+      });
     }
     if (path === "/api/v1/auth/session" && mode === "unavailable")
       return route.fulfill({ status: 503 });
@@ -42,7 +73,12 @@ try {
       return mode === "signed-in" || mode === "forced"
         ? route.fulfill({
             status: 200,
-            json: { ...session, mustChangePassword: mode === "forced" },
+            json: {
+              ...session,
+              role,
+              orgId: role === "Administrator" ? null : session.orgId,
+              mustChangePassword: mode === "forced",
+            },
           })
         : route.fulfill({ status: 401 });
     if (path === "/api/v1/auth/login") {
@@ -76,6 +112,18 @@ try {
     return route.fulfill({ status: 404 });
   });
 
+  await page.route("**/api/v1/projects", (route) =>
+    route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await page.route("**/api/v1/classes", (route) =>
+    route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await page.goto(origin + "/");
+  await page.getByRole("heading", { name: "Welcome back." }).waitFor();
+  assert.equal(await page.getByLabel("Username", { exact: true }).isVisible(), true);
+  assert.equal(await page.getByLabel("Password", { exact: true }).isVisible(), true);
+  assert.equal(await page.getByRole("heading", { name: "Spatia", exact: true }).count(), 0);
+
   mode = "unavailable";
   await page.goto(origin + "/login");
   await page
@@ -89,12 +137,16 @@ try {
     for (const path of ["/landing", "/login"]) {
       await page.goto(origin + path);
       await page
-        .getByRole("heading", { name: path === "/login" ? "Welcome back." : /Build immersive/i })
+        .getByRole("heading", {
+          name: path === "/login" ? "Welcome back." : /Build immersive/i,
+        })
         .waitFor();
       assert.equal(new URL(page.url()).pathname, path);
       await page.reload();
       await page
-        .getByRole("heading", { name: path === "/login" ? "Welcome back." : /Build immersive/i })
+        .getByRole("heading", {
+          name: path === "/login" ? "Welcome back." : /Build immersive/i,
+        })
         .waitFor();
       assert.ok(
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -223,33 +275,23 @@ try {
   assert.equal(passwordRequests, 0);
   await page.getByLabel("Confirm new password").fill("a different password");
   await page.getByRole("button", { name: "Change password" }).click();
-  await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
-  assert.equal(
-    await page
-      .getByRole("status")
-      .filter({ hasText: "Signed in as Test Teacher · Educator" })
-      .isVisible(),
-    true,
-  );
+  await page.waitForURL(`${origin}/home`);
+  assert.equal(await page.getByLabel("Username", { exact: true }).count(), 0);
   await page.reload();
-  await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
-  await page.getByRole("button", { name: "Log out" }).click();
+  await page.waitForURL(`${origin}/home`);
+  await page.getByRole("button", { name: "Log Out" }).click();
   await page.getByRole("heading", { name: "Welcome back." }).waitFor();
   await username.fill("teacher");
   await password.fill("incorrect password");
   await submit.click();
-  await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
-  assert.equal(
-    await page
-      .getByRole("status")
-      .filter({ hasText: "Signed in as Test Teacher · Educator" })
-      .isVisible(),
-    true,
-  );
+  await page.waitForURL(`${origin}/home`);
+  assert.equal(await page.getByLabel("Username", { exact: true }).count(), 0);
   // A publication link survives authentication and the mandatory password step.
   const publication = "/p/7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
   for (const role of ["Administrator", "Educator", "Creator"]) {
-    const visitorPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const visitorPage = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+    });
     let visitorSession = null;
     let forcePassword = role === "Creator";
     await visitorPage.route("**/api/v1/auth/**", async (route) => {
@@ -276,7 +318,10 @@ try {
       return route.fulfill({ status: 404 });
     });
     await visitorPage.route(`**${publication}`, (route) =>
-      route.fulfill({ contentType: "text/html", body: "<h1>Publication destination</h1>" }),
+      route.fulfill({
+        contentType: "text/html",
+        body: "<h1>Publication destination</h1>",
+      }),
     );
     await visitorPage.goto(`${origin}/login?returnTo=${encodeURIComponent(publication)}`);
     await visitorPage.getByLabel("Username", { exact: true }).fill("teacher");
@@ -297,38 +342,38 @@ try {
     await visitorPage.close();
   }
   for (const role of ["Educator", "Creator"]) {
-    const rolePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const rolePage = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+    });
     await rolePage.route("**/api/v1/auth/session", (route) =>
       route.fulfill({ json: { ...session, role } }),
     );
     await rolePage.route("**/home", (route) =>
-      route.fulfill({ contentType: "text/html", body: "<h1>Project home</h1>" }),
+      route.fulfill({
+        contentType: "text/html",
+        body: "<h1>Project home</h1>",
+      }),
     );
+    await rolePage.addInitScript(() => {
+      if (location.pathname !== "/login") return;
+      sessionStorage.removeItem("signed-in-flash");
+      new MutationObserver(() => {
+        if (
+          /Signed in as|Go to projects|Opening your projects|Opening your dashboard/.test(
+            document.body?.innerText ?? "",
+          )
+        )
+          sessionStorage.setItem("signed-in-flash", "1");
+      }).observe(document, { childList: true, subtree: true });
+    });
     await rolePage.goto(`${origin}/login`);
-    const projects = rolePage.getByRole("link", { name: "Go to projects" });
-    for (const state of ["default", "hover"]) {
-      if (state === "hover") await projects.hover();
-      const contrast = await projects.evaluate((link) => {
-        const { color, backgroundColor } = getComputedStyle(link);
-        const luminance = (value) => {
-          const [red, green, blue] = value
-            .match(/\d+/g)
-            .slice(0, 3)
-            .map((channel) => {
-              const srgb = Number(channel) / 255;
-              return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
-            });
-          return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-        };
-        const levels = [color, backgroundColor].map(luminance).sort((a, b) => a - b);
-        return (levels[1] + 0.05) / (levels[0] + 0.05);
-      });
-      assert.ok(contrast >= 4.5, `Go to projects ${state} contrast is ${contrast.toFixed(2)}:1`);
-    }
-    await projects.focus();
-    await rolePage.keyboard.press("Enter");
     await rolePage.waitForURL(`${origin}/home`);
     await rolePage.getByRole("heading", { name: "Project home" }).waitFor();
+    assert.equal(
+      await rolePage.evaluate(() => sessionStorage.getItem("signed-in-flash")),
+      null,
+      "Role redirects must not paint the old signed-in page",
+    );
     await rolePage.close();
   }
   for (const query of [
@@ -338,8 +383,8 @@ try {
     `returnTo=${encodeURIComponent(publication)}&returnTo=${encodeURIComponent(publication)}`,
   ]) {
     await page.goto(`${origin}/login?${query}`);
-    await page.getByRole("heading", { name: /You.re signed in/ }).waitFor();
-    assert.equal(new URL(page.url()).pathname, "/login");
+    await page.waitForURL(`${origin}/home`);
+    assert.equal(new URL(page.url()).pathname, "/home");
   }
   mode = "reject";
   await page.goto(`${origin}/login?returnTo=${encodeURIComponent(publication)}`);
@@ -350,7 +395,10 @@ try {
   assert.equal(new URL(page.url()).pathname, "/login");
   mode = "signed-in";
   await page.route(`**${publication}`, (route) =>
-    route.fulfill({ contentType: "text/html", body: "<h1>Publication destination</h1>" }),
+    route.fulfill({
+      contentType: "text/html",
+      body: "<h1>Publication destination</h1>",
+    }),
   );
   await page.goto(`${origin}/login?returnTo=${encodeURIComponent(publication)}`);
   await page.waitForURL(`${origin}${publication}`);
@@ -371,29 +419,65 @@ try {
       return route.fulfill({ status: 200, json: session });
     }
     if (path === "/api/v1/auth/csrf")
-      return route.fulfill({ status: 200, json: { requestToken: "race-token" } });
+      return route.fulfill({
+        status: 200,
+        json: { requestToken: "race-token" },
+      });
     if (path === "/api/v1/auth/login") {
       raceSignedIn = true;
       return route.fulfill({ status: 204 });
     }
     return route.fulfill({ status: 404 });
   });
+  await racePage.route("**/home", (route) =>
+    route.fulfill({ contentType: "text/html", body: "<h1>Project home</h1>" }),
+  );
   await racePage.goto(origin + "/login");
   await racePage.getByLabel("Username").fill("teacher");
   await racePage.getByLabel("Password", { exact: true }).fill("incorrect password");
   await racePage.getByRole("button", { name: "Log in" }).click();
-  await racePage.getByRole("heading", { name: /You.re signed in/ }).waitFor();
   const initialResponse = racePage.waitForResponse(
     (response) => response.url().endsWith("/api/v1/auth/session") && response.status() === 401,
   );
   releaseInitial();
   await initialResponse;
-  assert.equal(await racePage.getByRole("heading", { name: /You.re signed in/ }).isVisible(), true);
+  await racePage.waitForURL(`${origin}/home`);
+  await racePage.getByRole("heading", { name: "Project home" }).waitFor();
   await racePage.close();
-  await page.goto(origin + "/");
-  await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
-  // Allow the same renderer/model startup time as the editor browser suites.
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor({ timeout: 30000 });
+  for (const destination of ["/home", "/admin/dashboard"]) {
+    await page.route(`**${destination}`, (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: "<h1>Account destination</h1>",
+      }),
+    );
+  }
+  for (const [accountRole, authenticated, forcePassword] of [
+    ["Educator", false, false],
+    ["Creator", true, false],
+    ["Administrator", true, false],
+    ["Creator", false, true],
+  ]) {
+    role = accountRole;
+    mode = authenticated ? "signed-in" : forcePassword ? "next-forced" : "anonymous";
+    const destination = role === "Administrator" ? "/admin/dashboard" : "/home";
+    await page.goto(origin + "/login");
+    if (!authenticated) {
+      await page.getByLabel("Username", { exact: true }).fill("teacher");
+      await page.getByLabel("Password", { exact: true }).fill("incorrect password");
+      await page.getByRole("button", { name: "Log in" }).click();
+    }
+    if (forcePassword) {
+      await page.getByRole("heading", { name: "Change your password." }).waitFor();
+      assert.notEqual(new URL(page.url()).pathname, destination);
+      await page.getByLabel("Current password").fill("incorrect password");
+      await page.getByLabel("New password", { exact: true }).fill("a different password");
+      await page.getByLabel("Confirm new password").fill("a different password");
+      await page.getByRole("button", { name: "Change password" }).click();
+    }
+    await page.waitForURL(`${origin}${destination}`);
+    await page.getByRole("heading", { name: "Account destination" }).waitFor();
+  }
   assert.deepEqual(errors, []);
   console.log(
     "Entry routes, responsive layout, navigation and rejected/unavailable sign-in checks passed.",

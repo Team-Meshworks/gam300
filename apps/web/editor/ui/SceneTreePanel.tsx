@@ -1,4 +1,4 @@
-import { isStarterRoomModel, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { isRoomModel, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { displayPanelTools, displayCaseTools } from "./display-tools";
 import { useId, useRef, useState, type DragEvent } from "react";
 import type { ContentObject, ProjectGroup } from "../../shared/project/project-content";
@@ -108,7 +108,7 @@ export function SceneTreePanel({
       const number =
         objects.slice(0, index).filter((entry) => entry.assetId === object.assetId).length +
         1 +
-        (room && isStarterRoomModel(assets, object.assetId) ? 1 : 0);
+        (room && isRoomModel(assets, object.assetId) ? 1 : 0);
       return { ...object, name: number === 1 ? label : `${label} ${number}` };
     }),
   ];
@@ -125,7 +125,7 @@ export function SceneTreePanel({
     const parent =
       parentOf(node) ??
       // Furnishings stay at the visible tree root when the initial room no longer exists
-      (room && "assetId" in node && !isStarterRoomModel(assets, node.assetId)
+      (room && "assetId" in node && !isRoomModel(assets, node.assetId)
         ? rootId.toLowerCase()
         : null);
     const siblings = children.get(parent) ?? [];
@@ -416,7 +416,7 @@ export function SceneTreePanel({
   return (
     <section ref={panel} className="editor-panel" aria-labelledby="objects-heading">
       <h2 id="objects-heading">
-        <Icon name="info" />
+        <Icon name="info" title="Select objects or drag them to change their nesting" />
         Scene Tree <span className="panel-count">{count}</span>
       </h2>
       {!room && objects.length === 0 && groups.length === 0 ? (

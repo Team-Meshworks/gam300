@@ -91,6 +91,8 @@ test("HTTP allowlist preserves cache headers and blocks unrelated origins and re
       "Cache-Control": "public, max-age=600",
       ETag: '"unchanged"',
       Vary: "Accept-Encoding",
+      Connection: "close, x-upstream-only",
+      "X-Upstream-Only": "hop metadata",
     });
     res.end("cached response");
   });
@@ -108,6 +110,8 @@ test("HTTP allowlist preserves cache headers and blocks unrelated origins and re
   assert.equal(response.headers["cache-control"], "public, max-age=600");
   assert.equal(response.headers.etag, '"unchanged"');
   assert.equal(response.headers.vary, "Accept-Encoding");
+  assert.equal(response.headers["x-upstream-only"], undefined);
+  assert.notEqual(response.headers.connection, "close");
   assert.equal(response.body, "cached response");
   assert.equal(
     (await request(proxy.url, `${origin}/cached`, { "if-none-match": '"unchanged"' })).status,

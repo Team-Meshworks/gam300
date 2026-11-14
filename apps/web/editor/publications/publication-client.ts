@@ -1,5 +1,28 @@
 import { isId, isRecord } from "../home/workspace-api";
 
+// These checks run only after the server looks up the publication ID for replay
+const newEditionProblems = {
+  revision_conflict:
+    "The saved project has changed. Refresh and confirm the latest revision before publishing.",
+  approval_required:
+    "This class project needs approval for the current saved revision before it can be published.",
+  publication_assets_unavailable: "The saved project's assets are not available for publication.",
+  invalid_document: "The saved project is not valid for publication.",
+  unsupported_publication_runtime: "This project cannot be published by the current runtime.",
+};
+export const publicationProblems = {
+  ...newEditionProblems,
+  publication_id_conflict:
+    "This publication request conflicts with an existing one. Refresh before continuing.",
+};
+
+export function isDefinitivePublicationRejection(
+  code: string | undefined,
+  retry: boolean,
+): boolean {
+  return !retry || (code !== undefined && Object.hasOwn(newEditionProblems, code));
+}
+
 export interface PublicationRequest {
   publicationId: string;
   confirmedRevision: number;

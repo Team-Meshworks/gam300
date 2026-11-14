@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import {
   assignmentChoices,
+  assignmentSession,
   enrolledStudents,
   readAssignment,
   submitAssignment,
@@ -23,7 +24,12 @@ const pending: PendingAssignment = {
 };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 const session = () =>
-  json({ userId: "teacher", displayName: "Teacher", role: "Educator", orgId: "school" });
+  json({
+    userId: "teacher",
+    displayName: "Teacher",
+    role: "Educator",
+    orgId: "school",
+  });
 const csrf = () => json({ requestToken: "token" });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -35,17 +41,39 @@ it("reads named assignment projects and rejects malformed identity labels", asyn
     description: "Description",
     instructions: "Instructions",
     dueAtUnixSeconds: 2_000_000_000,
-    projects: [{ studentId: "alice", projectId: "a", studentName: "Alice (alice)" }],
+    projects: [
+      {
+        studentId: "alice",
+        projectId: "a",
+        studentName: "Alice (alice)",
+        isPublic: true,
+      },
+    ],
   };
   vi.stubGlobal(
     "fetch",
     vi.fn(async () => json(details)),
   );
   expect(await readAssignment("class", "request")).toEqual(details);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      json({
+        ...details,
+        projects: [{ ...details.projects[0], isPublic: "yes" }],
+      }),
+    ),
+  );
+  await expect(readAssignment("class", "request")).rejects.toThrow("unavailable");
   for (const studentName of [42, "", "  "]) {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => json({ ...details, projects: [{ ...details.projects[0], studentName }] })),
+      vi.fn(async () =>
+        json({
+          ...details,
+          projects: [{ ...details.projects[0], studentName }],
+        }),
+      ),
     );
     await expect(readAssignment("class", "request")).rejects.toThrow("unavailable");
   }
@@ -62,7 +90,9 @@ it.each([403, 404])(
         return json({}, status);
       }),
     );
-    expect(await submitAssignment(pending, false)).toMatchObject({ kind: "rejected" });
+    expect(await submitAssignment(pending, false)).toMatchObject({
+      kind: "rejected",
+    });
     expect(await submitAssignment(pending, true)).toEqual({ kind: "unknown" });
   },
 );
@@ -76,7 +106,9 @@ it("allows correction after an initial oversized request but preserves an uncert
       return json({}, 413);
     }),
   );
-  expect(await submitAssignment(pending, false)).toMatchObject({ kind: "rejected" });
+  expect(await submitAssignment(pending, false)).toMatchObject({
+    kind: "rejected",
+  });
   expect(await submitAssignment(pending, true)).toEqual({ kind: "unknown" });
 });
 
@@ -138,11 +170,20 @@ it("allows a known first rejection to be corrected and refuses another account",
     .mockResolvedValueOnce(session())
     .mockResolvedValueOnce(json({}, 422))
     .mockResolvedValueOnce(
-      json({ userId: "other", displayName: "Other", role: "Educator", orgId: "school" }),
+      json({
+        userId: "other",
+        displayName: "Other",
+        role: "Educator",
+        orgId: "school",
+      }),
     );
   vi.stubGlobal("fetch", fetchMock);
-  expect(await submitAssignment(pending, false)).toMatchObject({ kind: "rejected" });
-  expect(await submitAssignment(pending, false)).toMatchObject({ kind: "rejected" });
+  expect(await submitAssignment(pending, false)).toMatchObject({
+    kind: "rejected",
+  });
+  expect(await submitAssignment(pending, false)).toMatchObject({
+    kind: "rejected",
+  });
   expect(fetchMock).toHaveBeenCalledTimes(5);
 });
 
@@ -152,7 +193,12 @@ it("does not submit an assignment after the account switches during CSRF acquisi
     .mockResolvedValueOnce(session())
     .mockResolvedValueOnce(csrf())
     .mockResolvedValueOnce(
-      json({ userId: "other", displayName: "Other", role: "Educator", orgId: "school" }),
+      json({
+        userId: "other",
+        displayName: "Other",
+        role: "Educator",
+        orgId: "school",
+      }),
     );
   vi.stubGlobal("fetch", fetchMock);
   expect((await submitAssignment(pending, false)).kind).toBe("rejected");
@@ -166,22 +212,42 @@ it("uses authorized paginated choices and only enrolled students", async () => {
       if (path.startsWith("/api/v1/classes/class/eligible-students"))
         return json({
           items: [
-            { userId: "a", userName: "Alice", enrolled: true },
+            {
+              userId: "a",
+              userName: "alice123",
+              displayName: "Alice",
+              enrolled: true,
+            },
             { userId: "b", userName: "Bob", enrolled: false },
           ],
           nextCursor: null,
         });
       if (path.startsWith("/api/v1/classes"))
-        return json({ items: [{ id: "class", name: "Class" }], nextCursor: null });
+        return json({
+          items: [{ id: "class", name: "Class" }],
+          nextCursor: null,
+        });
       if (path.includes("cursor=next"))
         return json({
           items: [
-            { projectId: "two", title: "Two", revision: 1, permissions: { canManage: true } },
+            {
+              projectId: "two",
+              title: "Two",
+              revision: 1,
+              permissions: { canManage: true },
+            },
           ],
           nextCursor: null,
         });
       return json({
-        items: [{ projectId: "one", title: "One", revision: 0, permissions: { canManage: false } }],
+        items: [
+          {
+            projectId: "one",
+            title: "One",
+            revision: 0,
+            permissions: { canManage: false },
+          },
+        ],
         nextCursor: "next",
       });
     }),
@@ -191,6 +257,34 @@ it("uses authorized paginated choices and only enrolled students", async () => {
     projects: [{ projectId: "two", title: "Two", revision: 1 }],
   });
   expect(await enrolledStudents("class")).toEqual([
-    { id: "a", name: "Alice", account: "Alice", classIds: ["class"] },
+    { id: "a", name: "Alice", account: "alice123", classIds: ["class"] },
   ]);
+});
+
+it("uses the authoritative login name independently from the display name", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      json({
+        userId: "teacher",
+        displayName: "Ms Tan",
+        userName: "teacher.tan",
+        role: "Educator",
+        orgId: "school",
+      }),
+    ),
+  );
+  expect((await assignmentSession()).userName).toBe("teacher.tan");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      json({
+        userId: "teacher",
+        displayName: "Ms Tan",
+        role: "Educator",
+        orgId: "school",
+      }),
+    ),
+  );
+  expect((await assignmentSession()).userName).toBeUndefined();
 });

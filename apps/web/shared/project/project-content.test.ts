@@ -20,6 +20,31 @@ const assets = new Map(Object.entries(manifest.assets));
 const cases = manifest.cases as FormatCase[];
 
 describe("shared browser/server project-format fixtures", () => {
+  it("round-trips an empty project without requiring an approved environment", () => {
+    const scene = m2.scenes[0]!;
+    const input = {
+      ...m2,
+      scenes: [
+        {
+          ...scene,
+          environmentAssetId: null,
+          objects: [],
+          groups: [],
+          zones: [],
+          viewpoints: [],
+          rules: [],
+          hotspots: [],
+          interactions: [],
+          audio: [],
+        },
+      ],
+    };
+    const saved = serializeProject(input, new Map());
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) throw new Error(saved.error.message);
+    expect(deserializeProject(saved.value, new Map())).toEqual({ ok: true, value: input });
+  });
+
   it.each(manifest.rawCases)("raw JSON: $name", (test) => {
     const result = deserializeProject(test.json, assets);
     expect(result.ok).toBe(test.valid);

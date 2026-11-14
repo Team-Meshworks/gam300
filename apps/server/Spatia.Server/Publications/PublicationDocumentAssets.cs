@@ -20,7 +20,9 @@ internal static class PublicationDocumentAssets
             case ContentProject { SchemaVersion: 2 } content:
                 foreach (var scene in content.Scenes)
                 {
-                    ids.Add(scene.EnvironmentAssetId);
+                    if (scene.EnvironmentAssetId is { } environmentId) { ids.Add(environmentId); }
+                    // Retain scene audio alongside models so its exact bytes survive library retirement
+                    foreach (var audio in (scene.Audio ?? []).OfType<AudioComponent>()) { ids.Add(audio.AssetId); }
                     foreach (var item in scene.Objects)
                     {
                         ids.Add(item.AssetId);
