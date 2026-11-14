@@ -1,3 +1,6 @@
+import { createBulkImport, ImportRejected, ImportRequestError } from "./bulk-import";
+import type { NewAccount } from "./account-csv";
+
 export interface ManagedAccount {
   userId: string;
   displayName: string;
@@ -85,6 +88,17 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
           "The save could not be confirmed. Refresh the directory.",
         );
       const problem: unknown = await response.json().catch(() => null);
+      if (
+        record(problem) &&
+        typeof problem.code === "string" &&
+        [
+          "bulk_import_not_found",
+          "bulk_import_abandoned",
+          "bulk_import_committed",
+          "bulk_import_conflict",
+        ].includes(problem.code)
+      )
+        throw new ImportRequestError(problem.code);
       const messages: Record<string, string> = {
         organization_confirmation_required:
           "Enter the organisation name exactly as shown to confirm deletion.",
@@ -104,7 +118,7 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
           "This account changed. Close this window and refresh before trying again.",
         invalid_account_input: "Check the account details. Passwords need 12–128 characters.",
       };
-      throw new Error(
+      const message =
         response.status === 401
           ? "Your session has expired. Sign in again."
           : response.status === 403
@@ -112,9 +126,24 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
             : response.status === 429
               ? "Too many changes. Please wait before trying again."
               : (record(problem) && typeof problem.code === "string" && messages[problem.code]) ||
-                "The directory request failed. Please try again.",
-      );
+                "The directory request failed. Please try again.";
+      if (
+        init.method === "PUT" &&
+        path.includes("/bulk-imports/") &&
+        [400, 401, 403, 404, 413, 422, 429].includes(response.status)
+      )
+        throw new ImportRejected(message);
+      throw new Error(message);
     }
+    if (
+      init.method === "POST" &&
+      path.includes("/bulk-imports/") &&
+      (path.endsWith("/acknowledge") || path.endsWith("/abandon")) &&
+      response.status !== 204
+    )
+      throw new DirectoryWriteUnconfirmed(
+        "The import confirmation could not be verified. Check the same receipt.",
+      );
     if (response.status === 204) return null;
     try {
       return await response.json();
@@ -130,9 +159,19 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
     }
   }
   async function write(path: string, method: string, body: object, timeout = 15000) {
-    const csrf = await send("/api/v1/auth/csrf");
-    if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken)
-      throw new Error("Your session could not be verified. Sign in again.");
+    let csrf: unknown;
+    try {
+      csrf = await send("/api/v1/auth/csrf");
+      if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken)
+        throw new Error("Your session could not be verified. Sign in again.");
+    } catch (cause) {
+      if (method === "PUT" && path.includes("/bulk-imports/"))
+        throw new ImportRejected(
+          "The account import could not be sent. Check your session and try again.",
+          { cause },
+        );
+      throw cause;
+    }
     return send(
       path,
       {
@@ -240,7 +279,8 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
         initialPassword: string;
       },
     ) => account(await write("/api/v1/admin/users", "POST", { ...values, orgId })),
-    createBulk: async (orgId: string, values: import("./AccountDialog").NewAccount[]) => {
+    bulkImport: (orgId: string) => createBulkImport(accountId ?? "", orgId, write, send),
+    createBulk: async (orgId: string, values: NewAccount[]) => {
       const result = await write(
         "/api/v1/admin/users/bulk",
         "POST",

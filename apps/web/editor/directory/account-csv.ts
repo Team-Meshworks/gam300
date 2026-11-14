@@ -1,4 +1,9 @@
-import type { NewAccount } from "./AccountDialog";
+export type NewAccount = {
+  displayName: string;
+  userName: string;
+  role: "Creator" | "Educator";
+  initialPassword: string;
+};
 
 function parseRows(text: string, separator: string): string[][] {
   const rows: string[][] = [];

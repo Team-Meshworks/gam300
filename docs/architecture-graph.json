@@ -353,8 +353,8 @@
     "editor/admin/AdminDashboard.tsx": "78eb16b9b03e7bfa331bdca99a1e3674f4b96c110797d143cd7508ab4973d6a6",
     "editor/admin/ProjectModeration.tsx": "eed1f0d62b8f35c9e319d9c23a4f970d90acb0f59ac1c3aba82fbb5588226036",
     "editor/admin/ProjectProgress.tsx": "359f0f2e3c2cb7e9824f2f368376b76bc566cf48d01282b95db1d6924b9e5b67",
-    "editor/admin/dashboard-client.test.ts": "f7fa341c21e6d137b0e82e4ec0d51323318c24557f0f96c7a8cce7f339ff7113",
-    "editor/admin/dashboard-client.ts": "fb9354d58ffdcdfc4435aca6d900ff737c04480fd20b4d45394c2b46f5323c5c",
+    "editor/admin/dashboard-client.test.ts": "e01eb9df14a12ac3df43c1a5433f121387e38096e6683e9b88585429ddaea1b9",
+    "editor/admin/dashboard-client.ts": "2959312d5a9803d3f702cb21c2bd67eb4e6b316ed37aa412b8b2fff9d4544c15",
     "editor/asset-administration/AssetAdministration.tsx": "4c04ca7bca55c51dad8292e8f699e33489079732b9e76b134f6b68525e1fbe6b",
     "editor/asset-administration/AssetSelect.tsx": "51d5fdde1515e02d1310b46ce964d34ccd6d574c074dc1698d42c00fc8ca1c49",
     "editor/asset-administration/asset-administration-service.test.ts": "d7cd06e7e91f3ba1030ba7c8ebf23d15164a19fa8ce655b7ad415c8b33dbbd91",
@@ -369,15 +369,18 @@
     "editor/command-history.ts": "e243335582ab03da9d131bd80edef7b908e3eb0a751d6ebfa7deb77750fc54ad",
     "editor/controls/fpsControls.test.ts": "a33b3f7e191f730ee031973ebad3d5bc29bd46b613365ad7e5054af048529769",
     "editor/controls/fpsControls.ts": "8ddbf7301f9a3cc30a5ab2a309c4b5b7e4aab3652a2a9709113bfc44ddddc714",
-    "editor/directory/AccountDialog.tsx": "740bd4ac4471823aeb71c5369d530bd9e359fdbdacb69e41baa4c9e9cde75dfa",
-    "editor/directory/AccountDirectoryPage.tsx": "ffdda7f8a0148b896803a3e83ee5d1c363504342728b0d1b4497ea2d5c6f8e87",
+    "editor/directory/AccountDialog.tsx": "622471916b5d5c4bd2c3c55b6c341370c7d189295210115a46250d0dc1c6ecee",
+    "editor/directory/AccountDirectoryPage.tsx": "940c76eae648a5db040ef3608f415b0eba768500e81726f9827644475fc5e852",
     "editor/directory/AccountList.tsx": "199756efa8cf9f2e48dadf7bb50ff292b45fda79c0edb5b54c2ba51ce0b471eb",
+    "editor/directory/BulkImportHandoff.tsx": "647d5732ae3bf94bea8908ede0f96d585a0de82a76f8e149a3268ba79822377b",
     "editor/directory/DeleteOrganizationDialog.tsx": "7688e93f2bd3aaf4259ea1bb135e17b84c50904b8446dfff5ecb96ccbf527aad",
     "editor/directory/OrganizationDirectory.tsx": "28373860734ea431652c431f40edfff6763e710f91cf3e9d22598b917d3f861e",
     "editor/directory/account-csv.test.ts": "3c8436326f87517b6795a8b17308d8a2ff95b824f42f6ac565d262eab3cd851f",
-    "editor/directory/account-csv.ts": "0ecb3478f31edd3a5221cf01a4ddcc91d37d0290fd1206c84a09aed61d906773",
+    "editor/directory/account-csv.ts": "84d8f600da7ac804a1f86c80c25cfe7f872bcd3a4dc439bdf3de1c6e5f8576df",
+    "editor/directory/bulk-import.test.ts": "a512d64046eac5c230f756b67fa5121f5cbff81d0ae093317b91ebbd4e22f637",
+    "editor/directory/bulk-import.ts": "fd23b8d794e8e1ffeda9a1e191cbc723588dd5e1bfb8b1062e52817d7ef8c34c",
     "editor/directory/directory-client.test.ts": "2892ff13909c99f68e463d064fca78ea38eaa021f092a38d740d520d6aec0a8f",
-    "editor/directory/directory-client.ts": "dbdffb55317968127e76ed84157748564d4fa0d28b493d3e783212b9fb04a1e9",
+    "editor/directory/directory-client.ts": "008da891c52aba2c094107101afa9b1c6be6cf3c3a0e832ceb37485ba214089b",
     "editor/directory/directory.ts": "3d0339f84cc9b83b12a4fd894a4c1ac0c1fab3d97bea25854a9cdd5ed7c9817a",
     "editor/display-content.test.ts": "7d672d0d38f3ec4dbd3e94d4d90ff29e4d08ad6e932fa96103a4ab19cad950ea",
     "editor/display-position.ts": "0b17fa58f2032cf143efdeb0e1e424f712024222e389c41963bc5bfe4b04e625",
@@ -676,8 +679,8 @@
     "shared/ui/WorkspaceShell.tsx": "7c500722d29bef69a59fb0950e0ae975d71578040a52aec4f25cb3b690aabb52",
     "shared/ui/useModal.ts": "0b01a261b80e8eb6286f8162a21f891719a73e67bfda92df35b51db77752e631",
     "tests/account-dev-server.check.mjs": "abb9e1d08d734755d306af51ebf319274efc15a2da1fccdb1dfbd9da843530f0",
-    "tests/account-directory-real-api.check.mjs": "81496bb1410ede0926fd67223179ec2b8d809927b9c1ecf44fbd2603b241fa60",
-    "tests/account-directory.check.mjs": "7d386e38b99e7db3a38fbcbbb58aff0b1da10458af09079eb9ff2af2b4e1f19e",
+    "tests/account-directory-real-api.check.mjs": "ac2fb9af28a7567887aabb79ab32b80521ea1acb21bd5467bf597d9dd7a79b6d",
+    "tests/account-directory.check.mjs": "5c52d3d6f716487ee76b5a6982847739ef4f202cc225ae9f867d99e1cd3b46eb",
     "tests/account-header.check.mjs": "225faf08edc09ee6e0460fc521fbe4820d943cbbd14fe6252487c2f2177383b1",
     "tests/admin-classes-navigation.check.mjs": "ee116e1bf01419c5b6e975112247d9453f25314510b8af87e128e0ffafef5050",
     "tests/admin-dashboard.check.mjs": "31917f38044e64bf27f03c2d7985d28dcd8623fd1771a5ff53f0cf2f7df1e23d",
@@ -685,12 +688,12 @@
     "tests/admin-navigation-suite.mjs": "07678393e0e4051d1eaaae768cf15e0023b52fcc0061645eb1efad3d9eca81c6",
     "tests/admin-project-grants-navigation.check.mjs": "93a9a9aed680f1b6779d7ce77572ed6c17255ebb5311dfde4eec31ba55871a40",
     "tests/asset-administration-fixture.tsx": "f384b003f24896fe9285d3fd18e1f87a7f58bc9969b005003fb03b999946a162",
-    "tests/asset-administration.check.mjs": "85234b4a27656d63fe281f54c1034810b3b6140852ca8f07dbad6e09e1c759f4",
+    "tests/asset-administration.check.mjs": "8c0b4ee80df3f0bd6816a93bce81f0927de29bf9f5b2dbfab57ec0e356545835",
     "tests/assignment-real-api.check.mjs": "8b5a21dc519019b034f7b619cd989271e507ecc15603221eef5bf8f9ad66307e",
     "tests/assignment-screen.check.mjs": "418bf5e75184f4c1b8f0bac80f13e349681a7d5dcceead314fff0f46eee23986",
     "tests/audio-library.check.mjs": "85ff2ab335a72478047b8b51ddc9a89f241b2421542239b2d12d9c26d3cc431b",
     "tests/authoring-project-fixture.mjs": "094629ea6295b188cac2cff34f19411ef10f31c452bb73bbe754b49945170791",
-    "tests/blank-project.check.mjs": "57fb421ef1158475e4d3bce5d441f66dc107c543bbab7f8ab0f15cd4fe15c6a2",
+    "tests/blank-project.check.mjs": "4c9ce046995d0718d634b1fb016589a3f29eff7dd29759be841abfa374c3eb78",
     "tests/browser-network.mjs": "5dd46da24c2f1e864cbb1bf4fb7e9a30827de9ec769c319adf05d17dcb1863b4",
     "tests/browser-network.test.mjs": "8b2f9cc45bb0d540f1e803a5494b9db2dd30a643fccc13b1f146bc7ffd7bf618",
     "tests/browser-security.check.mjs": "4ebdb00d3dcffffe44861b82d254f58a1975862d191feb84061b6d78a69f09ae",
@@ -765,7 +768,7 @@
     "tests/teacher-details-flow.check.mjs": "48f5e7ca36268947fa30fafb32a58577d833b6bcebafcb417be5a6863b9aed75",
     "tests/teacher-editor-actions.check.mjs": "1644068614cbe97e73aa4a8bb9c2df2823a8bd5ffbcf655732d1a70415f5abfd",
     "tests/teacher-review-dialog.check.mjs": "c0cbef006da3ca6b23882fc6ab5d5e43406725ba38106e99c458bb798337a3f9",
-    "tests/teacher-review-refresh.check.mjs": "87407b284ddf4726de3ef503f5ab4ed136ad1a12676b29f5efdec0a4cbd53824",
+    "tests/teacher-review-refresh.check.mjs": "7898fddf820dcb6752ad37d1e7f26aa9da83e788ac0dc1214bf0e168a526a6a9",
     "tests/teacher-roster-account-switch.check.mjs": "da479480d76594324358ecd12a03477d875821d181feffcdb3dd2e0ed4fd2584",
     "tests/text-placement.check.mjs": "822ee3f12f90c3a693cb2ffc94f03c48a6820ed79137f8e90d59ad2108b15e77",
     "tests/ui-foundation.check.mjs": "d7ba03b1591b5973cc7103176961f5564a4082b4fd46a7d9e93d8d668c96b32c",
@@ -3012,7 +3015,16 @@
     },
     {
       "file": "editor/directory/AccountDialog.tsx",
-      "line": 9,
+      "line": 14,
+      "kind": "type",
+      "specifier": "./bulk-import",
+      "target": "editor/directory/bulk-import.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/AccountDialog.tsx",
+      "line": 16,
       "kind": "static",
       "specifier": "../../shared/ui/Avatar",
       "target": "shared/ui/Avatar.tsx",
@@ -3021,7 +3033,7 @@
     },
     {
       "file": "editor/directory/AccountDialog.tsx",
-      "line": 10,
+      "line": 17,
       "kind": "static",
       "specifier": "../../shared/ui/Button",
       "target": "shared/ui/Button.tsx",
@@ -3030,7 +3042,7 @@
     },
     {
       "file": "editor/directory/AccountDialog.tsx",
-      "line": 11,
+      "line": 18,
       "kind": "static",
       "specifier": "../../shared/ui/Dialog",
       "target": "shared/ui/Dialog.tsx",
@@ -3039,7 +3051,7 @@
     },
     {
       "file": "editor/directory/AccountDialog.tsx",
-      "line": 12,
+      "line": 19,
       "kind": "static",
       "specifier": "../../shared/ui/Select",
       "target": "shared/ui/Select.tsx",
@@ -3048,8 +3060,8 @@
     },
     {
       "file": "editor/directory/AccountDialog.tsx",
-      "line": 13,
-      "kind": "static",
+      "line": 20,
+      "kind": "type",
       "specifier": "./directory-client",
       "target": "editor/directory/directory-client.ts",
       "from": "editor",
@@ -3057,7 +3069,16 @@
     },
     {
       "file": "editor/directory/AccountDialog.tsx",
-      "line": 146,
+      "line": 21,
+      "kind": "static",
+      "specifier": "./BulkImportHandoff",
+      "target": "editor/directory/BulkImportHandoff.tsx",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/AccountDialog.tsx",
+      "line": 163,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -3114,6 +3135,24 @@
     {
       "file": "editor/directory/AccountDirectoryPage.tsx",
       "line": 6,
+      "kind": "type",
+      "specifier": "./bulk-import",
+      "target": "editor/directory/bulk-import.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/AccountDirectoryPage.tsx",
+      "line": 7,
+      "kind": "type",
+      "specifier": "./account-csv",
+      "target": "editor/directory/account-csv.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/AccountDirectoryPage.tsx",
+      "line": 8,
       "kind": "static",
       "specifier": "./OrganizationDirectory",
       "target": "editor/directory/OrganizationDirectory.tsx",
@@ -3122,7 +3161,7 @@
     },
     {
       "file": "editor/directory/AccountDirectoryPage.tsx",
-      "line": 7,
+      "line": 9,
       "kind": "static",
       "specifier": "./DeleteOrganizationDialog",
       "target": "editor/directory/DeleteOrganizationDialog.tsx",
@@ -3131,7 +3170,7 @@
     },
     {
       "file": "editor/directory/AccountDirectoryPage.tsx",
-      "line": 8,
+      "line": 10,
       "kind": "static",
       "specifier": "./directory-client",
       "target": "editor/directory/directory-client.ts",
@@ -3140,7 +3179,7 @@
     },
     {
       "file": "editor/directory/AccountDirectoryPage.tsx",
-      "line": 268,
+      "line": 313,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -3266,6 +3305,62 @@
     {
       "file": "editor/directory/AccountList.tsx",
       "line": 69,
+      "kind": "implicit-jsx",
+      "specifier": "react/jsx-runtime",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/directory/BulkImportHandoff.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "react",
+      "target": {
+        "package": "react"
+      },
+      "from": "editor"
+    },
+    {
+      "file": "editor/directory/BulkImportHandoff.tsx",
+      "line": 2,
+      "kind": "static",
+      "specifier": "../../shared/ui/Button",
+      "target": "shared/ui/Button.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/directory/BulkImportHandoff.tsx",
+      "line": 3,
+      "kind": "static",
+      "specifier": "../../shared/ui/Dialog",
+      "target": "shared/ui/Dialog.tsx",
+      "from": "editor",
+      "to": "ui-foundation"
+    },
+    {
+      "file": "editor/directory/BulkImportHandoff.tsx",
+      "line": 4,
+      "kind": "static",
+      "specifier": "./account-csv",
+      "target": "editor/directory/account-csv.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/BulkImportHandoff.tsx",
+      "line": 5,
+      "kind": "static",
+      "specifier": "./bulk-import",
+      "target": "editor/directory/bulk-import.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/BulkImportHandoff.tsx",
+      "line": 93,
       "kind": "implicit-jsx",
       "specifier": "react/jsx-runtime",
       "target": {
@@ -3520,11 +3615,39 @@
       "to": "editor"
     },
     {
-      "file": "editor/directory/account-csv.ts",
+      "file": "editor/directory/bulk-import.test.ts",
+      "line": 1,
+      "kind": "static",
+      "specifier": "vitest",
+      "target": {
+        "package": "vitest"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "editor/directory/bulk-import.test.ts",
+      "line": 2,
+      "kind": "static",
+      "specifier": "./directory-client",
+      "target": "editor/directory/directory-client.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/bulk-import.test.ts",
+      "line": 3,
+      "kind": "static",
+      "specifier": "./bulk-import",
+      "target": "editor/directory/bulk-import.ts",
+      "from": "checks",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/bulk-import.ts",
       "line": 1,
       "kind": "type",
-      "specifier": "./AccountDialog",
-      "target": "editor/directory/AccountDialog.tsx",
+      "specifier": "./account-csv",
+      "target": "editor/directory/account-csv.ts",
       "from": "editor",
       "to": "editor"
     },
@@ -3549,10 +3672,19 @@
     },
     {
       "file": "editor/directory/directory-client.ts",
-      "line": 243,
-      "kind": "type-query",
-      "specifier": "./AccountDialog",
-      "target": "editor/directory/AccountDialog.tsx",
+      "line": 1,
+      "kind": "static",
+      "specifier": "./bulk-import",
+      "target": "editor/directory/bulk-import.ts",
+      "from": "editor",
+      "to": "editor"
+    },
+    {
+      "file": "editor/directory/directory-client.ts",
+      "line": 2,
+      "kind": "type",
+      "specifier": "./account-csv",
+      "target": "editor/directory/account-csv.ts",
       "from": "editor",
       "to": "editor"
     },
@@ -16504,6 +16636,16 @@
       "line": 6,
       "kind": "static",
       "specifier": "node:fs",
+      "target": {
+        "package": "node:*"
+      },
+      "from": "checks"
+    },
+    {
+      "file": "tests/account-directory-real-api.check.mjs",
+      "line": 7,
+      "kind": "static",
+      "specifier": "node:fs/promises",
       "target": {
         "package": "node:*"
       },
