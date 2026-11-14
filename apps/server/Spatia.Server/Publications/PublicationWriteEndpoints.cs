@@ -67,6 +67,7 @@ internal static class PublicationWriteEndpoints
             catch (Exception error) when (error is ArgumentException or JsonException)
             { return ApiProblems.Create(context, 400, "invalid_publication", "Check the publication request."); }
             var result = await coordinator.PublishAsync(context, id, request, token);
+            if (result.RepresentationWithheld) { return CommittedWrite.WithoutRepresentation(context); }
             if (result.AccessFailure is { } accessFailure) { return ProjectHttpResults.FromAccessFailure(context, accessFailure); }
             if (result.Acknowledgement is { } ack)
             {

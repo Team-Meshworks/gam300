@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Spatia.Server.Hosting;
+using Spatia.Server.Persistence;
 using Spatia.Server.Security;
 
 namespace Spatia.Server.Accounts;
@@ -20,26 +22,32 @@ public static class AccountAdministrationEndpoints
             .RequireAuthorization(SecurityPolicies.Administrator)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPost("/users", async (ProvisionAccountRequest request, AccountAdministrationService administration,
-            HttpContext context, CancellationToken cancellationToken) =>
+            HttpContext context, ApplicationDbContext database, CurrentAccountResolver accounts, CancellationToken cancellationToken) =>
         {
+            await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+            // Serialize provisioning with account lifecycle changes and the last-administrator safeguard.
+            await database.Database.ExecuteSqlRawAsync("""LOCK TABLE "AspNetUserRoles" IN SHARE ROW EXCLUSIVE MODE""", cancellationToken);
+            if (await AccountDirectoryEndpoints.AuthorizeAsync(context, accounts, cancellationToken) is { } denied) { return denied; }
             var outcome = await administration.ProvisionAccountAsync(request, cancellationToken);
-            return outcome.Result.Succeeded
-                ? Results.Json(outcome.Account, statusCode: StatusCodes.Status201Created)
-                : ToProblem(context, outcome.Result);
+            if (!outcome.Result.Succeeded) { return ToProblem(context, outcome.Result); }
+            if (await AccountDirectoryEndpoints.AuthorizeAsync(context, accounts, cancellationToken) is { } changed) { return changed; }
+            return await AccountDirectoryEndpoints.CompleteAsync(context, transaction,
+                Results.Created($"{ApiV1Endpoints.Prefix}/admin/users/{outcome.Account!.UserId:D}", outcome.Account), cancellationToken);
         });
-        group.MapPost("/users/bulk", async (ProvisionAccountRequest[] requests, AccountAdministrationService administration,
+        group.MapPost("/users/bulk", AccountDirectoryEndpoints.LegacyBulkImportAsync);
+        group.MapPost("/users/{id:guid}/password", async (Guid id, ResetAccountPasswordRequest request,
+            AccountAdministrationService administration, ApplicationDbContext database, CurrentAccountResolver accounts,
             HttpContext context, CancellationToken cancellationToken) =>
         {
-            var outcome = await administration.ProvisionAccountsAsync(requests, cancellationToken);
-            return outcome.Result.Succeeded
-                ? Results.Json(outcome.Accounts, statusCode: outcome.Accounts!.Count > 0 ? StatusCodes.Status201Created : StatusCodes.Status200OK)
-                : ToProblem(context, outcome.Result);
-        });
-        group.MapPost("/users/{id:guid}/password", async (Guid id, ResetAccountPasswordRequest request,
-            AccountAdministrationService administration, HttpContext context, CancellationToken cancellationToken) =>
-        {
+            await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+            await database.Database.ExecuteSqlRawAsync("""LOCK TABLE "AspNetUserRoles" IN SHARE MODE""", cancellationToken);
+            if (await AccountDirectoryEndpoints.AuthorizeAsync(context, accounts, cancellationToken) is { } denied) { return denied; }
             var outcome = await administration.ResetPasswordAsync(id, request, cancellationToken);
-            return outcome.Succeeded ? Results.NoContent() : ToProblem(context, outcome);
+            if (!outcome.Succeeded) { return ToProblem(context, outcome); }
+            // A self-reset changes this session's stamp, so a second stamp check would reject its own write.
+            if (id != context.Features.Get<ValidatedAccountSession>()!.UserId
+                && await AccountDirectoryEndpoints.AuthorizeAsync(context, accounts, cancellationToken) is { } changed) { return changed; }
+            return await AccountDirectoryEndpoints.CompleteAsync(context, transaction, Results.NoContent(), cancellationToken);
         });
         return endpoints;
     }

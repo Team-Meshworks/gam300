@@ -48,6 +48,7 @@ const bridge = createBridge((incoming, outgoing) => {
           committed({
             status: response.statusCode,
             operation: response.headers["x-spatia-operation-id"],
+            preference: response.headers["preference-applied"],
           }),
         );
       } else {
@@ -146,7 +147,8 @@ try {
   assert.ok(reconciliations > 0, "The original removal is reconciled before another write");
   await writeFile(join(sync, "release"), "release");
   const result = await completed;
-  assert.equal(result.status, 200);
+  assert.equal(result.status, 201);
+  assert.equal(result.preference, "spatia-created-status");
   assert.equal(result.operation, operationId);
   await page.reload();
   await page.getByRole("button", { name: /^Deleted \(/ }).click();

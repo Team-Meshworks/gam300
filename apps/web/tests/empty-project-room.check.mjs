@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
+import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 
 const fixture = JSON.parse(
   readFileSync(new URL("../shared/project/fixtures/m2-project.json", import.meta.url)),
@@ -52,9 +53,11 @@ try {
     };
     const context = await browser.newContext({ viewport: { width: 1440, height: 1024 } });
     const errors = [];
+    const recovery = creationRecoveryFixture();
     const api = async (route) => {
       const request = route.request();
       const path = new URL(request.url()).pathname;
+      if (await recovery.handle(route, "00000000-0000-4000-8000-000000000001")) return;
       const json = (status, body) => route.fulfill({ status, json: body });
       if (path === "/api/v1/auth/session")
         return json(200, {
@@ -70,13 +73,23 @@ try {
       if (path === "/api/v1/assets") return json(200, [asset]);
       if (path === "/api/v1/projects") {
         if (request.method() === "GET") return json(200, { items: [], nextCursor: null });
-        assert.deepEqual(request.postDataJSON(), { title: `Empty ${method}` });
-        return json(201, {
-          projectId: fixture.projectId,
-          revision: 0,
-          updatedAt: "2026-11-05T00:00:00Z",
-          archived: false,
+        const body = request.postDataJSON();
+        assert.match(body.operationId, /^[0-9a-f-]{36}$/);
+        assert.equal(request.headers()["x-spatia-account"], "00000000-0000-4000-8000-000000000001");
+        assert.deepEqual(body, {
+          title: `Empty ${method}`,
+          operationId: body.operationId,
+          creationGuard: { purpose: "project", previousOperationId: null },
         });
+        return json(
+          201,
+          recovery.commit(request, {
+            projectId: fixture.projectId,
+            revision: 0,
+            updatedAt: "2026-11-05T00:00:00Z",
+            archived: false,
+          }),
+        );
       }
       if (path === `/api/v1/projects/${fixture.projectId}/assets`)
         return json(

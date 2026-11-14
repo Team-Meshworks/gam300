@@ -109,6 +109,7 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
           pendingRemoval = { assetId: removalAssetId, operationId };
           marker = JSON.stringify(pendingRemoval);
           path = `/api/v1/admin/assets/${encodeURIComponent(removalAssetId)}/removals/${operationId}`;
+          headers.set("Prefer", "spatia-created-status");
           init = { ...init, method: "PUT", body: "{}" };
         } else {
           marker = operationId;
@@ -127,8 +128,8 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
         signal,
       });
       if (!response.ok) {
+        const problem: unknown = await response.json().catch(() => null);
         if (writeSent && (response.status >= 500 || [401, 408].includes(response.status))) {
-          const problem: unknown = await response.json().catch(() => null);
           if (
             !(
               response.status === 503 &&
@@ -141,8 +142,14 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
         }
         if (writeSent && localStorage.getItem(recoveryKey) === marker)
           localStorage.removeItem(recoveryKey);
-        return failure(response.status);
+        return failure(response.status, record(problem) ? problem.code : undefined);
       }
+      if (
+        writeSent &&
+        response.status === 204 &&
+        response.headers.get("X-Spatia-Write-Outcome") === "committed"
+      )
+        return unknownWrite;
       // Treat confirmed responses as untrusted until their lifecycle fields pass validation
       const value: unknown = await response.json();
 
@@ -154,7 +161,7 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
       }
       if (
         removalAssetId !== undefined &&
-        (response.status !== 200 ||
+        (![200, 201].includes(response.status) ||
           !isCandidate(value) ||
           value.id !== removalAssetId ||
           !value.removedFromProjects ||
@@ -201,16 +208,18 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
     );
   }
   // Translate server failures without claiming that an unacknowledged write succeeded
-  function failure(status: number): AssetAdministrationResult<never> {
+  function failure(status: number, code?: unknown): AssetAdministrationResult<never> {
     return {
       ok: false,
       kind: status === 401 || status === 403 ? "denied" : status >= 500 ? "unavailable" : "invalid",
       message:
-        status === 401 || status === 403
-          ? "Access to asset administration was denied"
-          : status === 503
-            ? "Asset validation or removal is currently unavailable"
-            : "The asset operation could not be confirmed. Reload and try again",
+        code === "asset_quota_exceeded"
+          ? "Retained asset capacity is full. Ask an operator to increase storage capacity before uploading again."
+          : status === 401 || status === 403
+            ? "Access to asset administration was denied"
+            : status === 503
+              ? "Asset validation or removal is currently unavailable"
+              : "The asset operation could not be confirmed. Reload and try again",
     };
   }
 

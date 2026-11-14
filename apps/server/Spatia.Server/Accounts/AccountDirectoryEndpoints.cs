@@ -28,6 +28,7 @@ public static partial class AccountDirectoryEndpoints
         group.MapGet("/organizations/{id:guid}", GetOrganizationAsync);
         group.MapGet("/organizations/{id:guid}/projects", ListOrganizationProjectsAsync);
         group.MapGet("/organizations/{id:guid}/deletion", GetOrganizationDeletionAsync);
+        group.MapPost("/organizations/{id:guid}/deletion", DeleteOrganizationAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapDelete("/organizations/{id:guid}", DeleteOrganizationAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapDelete("/users/{id:guid}", DeleteAccountAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPost("/organizations/{id:guid}/students/hide", HideStudentsAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
@@ -71,7 +72,9 @@ public static partial class AccountDirectoryEndpoints
             status = StatusCodes.Status201Created;
         }
         var result = new OrganizationResponse(organization.Id, organization.Name, organization.IsActive);
-        return await CompleteAsync(context, transaction, Results.Json(result, statusCode: status), cancellationToken);
+        return await CompleteAsync(context, transaction, status == StatusCodes.Status201Created
+            ? Results.Created($"{ApiV1Endpoints.Prefix}/admin/organizations/{organization.Id:D}", result)
+            : Results.Ok(result), cancellationToken);
     }
 
     private static async Task<IResult> SetOrganizationActiveAsync(Guid id, SetActiveRequest request, HttpContext context,
@@ -269,7 +272,7 @@ public static partial class AccountDirectoryEndpoints
         return new DirectoryQuery(limit, cursor, pattern, query.ContainsKey("isActive") ? query["isActive"] == "true" : null, role, orgId);
     }
 
-    private static async Task<IResult?> AuthorizeAsync(HttpContext context, CurrentAccountResolver accounts,
+    internal static async Task<IResult?> AuthorizeAsync(HttpContext context, CurrentAccountResolver accounts,
         CancellationToken cancellationToken)
     {
         if (HasExpired(context) || context.User.Identity?.IsAuthenticated != true) { return AuthenticationRequired(context); }
@@ -280,12 +283,16 @@ public static partial class AccountDirectoryEndpoints
             : ApiProblems.Create(context, 403, "forbidden", "Administrator access is required.");
     }
 
-    private static async Task<IResult> CompleteAsync(HttpContext context, IDbContextTransaction transaction, IResult result,
-        CancellationToken cancellationToken)
+    internal static async Task<IResult> CompleteAsync(HttpContext context, IDbContextTransaction transaction, IResult result,
+        CancellationToken cancellationToken, bool readOnly = false)
     {
         if (HasExpired(context)) { return AuthenticationRequired(context); }
         await transaction.CommitAsync(cancellationToken);
-        if (HasExpired(context)) { return AuthenticationRequired(context); }
+        if (HasExpired(context))
+        {
+            return readOnly || HttpMethods.IsGet(context.Request.Method)
+                ? AuthenticationRequired(context) : CommittedWrite.WithoutRepresentation(context);
+        }
         return result;
     }
 

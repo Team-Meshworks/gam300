@@ -183,9 +183,9 @@ it("binds deletion and its fresh CSRF token to the administrator who opened the 
     headers: { "X-Spatia-Account": user.userId },
   });
   expect(request.mock.calls[1]).toEqual([
-    `/api/v1/admin/organizations/${user.orgId}`,
+    `/api/v1/admin/organizations/${user.orgId}/deletion`,
     expect.objectContaining({
-      method: "DELETE",
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-CSRF-TOKEN": "csrf",
@@ -221,3 +221,17 @@ it("reports deletion conflicts and never retries an uncertain delete", async () 
   expect(request).toHaveBeenCalledTimes(6);
   expect(request.mock.calls[5]?.[1]).toMatchObject({ method: "DELETE" });
 });
+it.each([200, 404, 405])(
+  "requires a confirmed deletion without falling back on HTTP %d",
+  async (status) => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+      .mockResolvedValueOnce(json({}, status));
+    await expect(
+      createDirectoryClient(request, user.userId).deleteOrganization(user.orgId, deletion.name),
+    ).rejects.toThrow();
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1]?.[1]?.method).toBe("POST");
+  },
+);

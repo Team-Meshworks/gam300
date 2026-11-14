@@ -49,6 +49,7 @@ public static class ProjectHttpResults
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(result);
+        if (result.RepresentationWithheld) { return CommittedWrite.WithoutRepresentation(context); }
         if (result.AccessFailure is { } failure)
         {
             return FromAccessFailure(context, failure);

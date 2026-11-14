@@ -6,7 +6,11 @@ import { Icon } from "@iconify/react/offline";
 import closeIcon from "@iconify-icons/lucide/x";
 import type { RenderWorkspace } from "./dashboard";
 import { useWorkspaceDeparture } from "../workspace/useWorkspaceDeparture";
+import { ExistingProjectPicker } from "./ExistingProjectPicker";
+import { HistoricalProjectRecovery } from "./HistoricalProjectRecovery";
+import { historicalCreationKey } from "./existing-project";
 import { ProjectHome } from "./ProjectHome";
+import { PendingCreateRecovery } from "./PendingCreateRecovery";
 import { StudentProjects } from "./StudentProjects";
 import { TeacherProjects } from "./TeacherProjects";
 import { ClassHome } from "./ClassHome";
@@ -21,6 +25,15 @@ export function HomePage() {
 }
 
 function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
+  const [historicalVersion, setHistoricalVersion] = useState(0);
+  const [findExisting, setFindExisting] = useState(false);
+  const historicalPresent = (() => {
+    try {
+      return sessionStorage.getItem(historicalCreationKey(session.userId)) !== null;
+    } catch {
+      return true;
+    }
+  })();
   const [view, setView] = useState<"projects" | "classes" | "assignment" | "denied">(() => {
     const path = location.pathname.replace(/\/$/, "");
     if (path === "/classes") return "classes";
@@ -107,6 +120,41 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
         !organisationView &&
         !(session.role === "Educator" && view === "assignment" && newProject) &&
         navigationBar}
+      {view === "projects" && (
+        <PendingCreateRecovery
+          key={session.userId}
+          actorId={session.userId}
+          purpose="import"
+          active={active}
+          onRecovered={(value) => openProject(value.id)}
+        />
+      )}
+      {view === "projects" && (
+        <>
+          <HistoricalProjectRecovery
+            key={session.userId + ":" + historicalVersion}
+            actorId={session.userId}
+            active={active && !navigation.locked}
+            onOpen={openProject}
+            onSeparate={() => setHistoricalVersion((value) => value + 1)}
+          />
+          {!historicalPresent && (
+            <details
+              className="sp-existing-projects"
+              onToggle={(event) => setFindExisting(event.currentTarget.open)}
+            >
+              <summary>Find an existing project</summary>
+              {findExisting && (
+                <ExistingProjectPicker
+                  actorId={session.userId}
+                  active={active && !navigation.locked}
+                  onSelect={(project) => openProject(project.projectId)}
+                />
+              )}
+            </details>
+          )}
+        </>
+      )}
       {content}
       {confirmation}
     </WorkspaceShell>

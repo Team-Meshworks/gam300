@@ -83,7 +83,7 @@ public sealed class AdministrationEndpointTests
         using var learner = fixture.CreateClient();
         await Login(teacher, educator.Name);
         await Login(learner, student.Name);
-        using var createdClass = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { name = "History" }, teacher);
+        using var createdClass = await AuthTestRequests.PostAsync(fixture, "/api/v1/classes", new { operationId = Guid.NewGuid(), name = "History" }, teacher);
         await Assert.That(createdClass.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var classId = (await createdClass.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         using var eligible = await teacher.GetAsync($"/api/v1/classes/{classId:D}/eligible-students");
@@ -105,7 +105,7 @@ public sealed class AdministrationEndpointTests
         { await Assert.That(enrolled.StatusCode).IsEqualTo(HttpStatusCode.NoContent); }
         using (var visible = await learner.GetAsync($"/api/v1/classes/{classId:D}"))
         { await Assert.That(visible.StatusCode).IsEqualTo(HttpStatusCode.OK); }
-        using var source = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/", new { title = "History source" }, teacher);
+        using var source = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/", new { operationId = Guid.NewGuid(), title = "History source" }, teacher);
         await Assert.That(source.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var sourceId = (await source.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
         using var assigned = await AuthTestRequests.PostAsync(fixture, $"/api/v1/classes/{classId:D}/assignments", new
@@ -153,6 +153,9 @@ public sealed class AdministrationEndpointTests
         await Assert.That(json.GetProperty("isActive").GetBoolean()).IsTrue();
         await Assert.That(json.GetProperty("mustChangePassword").GetBoolean()).IsTrue();
         var id = json.GetProperty("userId").GetGuid();
+        await Assert.That(response.Headers.Location?.OriginalString).IsEqualTo($"/api/v1/admin/users/{id:D}");
+        using var located = await fixture.Client.GetAsync(response.Headers.Location);
+        await Assert.That(located.StatusCode).IsEqualTo(HttpStatusCode.OK);
         await using var scope = fixture.App.Services.CreateAsyncScope();
         var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var user = await manager.FindByIdAsync(id.ToString("D")) ?? throw new InvalidOperationException("Missing provisioned account.");
@@ -193,6 +196,10 @@ public sealed class AdministrationEndpointTests
         await Assert.That(receipts.Count(response => response.StatusCode == HttpStatusCode.Created)).IsEqualTo(1);
         await Assert.That(receipts.Count(response => response.StatusCode == HttpStatusCode.OK)).IsEqualTo(1);
         var created = await receipts.Single(response => response.StatusCode == HttpStatusCode.Created).Content.ReadFromJsonAsync<OrganizationResponse>();
+        var location = receipts.Single(response => response.StatusCode == HttpStatusCode.Created).Headers.Location;
+        await Assert.That(location?.OriginalString).IsEqualTo($"{path}/{created!.Id:D}");
+        using var located = await fixture.Client.GetAsync(location);
+        await Assert.That(located.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var replay = await receipts.Single(response => response.StatusCode == HttpStatusCode.OK).Content.ReadFromJsonAsync<OrganizationResponse>();
         await Assert.That(replay).IsEqualTo(created);
         using var retry = await AuthTestRequests.PostAsync(fixture, path, new { name = "north school" }, other, otherToken);

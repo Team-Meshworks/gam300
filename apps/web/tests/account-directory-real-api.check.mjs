@@ -115,6 +115,7 @@ try {
   );
   let imported = 0;
   let operationId = "";
+  let importOrganizationId = "";
   const bulkPath = /\/api\/v1\/admin\/organizations\/[\da-f-]+\/bulk-imports\/[\da-f-]+$/;
   await page.route(bulkPath, async (route) => {
     const upstream = await route.fetch();
@@ -126,6 +127,7 @@ try {
     }
     imported++;
     operationId = new URL(route.request().url()).pathname.split("/").at(-1);
+    importOrganizationId = new URL(route.request().url()).pathname.split("/").at(-3);
     await route.abort("failed");
   });
   await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
@@ -147,6 +149,37 @@ try {
   importer = page.getByRole("dialog", { name: "Account Creation", exact: true });
   await importer.getByRole("button", { name: "Check import receipt", exact: true }).click();
   await importer.getByText("Receipt Student", { exact: true }).waitFor();
+  let legacyOperationId = "";
+  await page.route(/\/api\/v1\/admin\/users\/bulk$/, async (route) => {
+    const response = await route.fetch();
+    assert.equal(response.status(), 201);
+    assert.equal((await response.json()).length, 1);
+    legacyOperationId = response.headers()["x-spatia-operation-id"];
+    assert.ok(legacyOperationId);
+    await route.abort("failed");
+  });
+  const legacyReply = await page.evaluate(async (orgId) => {
+    const csrf = await (await fetch("/api/v1/auth/csrf")).json();
+    try {
+      await fetch("/api/v1/admin/users/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
+        body: JSON.stringify([
+          {
+            userName: "legacy.receipt.student",
+            displayName: "Legacy Receipt Student",
+            initialPassword: "Legacy-receipt-password1!",
+            role: "Creator",
+            orgId,
+          },
+        ]),
+      });
+      return "received";
+    } catch {
+      return "lost";
+    }
+  }, importOrganizationId);
+  assert.equal(legacyReply, "lost");
   const freshProfile = await browser.newContext();
   const handoffPage = await freshProfile.newPage();
   handoffPage.on("request", (request) => {
@@ -194,6 +227,34 @@ try {
     cells[2],
   );
   assert.equal(containsCredential, false);
+  await importer
+    .getByRole("button", { name: "Acknowledge credential handoff", exact: true })
+    .click();
+  await importer.waitFor({ state: "detached" });
+  assert.equal(imported, 1);
+  await handoffPage
+    .getByRole("region", { name: "Unacknowledged account imports" })
+    .getByRole("button", { name: `Review import ${legacyOperationId}`, exact: true })
+    .click();
+  importer = handoffPage.getByRole("dialog", { name: "Account Creation", exact: true });
+  await importer.getByRole("button", { name: "Check import receipt", exact: true }).click();
+  await importer.getByText("Legacy Receipt Student", { exact: true }).waitFor();
+  const legacyDownload = handoffPage.waitForEvent("download");
+  await importer.getByRole("button", { name: "Download credentials", exact: true }).click();
+  const legacyCsv = await readFile(await (await legacyDownload).path(), "utf8");
+  assert.ok(
+    legacyCsv.includes(
+      '"Legacy Receipt Student","legacy.receipt.student","Legacy-receipt-password1!"',
+    ),
+  );
+  assert.equal(
+    await handoffPage.evaluate(() =>
+      [localStorage, sessionStorage].some((storage) =>
+        Object.values(storage).some((value) => value.includes("Legacy-receipt-password1!")),
+      ),
+    ),
+    false,
+  );
   await importer
     .getByRole("button", { name: "Acknowledge credential handoff", exact: true })
     .click();

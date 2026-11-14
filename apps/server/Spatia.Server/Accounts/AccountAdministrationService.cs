@@ -78,7 +78,7 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
     /// <returns>The creation result and account details, or a failure result with no account</returns>
     /// <exception cref="InvalidOperationException">The fixed account roles are unavailable</exception>
     /// <exception cref="OperationCanceledException">The operation is canceled</exception>
-    public async Task<(IdentityResult Result, ProvisionedAccount? Account)> ProvisionAccountAsync(
+    internal async Task<(IdentityResult Result, ProvisionedAccount? Account)> ProvisionAccountAsync(
         ProvisionAccountRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -87,49 +87,9 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
             return (Failure("InvalidInput"), null);
         }
 
-        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            // Match profile overrides, lifecycle changes and bootstrap: roles first,
-            // then user writes. Otherwise a username collision can form a lock cycle.
-            await database.Database.ExecuteSqlRawAsync(
-                "LOCK TABLE \"AspNetUserRoles\" IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
-            var outcome = await ProvisionCoreAsync(request, cancellationToken);
-            if (!outcome.Result.Succeeded)
-            {
-                return outcome;
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            await transaction.CommitAsync(cancellationToken);
-            return outcome;
-        }
-        catch (DbUpdateException exception) when (IsDuplicateUserName(exception))
-        {
-            return (Failure("DuplicateUserName"), null);
-        }
-    }
-
-    /// <summary>Creates new organisation accounts, skipping existing usernames; other failures roll back the new accounts.</summary>
-    /// <param name="requests">Accounts sharing one organisation.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The result and all created accounts.</returns>
-    public async Task<(IdentityResult Result, IReadOnlyList<ProvisionedAccount>? Accounts)> ProvisionAccountsAsync(
-        ProvisionAccountRequest[] requests, CancellationToken cancellationToken = default)
-    {
-        if (!IsValidBulk(requests))
-        {
-            return (Failure("InvalidInput"), null);
-        }
-        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        try
-        {
-            await database.Database.ExecuteSqlRawAsync(
-                "LOCK TABLE \"AspNetUserRoles\" IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
-            var outcome = await ProvisionBulkRowsAsync(requests, cancellationToken);
-            if (!outcome.Result.Succeeded) { return outcome; }
-            await transaction.CommitAsync(cancellationToken);
-            return outcome;
+            return await ProvisionCoreAsync(request, cancellationToken);
         }
         catch (DbUpdateException exception) when (IsDuplicateUserName(exception))
         {
@@ -145,7 +105,7 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
     /// <param name="cancellationToken">The token used to cancel database work</param>
     /// <returns>The reset result, including validation failures or a missing account</returns>
     /// <exception cref="OperationCanceledException">The operation is canceled</exception>
-    public async Task<IdentityResult> ResetPasswordAsync(
+    internal async Task<IdentityResult> ResetPasswordAsync(
         Guid userId,
         ResetAccountPasswordRequest request,
         CancellationToken cancellationToken = default)
@@ -155,9 +115,6 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
             return Failure("InvalidInput");
         }
 
-        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        // Keep lifecycle changes out while concurrent resets retain their optimistic conflict check
-        await database.Database.ExecuteSqlRawAsync("""LOCK TABLE "AspNetUserRoles" IN SHARE MODE""", cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var user = await users.FindByIdAsync(userId.ToString("D"));
         if (user is null)
@@ -171,15 +128,7 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         user.MustChangePassword = true;
         var token = await users.GeneratePasswordResetTokenAsync(user);
         cancellationToken.ThrowIfCancellationRequested();
-        var result = await users.ResetPasswordAsync(user, token, request.NewTemporaryPassword);
-        if (!result.Succeeded)
-        {
-            return result;
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-        await transaction.CommitAsync(cancellationToken);
-        return IdentityResult.Success;
+        return await users.ResetPasswordAsync(user, token, request.NewTemporaryPassword);
     }
 
     internal static bool IsValidBulk(ProvisionAccountRequest[]? requests) =>

@@ -322,7 +322,7 @@ public sealed class ClassAssignmentCoordinatorTests
         var data = await SeedAsync(fixture);
         using var create = new HttpRequestMessage(HttpMethod.Post, "/api/v1/projects")
         {
-            Content = JsonContent.Create(new { title = "Empty source" }),
+            Content = JsonContent.Create(new { operationId = Guid.NewGuid(), title = "Empty source" }),
         };
         create.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
         using var response = await fixture.Client.SendAsync(create);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
+import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5182";
 const browser = await launchBrowser({ target: origin });
@@ -53,9 +54,11 @@ try {
   let releasePending;
   let holdPending = false;
   const writes = [];
+  const receipts = creationRecoveryFixture();
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (await receipts.handle(route, account?.userId)) return;
     if (path === "/api/v1/auth/session") return route.fulfill({ json: account });
     if (path === "/api/v1/auth/csrf")
       return route.fulfill({ json: { requestToken: "test-token" } });
@@ -75,7 +78,12 @@ try {
       if (loseResponse) return route.abort();
       return route.fulfill({
         status: 201,
-        json: { projectId, revision: 0, updatedAt: "2026-11-05T00:00:00Z", archived: false },
+        json: receipts.commit(request, {
+          projectId,
+          revision: 0,
+          updatedAt: "2026-11-05T00:00:00Z",
+          archived: false,
+        }),
       });
     }
     return route.fulfill({ status: 404 });
@@ -140,16 +148,23 @@ try {
   await pendingRequest;
   assert.equal(
     await page.evaluate(
-      (key) => sessionStorage.getItem(key),
-      `spatia:uncertain-project-creation:${userId}`,
+      (key) => JSON.parse(localStorage.getItem(key)).body.operationId,
+      `spatia.create:${userId}:project`,
     ),
-    "1",
+    writes[0].operationId,
     "Recovery marker must be persisted before the create request is sent",
   );
   releasePending();
   holdPending = false;
   await page.waitForURL(`**/?projectId=${projectId}`);
-  assert.deepEqual(writes[0], { title: "My gallery", environmentAssetId: assetId, orgId });
+  assert.match(writes[0].operationId, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(writes[0], {
+    title: "My gallery",
+    environmentAssetId: assetId,
+    orgId,
+    operationId: writes[0].operationId,
+    creationGuard: { purpose: "project", previousOperationId: null },
+  });
   await page.goto(origin + "/home");
   await create.click();
   await dialog.getByLabel("Project title").fill("Unsent project");
@@ -167,9 +182,12 @@ try {
   await dialog.getByRole("button", { name: "Back to projects" }).click();
   assert.equal(await create.isDisabled(), true);
   await page.reload();
-  await page.getByRole("button", { name: /checked my projects/i }).waitFor();
+  await page.getByRole("button", { name: "Retry same project", exact: true }).waitFor();
   assert.equal(await create.isDisabled(), true);
-  await page.getByRole("button", { name: /checked my projects/i }).click();
+  loseResponse = false;
+  await page.getByRole("button", { name: "Retry same project", exact: true }).click();
+  await page.waitForURL("**/?projectId=" + projectId);
+  assert.deepEqual(writes[2], writes[1], "Reload recovery replays the original identity and body");
   account = { ...session, role: "Administrator", orgId: null };
   loseResponse = false;
   await page.goto(origin + "/home");
@@ -192,7 +210,14 @@ try {
   releasePending();
   holdPending = false;
   await page.waitForURL(`**/?projectId=${projectId}`);
-  assert.deepEqual(writes[2], { title: "School gallery", environmentAssetId: assetId, orgId });
+  assert.deepEqual(writes[3], {
+    title: "School gallery",
+    environmentAssetId: assetId,
+    orgId,
+    operationId: writes[3].operationId,
+    creationGuard: { purpose: "project", previousOperationId: writes[1].operationId },
+  });
+  assert.notEqual(writes[3].operationId, writes[1].operationId);
   assets = [];
   organizations = [];
   await page.goto(origin + "/home");
@@ -210,10 +235,12 @@ try {
   ];
   await page.goto(origin + "/home");
   await page.getByText(/start with an empty scene/i).waitFor();
+  await create.and(page.locator(":enabled")).waitFor();
   assert.equal(await create.isEnabled(), true);
   failAssets = true;
   await page.reload();
   await page.getByText(/spaces.*(?:unavailable|could not|couldn.t)/i).waitFor();
+  await create.and(page.locator(":enabled")).waitFor();
   assert.equal(await create.isEnabled(), true);
   await create.click();
   await dialog.getByRole("combobox", { name: /3D space/ }).click();
@@ -230,7 +257,7 @@ try {
       (button) => button.textContent.trim() === "New project" && !button.disabled,
     ),
   );
-  assert.equal(writes.length, 3);
+  assert.equal(writes.length, 4);
   await create.click();
   await dialog.getByLabel("Project title").fill("Storage failure");
   await chooseSpace(assetId);
@@ -241,8 +268,8 @@ try {
     };
   });
   await dialog.getByRole("button", { name: "Create project" }).click();
-  await dialog.getByText(/could not safely store/i).waitFor();
-  assert.equal(writes.length, 3, "No request is sent when recovery state cannot be stored");
+  await dialog.getByText(/storage unavailable|could not save recovery/i).waitFor();
+  assert.equal(writes.length, 4, "No request is sent when recovery state cannot be stored");
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("button", { name: "Discard details" }).click();
   await page.reload();
@@ -259,10 +286,38 @@ try {
   await interrupted;
   page.once("dialog", (browserDialog) => browserDialog.accept());
   await page.reload();
+  loseResponse = true;
   releasePending();
-  await page.getByRole("button", { name: /checked my projects/i }).waitFor();
+  await page.getByRole("button", { name: "Retry same project", exact: true }).waitFor();
   assert.equal(await create.isDisabled(), true);
-  console.log("Project creation opens the confirmed server project");
+  const recovery = page.getByRole("region", { name: "Release pending project request" });
+  await recovery.getByRole("button", { name: "Check current projects", exact: true }).click();
+  await recovery.getByText("No accessible projects were returned.", { exact: true }).waitFor();
+  const pendingKey = "spatia.create:" + userId + ":project";
+  const beforeRelease = writes.length;
+  await page.evaluate((key) => localStorage.setItem(key, "newer unreadable attempt"), pendingKey);
+  await recovery
+    .getByRole("button", { name: "I checked the list; release this saved request", exact: true })
+    .click();
+  await recovery.getByText(/saved request changed in another tab/i).waitFor();
+  assert.equal(
+    await page.evaluate((key) => localStorage.getItem(key), pendingKey),
+    "newer unreadable attempt",
+  );
+  assert.equal(writes.length, beforeRelease, "Stale recovery never sends a replacement creation");
+  await page.reload();
+  await recovery.getByRole("button", { name: "Check current projects", exact: true }).click();
+  await recovery.getByText("No accessible projects were returned.", { exact: true }).waitFor();
+  await recovery
+    .getByRole("button", { name: "I checked the list; release this saved request", exact: true })
+    .click();
+  await recovery.waitFor({ state: "detached" });
+  assert.equal(await page.evaluate((key) => localStorage.getItem(key), pendingKey), null);
+  assert.equal(await create.isEnabled(), true);
+  assert.equal(writes.length, beforeRelease, "Explicit release does not send a new creation");
+  console.log(
+    "Project creation opens the confirmed server project and safely releases only observed pending attempts",
+  );
 } finally {
   await browser.close();
 }

@@ -15,6 +15,131 @@ namespace Spatia.Server.Tests;
 public sealed class AssetRemovalReceiptTests
 {
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task HistoricalReceiptBindingsTakePrecedenceOverLaterAssetKeyReservations(bool applied)
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var actor = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var asset = await SeedRetiredAsync(fixture, actor);
+        var operation = await SeedRetiredAsync(fixture, actor);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        if (applied)
+        {
+            await db.AssetCandidates.Where(row => row.Id == asset)
+                .ExecuteUpdateAsync(update => update.SetProperty(row => row.RemovedFromProjects, true));
+        }
+        db.Set<AssetRemovalReceipt>().Add(new AssetRemovalReceipt
+        {
+            ActorId = actor,
+            AssetId = asset,
+            OperationId = operation,
+            Applied = applied,
+        });
+        await db.SaveChangesAsync();
+        await fixture.SignInAsync(actor);
+        var token = await fixture.GetCsrfAsync();
+        var path = Path(asset, operation);
+        using var replay = await AuthTestRequests.PutAsync(fixture.Client, path, new { }, token);
+        await Assert.That(replay.StatusCode).IsEqualTo(applied ? HttpStatusCode.OK : HttpStatusCode.Conflict);
+        if (applied)
+        {
+            var record = (await replay.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+            await Assert.That(record.Id).IsEqualTo(asset);
+            await Assert.That(record.RemovedFromProjects).IsTrue();
+        }
+        using var receipt = await AuthTestRequests.PostAsync(fixture, path + "/reconcile", new { }, token: token);
+        await AssertReceiptAsync(receipt, asset, operation, applied ? "removed" : "notApplied");
+        using var mismatchedReplay = await AuthTestRequests.PutAsync(fixture.Client, Path(operation, operation), new { }, token);
+        await AuthTestRequests.AssertProblemAsync(mismatchedReplay, HttpStatusCode.Conflict, "asset_removal_conflict");
+        using var mismatchedReceipt = await AuthTestRequests.PostAsync(fixture, Path(operation, operation) + "/reconcile", new { }, token: token);
+        await AuthTestRequests.AssertProblemAsync(mismatchedReceipt, HttpStatusCode.Conflict, "asset_removal_conflict");
+        await Assert.That(await db.AssetCandidates.Where(row => row.Id == asset).Select(row => row.RemovedFromProjects).SingleAsync()).IsEqualTo(applied);
+    }
+
+    [Test]
+    public async Task NewOperationBindingsCannotUseAnotherAssetsReservedIdentity()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var actor = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var asset = await SeedRetiredAsync(fixture, actor);
+        var reserved = await SeedRetiredAsync(fixture, actor);
+        await fixture.SignInAsync(actor);
+        var token = await fixture.GetCsrfAsync();
+        var path = Path(asset, reserved);
+        using var removal = await AuthTestRequests.PutAsync(fixture.Client, path, new { }, token);
+        await AuthTestRequests.AssertProblemAsync(removal, HttpStatusCode.Conflict, "asset_removal_conflict");
+        using var reconciliation = await AuthTestRequests.PostAsync(fixture, path + "/reconcile", new { }, token: token);
+        await AuthTestRequests.AssertProblemAsync(reconciliation, HttpStatusCode.Conflict, "asset_removal_conflict");
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await db.Set<AssetRemovalReceipt>().AnyAsync()).IsFalse();
+        await Assert.That(await db.AssetCandidates.AnyAsync(row => row.RemovedFromProjects)).IsFalse();
+    }
+
+    [Test]
+    public async Task LegacyRemovalHasRecoverableAssetIdentityWithoutChangingRepeatConflict()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var actor = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var asset = await SeedRetiredAsync(fixture, actor);
+        await fixture.SignInAsync(actor);
+        var token = await fixture.GetCsrfAsync();
+        using var legacy = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{asset:D}/availability",
+            new AssetAvailabilityRequest("remove", true), token: token);
+        await Assert.That(legacy.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(legacy.Headers.GetValues("X-Spatia-Operation-Id").Single()).IsEqualTo(asset.ToString("D"));
+        using var receipt = await AuthTestRequests.PostAsync(fixture, Path(asset, asset) + "/reconcile", new { }, token: token);
+        await AssertReceiptAsync(receipt, asset, asset, "removed");
+        using var repeated = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{asset:D}/availability",
+            new AssetAvailabilityRequest("remove"), token: token);
+        await Assert.That(repeated.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+    }
+
+    [Test]
+    public async Task LegacyAbsenceFenceRequiresANewKeyAndHistoricalRemovalCannotInventActorProof()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var actor = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var asset = await SeedRetiredAsync(fixture, actor);
+        await fixture.SignInAsync(actor);
+        var token = await fixture.GetCsrfAsync();
+        using var absent = await AuthTestRequests.PostAsync(fixture, Path(asset, asset) + "/reconcile", new { }, token: token);
+        await AssertReceiptAsync(absent, asset, asset, "notApplied");
+        using var legacy = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{asset:D}/availability",
+            new AssetAvailabilityRequest("remove"), token: token);
+        await Assert.That(legacy.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+        using var explicitKey = await AuthTestRequests.PutAsync(fixture.Client, Path(asset, Guid.NewGuid()), new { }, token);
+        await Assert.That(explicitKey.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var otherActor = fixture.CreateClient();
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator), otherActor);
+        using var historical = await AuthTestRequests.PostAsync(fixture, Path(asset, asset) + "/reconcile", new { }, otherActor);
+        await AuthTestRequests.AssertProblemAsync(historical, HttpStatusCode.Conflict, "asset_removal_history_unavailable");
+    }
+
+    [Test]
+    public async Task CreatedStatusIsNegotiatedAndReplaysRemainOk()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var actor = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var asset = await SeedRetiredAsync(fixture, actor);
+        await fixture.SignInAsync(actor);
+        var token = await fixture.GetCsrfAsync();
+        var path = Path(asset, Guid.NewGuid());
+        foreach (var expected in new[] { HttpStatusCode.Created, HttpStatusCode.OK })
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Put, path);
+            request.Headers.Add("X-CSRF-TOKEN", token);
+            request.Headers.Add("Prefer", "spatia-created-status");
+            request.Content = JsonContent.Create(new { });
+            using var response = await fixture.Client.SendAsync(request);
+            await Assert.That(response.StatusCode).IsEqualTo(expected);
+            await Assert.That(response.Headers.GetValues("Preference-Applied").Single()).IsEqualTo("spatia-created-status");
+        }
+    }
+
+    [Test]
     public async Task ReopenedIssuerCanReplayAndReconcileOnlyTheOriginalRemoval()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");

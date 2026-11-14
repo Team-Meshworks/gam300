@@ -35,7 +35,9 @@ internal sealed class PublicationResult
     public ProjectAccessFailure? AccessFailure { get; }
     public PublicationRejection? Rejection { get; }
     public long? CurrentRevision { get; }
+    internal bool RepresentationWithheld { get; private init; }
 
+    internal static PublicationResult Withheld() => new() { RepresentationWithheld = true };
     internal static PublicationResult Denied(ProjectAccessFailure failure) => new(accessFailure: failure);
     internal static PublicationResult Rejected(PublicationRejection rejection, long? currentRevision = null) =>
         new(rejection: rejection, currentRevision: currentRevision);

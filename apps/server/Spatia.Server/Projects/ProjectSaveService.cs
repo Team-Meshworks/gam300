@@ -135,7 +135,7 @@ public sealed class ProjectSaveService(ApplicationDbContext database, ProjectAcc
         await transaction.CommitAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         return HasExpired(context)
-            ? ProjectSaveResult.Denied(ProjectAccessFailure.AuthenticationRequired)
+            ? ProjectSaveResult.Withheld()
             : ProjectSaveResult.Committed(acknowledgement);
     }
 

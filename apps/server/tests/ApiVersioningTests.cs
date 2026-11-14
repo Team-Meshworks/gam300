@@ -34,7 +34,7 @@ public sealed class ApiVersioningTests
             {
                 long? expected = (method, endpoint.RoutePattern.RawText) switch
                 {
-                    ("POST", "/api/v1/projects/") or ("PUT", "/api/v1/projects/{id:guid}") => 6 * 1024 * 1024,
+                    ("POST", "/api/v1/projects/") or ("PUT", "/api/v1/projects/{id:guid}") or ("PUT", "/api/v1/projects/legacy-resolution") => 6 * 1024 * 1024,
                     ("POST", "/api/v1/admin/assets/") => 20 * 1024 * 1024,
                     ("PUT", "/api/v1/admin/organizations/{orgId:guid}/bulk-imports/{operationId:guid}") => 1024 * 1024,
                     ("POST", "/api/v1/admin/assets/{id:guid}/approve") => 40 * 1024,

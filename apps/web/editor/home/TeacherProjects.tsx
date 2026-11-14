@@ -64,6 +64,9 @@ export function TeacherStandaloneDetails({
         <div>
           <h1>Project Details</h1>
           <h2>{project.title}</h2>
+          <p>
+            Project ID: <code>{project.projectId}</code>
+          </p>
         </div>
         <Button className="sp-close-button" aria-label="Close project details" onClick={onBack}>
           <Icon icon={closeIcon} aria-hidden="true" />

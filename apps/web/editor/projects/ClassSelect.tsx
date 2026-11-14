@@ -1,3 +1,4 @@
+import { classLabels } from "./class-labels";
 import { Select } from "../../shared/ui/Select";
 import { Field } from "../../shared/ui/Field";
 import type { ProjectClass } from "./new-project-form";
@@ -15,6 +16,7 @@ export function ClassSelect({
   value: string;
   onChange: (id: string) => void;
 }) {
+  const labels = classLabels(classes);
   if (custom) {
     // Validate the selected class against current authorised choices before submitting
     return (
@@ -23,7 +25,7 @@ export function ClassSelect({
         value={value}
         options={[
           { value: "", label: "Select a class" },
-          ...classes.map((item) => ({ value: item.id, label: item.label })),
+          ...classes.map((item) => ({ value: item.id, label: labels.get(item.id)! })),
         ]}
         onChange={onChange}
         className="sp-project-class"
@@ -37,7 +39,7 @@ export function ClassSelect({
         <option value="">Select a class</option>
         {classes.map((item) => (
           <option key={item.id} value={item.id}>
-            {item.label}
+            {labels.get(item.id)}
           </option>
         ))}
       </select>

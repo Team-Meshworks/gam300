@@ -171,7 +171,9 @@ public sealed class OrganizationDeletionTests
     }
 
     [Test]
-    public async Task Delete_RequiresCsrfAndExactNameAndSupportsEmptyInactiveOrganization()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Delete_RequiresCsrfAndExactNameAndSupportsEmptyInactiveOrganization(bool usePost)
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
@@ -180,18 +182,22 @@ public sealed class OrganizationDeletionTests
         var org = new Organization { Id = Guid.NewGuid(), Name = "Confirm this name", IsActive = false };
         db.Organizations.Add(org);
         await db.SaveChangesAsync();
+        var method = usePost ? HttpMethod.Post : HttpMethod.Delete;
+        var path = usePost ? Path(org.Id) + "/deletion" : Path(org.Id);
         foreach (var json in new[] { "{}", "{\"confirmationName\":null}", "{\"confirmationName\":\"\"}", "{\"confirmationName\":\"confirm this name\"}", "{\"confirmationName\":\"Confirm this name \"}" })
         {
-            using var request = new HttpRequestMessage(HttpMethod.Delete, Path(org.Id)) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+            using var request = new HttpRequestMessage(method, path) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
             request.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
             using var invalid = await fixture.Client.SendAsync(request);
             await Assert.That(invalid.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         }
-        using var noToken = new HttpRequestMessage(HttpMethod.Delete, Path(org.Id)) { Content = JsonContent.Create(new { confirmationName = org.Name }) };
+        using var noToken = new HttpRequestMessage(method, path) { Content = JsonContent.Create(new { confirmationName = org.Name }) };
         using var rejected = await fixture.Client.SendAsync(noToken);
         await AuthTestRequests.AssertProblemAsync(rejected, HttpStatusCode.BadRequest, "csrf_invalid");
         await Assert.That(await db.Organizations.AnyAsync(row => row.Id == org.Id)).IsTrue();
-        using var deleted = await DeleteAsync(fixture, org.Id, org.Name);
+        using var deleted = usePost
+            ? await AuthTestRequests.PostAsync(fixture, path, new { confirmationName = org.Name })
+            : await DeleteAsync(fixture, org.Id, org.Name);
         await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         await Assert.That(await db.Organizations.AnyAsync(row => row.Id == org.Id)).IsFalse();
     }
@@ -377,7 +383,7 @@ public sealed class OrganizationDeletionTests
         {
             "roster" => educator.SendAsync(remove),
             "duplicate" => AuthTestRequests.PostAsync(fixture, $"/api/v1/projects/{data.ProjectId:D}/duplicate",
-                new { title = "A copy", expectedRevision = 0 }, educator, teacherToken),
+                new { operationId = Guid.NewGuid(), title = "A copy", expectedRevision = 0 }, educator, teacherToken),
             "assignment" => AuthTestRequests.PostAsync(fixture, $"{classes}/assignments", new
             {
                 requestId = Guid.NewGuid(),

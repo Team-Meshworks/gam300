@@ -68,8 +68,12 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
     } while (cursor);
     return items;
   }
-  async function projects(archived: boolean, signal?: AbortSignal): Promise<ProjectSummary[]> {
-    const rows = await pages(`/api/v1/projects?archived=${archived}`, signal);
+  async function projects(
+    archived: boolean,
+    signal?: AbortSignal,
+    actorId?: string,
+  ): Promise<ProjectSummary[]> {
+    const rows = await pages(`/api/v1/projects?archived=${archived}`, signal, actorId);
     const ids = new Set<string>();
     return rows.map((row) => {
       if (
@@ -133,9 +137,7 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
             : undefined;
         return {
           kind: "rejected",
-          ...(detail && isRecord(problem) && typeof problem.code === "string"
-            ? { code: problem.code }
-            : {}),
+          ...(isRecord(problem) && typeof problem.code === "string" ? { code: problem.code } : {}),
           message:
             detail ??
             (response.status === 409
@@ -147,7 +149,10 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
       }
       // Authentication can expire after a commit; a missing acknowledgement must not invite a duplicate.
       if (![200, 201, 204].includes(response.status)) return { kind: "unknown" };
+      if (response.status === 204 && response.headers.get("X-Spatia-Write-Outcome") === "committed")
+        return { kind: "unknown" };
       const value: unknown = response.status === 204 ? null : await response.json();
+      if (response.status !== 204 && value === null) return { kind: "unknown" };
       if ((await accounts.getSession())?.userId !== actorId) return { kind: "unknown" };
       return { kind: "confirmed", value };
     } catch {

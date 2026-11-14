@@ -223,7 +223,7 @@ internal static class PublicationDeliveryEndpoints
             if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
             await transaction.CommitAsync(token);
             token.ThrowIfCancellationRequested();
-            if (HasExpired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+            if (HasExpired(context)) { return CommittedWrite.WithoutRepresentation(context); }
             return Results.NoContent();
         }).RequireAuthorization(SecurityPolicies.FullAccount).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit)
             .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(16 * 1024));

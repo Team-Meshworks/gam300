@@ -555,6 +555,14 @@ public sealed class PublicationAccessEndpointTests
         using var denied = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/projects/publication-moderation", new { projectIds = ids, action = "hide" });
         await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         await fixture.SignInAsync(data.GetProperty("actors").GetProperty("admin").GetProperty("userId").GetGuid());
+        var missing = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
+        using var partial = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/projects/publication-moderation",
+            new { projectIds = new[] { ids[1], missing }, action = "hide" });
+        await Assert.That(partial.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That(await (from policy in database.PublicationAccess.AsNoTracking()
+                                 join publication in database.Publications on policy.PublicationId equals publication.Id
+                                 where publication.ProjectId == ids[1]
+                                 select policy.Hidden).SingleAsync()).IsFalse();
         foreach (var action in new[] { "hide", "show" })
         {
             using var changed = await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/projects/publication-moderation", new { projectIds = ids, action });

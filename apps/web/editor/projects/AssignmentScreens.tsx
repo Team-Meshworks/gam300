@@ -1,3 +1,6 @@
+import { ExistingProjectPicker } from "../home/ExistingProjectPicker";
+import { createExistingProjectClient } from "../home/existing-project";
+import { PendingCreateRecovery } from "../home/PendingCreateRecovery";
 import { Table } from "../../shared/ui/Table";
 import { encodeProjectImage, type EncodedProjectImage } from "./project-image";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -10,8 +13,17 @@ import {
   localDeadlineToUnixSeconds,
 } from "./deadline";
 import { createWorkspaceClient } from "../home/workspace-api";
+import { acknowledgeCreation, loadCreationHead } from "../home/create-operation";
 import {
   blankSourceKey,
+  adoptBlankSource,
+  adoptedBlankSource,
+  historicalBlankSource,
+  uncorrelatedBlankSource,
+  selectedExistingSource,
+  selectExistingSource,
+  verifySelectedSource,
+  blankSourceAttempt,
   blankSourceProject,
   clearBlankSource,
   createBlankSource,
@@ -43,6 +55,18 @@ type Setup = {
 };
 const pendingKey = (userId: string) => `spatia.assignment.pending:${userId}`;
 const workspace = createWorkspaceClient();
+const existingProjects = createExistingProjectClient();
+async function verifyExistingSelection(actorId: string) {
+  if (loadPending(actorId))
+    throw new Error("Resolve the earlier assignment before selecting another source.");
+  const current = await assignmentSession();
+  if (current.userId !== actorId || current.mustChangePassword)
+    throw new Error("The account changed. Reload before continuing.");
+  if ((await loadCreationHead(actorId, "assignment-source")).state !== "ready")
+    throw new Error(
+      "Resolve the existing server source operation before choosing another project.",
+    );
+}
 
 function loadPending(userId: string): PendingAssignment | null {
   const raw = localStorage.getItem(pendingKey(userId));
@@ -77,6 +101,17 @@ function loadPending(userId: string): PendingAssignment | null {
     body.studentIds.some((id) => typeof id !== "string")
   )
     throw new Error("Pending assignment is unavailable.");
+  if ("sourceSelection" in value) {
+    if (typeof value.sourceSelection !== "string")
+      throw new Error("The pending source selection could not be verified.");
+    const selected = selectedExistingSource(value.sourceSelection, userId);
+    if (
+      !selected ||
+      selected.projectId !== body.sourceProjectId ||
+      selected.revision !== body.sourceRevision
+    )
+      throw new Error("The pending source selection does not match this assignment.");
+  }
   return value as PendingAssignment;
 }
 
@@ -100,8 +135,12 @@ export function AssignmentCreationScreen({
   const [setup, setSetup] = useState<Setup | null>(null);
   const [message, setMessage] = useState("");
   const [sourceId, setSourceId] = useState("");
+  const [recoveredSource, setRecoveredSource] = useState<SourceProject | null>(null);
+  const [manualSource, setManualSource] = useState(false);
+  const [existingSourceOpen, setExistingSourceOpen] = useState(false);
+  const [sourceObserved, setSourceObserved] = useState<string | null>(null);
   const [sourceUncertain, setSourceUncertain] = useState<{
-    reason: "unknown" | "unavailable" | "image";
+    reason: "unknown" | "unavailable" | "image" | "retry" | "adopted" | "historical" | "existing";
     record: string | null;
   } | null>(null);
   const [students, setStudents] = useState<EligibleStudent[]>([]);
@@ -138,8 +177,19 @@ export function AssignmentCreationScreen({
         const saved = loadPending(session.userId);
         if (createBlank && !saved) {
           const stored = localStorage.getItem(blankSourceKey(session.userId));
-          if (stored !== null && !blankSourceProject(stored))
-            setSourceUncertain({ reason: "unknown", record: stored });
+          if (stored !== null && uncorrelatedBlankSource(stored)) {
+            setSourceUncertain({ reason: "historical", record: stored });
+            setExistingSourceOpen(true);
+            setSourceObserved(stored);
+          } else if (
+            stored !== null &&
+            !blankSourceProject(stored) &&
+            !selectedExistingSource(stored, session.userId)
+          )
+            setSourceUncertain({
+              reason: blankSourceAttempt(stored) ? "retry" : "unknown",
+              record: stored,
+            });
         }
         const choices = saved
           ? { classes: [], projects: [] }
@@ -151,6 +201,52 @@ export function AssignmentCreationScreen({
           current.mustChangePassword
         )
           throw new Error("Your account changed. Reload before continuing.");
+        if (createBlank && !saved) {
+          const record = localStorage.getItem(blankSourceKey(session.userId));
+          const selected = record === null ? null : selectedExistingSource(record, session.userId);
+          if (selected && record !== null) {
+            setManualSource(true);
+            setSourceObserved(record);
+            try {
+              const checked = await existingProjects.confirm(
+                session.userId,
+                { ...selected, archived: false },
+                true,
+              );
+              const retained = await selectExistingSource(
+                localStorage,
+                session.userId,
+                record,
+                checked,
+                () => verifyExistingSelection(session.userId),
+              );
+              setSourceObserved(retained);
+              setRecoveredSource(checked);
+            } catch {
+              setSourceUncertain({ reason: "existing", record });
+              setExistingSourceOpen(true);
+            }
+          }
+          const adopted = record === null ? null : adoptedBlankSource(record, session.userId);
+          if (adopted) {
+            const available = await workspace.projects(false, controller.signal, session.userId);
+            const source = available.find(
+              (project) => project.projectId === adopted.projectId && project.permissions.canManage,
+            );
+            if (!source) setSourceUncertain({ reason: "unavailable", record });
+            else {
+              await loadCreationHead(session.userId, "assignment-source");
+              const ack = await acknowledgeCreation(
+                session.userId,
+                "assignment-source",
+                adopted.operationId,
+                workspace.write,
+              );
+              if (ack.kind === "confirmed") setRecoveredSource(source);
+              else setSourceUncertain({ reason: "adopted", record });
+            }
+          }
+        }
         if (controller.signal.aborted) return;
         const selectedClass = choices.classes.find((row) => row.id === initialClassId)?.id ?? "";
         setInitialClass(selectedClass);
@@ -271,42 +367,82 @@ export function AssignmentCreationScreen({
             message: "Resolve the earlier assignment before creating another.",
           };
         }
-        if (newRequest) {
-          localStorage.setItem(pendingKey(request.actorId), JSON.stringify(request));
-          stored = true;
-          setPending(request);
-        } else if (JSON.stringify(existing) !== JSON.stringify(request)) {
-          setMessage(
-            "The earlier request changed in another tab. Reload and check your assignments.",
-          );
-          return { kind: "unknown" };
-        }
-        const result = await submitAssignment(request, previouslyUncertain);
-        if (result.kind === "confirmed") {
-          if (createBlank) {
-            await clearBlankSource(localStorage, request.actorId, {
-              projectId: request.body.sourceProjectId,
-            });
+        const send = async (): Promise<ProjectCreationResult> => {
+          if (newRequest && request.sourceSelection !== undefined) {
+            try {
+              const chosen = verifySelectedSource(
+                localStorage,
+                request.actorId,
+                request.sourceSelection,
+                { projectId: request.body.sourceProjectId, revision: request.body.sourceRevision },
+              );
+              await existingProjects.confirm(request.actorId, { ...chosen, archived: false }, true);
+              await verifyExistingSelection(request.actorId);
+            } catch (cause) {
+              setRecoveredSource(null);
+              setExistingSourceOpen(true);
+              setSourceUncertain({ reason: "existing", record: request.sourceSelection });
+              return {
+                kind: "rejected",
+                message:
+                  cause instanceof Error
+                    ? cause.message
+                    : "The selected existing source could not be verified.",
+              };
+            }
           }
-          localStorage.removeItem(pendingKey(request.actorId));
-          setPending(null);
-          setConfirmed({
-            classId: request.classId,
-            assignmentId: result.assignmentId,
-          });
+          if (newRequest) {
+            localStorage.setItem(pendingKey(request.actorId), JSON.stringify(request));
+            stored = true;
+            setPending(request);
+          } else if (JSON.stringify(existing) !== JSON.stringify(request)) {
+            setMessage(
+              "The earlier request changed in another tab. Reload and check your assignments.",
+            );
+            return { kind: "unknown" };
+          }
+          const result = await submitAssignment(request, previouslyUncertain);
+          if (result.kind === "confirmed") {
+            if (createBlank) {
+              if (newRequest && request.sourceSelection !== undefined) {
+                const key = blankSourceKey(request.actorId);
+                if (localStorage.getItem(key) === request.sourceSelection) {
+                  localStorage.removeItem(key);
+                  if (localStorage.getItem(key) !== null)
+                    throw new Error("The source record could not be cleared.");
+                }
+              } else
+                await clearBlankSource(
+                  localStorage,
+                  request.actorId,
+                  request.sourceSelection !== undefined
+                    ? { record: request.sourceSelection }
+                    : { projectId: request.body.sourceProjectId },
+                );
+            }
+            localStorage.removeItem(pendingKey(request.actorId));
+            setPending(null);
+            setConfirmed({
+              classId: request.classId,
+              assignmentId: result.assignmentId,
+            });
 
-          changeClass(request.classId, request.actorId);
-          return {
-            kind: "created",
-            projectId: result.projects[0]!.projectId,
-          };
-        }
-        if (result.kind === "rejected") {
-          localStorage.removeItem(pendingKey(request.actorId));
-          setPending(null);
-          return result;
-        }
-        return { kind: "unknown" };
+            changeClass(request.classId, request.actorId);
+            return {
+              kind: "created",
+              projectId: result.projects[0]!.projectId,
+            };
+          }
+          if (result.kind === "rejected") {
+            localStorage.removeItem(pendingKey(request.actorId));
+            setPending(null);
+            return result;
+          }
+          return { kind: "unknown" };
+        };
+        return newRequest && request.sourceSelection !== undefined
+          ? navigator.locks.request(blankSourceKey(request.actorId), send)
+          : send();
       });
     } catch {
       return newRequest && !stored
@@ -335,8 +471,50 @@ export function AssignmentCreationScreen({
         kind: "rejected",
         message: createBlank ? "Choose a valid due date." : "Choose a valid due date and time.",
       };
-    let source = setup.projects.find((project) => project.projectId === sourceId);
+    let source =
+      recoveredSource ?? setup.projects.find((project) => project.projectId === sourceId);
     if (createBlank) {
+      let storedSource: string | null;
+      try {
+        storedSource = localStorage.getItem(blankSourceKey(setup.session.userId));
+      } catch {
+        return {
+          kind: "rejected",
+          message: "The browser could not verify the saved source. Your details are unchanged.",
+        };
+      }
+      if (storedSource !== null && uncorrelatedBlankSource(storedSource)) {
+        setSourceObserved(storedSource);
+        setExistingSourceOpen(true);
+        setSourceUncertain({ reason: "historical", record: storedSource });
+        return {
+          kind: "rejected",
+          message:
+            "Review the earlier source creation and choose an exact existing project, or explicitly start a separate creation after reviewing the list.",
+        };
+      }
+      if (
+        storedSource !== null &&
+        selectedExistingSource(storedSource, setup.session.userId) &&
+        !manualSource
+      ) {
+        setManualSource(true);
+        setSourceObserved(storedSource);
+        setExistingSourceOpen(true);
+        setSourceUncertain({ reason: "existing", record: storedSource });
+        return {
+          kind: "rejected",
+          message:
+            "An existing source was selected in another tab. Review its exact project before using it.",
+        };
+      }
+      if (manualSource && (!recoveredSource || sourceObserved === null))
+        return {
+          kind: "rejected",
+          message: "Review the selected existing source before submitting.",
+        };
+    }
+    if (createBlank && !recoveredSource && !manualSource) {
       let image: EncodedProjectImage | undefined;
       try {
         if (draft.coverImage)
@@ -372,7 +550,7 @@ export function AssignmentCreationScreen({
             try {
               const before = await assignmentSession();
               if (before.userId !== actorId || before.mustChangePassword) return { kind: "retry" };
-              const projects = await workspace.projects(false);
+              const projects = await workspace.projects(false, undefined, actorId);
               const after = await assignmentSession();
               if (after.userId !== actorId || after.mustChangePassword) return { kind: "retry" };
               const current = projects.find(
@@ -396,6 +574,19 @@ export function AssignmentCreationScreen({
         return { result, record };
       });
       if (result.kind === "unknown") {
+        if (
+          record &&
+          (blankSourceAttempt(record) || adoptedBlankSource(record, setup.session.userId))
+        ) {
+          const adopted = adoptedBlankSource(record, setup.session.userId);
+          setSourceUncertain({ reason: adopted ? "adopted" : "retry", record });
+          return {
+            kind: "rejected",
+            message: adopted
+              ? "The recovered source is preserved. Confirm its acknowledgement in recovery; the original image is not required."
+              : "Creation is unconfirmed. Submit the same project details and image again to recover the original project.",
+          };
+        }
         setSourceUncertain({ reason: "unknown", record });
         return { kind: "unknown" };
       }
@@ -430,6 +621,7 @@ export function AssignmentCreationScreen({
     const request: PendingAssignment = {
       actorId: setup.session.userId,
       classId: draft.classId,
+      ...(manualSource && sourceObserved !== null ? { sourceSelection: sourceObserved } : {}),
       body: {
         requestId: crypto.randomUUID(),
         sourceProjectId: source.projectId,
@@ -457,46 +649,243 @@ export function AssignmentCreationScreen({
     );
   return (
     <section aria-label="Create class assignment" className="sp-assignment-create">
+      {createBlank &&
+        !pending &&
+        !recoveredSource &&
+        (() => {
+          let stored: string | null;
+          try {
+            stored = localStorage.getItem(blankSourceKey(setup.session.userId));
+          } catch {
+            return null;
+          }
+          const receipt =
+            stored !== null && historicalBlankSource(stored) ? blankSourceProject(stored) : null;
+          if (!receipt) return null;
+          const available = setup.projects.find(
+            (project) => project.projectId === receipt.projectId,
+          );
+          return (
+            <section className="sp-create-recovery" aria-label="Saved source project">
+              <p>
+                Saved source project ID: <code>{receipt.projectId}</code>
+              </p>
+              {available && (
+                <Button
+                  disabled={busy || formNavigation.locked}
+                  onClick={() => {
+                    setSourceObserved(stored);
+                    setExistingSourceOpen(true);
+                  }}
+                >
+                  Review saved source project {receipt.projectId}
+                </Button>
+              )}
+            </section>
+          );
+        })()}
+      {createBlank &&
+        !pending &&
+        (() => {
+          let observed: string | null;
+          try {
+            observed = localStorage.getItem(blankSourceKey(setup.session.userId));
+          } catch {
+            return null;
+          }
+          const allowed =
+            observed === null ||
+            uncorrelatedBlankSource(observed) ||
+            (existingSourceOpen &&
+              historicalBlankSource(observed) &&
+              blankSourceProject(observed) !== null) ||
+            selectedExistingSource(observed, setup.session.userId) !== null;
+          return allowed && (!recoveredSource || manualSource) ? (
+            <>
+              {!existingSourceOpen && (
+                <Button
+                  disabled={busy || formNavigation.locked}
+                  onClick={() => {
+                    setSourceObserved(observed);
+                    setExistingSourceOpen(true);
+                  }}
+                >
+                  {manualSource ? "Review selected source" : "Use an existing project"}
+                </Button>
+              )}
+              {existingSourceOpen && (
+                <section aria-label="Existing assignment source">
+                  <ExistingProjectPicker
+                    actorId={setup.session.userId}
+                    active={!busy && !formNavigation.locked}
+                    source
+                    {...(sourceObserved !== null &&
+                    historicalBlankSource(sourceObserved) &&
+                    blankSourceProject(sourceObserved)
+                      ? { projectId: blankSourceProject(sourceObserved)!.projectId }
+                      : {})}
+                    onSelect={async (project) => {
+                      const record = await selectExistingSource(
+                        localStorage,
+                        setup.session.userId,
+                        sourceObserved,
+                        project,
+                        () => verifyExistingSelection(setup.session.userId),
+                      );
+                      setSourceObserved(record);
+                      setRecoveredSource(project);
+                      setManualSource(true);
+                      setExistingSourceOpen(false);
+                      setSourceUncertain(null);
+                    }}
+                    {...(sourceObserved !== null
+                      ? {
+                          onSeparate: async () => {
+                            await verifyExistingSelection(setup.session.userId);
+                            if (
+                              !(await clearBlankSource(localStorage, setup.session.userId, {
+                                record: sourceObserved,
+                              }))
+                            )
+                              throw new Error(
+                                "The saved source changed in another tab. Review recovery again.",
+                              );
+                            setSourceObserved(null);
+                            setRecoveredSource(null);
+                            setManualSource(false);
+                            setExistingSourceOpen(false);
+                            setSourceUncertain(null);
+                          },
+                        }
+                      : {})}
+                  />
+                </section>
+              )}
+            </>
+          ) : null;
+        })()}
+      {createBlank && !pending && !recoveredSource && (
+        <PendingCreateRecovery
+          actorId={setup.session.userId}
+          purpose="assignment-source"
+          historicalLocal={(() => {
+            try {
+              const record = localStorage.getItem(blankSourceKey(setup.session.userId));
+              return (
+                record !== null &&
+                (historicalBlankSource(record) ||
+                  selectedExistingSource(record, setup.session.userId) !== null)
+              );
+            } catch {
+              return false;
+            }
+          })()}
+          active={!busy && !formNavigation.locked}
+          refreshKey={sourceUncertain?.record ?? ""}
+          prepareRecovered={async (value, operationId, observed) => {
+            const before = await assignmentSession();
+            if (before.userId !== setup.session.userId || before.mustChangePassword)
+              throw new Error("The account changed. Reload before continuing.");
+            const projects = await workspace.projects(false, undefined, setup.session.userId);
+            const current = projects.find(
+              (project) => project.projectId === value.id && project.permissions.canManage,
+            );
+            const after = await assignmentSession();
+            if (after.userId !== setup.session.userId || after.mustChangePassword || !current)
+              throw new Error(
+                "The recovered project is no longer manageable. Refresh before choosing a source.",
+              );
+            await adoptBlankSource(
+              localStorage,
+              setup.session.userId,
+              observed,
+              operationId,
+              value.receipt,
+              { projectId: current.projectId, title: current.title, revision: current.revision },
+            );
+            return {
+              id: current.projectId,
+              name: current.title,
+              revision: current.revision,
+              receipt: value.receipt,
+            };
+          }}
+          onReleased={() => setSourceUncertain(null)}
+          onRecovered={(value) => {
+            setRecoveredSource({
+              projectId: value.id,
+              title: value.name,
+              revision: value.revision!,
+            });
+            setSourceUncertain(null);
+          }}
+        />
+      )}
+      {recoveredSource && manualSource && (
+        <p role="status">
+          Using selected existing source project: {recoveredSource.title} (
+          {recoveredSource.projectId}), revision {recoveredSource.revision}.
+        </p>
+      )}
+      {recoveredSource && !manualSource && (
+        <p role="status">
+          Using explicitly recovered source project: {recoveredSource.title}. Submit the assignment
+          details to assign this source.
+        </p>
+      )}
       {sourceUncertain && !pending && (
         <div role="alert" className="sp-creation-notice">
           <p>
-            {sourceUncertain.reason === "image"
-              ? "A previously created project has a different image. Starting another project keeps the earlier one in your projects."
-              : sourceUncertain.reason === "unavailable"
-                ? "The project is no longer available or cannot be managed. You can start a new project without losing these details."
-                : "Creating the project could not be confirmed. Check your projects before trying again to avoid creating a duplicate."}
+            {sourceUncertain.reason === "historical"
+              ? "An earlier source creation had no server operation identifier. Review the current projects and choose an exact existing source; a matching name does not identify the earlier result."
+              : sourceUncertain.reason === "existing"
+                ? "The selected source changed, was removed, or is no longer manageable. Review the current exact project before using it; no replacement source was created."
+                : sourceUncertain.reason === "adopted"
+                  ? "The recovered source is preserved in this browser. Confirm its acknowledgement in recovery; the original image is not required. Continue with this source after recovery is confirmed."
+                  : sourceUncertain.reason === "retry"
+                    ? "An earlier project creation needs confirmation. Enter its same title and image, then create again to safely recover the original project."
+                    : sourceUncertain.reason === "image"
+                      ? "A previously created project has a different image. Starting another project keeps the earlier one in your projects."
+                      : sourceUncertain.reason === "unavailable"
+                        ? "The project is no longer available or cannot be managed. You can start a new project without losing these details."
+                        : "Creating the project could not be confirmed. Check your projects before trying again to avoid creating a duplicate."}
           </p>
-          <Button
-            disabled={busy}
-            onClick={async () => {
-              if (inFlight.current) return;
-              inFlight.current = true;
-              setBusy(true);
-              try {
-                if (
-                  !(await clearBlankSource(localStorage, setup.session.userId, {
-                    record: sourceUncertain.record,
-                  }))
-                ) {
-                  setMessage(
-                    "The saved source changed in another tab. Reload and check your projects.",
-                  );
-                  return;
-                }
-                if (sourceUncertain.reason !== "unknown") setSourceUncertain(null);
-                else location.assign("/home");
-              } catch {
-                setMessage(
-                  "The recovery warning could not be cleared. Your project may still exist.",
-                );
-              } finally {
-                inFlight.current = false;
-                setBusy(false);
-              }
-            }}
-          >
-            {sourceUncertain.reason !== "unknown" ? "Start a new project" : "I checked my projects"}
-          </Button>
+          {!["adopted", "historical", "existing"].includes(sourceUncertain.reason) &&
+            !existingSourceOpen && (
+              <Button
+                disabled={busy}
+                onClick={async () => {
+                  if (inFlight.current) return;
+                  inFlight.current = true;
+                  setBusy(true);
+                  try {
+                    if (
+                      !(await clearBlankSource(localStorage, setup.session.userId, {
+                        record: sourceUncertain.record,
+                      }))
+                    ) {
+                      setMessage(
+                        "The saved source changed in another tab. Reload and check your projects.",
+                      );
+                      return;
+                    }
+                    if (sourceUncertain.reason !== "unknown") setSourceUncertain(null);
+                    else location.assign("/home");
+                  } catch {
+                    setMessage(
+                      "The recovery warning could not be cleared. Your project may still exist.",
+                    );
+                  } finally {
+                    inFlight.current = false;
+                    setBusy(false);
+                  }
+                }}
+              >
+                {sourceUncertain.reason !== "unknown"
+                  ? "Start a new project"
+                  : "I checked my projects"}
+              </Button>
+            )}
         </div>
       )}
       {pending && (
@@ -555,7 +944,7 @@ export function AssignmentCreationScreen({
             initialClassId={initialClass}
             classes={setup.classes}
             students={students}
-            showImageOptions={createBlank}
+            showImageOptions={createBlank && !recoveredSource}
             dateOnly={createBlank}
             onClassChange={(classId) => changeClass(classId, setup.session.userId)}
             onSubmit={create}

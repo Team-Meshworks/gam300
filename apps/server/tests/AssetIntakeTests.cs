@@ -76,7 +76,7 @@ public sealed class AssetIntakeTests
         await Assert.That(entries.EnumerateArray().Any(item => item.GetProperty("id").GetGuid() == track.Id)).IsTrue();
         await Assert.That(entries.EnumerateArray().Any(item => item.GetProperty("id").GetGuid() == invalid.Id)).IsFalse();
         using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
-            new { title = "Audio project", environmentAssetId = environment.Id.ToString() });
+            new { operationId = Guid.NewGuid(), title = "Audio project", environmentAssetId = environment.Id.ToString() });
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var projectId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
         var json = ProjectTestDocuments.Create(projectId, "Audio project", 2)
@@ -307,7 +307,7 @@ public sealed class AssetIntakeTests
         var entries = await catalogue.Content.ReadFromJsonAsync<JsonElement>();
         await Assert.That(entries.EnumerateArray().Any(entry => entry.GetProperty("id").GetString() == candidate.Id.ToString())).IsTrue();
         using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
-            new { title = "Teacher project", environmentAssetId = candidate.Id.ToString() });
+            new { operationId = Guid.NewGuid(), title = "Teacher project", environmentAssetId = candidate.Id.ToString() });
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
     }
 
@@ -512,7 +512,7 @@ public sealed class AssetIntakeTests
 
         await fixture.SignInAsync(creator);
         using var created = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
-            new { title = "Existing room", environmentAssetId = candidate.Id.ToString() });
+            new { operationId = Guid.NewGuid(), title = "Existing room", environmentAssetId = candidate.Id.ToString() });
         await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var projectId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
         await fixture.SignInAsync(admin);
@@ -522,13 +522,13 @@ public sealed class AssetIntakeTests
         await fixture.SignInAsync(creator);
 
         using var rejected = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
-            new { title = "Fresh retired room", environmentAssetId = candidate.Id.ToString() });
+            new { operationId = Guid.NewGuid(), title = "Fresh retired room", environmentAssetId = candidate.Id.ToString() });
         await Assert.That(rejected.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
         using var opened = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}");
         await Assert.That(opened.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var document = (await opened.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("document");
         using var imported = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/",
-            new { title = "Imported retired room", document });
+            new { operationId = Guid.NewGuid(), title = "Imported retired room", document });
         await Assert.That(imported.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
         using var save = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/projects/{projectId}");
         save.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
@@ -769,7 +769,7 @@ public sealed class AssetIntakeTests
         using var request = new HttpRequestMessage();
         if (save)
         {
-            using var initial = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/", new { title = "Existing draft" }, editor, token);
+            using var initial = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/", new { operationId = Guid.NewGuid(), title = "Existing draft" }, editor, token);
             await Assert.That(initial.StatusCode).IsEqualTo(HttpStatusCode.Created);
             var project = (await initial.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
             request.Method = HttpMethod.Put;
@@ -781,7 +781,7 @@ public sealed class AssetIntakeTests
         {
             request.Method = HttpMethod.Post;
             request.RequestUri = new Uri("/api/v1/projects/", UriKind.Relative);
-            request.Content = JsonContent.Create(new { title = "New draft", environmentAssetId = roomId.ToString() });
+            request.Content = JsonContent.Create(new { operationId = Guid.NewGuid(), title = "New draft", environmentAssetId = roomId.ToString() });
         }
         request.Headers.Add("X-CSRF-TOKEN", token);
         pause.Armed = true;

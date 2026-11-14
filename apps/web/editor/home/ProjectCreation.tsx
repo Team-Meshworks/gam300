@@ -9,6 +9,10 @@ import { Field } from "../../shared/ui/Field";
 import { Select } from "../../shared/ui/Select";
 import { createWorkspaceClient, isId, isRecord, projectReceipt } from "./workspace-api";
 
+import { createOperationKey, readCreateOperation, sendCreateOperation } from "./create-operation";
+
+import { PendingCreateRecovery } from "./PendingCreateRecovery";
+
 const api = createWorkspaceClient();
 const accounts = createAccountClient();
 const directory = createDirectoryClient();
@@ -34,13 +38,15 @@ export function ProjectCreation({
   const [orgId, setOrgId] = useState("");
   const [phase, setPhase] = useState<"ready" | "pending" | "unknown" | "created">("ready");
   const recoveryKey = `spatia:uncertain-project-creation:${session.userId}`;
-  const [needsCheck, setNeedsCheck] = useState(() => {
+  const needsCheck = (() => {
     try {
-      return sessionStorage.getItem(recoveryKey) === "1";
+      return sessionStorage.getItem(recoveryKey) !== null;
     } catch {
       return true;
     }
-  });
+  })();
+  const operationKey = createOperationKey(session.userId, "project");
+  const [recoverable, setRecoverable] = useState(true);
   const [message, setMessage] = useState("");
   const [createdId, setCreatedId] = useState<string | null>(null);
   const busy = useRef(false);
@@ -118,77 +124,73 @@ export function ProjectCreation({
     }
     setOpen(false);
   }
-  async function create() {
+  async function create(retry = false) {
     if (
       !active ||
-      needsCheck ||
+      (needsCheck && !retry) ||
       busy.current ||
-      phase !== "ready" ||
-      !title.trim() ||
-      (spaceId !== "" && !spaces?.some((space) => space.id === spaceId)) ||
-      (session.role === "Administrator" && !organizations.some((org) => org.id === orgId))
+      (!retry &&
+        (recoverable ||
+          phase !== "ready" ||
+          !title.trim() ||
+          (spaceId !== "" && !spaces?.some((space) => space.id === spaceId)) ||
+          (session.role === "Administrator" && !organizations.some((org) => org.id === orgId))))
     )
       return;
-    try {
-      sessionStorage.setItem(recoveryKey, "1");
-      if (sessionStorage.getItem(recoveryKey) !== "1") throw new Error("Storage unavailable");
-    } catch {
-      setMessage(
-        "The browser could not safely store this request. Check browser storage before creating a project.",
-      );
-      return;
-    }
     busy.current = true;
     setPhase("pending");
     setMessage("");
-    const outcome = await api.write(session.userId, "/api/v1/projects", "POST", {
-      title: title.trim(),
-      ...(spaceId ? { environmentAssetId: spaceId } : {}),
-      ...(session.role === "Administrator" ? { orgId } : {}),
-    });
+    const outcome = await sendCreateOperation(
+      localStorage,
+      operationKey,
+      session.userId,
+      api.write,
+      projectReceipt,
+      retry
+        ? undefined
+        : {
+            path: "/api/v1/projects",
+            body: {
+              title: title.trim(),
+              ...(spaceId ? { environmentAssetId: spaceId } : {}),
+              ...(session.role === "Administrator" ? { orgId } : {}),
+            },
+          },
+    );
     busy.current = false;
+    try {
+      setRecoverable(readCreateOperation(localStorage, operationKey, session.userId) !== null);
+    } catch {
+      setRecoverable(true);
+    }
     if (outcome.kind === "confirmed" && projectReceipt(outcome.value) && isRecord(outcome.value)) {
-      try {
-        sessionStorage.removeItem(recoveryKey);
-        if (sessionStorage.getItem(recoveryKey) !== null) throw new Error("Storage unavailable");
-      } catch {
-        // Retain the warning on the next visit if its marker could not be cleared.
-      }
       setPhase("created");
       setCreatedId(String(outcome.value.projectId));
     } else if (outcome.kind === "rejected") {
-      let cleared = false;
-      try {
-        sessionStorage.removeItem(recoveryKey);
-        if (sessionStorage.getItem(recoveryKey) !== null) throw new Error("Storage unavailable");
-        cleared = true;
-      } catch {
-        setNeedsCheck(true);
-      }
       setPhase("ready");
-      setMessage(
-        cleared
-          ? outcome.message
-          : "The browser could not clear the recovery warning. Check your projects before trying again.",
-      );
+      setMessage(outcome.message);
     } else {
       setPhase("unknown");
-      setNeedsCheck(true);
       setMessage(
-        "Creation could not be confirmed. Check your projects before creating another; do not repeat this request.",
+        "Creation could not be confirmed. Retry the saved request to recover the same project.",
       );
     }
   }
   const unavailable =
     !active ||
     needsCheck ||
+    recoverable ||
     !!loadError ||
     (session.role !== "Administrator" && !session.orgId) ||
     (session.role === "Administrator" && !organizations.length);
   const creator = session.role === "Creator";
   // Keep the submit guard when creator actions sit outside the disabled fieldset
   const createButton = (
-    <Button type="submit" variant="primary" disabled={!active || needsCheck || phase !== "ready"}>
+    <Button
+      type="submit"
+      variant="primary"
+      disabled={!active || needsCheck || recoverable || phase !== "ready"}
+    >
       Create project
     </Button>
   );
@@ -215,6 +217,32 @@ export function ProjectCreation({
       </Button>
     </>
   );
+  const canRetry = (() => {
+    try {
+      return readCreateOperation(localStorage, operationKey, session.userId) !== null;
+    } catch {
+      return false;
+    }
+  })();
+  const recoveryPanel = (
+    <PendingCreateRecovery
+      actorId={session.userId}
+      purpose="project"
+      refreshKey={phase + message}
+      onPendingChange={setRecoverable}
+      onRecovered={(value) => {
+        setCreatedId(value.id);
+        setPhase("created");
+      }}
+      active={active && phase !== "pending"}
+      onReleased={() => {
+        setPhase("ready");
+        setMessage(
+          "The saved request was released. Its outcome remains unknown. A new project is a separate creation.",
+        );
+      }}
+    />
+  );
   return (
     <div>
       <Button
@@ -230,25 +258,19 @@ export function ProjectCreation({
       >
         New project
       </Button>
-      {needsCheck && !open && (
+      {canRetry && !open && (
         <p role="alert">
-          {message || "Check your projects for the unconfirmed creation before trying again."}{" "}
+          {message ||
+            "An earlier project creation needs confirmation. Retry its saved request to recover the same project."}
           <Button
-            onClick={() => {
-              try {
-                sessionStorage.removeItem(recoveryKey);
-                if (sessionStorage.getItem(recoveryKey) !== null)
-                  throw new Error("Storage unavailable");
-                setNeedsCheck(false);
-              } catch {
-                setMessage("Your browser could not save this recovery choice.");
-              }
-            }}
+            disabled={!active || phase === "pending" || needsCheck}
+            onClick={() => void create(true)}
           >
-            I checked my projects
+            Retry same project
           </Button>
         </p>
       )}
+      {!open && recoveryPanel}
       {loadError ? (
         <p role="alert">
           {loadError} <Button onClick={() => setVersion((value) => value + 1)}>Retry</Button>
@@ -287,6 +309,9 @@ export function ProjectCreation({
               <p>Empty projects can be edited and assigned, but publishing is not yet available.</p>
             )}
             {message && <p role="alert">{message}</p>}
+            {canRetry && phase !== "pending" && (
+              <Button onClick={() => void create(true)}>Retry same project</Button>
+            )}
             {phase === "pending" && <p role="status">Creating project… Keep this page open.</p>}
             <fieldset
               className="sp-home-fields"
@@ -354,6 +379,7 @@ export function ProjectCreation({
               )}
               {!creator && createButton}
             </fieldset>
+            {recoveryPanel}
             {creator ? (
               <div className="sp-actions">
                 {cancelButton}
