@@ -59,6 +59,14 @@ public partial class AddBulkImportReceipts : Migration
     /// <inheritdoc />
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.Sql("""
+            LOCK TABLE bulk_import_receipts IN ACCESS EXCLUSIVE MODE;
+            DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM bulk_import_receipts) THEN
+                    RAISE EXCEPTION 'Bulk import receipt history must be retained; review the downgrade first.';
+                END IF;
+            END $$;
+            """);
         migrationBuilder.DropTable(
             name: "bulk_import_receipts");
     }
