@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "../../shared/ui/Button";
 import { createAccountClient } from "../accounts/account-client";
 import {
@@ -19,17 +19,7 @@ const api = createWorkspaceClient();
 const accounts = createAccountClient();
 export type RecoveredCreation = { id: string; name: string; revision?: number; receipt: unknown };
 
-export function PendingCreateRecovery({
-  actorId,
-  purpose,
-  active,
-  onReleased,
-  onRecovered,
-  prepareRecovered,
-  onPendingChange,
-  historicalLocal = false,
-  refreshKey = "",
-}: {
+type RecoveryProps = {
   actorId: string;
   purpose: CreationPurpose;
   active: boolean;
@@ -39,11 +29,32 @@ export function PendingCreateRecovery({
     value: RecoveredCreation,
     operationId: string,
     observed: string | null,
+    signal: AbortSignal,
   ) => Promise<RecoveredCreation>;
   onPendingChange?: (pending: boolean) => void;
   historicalLocal?: boolean;
   refreshKey?: string;
-}) {
+};
+
+export function PendingCreateRecovery(props: RecoveryProps) {
+  return props.active ? (
+    <CreationRecoveryPanel
+      key={JSON.stringify([props.actorId, props.purpose, props.refreshKey ?? ""])}
+      {...props}
+    />
+  ) : null;
+}
+
+function CreationRecoveryPanel({
+  actorId,
+  purpose,
+  active,
+  onReleased,
+  onRecovered,
+  prepareRecovered,
+  onPendingChange,
+  historicalLocal = false,
+}: RecoveryProps) {
   const [observed, setObserved] = useState<string | null>(null);
   const [head, setHead] = useState<CreationHead | null>(null);
   const [reviewed, setReviewed] = useState<RecoveredCreation | null>(null);
@@ -51,53 +62,47 @@ export function PendingCreateRecovery({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
+  const discovery = useRef<AbortController | null>(null);
   const classes = purpose === "class";
   const label = classes ? "classes" : "projects";
   const key = createOperationKey(actorId, purpose);
-  async function checkAccount() {
+  async function checkAccount(signal: AbortSignal) {
     const session = await accounts.getSession();
+    signal.throwIfAborted();
     if (session?.userId !== actorId || session.mustChangePassword)
       throw new Error("The account changed. Reload before continuing.");
   }
-  async function refresh() {
-    const current = await loadCreationHead(actorId, purpose);
-    const raw = localStorage.getItem(key);
-    setHead(current);
-    setObserved(raw);
-    setReviewed(null);
-    setRows(null);
-    onPendingChange?.(current.state !== "ready" || raw !== null);
+  const showHead = useCallback(
+    (current: CreationHead, signal: AbortSignal) => {
+      signal.throwIfAborted();
+      const raw = localStorage.getItem(key);
+      setHead(current);
+      setObserved(raw);
+      setReviewed(null);
+      setRows(null);
+      onPendingChange?.(current.state !== "ready" || raw !== null);
+    },
+    [key, onPendingChange],
+  );
+  function refresh(signal: AbortSignal) {
+    return loadCreationHead(actorId, purpose).then((current) => showHead(current, signal));
   }
-  useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const current = await loadCreationHead(actorId, purpose);
-        const raw = localStorage.getItem(key);
-        if (cancelled) return;
-        setHead(current);
-        setObserved(raw);
-        setReviewed(null);
-        setRows(null);
-        setMessage("");
-        onPendingChange?.(current.state !== "ready" || raw !== null);
-      } catch (cause) {
-        if (!cancelled) {
-          setHead(null);
-          setMessage(
-            cause instanceof Error
-              ? cause.message
-              : "Creation recovery is unavailable. No creation will be sent.",
-          );
-          onPendingChange?.(true);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [actorId, purpose, active, key, refreshKey, onPendingChange]);
+  useLayoutEffect(() => {
+    const controller = new AbortController();
+    discovery.current = controller;
+    void loadCreationHead(actorId, purpose)
+      .then((current) => showHead(current, controller.signal))
+      .catch((cause) => {
+        if (controller.signal.aborted) return;
+        setMessage(
+          cause instanceof Error
+            ? cause.message
+            : "Creation recovery is unavailable. No creation will be sent.",
+        );
+        onPendingChange?.(true);
+      });
+    return () => controller.abort();
+  }, [actorId, purpose, showHead, onPendingChange]);
   let local: Record<string, unknown> | null = null;
   try {
     const parsed: unknown = observed === null ? null : JSON.parse(observed);
@@ -114,29 +119,30 @@ export function PendingCreateRecovery({
     receipt !== null &&
     creationReceipt(receipt, purpose);
   async function run(action: "refresh" | "review" | "list" | "acknowledge" | "release") {
-    if (!active || inFlight.current) return;
+    const signal = discovery.current?.signal;
+    if (!active || !signal || signal.aborted || inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
     setMessage("");
     try {
-      await checkAccount();
+      await checkAccount(signal);
       if (action === "refresh") {
-        await refresh();
+        await refresh(signal);
         return;
       }
       if (!head) throw new Error("Creation recovery must be available before continuing.");
       if (action === "list") {
         setRows(null);
         const values = classes
-          ? await api.pages("/api/v1/classes", undefined, actorId)
+          ? await api.pages("/api/v1/classes", signal, actorId)
           : (
               await Promise.all(
                 [false, true].map((archived) =>
-                  api.pages("/api/v1/projects?archived=" + archived, undefined, actorId),
+                  api.pages("/api/v1/projects?archived=" + archived, signal, actorId),
                 ),
               )
             ).flat();
-        await checkAccount();
+        await checkAccount(signal);
         const ids = new Set<string>();
         setRows(
           values.map((value) => {
@@ -161,18 +167,18 @@ export function PendingCreateRecovery({
             );
         }
         if (classes) {
-          const values = await api.pages("/api/v1/classes", undefined, actorId);
+          const values = await api.pages("/api/v1/classes", signal, actorId);
           const found = values.find((value) => isRecord(value) && value.id === receipt.id);
           if (!isRecord(found) || typeof found.name !== "string" || !isId(found.id))
             throw new Error(
               "The recovered class is no longer available. Review the current list before acknowledging it.",
             );
-          await checkAccount();
+          await checkAccount(signal);
           setReviewed({ id: found.id, name: found.name, receipt });
         } else {
           if (!isId(receipt.projectId))
             throw new Error("The recovered project could not be verified.");
-          const value = await api.read("/api/v1/projects/" + receipt.projectId, undefined, actorId);
+          const value = await api.read("/api/v1/projects/" + receipt.projectId, signal, actorId);
           if (
             !isRecord(value) ||
             value.projectId !== receipt.projectId ||
@@ -182,7 +188,7 @@ export function PendingCreateRecovery({
             Number(value.revision) < 0
           )
             throw new Error("The recovered project could not be verified.");
-          await checkAccount();
+          await checkAccount(signal);
           setReviewed({
             id: receipt.projectId,
             name: value.document.title,
@@ -198,16 +204,19 @@ export function PendingCreateRecovery({
         // Preserve an explicitly chosen source before acknowledging its server receipt so reload can resume it.
         const chosen =
           reviewed && prepareRecovered
-            ? await prepareRecovered(reviewed, operationId, observed)
+            ? await prepareRecovered(reviewed, operationId, observed, signal)
             : reviewed;
+        signal.throwIfAborted();
         const result = await acknowledgeCreation(actorId, purpose, operationId, api.write);
+        signal.throwIfAborted();
         if (result.kind !== "confirmed")
           throw new Error(
             "Acknowledgement is unconfirmed. Refresh recovery before creating another request.",
           );
         if (purpose !== "assignment-source" && observed !== null && localId === operationId)
           await releaseCreateOperation(localStorage, actorId, purpose, observed);
-        await refresh();
+        await refresh(signal);
+        signal.throwIfAborted();
         if (chosen && onRecovered) onRecovered(chosen);
       } else {
         if (head.state !== "ready" || observed === null || rows === null)
@@ -216,16 +225,20 @@ export function PendingCreateRecovery({
           throw new Error(
             "The saved request changed in another tab. Reload to review its current recovery state.",
           );
-        await refresh();
+        await refresh(signal);
+        signal.throwIfAborted();
         onReleased?.();
       }
     } catch (cause) {
-      setMessage(
-        cause instanceof Error ? cause.message : "Recovery could not be checked. Try again.",
-      );
+      if (!signal.aborted)
+        setMessage(
+          cause instanceof Error ? cause.message : "Recovery could not be checked. Try again.",
+        );
     } finally {
-      inFlight.current = false;
-      setBusy(false);
+      if (!signal.aborted) {
+        inFlight.current = false;
+        setBusy(false);
+      }
     }
   }
   if (head?.state === "ready" && (observed === null || historicalLocal) && !message) return null;

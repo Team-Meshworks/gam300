@@ -517,6 +517,35 @@ it("never overwrites a changed or different pending source during explicit adopt
   ).rejects.toThrow("preserve the recovered source");
 });
 
+it("discards a source selection when its review expires while waiting for the storage lock", async () => {
+  const actor = "11111111-1111-4111-8111-111111111111";
+  const operationId = "22222222-2222-4222-8222-222222222222";
+  const projectId = "33333333-3333-4333-8333-333333333333";
+  const receipt = { projectId, revision: 0, archived: false, updatedAt: "2026-11-14T00:00:00Z" };
+  const store = { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() };
+  const controller = new AbortController();
+  let releaseLock!: () => void;
+  const lock = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+  vi.stubGlobal("navigator", {
+    locks: { request: (_key: string, action: () => Promise<void>) => lock.then(action) },
+  });
+  const adoption = adoptBlankSource(
+    store,
+    actor,
+    null,
+    operationId,
+    receipt,
+    { projectId, title: "Reviewed", revision: 0 },
+    controller.signal,
+  );
+  controller.abort();
+  releaseLock();
+  await expect(adoption).rejects.toMatchObject({ name: "AbortError" });
+  expect(store.setItem).not.toHaveBeenCalled();
+});
+
 it("distinguishes an uncorrelated historical attempt from a known receipt and never infers a resource from attemptId", () => {
   const attempt = JSON.stringify({
     attemptId: "11111111-1111-4111-8111-111111111111",

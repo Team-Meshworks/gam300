@@ -782,11 +782,11 @@ export function AssignmentCreationScreen({
           })()}
           active={!busy && !formNavigation.locked}
           refreshKey={sourceUncertain?.record ?? ""}
-          prepareRecovered={async (value, operationId, observed) => {
+          prepareRecovered={async (value, operationId, observed, signal) => {
             const before = await assignmentSession();
             if (before.userId !== setup.session.userId || before.mustChangePassword)
               throw new Error("The account changed. Reload before continuing.");
-            const projects = await workspace.projects(false, undefined, setup.session.userId);
+            const projects = await workspace.projects(false, signal, setup.session.userId);
             const current = projects.find(
               (project) => project.projectId === value.id && project.permissions.canManage,
             );
@@ -802,6 +802,7 @@ export function AssignmentCreationScreen({
               operationId,
               value.receipt,
               { projectId: current.projectId, title: current.title, revision: current.revision },
+              signal,
             );
             return {
               id: current.projectId,

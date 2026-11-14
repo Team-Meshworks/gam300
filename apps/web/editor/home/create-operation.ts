@@ -207,8 +207,9 @@ export async function sendCreateOperation(
         if (!input.retry)
           return {
             kind: "rejected",
-            message:
-              "An earlier creation is pending. Retry its saved request before starting another.",
+            message: operation.receipt
+              ? "An earlier creation succeeded. Review and accept its result before starting another."
+              : "An earlier creation is pending. Retry its saved request before starting another.",
           };
         const {
           operationId: _operationId,
@@ -249,7 +250,6 @@ export async function sendCreateOperation(
           message: "Select the same import file again to retry the saved creation.",
         };
       const raw = storage.getItem(key);
-      let expectedRaw = raw;
       dispatched = true;
       const result: WriteResult = operation.receipt
         ? { kind: "confirmed", value: operation.receipt }
@@ -269,39 +269,15 @@ export async function sendCreateOperation(
             "Creation state changed in another browser. Review the server recovery result; this request was not reissued.",
         };
       }
-      if (result.kind === "confirmed" && operation.body.creationGuard) {
+      if (result.kind === "confirmed") {
         operation.receipt = result.value;
         const received = JSON.stringify(operation);
         if (storage.getItem(key) !== raw) return { kind: "unknown" };
         storage.setItem(key, received);
-        expectedRaw = received;
         if (storage.getItem(key) !== received) return { kind: "unknown" };
-        const ack = await acknowledgeCreation(
-          actorId,
-          purpose,
-          String(operation.body.operationId),
-          write,
-          readHead,
-        );
-        if (ack.kind !== "confirmed") return { kind: "unknown" };
-        if (storage.getItem(key) !== received) return { kind: "unknown" };
-      } else if (
-        result.kind === "confirmed" &&
-        head.state === "unacknowledged" &&
-        isId(head.operationId) &&
-        head.operationId === operation.body.operationId
-      ) {
-        if (
-          (await acknowledgeCreation(actorId, purpose, head.operationId, write, readHead)).kind !==
-          "confirmed"
-        )
-          return { kind: "unknown" };
       }
-      if (
-        result.kind === "confirmed" ||
-        (result.kind === "rejected" && !resuming && result.code !== "operation_conflict")
-      ) {
-        if (storage.getItem(key) !== expectedRaw) return { kind: "unknown" };
+      if (result.kind === "rejected" && !resuming && result.code !== "operation_conflict") {
+        if (storage.getItem(key) !== raw) return { kind: "unknown" };
         storage.removeItem(key);
         if (storage.getItem(key) !== null)
           throw new Error("The browser could not clear recovery information.");

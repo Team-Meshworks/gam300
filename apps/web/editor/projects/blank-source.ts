@@ -178,6 +178,7 @@ export async function adoptBlankSource(
   operationId: string,
   receipt: unknown,
   source: { projectId: string; title: string; revision: number },
+  signal?: AbortSignal,
 ) {
   if (
     !isId(operationId) ||
@@ -190,6 +191,7 @@ export async function adoptBlankSource(
     throw new Error("The recovered source could not be verified.");
   const key = blankSourceKey(actorId);
   await navigator.locks.request(key, async () => {
+    signal?.throwIfAborted();
     if (storage.getItem(key) !== observed)
       throw new Error(
         "The saved source changed in another tab. Refresh recovery before choosing it.",

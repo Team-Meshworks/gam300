@@ -8,6 +8,7 @@ import {
   type CreationHead,
   releaseCreateOperation,
   duplicateCreateReceipt,
+  creationReceipt,
 } from "./create-operation";
 import { createWorkspaceClient, projectReceipt, type WriteResult } from "./workspace-api";
 
@@ -63,7 +64,12 @@ it("persists before dispatch and replays the original body after a lost reply an
     value,
   });
   expect(write.mock.calls[1]).toEqual(write.mock.calls[0]);
-  expect(readCreateOperation(store, key, actor)).toBeNull();
+  expect(readCreateOperation(store, key, actor)).toEqual({ ...pending, receipt: value });
+  expect(await sendCreateOperation(store, key, actor, write, projectReceipt)).toEqual({
+    kind: "confirmed",
+    value,
+  });
+  expect(write).toHaveBeenCalledTimes(2);
 });
 
 it("keeps a delayed request's identity when an early retry also loses its reply", async () => {
@@ -94,13 +100,18 @@ it("keeps a delayed request's identity when an early retry also loses its reply"
   expect(write.mock.calls[1]?.[3]).toEqual(pending?.body);
 });
 
-it("allows deliberate identical new creates after confirmation, and isolates accounts", async () => {
+it("allows deliberate identical new creates after explicit release, and isolates accounts", async () => {
   const store = storage();
   const key = createOperationKey(actor, "project");
   const write = vi.fn<
     (actorId: string, path: string, method: "POST", body: object) => Promise<WriteResult>
   >(async (): Promise<WriteResult> => ({ kind: "confirmed", value }));
   await sendCreateOperation(store, key, actor, write, projectReceipt, input);
+  expect(await sendCreateOperation(store, key, actor, write, projectReceipt, input)).toMatchObject({
+    kind: "rejected",
+    message: "An earlier creation succeeded. Review and accept its result before starting another.",
+  });
+  expect(await releaseCreateOperation(store, actor, "project", store.getItem(key)!)).toBe(true);
   await sendCreateOperation(store, key, actor, write, projectReceipt, input);
   expect(write.mock.calls[0]?.[3]).not.toEqual(write.mock.calls[1]?.[3]);
   const lost = vi.fn<
@@ -303,7 +314,10 @@ function generations() {
       const guard = input.creationGuard as { purpose: string; previousOperationId: string | null };
       if (pending.size || guard.previousOperationId !== predecessor)
         return { kind: "rejected", code: "creation_state_changed", message: "Generation changed" };
-      const receipt = { ...value, projectId: crypto.randomUUID() };
+      const receipt =
+        path === "/api/v1/classes"
+          ? { id: crypto.randomUUID(), organizationId: other, name: input.name }
+          : { ...value, projectId: crypto.randomUUID() };
       predecessor = operationId;
       pending.set(operationId, receipt);
       committed.set(operationId, { body: input, receipt });
@@ -330,6 +344,160 @@ function generations() {
     },
   };
 }
+
+it.each(["project", "duplicate", "class", "import"] as const)(
+  "keeps a confirmed %s discoverable while its first UI handoff is held and permits a distinct create after explicit acceptance",
+  async (purpose) => {
+    const server = generations();
+    const first = storage(),
+      second = storage();
+    const key = createOperationKey(actor, purpose);
+    const original = {
+      path:
+        purpose === "class"
+          ? "/api/v1/classes"
+          : purpose === "duplicate"
+            ? `/api/v1/projects/${other}/duplicate`
+            : input.path,
+      body:
+        purpose === "class"
+          ? { name: "Museum" }
+          : purpose === "duplicate"
+            ? { title: "Museum", expectedRevision: 0 }
+            : purpose === "import"
+              ? { title: "Museum", document: "private import" }
+              : input.body,
+      ...(purpose === "import" ? { retainBody: false as const, retry: true as const } : {}),
+    };
+    const verify = (receipt: unknown) => creationReceipt(receipt, purpose);
+    let reached!: () => void, release!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let firstResult: WriteResult | undefined;
+    const handoff = sendGuardedCreateOperation(
+      first,
+      key,
+      actor,
+      server.write,
+      verify,
+      original,
+      server.read,
+    ).then(async (result) => {
+      firstResult = result;
+      reached();
+      await held;
+      return result;
+    });
+    await ready;
+    expect(firstResult?.kind).toBe("confirmed");
+    const saved = readCreateOperation(first, key, actor)!;
+    const recovered = await server.read();
+    expect(recovered).toMatchObject({
+      state: "unacknowledged",
+      operationId: saved.body.operationId,
+      receipt: saved.receipt,
+    });
+    expect(server.requests).toHaveLength(1);
+    first.removeItem(key);
+    expect(
+      await sendGuardedCreateOperation(
+        second,
+        key,
+        actor,
+        server.write,
+        verify,
+        original,
+        server.read,
+      ),
+    ).toMatchObject({ kind: "rejected", code: "creation_recovery_required" });
+    expect(server.committed.size).toBe(1);
+    expect(server.requests).toHaveLength(1);
+    expect(
+      await acknowledgeCreation(actor, purpose, recovered.operationId!, server.write, server.read),
+    ).toEqual({ kind: "confirmed", value: null });
+    const next = await sendGuardedCreateOperation(
+      second,
+      key,
+      actor,
+      server.write,
+      verify,
+      original,
+      server.read,
+    );
+    expect(next.kind).toBe("confirmed");
+    const distinct = readCreateOperation(second, key, actor)!;
+    expect(distinct.body.operationId).not.toBe(saved.body.operationId);
+    expect(distinct.body.creationGuard).toEqual({
+      purpose,
+      previousOperationId: saved.body.operationId,
+    });
+    expect(server.committed.size).toBe(2);
+    release();
+    expect(await handoff).toEqual(firstResult);
+    expect(await server.read()).toMatchObject({
+      state: "unacknowledged",
+      operationId: distinct.body.operationId,
+    });
+    expect(server.requests.filter((request) => request.path.endsWith("/acknowledge"))).toHaveLength(
+      1,
+    );
+  },
+);
+
+it("preserves a newer marker and the server receipt when a confirmed response loses the local compare", async () => {
+  const server = generations();
+  const store = storage();
+  const key = createOperationKey(actor, "project");
+  const replaced = vi.fn(async (who: string, path: string, method: "POST", body: object) => {
+    const result = await server.write(who, path, method, body);
+    store.setItem(key, "newer saved request");
+    return result;
+  });
+  expect(
+    await sendGuardedCreateOperation(
+      store,
+      key,
+      actor,
+      replaced,
+      projectReceipt,
+      input,
+      server.read,
+    ),
+  ).toEqual({ kind: "unknown" });
+  expect(store.getItem(key)).toBe("newer saved request");
+  expect((await server.read()).state).toBe("unacknowledged");
+  expect(server.requests).toHaveLength(1);
+});
+
+it("leaves the committed generation discoverable if persisting its receipt fails", async () => {
+  const server = generations();
+  const store = storage();
+  const key = createOperationKey(actor, "project");
+  const writes = vi
+    .fn(store.setItem)
+    .mockImplementationOnce(store.setItem)
+    .mockImplementation(() => {
+      throw new Error("Storage full");
+    });
+  expect(
+    await sendGuardedCreateOperation(
+      { ...store, setItem: writes },
+      key,
+      actor,
+      server.write,
+      projectReceipt,
+      input,
+      server.read,
+    ),
+  ).toEqual({ kind: "unknown" });
+  expect(readCreateOperation(store, key, actor)!.receipt).toBeUndefined();
+  expect((await server.read()).state).toBe("unacknowledged");
+  expect(server.requests).toHaveLength(1);
+});
 
 it("blocks another profile and a lost local key behind the authoritative unacknowledged receipt", async () => {
   const server = generations();
@@ -480,7 +648,7 @@ it.each([false, true])(
   },
 );
 
-it("keeps a successful import receipt before an uncertain ACK so recovery needs no original file", async () => {
+it("keeps a successful import receipt without acknowledging it so recovery needs no original file", async () => {
   const server = generations();
   server.holdAck();
   const store = storage();
@@ -503,10 +671,11 @@ it("keeps a successful import receipt before an uncertain ACK so recovery needs 
         server.read,
       )
     ).kind,
-  ).toBe("unknown");
+  ).toBe("confirmed");
   expect(readCreateOperation(store, key, actor)!.receipt).toBeDefined();
   expect(store.getItem(key)).not.toContain("private content");
-  server.allowAck();
+  expect(server.pending.size).toBe(1);
+  expect(server.requests).toHaveLength(1);
   expect(
     (
       await sendGuardedCreateOperation(
@@ -521,6 +690,20 @@ it("keeps a successful import receipt before an uncertain ACK so recovery needs 
     ).kind,
   ).toBe("confirmed");
   expect(server.requests.filter((request) => request.path === input.path)).toHaveLength(1);
+  expect(server.requests).toHaveLength(1);
+  expect(
+    (
+      await acknowledgeCreation(
+        actor,
+        "import",
+        String(readCreateOperation(store, key, actor)!.body.operationId),
+        server.write,
+        server.read,
+      )
+    ).kind,
+  ).toBe("unknown");
+  expect(readCreateOperation(store, key, actor)!.receipt).toBeDefined();
+  expect(server.pending.size).toBe(1);
 });
 
 it("fails closed on unavailable or malformed generation discovery, including unchanged legacy keyed retries", async () => {
@@ -577,6 +760,12 @@ it("replays a legacy keyed request without inventing a guard after proving serve
     async () => ({ state: "ready", operationId: null, receipt: null }),
   );
   expect(write).toHaveBeenCalledExactlyOnceWith(actor, input.path, "POST", body);
+  expect(readCreateOperation(store, key, actor)).toEqual({
+    actorId: actor,
+    path: input.path,
+    body,
+    receipt: value,
+  });
 });
 
 it.each([200, 201])(

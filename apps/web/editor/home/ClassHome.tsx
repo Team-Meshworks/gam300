@@ -236,7 +236,8 @@ export function ClassHome({
   );
   const canRetry = (() => {
     try {
-      return readCreateOperation(localStorage, operationKey, session.userId) !== null;
+      const operation = readCreateOperation(localStorage, operationKey, session.userId);
+      return operation !== null && !operation.receipt;
     } catch {
       return false;
     }

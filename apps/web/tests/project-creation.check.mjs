@@ -71,6 +71,10 @@ try {
       });
     if (path === "/api/v1/projects" && request.method() === "GET")
       return route.fulfill({ json: { items: [], nextCursor: null } });
+    if (path === "/api/v1/projects/" + projectId && request.method() === "GET")
+      return route.fulfill({
+        json: { projectId, revision: 0, document: { title: "Confirmed project" } },
+      });
     if (path === "/api/v1/projects" && request.method() === "POST") {
       assert.equal(request.headers()["x-csrf-token"], "test-token");
       writes.push(request.postDataJSON());
@@ -166,6 +170,15 @@ try {
     creationGuard: { purpose: "project", previousOperationId: null },
   });
   await page.goto(origin + "/home");
+  async function acceptConfirmedProject() {
+    const recovery = page.getByRole("region", { name: "Release pending project request" });
+    await recovery.getByRole("button", { name: "Review recovered project" }).click();
+    await recovery.getByText(/Recovered project: Confirmed project/).waitFor();
+    await recovery.getByRole("button", { name: "Open this recovered project" }).click();
+    await page.waitForURL(`**/?projectId=${projectId}`);
+    await page.goto(origin + "/home");
+  }
+  await acceptConfirmedProject();
   await create.click();
   await dialog.getByLabel("Project title").fill("Unsent project");
   await dialog.getByRole("button", { name: "Cancel" }).click();
@@ -191,6 +204,7 @@ try {
   account = { ...session, role: "Administrator", orgId: null };
   loseResponse = false;
   await page.goto(origin + "/home");
+  await acceptConfirmedProject();
   await create.click();
   await dialog.getByLabel("Project title").fill("School gallery");
   await chooseSpace(assetId);
@@ -218,6 +232,8 @@ try {
     creationGuard: { purpose: "project", previousOperationId: writes[1].operationId },
   });
   assert.notEqual(writes[3].operationId, writes[1].operationId);
+  await page.goto(origin + "/home");
+  await acceptConfirmedProject();
   assets = [];
   organizations = [];
   await page.goto(origin + "/home");
@@ -315,6 +331,137 @@ try {
   assert.equal(await page.evaluate((key) => localStorage.getItem(key), pendingKey), null);
   assert.equal(await create.isEnabled(), true);
   assert.equal(writes.length, beforeRelease, "Explicit release does not send a new creation");
+
+  // A focus recheck must not attach a delayed review to a newer server head.
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1280, height: 720 },
+  ]) {
+    const racePage = await browser.newPage({ viewport });
+    racePage.setDefaultTimeout(7000);
+    const operationA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const operationB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const projectA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab";
+    const projectB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbc";
+    const raceReceipt = (id) => ({
+      projectId: id,
+      revision: 0,
+      updatedAt: "2026-11-05T00:00:00Z",
+      archived: false,
+    });
+    let raceHead = operationA;
+    let releaseReview;
+    let reviewStarted;
+    let headRead;
+    let headSettled;
+    let lateSessionDelivered;
+    let bHeadRead = false;
+    let holdReviewSession = false;
+    const reviewHeld = new Promise((resolve) => (releaseReview = resolve));
+    const reviewPending = new Promise((resolve) => (reviewStarted = resolve));
+    const bRead = new Promise((resolve) => (headRead = resolve));
+    const bSettled = new Promise((resolve) => (headSettled = resolve));
+    const lateSession = new Promise((resolve) => (lateSessionDelivered = resolve));
+    const acknowledgements = [];
+    await racePage.route("**/api/v1/**", async (route) => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      if (path === "/api/v1/auth/session") {
+        const wasHeld = holdReviewSession;
+        if (holdReviewSession) {
+          holdReviewSession = false;
+          reviewStarted();
+          await reviewHeld;
+        }
+        await route.fulfill({ json: session });
+        if (wasHeld) lateSessionDelivered();
+        if (bHeadRead) headSettled();
+        return;
+      }
+      if (path === "/api/v1/auth/csrf")
+        return route.fulfill({ json: { requestToken: "test-token" } });
+      if (path === "/api/v1/creation-operations/import" && request.method() === "GET") {
+        const operationId = raceHead;
+        await route.fulfill({
+          json: {
+            state: operationId === null ? "ready" : "unacknowledged",
+            operationId,
+            receipt:
+              operationId === null
+                ? null
+                : raceReceipt(operationId === operationA ? projectA : projectB),
+          },
+        });
+        if (operationId === operationB) {
+          bHeadRead = true;
+          headRead();
+        }
+        return;
+      }
+      if (path.startsWith("/api/v1/creation-operations/") && request.method() === "GET")
+        return route.fulfill({ json: { state: "ready", operationId: null, receipt: null } });
+      if (path.endsWith("/acknowledge")) {
+        acknowledgements.push(path);
+        raceHead = null;
+        return route.fulfill({ status: 204 });
+      }
+      if (path === "/api/v1/projects/" + projectA) {
+        holdReviewSession = true;
+        return route.fulfill({
+          json: { projectId: projectA, revision: 0, document: { title: "Review A" } },
+        });
+      }
+      if (path === "/api/v1/projects/" + projectB)
+        return route.fulfill({
+          json: { projectId: projectB, revision: 0, document: { title: "Review B" } },
+        });
+      if (path === "/api/v1/projects")
+        return route.fulfill({ json: { items: [], nextCursor: null } });
+      return route.fulfill({ status: 404 });
+    });
+    try {
+      await racePage.goto(origin + "/home");
+      const panel = racePage.getByRole("region", { name: "Release pending import request" });
+      await panel.getByRole("button", { name: "Review recovered project" }).click();
+      await reviewPending;
+      raceHead = operationB;
+      await racePage.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await bRead;
+      await bSettled;
+      await racePage.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      );
+      releaseReview();
+      await lateSession;
+      await racePage.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      );
+      await panel
+        .getByRole("button", { name: "Review recovered project" })
+        .and(racePage.locator(":enabled"))
+        .waitFor();
+      assert.equal(
+        await panel.getByText(/Recovered project: Review A/).count(),
+        0,
+        "A delayed review must not authorize the newly discovered operation",
+      );
+      assert.deepEqual(acknowledgements, []);
+      assert.equal(new URL(racePage.url()).pathname, "/home");
+      await panel.getByRole("button", { name: "Review recovered project" }).click();
+      await panel.getByText(/Recovered project: Review B/).waitFor();
+      await racePage.screenshot({
+        path: `../../.artifacts/project-creation/stale-review-${viewport.width}.png`,
+      });
+      await panel.getByRole("button", { name: "Open this recovered project" }).click();
+      await racePage.waitForURL("**/?projectId=" + projectB);
+      assert.deepEqual(acknowledgements, [
+        "/api/v1/creation-operations/import/" + operationB + "/acknowledge",
+      ]);
+    } finally {
+      releaseReview();
+      await racePage.close();
+    }
+  }
   console.log(
     "Project creation opens the confirmed server project and safely releases only observed pending attempts",
   );
