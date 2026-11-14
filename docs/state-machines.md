@@ -204,7 +204,9 @@ A theoretical interleaving alone is not proof of a reproduced product bug. Table
 
 ## Verification
 
-Under pinned Node 24.22.2, checks passed: 87 Vitest files / 886 tests; `tsc -b`; oxlint; oxfmt (391 files); architecture (413 sources, 1,583 imports); editor build (252 modules); and visitor build (41 modules). The visitor build retained its existing >500 KB chunk warning. Local document links and `git diff --check` passed. Both full server-autosave and local-drafts browser suites passed under pinned Node 24.22.2 with Chrome for Testing 157.0.8103.38. One pinned autosave run timed out waiting for saved state after reopening following publication; a diagnostic rerun passed. An earlier capability-revocation timeout also passed on an unchanged rerun. Their causes are unconfirmed. Backend review is source-only; no live server or database concurrency tests were run.
+After merging dev at `1560743`, all 1,043 web unit tests across 111 files passed under Node 24.22.2. TypeScript, the editor and visitor production builds, and the architecture check passed (536 sources and 2,229 imports). The [hosted recovery checks](https://github.com/Team-Meshworks/gam300/actions/runs/43564671144/job/132355771006) passed against the signed-in editor, including real IndexedDB revisions, overlapping OPFS exports and save retries.
+
+Before this integration, under pinned Node 24.22.2, checks passed: 87 Vitest files / 886 tests; `tsc -b`; oxlint; oxfmt (391 files); architecture (413 sources, 1,583 imports); editor build (252 modules); and visitor build (41 modules). The visitor build retained its existing >500 KB chunk warning. Local document links and `git diff --check` passed. Both full server-autosave and local-drafts browser suites passed under pinned Node 24.22.2 with Chrome for Testing 157.0.8103.38. One pinned autosave run timed out waiting for saved state after reopening following publication; a diagnostic rerun passed. An earlier capability-revocation timeout also passed on an unchanged rerun. Their causes are unconfirmed. Backend review is source-only; no live server or database concurrency tests were run.
 
 ## Coverage and limits
 

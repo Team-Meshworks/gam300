@@ -615,7 +615,8 @@ describe("server project session lifecycle", () => {
     expect(write).not.toHaveBeenCalled();
     await session.dispose();
     const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
-    if (!recovered.ok || !recovered.value?.document) throw new Error("Missing previous project backup");
+    if (!recovered.ok || !recovered.value?.document)
+      throw new Error("Missing previous project backup");
     const reopened = createDocumentStore([]);
     expect(
       reopened.loadProject(

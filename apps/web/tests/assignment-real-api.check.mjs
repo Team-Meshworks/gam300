@@ -270,20 +270,25 @@ try {
   await publishing.getByRole("button", { name: "Publish Project", exact: true }).click();
   const committed = await publicationResponse;
   assert.equal(committed.status(), 201);
-  const publication = await committed.json();
+  const { publicationId } = committed.request().postDataJSON();
+  assert.ok(publicationId);
   await fresh.waitForURL(`${origin}/home?tab=published`);
   const visitorContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const visitor = await visitorContext.newPage();
   visitor.setDefaultTimeout(20000);
-  const shared = new URL(publication.visitorUrl);
+  // Chrome can release the POST body during navigation. Follow the link the student sees.
+  const preview = fresh
+    .locator(`article[aria-labelledby="title-${project}"]`)
+    .getByRole("link", { name: "Preview", exact: true });
+  await preview.waitFor();
+  const shared = new URL(await preview.getAttribute("href"), origin);
+  assert.equal(shared.pathname, `/p/${publicationId}`);
   await visitor.goto(origin + shared.pathname + shared.search + shared.hash);
   await visitor.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
   await visitor.getByRole("button", { name: "Enable audio", exact: true }).click();
   await visitor.locator("canvas").waitFor();
   assert.equal(
-    (
-      await visitorContext.request.get(`${origin}/api/v1/publications/${publication.publicationId}`)
-    ).status(),
+    (await visitorContext.request.get(`${origin}/api/v1/publications/${publicationId}`)).status(),
     200,
   );
   await visitorContext.close();

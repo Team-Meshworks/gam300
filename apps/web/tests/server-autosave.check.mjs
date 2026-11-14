@@ -447,13 +447,7 @@ try {
           ...backup,
           serverSave: { revision: 7, confirmedJson: encoded, pending: null },
         };
-        const second = await applySaveRecoverySession(
-          confirmed,
-          1,
-          assets,
-          database,
-          scope,
-        );
+        const second = await applySaveRecoverySession(confirmed, 1, assets, database, scope);
         const cleared = await clearConfirmedServerRecovery(scope);
         const reopened = await getRecoverySession(assets, database, scope);
         if (!reopened.ok || !reopened.value) throw new Error("Cleared revision was not retained");

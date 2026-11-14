@@ -40,7 +40,9 @@ export async function writeProjectFile(
   const stream = await handle.createWritable({ mode: "exclusive" });
   try {
     if ((await (await handle.getFile()).text()) !== previousText) {
-      throw new Error("This file changed outside the editor; choose a different export destination");
+      throw new Error(
+        "This file changed outside the editor; choose a different export destination",
+      );
     }
     await stream.write(text);
     // Closing commits the temporary write; writing bytes alone doesn't confirm a saved file
