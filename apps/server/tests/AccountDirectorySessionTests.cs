@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Accounts;
+using Spatia.Server.Assets;
 using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
@@ -61,6 +62,54 @@ public sealed class AccountDirectorySessionTests
         await Assert.That(record.GetProperty("isActive").GetBoolean()).IsEqualTo(!mutation);
     }
 
+    [Test]
+    [Arguments("organization")]
+    [Arguments("asset")]
+    public async Task CreateOrRemove_ExpiryAfterCommitRequiresAuthoritativeRecovery(string operation)
+    {
+        var commit = new CommitProbe();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(commit)),
+            environmentName: "Development");
+        var actor = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var assetId = Guid.NewGuid();
+        if (operation == "asset")
+        {
+            await using var scope = fixture.Database.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var bytes = AssetIntakeTests.CreateMinimalGlb();
+            db.AssetCandidates.Add(new AssetCandidate
+            {
+                Id = assetId, Name = "Synthetic retired room", Kind = "environment", Bytes = bytes,
+                Sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)),
+                Status = "approved", Hidden = true, Deleted = true, Source = "Fixture", License = "Fixture",
+                ReviewNotes = "Fixture", ValidationJson = "[]", SubmittedBy = actor, ReviewedBy = actor,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+        await fixture.SignInAsync(actor);
+        var cutoff = new DateTimeOffset(long.Parse(
+            fixture.ReadTicket().Properties.Items[HttpsApplicationFixture.AbsoluteExpiryKey]!, CultureInfo.InvariantCulture), TimeSpan.Zero);
+        var token = await fixture.GetCsrfAsync();
+        commit.After = () => fixture.Clock.Set(cutoff);
+        using var response = operation == "organization"
+            ? await AuthTestRequests.PostAsync(fixture, "/api/v1/admin/organizations", new { name = "Synthetic expiry school" }, token: token)
+            : await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{assetId:D}/availability", new AssetAvailabilityRequest("remove", true), token: token);
+        await AuthTestRequests.AssertProblemAsync(response, HttpStatusCode.Unauthorized, "authentication_required");
+        await fixture.SignInAsync(actor);
+        using var recovered = await fixture.Client.GetAsync(operation == "organization" ? "/api/v1/admin/organizations" : "/api/v1/admin/assets");
+        await Assert.That(recovered.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var result = await recovered.Content.ReadFromJsonAsync<JsonElement>();
+        if (operation == "organization")
+        {
+            await Assert.That(result.GetProperty("items").EnumerateArray().Any(item => item.GetProperty("name").GetString() == "Synthetic expiry school")).IsTrue();
+        }
+        else
+        {
+            await Assert.That(result.GetProperty("assets").EnumerateArray().Single(item => item.GetProperty("id").GetGuid() == assetId).GetProperty("removedFromProjects").GetBoolean()).IsTrue();
+        }
+    }
     private sealed class CommitProbe : DbTransactionInterceptor
     {
         public Action? After;

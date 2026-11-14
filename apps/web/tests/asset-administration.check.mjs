@@ -65,6 +65,7 @@ async function choose(label, text) {
 async function checkUnacknowledgedUpload() {
   const screen = await browser.newPage();
   const records = [];
+  let directoryDenied = false;
   const submittedTwice = Promise.withResolvers();
   const actor = "00000000-0000-4000-8000-000000000001";
   await screen.route("**/api/v1/**", async (route) => {
@@ -82,6 +83,7 @@ async function checkUnacknowledgedUpload() {
       });
     if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "csrf" } });
     if (path !== "/api/v1/admin/assets") return route.fulfill({ status: 404 });
+    if (request.method() === "GET" && directoryDenied) return route.fulfill({ status: 401 });
     if (request.method() === "GET")
       return route.fulfill({
         json: {
@@ -111,7 +113,7 @@ async function checkUnacknowledgedUpload() {
       actions: ["hide", "delete"],
     };
     records.push(asset);
-    if (records.length === 1) return route.abort("failed");
+    if (records.length === 1) return route.fulfill({ status: 401 });
     submittedTwice.resolve();
     return route.fulfill({ status: 201, json: asset });
   });
@@ -138,6 +140,14 @@ async function checkUnacknowledgedUpload() {
     "Retrying an upload with a lost receipt must not create a second candidate",
   );
   await dialog.getByRole("button", { name: "Check asset list" }).waitFor();
+  directoryDenied = true;
+  await screen.reload();
+  await screen.getByRole("heading", { name: "Access denied" }).waitFor();
+  assert.equal(
+    await screen.getByRole("button", { name: "+ Add 3D Space", exact: true }).isDisabled(),
+    true,
+  );
+  directoryDenied = false;
   await screen.reload();
   const candidate = screen.getByRole("heading", { name: "Lost receipt", exact: true });
   await candidate.waitFor({ state: "attached" });

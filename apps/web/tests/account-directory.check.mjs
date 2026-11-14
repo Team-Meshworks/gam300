@@ -805,6 +805,51 @@ try {
   assert.equal(await page.getByRole("checkbox", { name: /^Select creator / }).count(), 0);
   await page.getByRole("button", { name: "Select accounts", exact: true }).waitFor();
   await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  const staged = page.getByRole("dialog", { name: "Account Creation", exact: true });
+  await staged.getByLabel("Name", { exact: true }).fill("Manual Must Not Post");
+  await staged.getByLabel("Username", { exact: true }).fill("manual-must-not-post");
+  await staged.getByLabel("Password", { exact: true }).fill("manual-password-123");
+  const stagedChooser = page.waitForEvent("filechooser");
+  await staged.getByRole("button", { name: "Upload CSV", exact: true }).click();
+  await (
+    await stagedChooser
+  ).setFiles({
+    name: "staged.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Name,DOB\nStaged Student,2009-02-01"),
+  });
+  await staged.getByText("1 accounts ready to import.").waitFor();
+  const second = await context.newPage();
+  await second.goto(page.url());
+  await second.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  const secondDialog = second.getByRole("dialog", { name: "Account Creation", exact: true });
+  const secondChooser = second.waitForEvent("filechooser");
+  await secondDialog.getByRole("button", { name: "Upload CSV", exact: true }).click();
+  await (
+    await secondChooser
+  ).setFiles({
+    name: "second.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Name,DOB\nSecond Student,2009-02-01"),
+  });
+  await secondDialog.getByText("1 accounts ready to import.").waitFor();
+  loseImportReceipt = true;
+  await secondDialog.getByRole("button", { name: "Save changes", exact: true }).click();
+  await secondDialog.getByRole("button", { name: "Check import receipt" }).waitFor();
+  const beforeManual = writes.filter((write) => write.path === "/api/v1/admin/users").length;
+  await staged.getByRole("button", { name: "Save changes", exact: true }).click();
+  await page.waitForTimeout(500);
+  assert.equal(
+    writes.filter((write) => write.path === "/api/v1/admin/users").length,
+    beforeManual,
+    "Staged CSV never sends the manual fields",
+  );
+  await staged.getByRole("button", { name: "Check import receipt" }).click();
+  await staged.getByText("Second Student", { exact: true }).waitFor();
+  await staged.getByRole("button", { name: "Acknowledge credential handoff" }).click();
+  await staged.waitFor({ state: "detached" });
+  await second.close();
+  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
   const uncertainImport = page.getByRole("dialog", { name: "Account Creation", exact: true });
   const chooserAfterLoss = page.waitForEvent("filechooser");
   await uncertainImport.getByRole("button", { name: "Upload CSV", exact: true }).click();

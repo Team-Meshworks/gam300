@@ -264,3 +264,36 @@ it("refuses crossed receipts, uncreated credential rows and a changed post-respo
   await expect(client.load(operationId)).rejects.toThrow("account changed");
   expect(client.pending()).toBe(operationId);
 });
+
+it("retains the bulk operation when a dispatched write returns 401", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(json({}, 401));
+  const client = createDirectoryClient(request, actor).bulkImport(org);
+  await expect(client.start(values)).rejects.toThrow();
+  expect(client.pending()).not.toBeNull();
+});
+
+it.each([401, 403])("releases the bulk marker for a %s preflight denial", async (status) => {
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(json({}, status));
+  const client = createDirectoryClient(request, actor).bulkImport(org);
+  await expect(client.start(values)).rejects.toThrow("could not be sent");
+  expect(client.pending()).toBeNull();
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+it("does not dispatch a bulk import when the recovery marker cannot be stored", async () => {
+  vi.stubGlobal("localStorage", {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error("quota");
+    },
+    removeItem: () => {},
+  });
+  const request = vi.fn<typeof fetch>();
+  await expect(
+    createDirectoryClient(request, actor).bulkImport(org).start(values),
+  ).rejects.toThrow();
+  expect(request).not.toHaveBeenCalled();
+});

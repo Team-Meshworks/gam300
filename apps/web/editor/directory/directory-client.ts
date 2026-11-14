@@ -130,7 +130,7 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
       if (
         init.method === "PUT" &&
         path.includes("/bulk-imports/") &&
-        [400, 401, 403, 404, 413, 422, 429].includes(response.status)
+        [400, 403, 404, 413, 422, 429].includes(response.status)
       )
         throw new ImportRejected(message);
       throw new Error(message);

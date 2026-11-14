@@ -117,6 +117,8 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   // Ignore aborted responses so a closed screen cannot publish stale data into its replacement
   useEffect(() => {
     const controller = new AbortController();
+    setData(null);
+    setLoading(true);
     void service
       .load(controller.signal)
       .then((result) => {
