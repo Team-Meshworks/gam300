@@ -246,8 +246,12 @@ try {
     await chainPage.getByRole("button", { name: "Preview", exact: true }).click();
     await chainPage
       .getByRole("status")
-      .filter({ hasText: "Navigation stopped: automatic scene interactions form a loop." })
+      .filter({ hasText: "Automatic scene navigation stopped at a repeated scene." })
       .waitFor();
+    assert.equal(
+      await chainPage.getByRole("combobox", { name: "Scene", exact: true }).inputValue(),
+      "1",
+    );
     assert.equal(
       await chainPage.getByRole("region", { name: "Exhibition", exact: true }).count(),
       1,
