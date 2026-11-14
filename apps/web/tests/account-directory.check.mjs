@@ -15,6 +15,7 @@ const rows = [];
 const writes = [];
 let duplicate = false;
 let failBulkDelete = false;
+let loseImportReceipt = false;
 let organizationActive = true;
 let organizationName = "Ridgeview Secondary School";
 let emptyProjects = false;
@@ -104,6 +105,10 @@ try {
             mustChangePassword: true,
           }));
         rows.push(...created);
+        if (loseImportReceipt) {
+          loseImportReceipt = false;
+          return route.abort("failed");
+        }
         return route.fulfill({ status: created.length ? 201 : 200, json: created });
       }
       if (req.method() === "POST") {
@@ -732,11 +737,59 @@ try {
   );
   assert.equal(await page.getByRole("checkbox", { name: /^Select creator / }).count(), 0);
   await page.getByRole("button", { name: "Select accounts", exact: true }).waitFor();
+  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  const uncertainImport = page.getByRole("dialog", { name: "Account Creation", exact: true });
+  const chooserAfterLoss = page.waitForEvent("filechooser");
+  await uncertainImport.getByRole("button", { name: "Upload CSV", exact: true }).click();
+  await (
+    await chooserAfterLoss
+  ).setFiles({
+    name: "uncertain-import.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Name,DOB\nRecovery Student,2009-02-01"),
+  });
+  await uncertainImport.getByText("1 accounts ready to import.", { exact: true }).waitFor();
+  const importCount = () => writes.filter((write) => write.path.endsWith("/users/bulk")).length;
+  const beforeLoss = importCount();
+  let unconfirmedDownloads = 0;
+  page.on("download", () => {
+    unconfirmedDownloads++;
+  });
+  loseImportReceipt = true;
+  const saveImport = uncertainImport.getByRole("button", { name: "Save changes", exact: true });
+  await saveImport.click();
+  await uncertainImport.getByRole("alert").waitFor();
+  if (await saveImport.isEnabled()) {
+    await Promise.all([
+      page.waitForResponse((response) => response.url().endsWith("/users/bulk")),
+      saveImport.click(),
+    ]);
+  }
+  assert.equal(
+    importCount(),
+    beforeLoss + 1,
+    "A lost bulk receipt must not discard an import by replaying it",
+  );
+  const reviewImport = uncertainImport.getByRole("button", {
+    name: "Check account directory",
+    exact: true,
+  });
+  await reviewImport.click();
+  await uncertainImport.waitFor({ state: "detached" });
+  await page
+    .getByRole("button", { name: "View account for Recovery Student", exact: true })
+    .waitFor();
   const storage = await page.evaluate(() =>
     JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
   );
   assert.ok(!storage.includes("password1") && !storage.includes("password2"));
-  for (const value of batch[0].body) assert.ok(!storage.includes(value.initialPassword));
+  for (const attempt of writes.filter((write) => write.path.endsWith("/users/bulk")))
+    for (const value of attempt.body) assert.ok(!storage.includes(value.initialPassword));
+  assert.equal(
+    unconfirmedDownloads,
+    0,
+    "An uncertain import must never export unverified credentials",
+  );
   assert.deepEqual(errors, []);
   console.log(
     "Account directory browser checks passed: create, override, errors, reload, filters, lifecycle, mobile, return navigation, failed-load recovery and sound.",

@@ -62,7 +62,100 @@ async function choose(label, text) {
     .getByRole("option", { name: text, exact: true })
     .click();
 }
+async function checkUnacknowledgedUpload() {
+  const screen = await browser.newPage();
+  const records = [];
+  const submittedTwice = Promise.withResolvers();
+  const actor = "00000000-0000-4000-8000-000000000001";
+  await screen.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === "/api/v1/auth/session")
+      return route.fulfill({
+        json: {
+          userId: actor,
+          orgId: null,
+          role: "Administrator",
+          displayName: "Admin",
+          mustChangePassword: false,
+        },
+      });
+    if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "csrf" } });
+    if (path !== "/api/v1/admin/assets") return route.fulfill({ status: 404 });
+    if (request.method() === "GET")
+      return route.fulfill({
+        json: {
+          assets: records,
+          policy: {
+            extensions: [".glb"],
+            categories: { model: ["Objects"], environment: null },
+            canSubmit: true,
+            canForceRemove: false,
+            maxBytes: 1024,
+          },
+        },
+      });
+    assert.equal(request.method(), "POST");
+    assert.equal(request.headers()["x-csrf-token"], "csrf");
+    const asset = {
+      id: crypto.randomUUID(),
+      name: "Lost receipt",
+      kind: "environment",
+      category: null,
+      status: "approved",
+      hidden: false,
+      deleted: false,
+      removedFromProjects: false,
+      thumbnail: null,
+      validation: [],
+      actions: ["hide", "delete"],
+    };
+    records.push(asset);
+    if (records.length === 1) return route.abort("failed");
+    submittedTwice.resolve();
+    return route.fulfill({ status: 201, json: asset });
+  });
+  await screen.goto(new URL("/spaces?add=1", baseUrl).href);
+  const dialog = screen.getByRole("dialog");
+  await dialog.getByLabel("Choose asset file").setInputFiles({
+    name: "Lost receipt.glb",
+    mimeType: "model/gltf-binary",
+    buffer: Buffer.from("fixture"),
+  });
+  const save = dialog.getByRole("button", { name: "Save Changes", exact: true });
+  await save.click();
+  await dialog.getByRole("alert").waitFor();
+  await screen.waitForFunction(
+    () => document.querySelector("dialog form")?.getAttribute("aria-busy") === "false",
+  );
+  if (await save.isEnabled()) {
+    await save.click();
+    await submittedTwice.promise;
+  }
+  assert.equal(
+    records.length,
+    1,
+    "Retrying an upload with a lost receipt must not create a second candidate",
+  );
+  await dialog.getByRole("button", { name: "Check asset list" }).waitFor();
+  await screen.reload();
+  const candidate = screen.getByRole("heading", { name: "Lost receipt", exact: true });
+  await candidate.waitFor({ state: "attached" });
+  assert.equal(
+    await dialog.count(),
+    0,
+    "Reloading the upload shortcut must show the catalogue after an uncertain write",
+  );
+  await screen.getByRole("button", { name: "+ Add 3D Space", exact: true }).click();
+  await dialog.waitFor();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await candidate.waitFor();
+  assert.equal(records.length, 1);
+  await screen.close();
+}
+
 try {
+  await checkUnacknowledgedUpload();
   // Exercise the real components with the clearly labelled local adapter
   // No fixture response is evidence of authenticated intake or persisted asset approval
   const fixture = fileURLToPath(

@@ -276,3 +276,36 @@ it.each([true, "yes"])("validates per-kind upload availability %j", async (audio
   expect(result.ok).toBe(typeof audio === "boolean");
   if (result.ok) expect(result.value.policy.canSubmitByKind?.audio).toBe(true);
 });
+
+it.each([
+  ["csrf", "unavailable"],
+  ["rejected", "unavailable"],
+  ["lost", "unknown"],
+  ["gateway", "unknown"],
+  ["malformed", "unknown"],
+])("distinguishes %s from a confirmed asset upload", async (failure, expected) => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (url === "/api/v1/auth/csrf") {
+        if (failure === "csrf") throw new TypeError("Not sent");
+        return Response.json({ requestToken: "token" });
+      }
+      if (failure === "lost") throw new TypeError("Lost response");
+      if (failure === "gateway") return new Response(null, { status: 502 });
+      if (failure === "rejected")
+        return Response.json({ code: "asset_intake_unavailable" }, { status: 503 });
+      return Response.json({});
+    }),
+  );
+  const result = await createAssetAdministrationService(actor).submit(
+    {
+      file: new File(["model"], "crate.glb"),
+      kind: "model",
+      category: "Objects",
+      review: { source: "", license: "", reviewNotes: "" },
+    },
+    new AbortController().signal,
+  );
+  expect(result).toMatchObject({ ok: false, kind: expected });
+});

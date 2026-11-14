@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createDashboardClient } from "./dashboard-client";
 
 const actor = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
@@ -12,6 +12,16 @@ const project = {
   isPublic: false,
   permissions: { canEdit: true, canManage: true, canPublish: true },
 };
+beforeEach(() => {
+  const records = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => records.get(key) ?? null,
+    setItem: (key: string, value: string) => records.set(key, value),
+    removeItem: (key: string) => records.delete(key),
+  });
+});
+afterEach(() => vi.unstubAllGlobals());
+
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 
@@ -171,6 +181,67 @@ it("does not submit an organisation with an invalid token or retry an uncertain 
     createDashboardClient(actor, uncertain).moderatePublications(actor, "delete"),
   ).rejects.toThrow("could not be confirmed");
   expect(uncertain).toHaveBeenCalledTimes(4);
+});
+
+it("keeps a committed organisation with a lost reply from being created again after reopening", async () => {
+  const created: string[] = [];
+  const request = vi.fn<typeof fetch>(async (path, init) => {
+    if (path === "/api/v1/auth/csrf") return json({ requestToken: "csrf" });
+    const { name } = JSON.parse(String(init?.body)) as { name: string };
+    created.push(name);
+    throw new TypeError("The reply was lost after commit");
+  });
+  await expect(
+    createDashboardClient(actor, request).createOrganization("School"),
+  ).rejects.toThrow();
+  await expect(
+    createDashboardClient(actor, request).createOrganization("School"),
+  ).rejects.toThrow();
+  expect(created).toEqual(["School"]);
+});
+
+it("keeps an uncertain creation when another tab acknowledges a superseded attempt", async () => {
+  const request = vi.fn<typeof fetch>(async (path) => {
+    if (path === "/api/v1/auth/csrf") return json({ requestToken: "csrf" });
+    return new Response(null, { status: 503 });
+  });
+  const client = createDashboardClient(actor, request);
+  await expect(client.createOrganization("First School")).rejects.toThrow("confirmed");
+  const first = client.pendingOrganization()!;
+  await client.acknowledgeOrganization(first);
+  await expect(client.createOrganization("Another School")).rejects.toThrow("confirmed");
+  await expect(client.acknowledgeOrganization(first)).rejects.toThrow("changed");
+  expect(client.pendingOrganization()?.name).toBe("Another School");
+});
+
+it("unlocks a definite rejection and keeps a mismatched confirmation for review", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(new Response(null, { status: 400 }))
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(json({ id: actor, name: "Another school", isActive: true }, 201));
+  const client = createDashboardClient(actor, request);
+  await expect(client.createOrganization("School")).rejects.toThrow("name");
+  expect(client.pendingOrganization()).toBeNull();
+  await expect(client.createOrganization("School")).rejects.toThrow("confirmed");
+  expect(client.pendingOrganization()?.name).toBe("School");
+});
+
+it("lets the administrator reconcile an unreadable marker without sending or clearing a replacement", async () => {
+  const key = `spatia.organization-create:${actor}`;
+  const request = vi.fn<typeof fetch>();
+  const client = createDashboardClient(actor, request);
+  localStorage.setItem(key, "{partial");
+  const earlier = client.pendingOrganization()!;
+  expect(earlier.name).toBeNull();
+  await expect(client.createOrganization("School")).rejects.toThrow("directory");
+  expect(request).not.toHaveBeenCalled();
+  localStorage.setItem(key, "newer marker");
+  await expect(client.acknowledgeOrganization(earlier)).rejects.toThrow("changed");
+  const replacement = client.pendingOrganization()!;
+  await client.acknowledgeOrganization(replacement);
+  expect(client.pendingOrganization()).toBeNull();
 });
 
 it("resolves project class progress with authorised reads and rejects mismatched ownership", async () => {
