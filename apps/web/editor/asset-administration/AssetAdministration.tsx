@@ -117,16 +117,14 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   // Ignore aborted responses so a closed screen cannot publish stale data into its replacement
   useEffect(() => {
     const controller = new AbortController();
-    setData(null);
-    setLoading(true);
     void service
       .load(controller.signal)
       .then((result) => {
         if (controller.signal.aborted) {
           return;
         }
+        setData(result.ok ? result.value : null);
         if (result.ok) {
-          setData(result.value);
           setUnknownWrite(false);
           if (initialUpload) setCategory(result.value.policy.categories[kind]?.[0] ?? "");
           setNotice(null);
@@ -137,6 +135,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       })
       .catch(() => {
         if (!controller.signal.aborted) {
+          setData(null);
           setNotice({
             kind: "unavailable",
             message: "Assets could not be loaded. Please try again.",

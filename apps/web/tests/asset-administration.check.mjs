@@ -62,7 +62,7 @@ async function choose(label, text) {
     .getByRole("option", { name: text, exact: true })
     .click();
 }
-async function checkUnacknowledgedUpload() {
+async function checkUnacknowledgedUpload(failure) {
   const screen = await browser.newPage();
   const records = [];
   let directoryDenied = false;
@@ -113,7 +113,8 @@ async function checkUnacknowledgedUpload() {
       actions: ["hide", "delete"],
     };
     records.push(asset);
-    if (records.length === 1) return route.fulfill({ status: 401 });
+    if (records.length === 1)
+      return failure === "abort" ? route.abort("failed") : route.fulfill({ status: 401 });
     submittedTwice.resolve();
     return route.fulfill({ status: 201, json: asset });
   });
@@ -140,14 +141,16 @@ async function checkUnacknowledgedUpload() {
     "Retrying an upload with a lost receipt must not create a second candidate",
   );
   await dialog.getByRole("button", { name: "Check asset list" }).waitFor();
-  directoryDenied = true;
-  await screen.reload();
-  await screen.getByRole("heading", { name: "Access denied" }).waitFor();
-  assert.equal(
-    await screen.getByRole("button", { name: "+ Add 3D Space", exact: true }).isDisabled(),
-    true,
-  );
-  directoryDenied = false;
+  if (failure === "401") {
+    directoryDenied = true;
+    await dialog.getByRole("button", { name: "Check asset list" }).click();
+    await screen.getByRole("heading", { name: "Access denied" }).waitFor();
+    assert.equal(
+      await screen.getByRole("button", { name: "+ Add 3D Space", exact: true }).isDisabled(),
+      true,
+    );
+    directoryDenied = false;
+  }
   await screen.reload();
   const candidate = screen.getByRole("heading", { name: "Lost receipt", exact: true });
   await candidate.waitFor({ state: "attached" });
@@ -165,7 +168,8 @@ async function checkUnacknowledgedUpload() {
 }
 
 try {
-  await checkUnacknowledgedUpload();
+  await checkUnacknowledgedUpload("abort");
+  await checkUnacknowledgedUpload("401");
   // Exercise the real components with the clearly labelled local adapter
   // No fixture response is evidence of authenticated intake or persisted asset approval
   const fixture = fileURLToPath(
