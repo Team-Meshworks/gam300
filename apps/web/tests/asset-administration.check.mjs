@@ -117,13 +117,11 @@ async function checkUnacknowledgedUpload() {
   });
   await screen.goto(new URL("/spaces?add=1", baseUrl).href);
   const dialog = screen.getByRole("dialog");
-  await dialog
-    .getByLabel("Choose asset file")
-    .setInputFiles({
-      name: "Lost receipt.glb",
-      mimeType: "model/gltf-binary",
-      buffer: Buffer.from("fixture"),
-    });
+  await dialog.getByLabel("Choose asset file").setInputFiles({
+    name: "Lost receipt.glb",
+    mimeType: "model/gltf-binary",
+    buffer: Buffer.from("fixture"),
+  });
   const save = dialog.getByRole("button", { name: "Save Changes", exact: true });
   await save.click();
   await dialog.getByRole("alert").waitFor();
