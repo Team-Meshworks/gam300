@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -725,6 +726,108 @@ public sealed class AssetIntakeTests
                 .ExecuteUpdateAsync(update => update.SetProperty(row => row.Deleted, false)));
         using var stillDenied = await visitor.GetAsync($"/api/v1/publications/{editionId}");
         await Assert.That(stillDenied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
+    [Arguments(false, false)]
+    [Arguments(false, true)]
+    [Arguments(true, true)]
+    public async Task Intake_RetirementDuringDraftRequestCannotIntroduceAsset(bool save, bool remove)
+    {
+        var pause = new DraftTransactionPause();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(pause)),
+            environmentName: "Development");
+        var admin = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        var creator = await fixture.CreateAccountAsync();
+        await fixture.SignInAsync(admin);
+        using var editor = fixture.CreateClient();
+        await fixture.SignInAsync(creator, editor);
+        var token = await fixture.GetCsrfAsync(editor);
+        var roomId = Guid.NewGuid();
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var bytes = CreateMinimalGlb();
+        database.AssetCandidates.Add(new AssetCandidate
+        {
+            Id = roomId,
+            Name = "Room",
+            Kind = "environment",
+            Bytes = bytes,
+            Sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)),
+            Status = "approved",
+            Hidden = false,
+            Source = "Fixture",
+            License = "Fixture",
+            ReviewNotes = "Fixture",
+            ValidationJson = "[]",
+            SubmittedBy = admin,
+            ReviewedBy = admin,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await database.SaveChangesAsync();
+        using var request = new HttpRequestMessage();
+        if (save)
+        {
+            using var initial = await AuthTestRequests.PostAsync(fixture, "/api/v1/projects/", new { title = "Existing draft" }, editor, token);
+            await Assert.That(initial.StatusCode).IsEqualTo(HttpStatusCode.Created);
+            var project = (await initial.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projectId").GetGuid();
+            request.Method = HttpMethod.Put;
+            request.RequestUri = new Uri($"/api/v1/projects/{project:D}", UriKind.Relative);
+            var json = ProjectTestDocuments.Create(project, "Added room").Replace("test-room-v1", roomId.ToString(), StringComparison.Ordinal);
+            request.Content = JsonContent.Create(new { expectedRevision = 0, clientMutationId = Guid.NewGuid(), document = JsonSerializer.Deserialize<JsonElement>(json) });
+        }
+        else
+        {
+            request.Method = HttpMethod.Post;
+            request.RequestUri = new Uri("/api/v1/projects/", UriKind.Relative);
+            request.Content = JsonContent.Create(new { title = "New draft", environmentAssetId = roomId.ToString() });
+        }
+        request.Headers.Add("X-CSRF-TOKEN", token);
+        pause.Armed = true;
+        var writing = editor.SendAsync(request);
+        try
+        {
+            await pause.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var path = $"/api/v1/admin/assets/{roomId:D}/availability";
+            using var retired = await AuthTestRequests.PostAsync(fixture, path, new AssetAvailabilityRequest(remove ? "delete" : "hide"));
+            await Assert.That(retired.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            if (remove)
+            {
+                using var removed = await AuthTestRequests.PostAsync(fixture, path, new AssetAvailabilityRequest("remove", true));
+                await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            }
+            pause.Release.TrySetResult();
+            using var result = await writing;
+            var drafts = await database.Projects.Select(project => project.DocumentJson).ToListAsync();
+            await Assert.That(drafts.Any(json => AssetDocumentReferences.Read(json).Contains(roomId.ToString()))).IsFalse();
+            await Assert.That(result.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
+            await Assert.That(await database.ProjectSaveReceipts.AnyAsync()).IsFalse();
+        }
+        finally
+        {
+            pause.Release.TrySetResult();
+            using var drained = await writing;
+        }
+    }
+
+    private sealed class DraftTransactionPause : DbTransactionInterceptor
+    {
+        public bool Armed;
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async ValueTask<InterceptionResult<DbTransaction>> TransactionStartingAsync(DbConnection connection,
+            TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result, CancellationToken cancellationToken = default)
+        {
+            if (Armed)
+            {
+                Armed = false;
+                Entered.TrySetResult();
+                await Release.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
+            }
+            return result;
+        }
     }
 
     private sealed class ExpireRemovalAfterSave : SaveChangesInterceptor

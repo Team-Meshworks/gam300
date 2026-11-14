@@ -87,6 +87,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     {
         base.OnModelCreating(builder);
         builder.ApplyConfiguration(new AssetCandidateConfiguration());
+        builder.ApplyConfiguration(new AssetRemovalReceiptConfiguration());
+        builder.ApplyConfiguration(new BulkImportReceiptConfiguration());
         builder.ApplyConfiguration(new PublicationConfiguration());
         builder.Entity<ProgressReview>(review =>
         {

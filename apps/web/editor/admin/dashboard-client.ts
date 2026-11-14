@@ -38,6 +38,16 @@ const record = (value: unknown): value is Record<string, unknown> =>
 const id = (value: unknown): value is string =>
   typeof value === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
 
+type OrganizationAttempt = { record: string; name: string | null };
+
+class DashboardRequestError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 export function createDashboardClient(
   accountId: string,
   request: typeof fetch = fetch,
@@ -63,7 +73,8 @@ export function createDashboardClient(
       );
     }
     if (!response.ok) {
-      throw new Error(
+      throw new DashboardRequestError(
+        response.status,
         response.status === 401
           ? "Your session has expired. Sign in again."
           : response.status === 403
@@ -86,7 +97,35 @@ export function createDashboardClient(
       throw new Error("The dashboard returned an invalid response. Please reload.");
     }
   }
+  const organizationKey = `spatia.organization-create:${accountId}`;
+  function pendingOrganization(): OrganizationAttempt | null {
+    const raw = localStorage.getItem(organizationKey);
+    if (raw === null) return null;
+    try {
+      const value: unknown = JSON.parse(raw);
+      if (record(value) && id(value.attemptId) && typeof value.name === "string" && value.name)
+        return { record: raw, name: value.name };
+    } catch {
+      // The raw value still identifies the attempt the administrator reviewed.
+    }
+    return { record: raw, name: null };
+  }
+  function clearOrganization(expected: string) {
+    if (localStorage.getItem(organizationKey) !== expected)
+      throw new Error("The earlier request changed. Check the organisation directory again.");
+    localStorage.removeItem(organizationKey);
+    if (localStorage.getItem(organizationKey) !== null)
+      throw new Error("The earlier organisation request could not be cleared.");
+  }
   return {
+    pendingOrganization,
+    acknowledgeOrganization: (attempt: OrganizationAttempt) =>
+      navigator.locks.request(organizationKey, async () => {
+        if (pendingOrganization()?.record !== attempt.record)
+          throw new Error("The earlier request changed. Check the organisation directory again.");
+        await createDirectoryClient(request, accountId).organizations();
+        clearOrganization(attempt.record);
+      }),
     async projects(
       limit = 3,
       cursor: string | null = null,
@@ -235,23 +274,54 @@ export function createDashboardClient(
       );
     },
     async createOrganization(name: string): Promise<void> {
-      const csrf = await send("/api/v1/auth/csrf");
-      if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken)
-        throw new Error("Your session could not be verified. Sign in again.");
-      const result = await send("/api/v1/admin/organizations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
-        body: JSON.stringify({ name: name.trim() }),
+      if (!navigator.locks)
+        throw new Error("This browser cannot safely coordinate organisation creation across tabs.");
+      await navigator.locks.request(organizationKey, async () => {
+        if (pendingOrganization())
+          throw new Error("Check the directory before starting another organisation.");
+        const csrf = await send("/api/v1/auth/csrf");
+        if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken)
+          throw new Error("Your session could not be verified. Sign in again.");
+        const attempt = { attemptId: crypto.randomUUID(), name: name.trim() };
+        const encoded = JSON.stringify(attempt);
+        localStorage.setItem(organizationKey, encoded);
+        if (localStorage.getItem(organizationKey) !== encoded)
+          throw new Error("The browser could not save recovery information. No request was sent.");
+        try {
+          const result = await send("/api/v1/admin/organizations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
+            body: JSON.stringify({ name: attempt.name }),
+          });
+          if (
+            !record(result) ||
+            !id(result.id) ||
+            typeof result.name !== "string" ||
+            result.name.trim().toLowerCase() !== attempt.name.toLowerCase() ||
+            result.isActive !== true
+          )
+            throw new Error("Invalid organisation receipt");
+        } catch (reason) {
+          if (
+            reason instanceof DashboardRequestError &&
+            [400, 403, 409, 429].includes(reason.status)
+          ) {
+            clearOrganization(encoded);
+            if (reason.status === 409)
+              throw new Error(
+                "That organisation name is in use. Check the organisation directory.",
+                {
+                  cause: reason,
+                },
+              );
+            throw reason;
+          }
+          throw new Error("Creation could not be confirmed. Check the organisation directory.", {
+            cause: reason,
+          });
+        }
+        clearOrganization(encoded);
       });
-      if (
-        !record(result) ||
-        !id(result.id) ||
-        typeof result.name !== "string" ||
-        result.isActive !== true
-      )
-        throw new Error(
-          "Creation could not be confirmed. Check the organisation list before trying again.",
-        );
     },
   };
 }

@@ -1,6 +1,45 @@
 import { expect, it, vi } from "vitest";
-import { createBlankSource } from "./blank-source";
+import { blankSourceKey, clearBlankSource, createBlankSource } from "./blank-source";
 const readCurrent = async () => ({ kind: "available" as const, revision: 0 });
+
+it("keeps the form retryable when the browser cannot store the first source marker", async () => {
+  const store = {
+    getItem: () => null,
+    setItem: () => {
+      throw new DOMException("Storage full", "QuotaExceededError");
+    },
+    removeItem: vi.fn(),
+  };
+  const write = vi.fn();
+  const result = await createBlankSource(store, write, "teacher", "Museum", "", readCurrent);
+  expect(write).not.toHaveBeenCalled();
+  expect(result.kind).toBe("rejected");
+});
+
+it("clears only the confirmed assignment's source and preserves a replacement receipt", async () => {
+  const actor = "teacher";
+  const older = "aefea67c-caca-4300-923c-937f1c785578";
+  const replacement = "15c0fbe1-a338-4030-9360-b04c494d6588";
+  const records = new Map<string, string>();
+  const store = {
+    getItem: (key: string) => records.get(key) ?? null,
+    setItem: (key: string, value: string) => records.set(key, value),
+    removeItem: (key: string) => records.delete(key),
+  };
+  const fresh = JSON.stringify({
+    receipt: {
+      projectId: replacement,
+      revision: 0,
+      updatedAt: "2026-11-05T00:00:00Z",
+      archived: false,
+    },
+  });
+  records.set(blankSourceKey(actor), fresh);
+  expect(await clearBlankSource(store, actor, { projectId: older })).toBe(false);
+  expect(store.getItem(blankSourceKey(actor))).toBe(fresh);
+  expect(await clearBlankSource(store, actor, { projectId: replacement })).toBe(true);
+  expect(store.getItem(blankSourceKey(actor))).toBeNull();
+});
 
 it("rechecks a confirmed source and uses its current revision on retry", async () => {
   const saved = JSON.stringify({

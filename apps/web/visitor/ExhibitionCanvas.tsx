@@ -18,10 +18,14 @@ export function ExhibitionCanvas({
   sceneIndex,
   viewpoint,
   navigate,
+  beginNavigationEvent,
+  onPlaybackReady,
 }: {
   exhibition: PublishedExhibition;
   sceneIndex: number;
-  navigate: (sceneId: string, viewpointId: string) => void;
+  navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean;
+  beginNavigationEvent(): void;
+  onPlaybackReady(ready: boolean): void;
   viewpoint?: Readonly<{ id: string }> | undefined;
 }) {
   const mount = useRef<HTMLDivElement>(null);
@@ -209,9 +213,20 @@ export function ExhibitionCanvas({
     document.addEventListener("pointerlockchange", cancelPress);
     document.addEventListener("visibilitychange", cancelPress);
     window.addEventListener("blur", cancelPress);
+    const previousDirection = camera.quaternion.clone();
+    let moving = false;
     renderer.setAnimationLoop(() => {
       const now = performance.now();
-      if (!document.hidden) fps.update(Math.min(0.1, (now - lastFrame) / 1000));
+      if (!document.hidden) {
+        // Walking or looking deliberately starts a new navigation chain. Authored camera
+        // motion runs later in playback.update and must keep its automatic chain.
+        previousDirection.copy(camera.quaternion);
+        fps.update(Math.min(0.1, (now - lastFrame) / 1000));
+        const hasInput =
+          fps.hasMovementInput() || previousDirection.angleTo(camera.quaternion) > 0.00001;
+        if (hasInput && !moving) beginNavigationEvent();
+        moving = hasInput;
+      }
       ray.setFromCamera(new THREE.Vector2(), camera);
       playback?.update(Math.min(0.1, (now - lastFrame) / 1000), picked());
       lastFrame = now;
@@ -344,9 +359,11 @@ export function ExhibitionCanvas({
               if (!controller.signal.aborted)
                 setResult({ exhibition, sceneIndex, attempt, viewpoint, message, failed: false });
             },
+            beginNavigationEvent,
           );
           play.current = playback.start;
           playback.begin();
+          onPlaybackReady(true);
         }
         fps.engage();
         setResult({
@@ -381,6 +398,7 @@ export function ExhibitionCanvas({
     });
     return () => {
       controller.abort();
+      onPlaybackReady(false);
       playback?.dispose();
       renderer.domElement.removeEventListener("pointerdown", down);
       renderer.domElement.removeEventListener("pointerup", click);
@@ -419,9 +437,22 @@ export function ExhibitionCanvas({
       )}
       <div className="visitor-controls">
         <button onClick={() => play.current()}>Enable audio</button>
-        <button onClick={() => reset.current()}>Reset view</button>
+        <button
+          onClick={() => {
+            beginNavigationEvent();
+            reset.current();
+          }}
+        >
+          Reset view
+        </button>
         {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
-          <button key={view.id} onClick={() => selectView.current(view.id)}>
+          <button
+            key={view.id}
+            onClick={() => {
+              beginNavigationEvent();
+              selectView.current(view.id);
+            }}
+          >
             {view.name}
           </button>
         ))}

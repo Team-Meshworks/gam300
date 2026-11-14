@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { createDirectoryClient } from "./directory-client";
+import { createDirectoryClient, DirectoryWriteUnconfirmed } from "./directory-client";
 
 const user = {
   userId: "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e",
@@ -12,6 +12,40 @@ const user = {
 };
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+it("requires directory reconciliation only when a dispatched import lacks a valid receipt", async () => {
+  const values = [
+    {
+      displayName: "Sample",
+      userName: "sample",
+      role: "Creator" as const,
+      initialPassword: "sample initial value",
+    },
+  ];
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({}, 503))
+    .mockResolvedValueOnce(json({ requestToken: "token" }))
+    .mockResolvedValueOnce(json({ code: "invalid_account_input" }, 400))
+    .mockResolvedValueOnce(json({ requestToken: "token" }))
+    .mockResolvedValueOnce(json([], 503))
+    .mockResolvedValueOnce(json({ requestToken: "token" }))
+    .mockResolvedValueOnce(json([user], 201));
+  const client = createDirectoryClient(request, user.userId);
+  await expect(client.createBulk(user.orgId, values)).rejects.not.toBeInstanceOf(
+    DirectoryWriteUnconfirmed,
+  );
+  await expect(client.createBulk(user.orgId, values)).rejects.not.toBeInstanceOf(
+    DirectoryWriteUnconfirmed,
+  );
+  await expect(client.createBulk(user.orgId, values)).rejects.toBeInstanceOf(
+    DirectoryWriteUnconfirmed,
+  );
+  await expect(client.createBulk(user.orgId, values)).rejects.toBeInstanceOf(
+    DirectoryWriteUnconfirmed,
+  );
+  expect(request.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(3);
+});
+
 it("loads every page within the selected organisation", async () => {
   const request = vi
     .fn<typeof fetch>()

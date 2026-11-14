@@ -11,6 +11,7 @@ try {
   page.setDefaultTimeout(5000);
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  await page.clock.install({ time: new Date("2026-11-13T23:00:00Z") });
   await page.goto(baseUrl);
   await page.getByLabel("Submission outcome").waitFor();
 
@@ -111,6 +112,7 @@ try {
   }
   await fillProject();
   assert.equal(await create.isEnabled(), true);
+  await page.clock.pauseAt(new Date("2026-11-14T00:00:00Z"));
   await create.click();
   const creating = page.getByRole("button", { name: "Creating…" });
   assert.equal(await creating.isDisabled(), true);
@@ -119,6 +121,8 @@ try {
   assert.equal(await gallery.isDisabled(), true);
   assert.equal(await page.getByRole("button", { name: "Cancel", exact: true }).isDisabled(), true);
   await creating.evaluate((button) => button.closest("form").requestSubmit());
+  await page.clock.runFor(500);
+  await page.clock.resume();
   await page.getByText("Project created in simulation").waitFor();
   assert.equal(await page.getByText("Simulated requests: 1").isVisible(), true);
   assert.equal(await page.getByLabel("Project title").inputValue(), "A project for review");

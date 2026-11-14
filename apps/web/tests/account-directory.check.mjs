@@ -15,6 +15,10 @@ const rows = [];
 const writes = [];
 let duplicate = false;
 let failBulkDelete = false;
+let loseImportReceipt = false;
+const importReceipts = new Map();
+const isBulkCreate = (path) =>
+  path.endsWith("/users/bulk") || /\/bulk-imports\/[\da-f-]+$/.test(path);
 let organizationActive = true;
 let organizationName = "Ridgeview Secondary School";
 let emptyProjects = false;
@@ -22,11 +26,12 @@ let failOrganizations = false;
 let projectTitle = "The Silk Road: A Journey Through History";
 const reads = { accounts: 0, projects: 0 };
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1024 } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1024 } });
+  const page = await context.newPage();
   page.setDefaultTimeout(10000);
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.route("**/api/v1/**", async (route) => {
+  const serveApi = async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
     if (path === "/api/v1/auth/session")
@@ -50,6 +55,24 @@ try {
             publicCount:
               projectId === userId || projectId === "cccccccc-cccc-4ccc-8ccc-cccccccccccc" ? 0 : 1,
           })),
+        },
+      });
+    }
+    if (path === `/api/v1/admin/organizations/${orgId}/bulk-imports` && req.method() === "GET") {
+      assert.equal(req.headers()["x-spatia-account"], userId);
+      if (!organizationActive)
+        return route.fulfill({ status: 404, json: { code: "bulk_import_not_found" } });
+      return route.fulfill({
+        json: {
+          items: [...importReceipts.values()]
+            .filter((receipt) => !receipt.acknowledged)
+            .map(({ operationId, expiresAt, created }) => ({
+              operationId,
+              createdAt: new Date(Date.parse(expiresAt) - 86400000).toISOString(),
+              expiresAt,
+              createdCount: created.length,
+            })),
+          nextCursor: null,
         },
       });
     }
@@ -93,7 +116,19 @@ try {
           if (body.userIds.includes(rows[index].userId)) rows.splice(index, 1);
         return route.fulfill({ status: 204 });
       }
-      if (path === "/api/v1/admin/users/bulk") {
+      if (path.includes("/bulk-imports/") && req.method() === "POST") {
+        assert.equal(req.headers()["x-spatia-account"], userId);
+        const [operationId, action] = path.split("/").slice(-2);
+        const receipt = importReceipts.get(operationId);
+        if (!receipt)
+          return route.fulfill({ status: 404, json: { code: "bulk_import_not_found" } });
+        if (action === "receipt") return route.fulfill({ json: receipt });
+        assert.equal(action, "acknowledge");
+        receipt.acknowledged = true;
+        receipt.credentials = [];
+        return route.fulfill({ status: 204 });
+      }
+      if (isBulkCreate(path)) {
         const created = body
           .filter((value) => !rows.some((row) => row.userName === value.userName))
           .map((value, index) => ({
@@ -104,7 +139,36 @@ try {
             mustChangePassword: true,
           }));
         rows.push(...created);
-        return route.fulfill({ status: created.length ? 201 : 200, json: created });
+        const operationId = path.split("/").at(-1);
+        const receipt = {
+          operationId,
+          orgId,
+          created: created.map(({ userId, userName, displayName, role }) => ({
+            userId,
+            userName,
+            displayName,
+            role,
+          })),
+          credentials: created.map(({ userId, userName }) => ({
+            userId,
+            userName,
+            password: body.find((row) => row.userName === userName).initialPassword,
+          })),
+          expiresAt: new Date(Date.now() + 86400000).toISOString(),
+          acknowledged: false,
+        };
+        if (req.method() === "PUT") {
+          assert.equal(req.headers()["x-spatia-account"], userId);
+          importReceipts.set(operationId, receipt);
+        }
+        if (loseImportReceipt) {
+          loseImportReceipt = false;
+          return route.abort("failed");
+        }
+        return route.fulfill({
+          status: created.length ? 201 : 200,
+          json: req.method() === "PUT" ? receipt : created,
+        });
       }
       if (req.method() === "POST") {
         rows.push({
@@ -185,7 +249,8 @@ try {
     }
     if (path === `/api/v1/admin/users/${userId}`) return route.fulfill({ json: rows[0] });
     return route.fulfill({ status: 404 });
-  });
+  };
+  await context.route("**/api/v1/**", serveApi);
   await page.goto(`${origin}/organisations`);
   await page.getByRole("heading", { name: "All Organisations", level: 1, exact: true }).waitFor();
   const screenshots = process.env.CHECK_SCREENSHOTS ?? "../../.artifacts/account-directory";
@@ -289,6 +354,9 @@ try {
     await page.getByRole("button", { name: "+ Add Accounts", exact: true }).isDisabled(),
     true,
   );
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Show", exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Retry account imports" }).count(), 0);
   await page.getByRole("button", { name: "Show", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
   await page.getByRole("button", { name: "Hide", exact: true }).waitFor();
@@ -581,7 +649,7 @@ try {
   });
   await csvDialog.getByText("2 accounts ready to import.", { exact: true }).waitFor();
   assert.equal(
-    writes.filter((write) => write.path.endsWith("/users/bulk")).length,
+    writes.filter((write) => isBulkCreate(write.path)).length,
     0,
     "Uploading only prepares accounts",
   );
@@ -596,8 +664,10 @@ try {
   const download = page.waitForEvent("download");
   await csvDialog.getByRole("button", { name: "Save changes", exact: true }).click();
   assert.equal((await download).suggestedFilename(), "account-credentials.csv");
+  if (await csvDialog.isVisible())
+    await csvDialog.getByRole("button", { name: "Acknowledge credential handoff" }).click();
   await csvDialog.waitFor({ state: "detached" });
-  const batch = writes.filter((write) => write.path.endsWith("/users/bulk"));
+  const batch = writes.filter((write) => isBulkCreate(write.path));
   assert.equal(batch.length, 1, "One upload click sends exactly one batch");
   assert.deepEqual(
     batch[0].body.map((value) => value.role),
@@ -624,6 +694,8 @@ try {
     !credentialsText.includes('"CSV Learner"'),
     "Skipped accounts must not receive new credentials",
   );
+  if (await repeated.isVisible())
+    await repeated.getByRole("button", { name: "Acknowledge credential handoff" }).click();
   await repeated.waitFor({ state: "detached" });
   await page
     .getByRole("button", { name: "View account for CSV Fresh Learner", exact: true })
@@ -732,11 +804,199 @@ try {
   );
   assert.equal(await page.getByRole("checkbox", { name: /^Select creator / }).count(), 0);
   await page.getByRole("button", { name: "Select accounts", exact: true }).waitFor();
+  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  const staged = page.getByRole("dialog", { name: "Account Creation", exact: true });
+  await staged.getByLabel("Name", { exact: true }).fill("Manual Must Not Post");
+  await staged.getByLabel("Username", { exact: true }).fill("manual-must-not-post");
+  await staged.getByLabel("Password", { exact: true }).fill("manual-password-123");
+  const stagedChooser = page.waitForEvent("filechooser");
+  await staged.getByRole("button", { name: "Upload CSV", exact: true }).click();
+  await (
+    await stagedChooser
+  ).setFiles({
+    name: "staged.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Name,DOB\nStaged Student,2009-02-01"),
+  });
+  await staged.getByText("1 accounts ready to import.").waitFor();
+  const second = await context.newPage();
+  await second.goto(page.url());
+  await second.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  const secondDialog = second.getByRole("dialog", { name: "Account Creation", exact: true });
+  const secondChooser = second.waitForEvent("filechooser");
+  await secondDialog.getByRole("button", { name: "Upload CSV", exact: true }).click();
+  await (
+    await secondChooser
+  ).setFiles({
+    name: "second.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Name,DOB\nSecond Student,2009-02-01"),
+  });
+  await secondDialog.getByText("1 accounts ready to import.").waitFor();
+  loseImportReceipt = true;
+  await secondDialog.getByRole("button", { name: "Save changes", exact: true }).click();
+  await secondDialog.getByRole("button", { name: "Check import receipt" }).waitFor();
+  const beforeManual = writes.filter((write) => write.path === "/api/v1/admin/users").length;
+  await staged.getByRole("button", { name: "Save changes", exact: true }).click();
+  await page.waitForTimeout(500);
+  assert.equal(
+    writes.filter((write) => write.path === "/api/v1/admin/users").length,
+    beforeManual,
+    "Staged CSV never sends the manual fields",
+  );
+  await staged.getByRole("button", { name: "Check import receipt" }).click();
+  await staged.getByText("Second Student", { exact: true }).waitFor();
+  await staged.getByRole("button", { name: "Acknowledge credential handoff" }).click();
+  await staged.waitFor({ state: "detached" });
+  await second.close();
+  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  const uncertainImport = page.getByRole("dialog", { name: "Account Creation", exact: true });
+  const chooserAfterLoss = page.waitForEvent("filechooser");
+  await uncertainImport.getByRole("button", { name: "Upload CSV", exact: true }).click();
+  await (
+    await chooserAfterLoss
+  ).setFiles({
+    name: "uncertain-import.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Name,DOB\nRecovery Student,2009-02-01"),
+  });
+  await uncertainImport.getByText("1 accounts ready to import.", { exact: true }).waitFor();
+  const importCount = () => writes.filter((write) => isBulkCreate(write.path)).length;
+  const beforeLoss = importCount();
+  const observer = await context.newPage();
+  await observer.goto(page.url());
+  await observer.getByRole("button", { name: "+ Add Accounts", exact: true }).waitFor();
+  let unconfirmedDownloads = 0;
+  page.on("download", () => {
+    unconfirmedDownloads++;
+  });
+  loseImportReceipt = true;
+  const saveImport = uncertainImport.getByRole("button", { name: "Save changes", exact: true });
+  await saveImport.click();
+  await uncertainImport.getByRole("alert").waitFor();
+  const durableValues = await page.evaluate(() =>
+    Object.entries(localStorage)
+      .filter(([key]) => key.startsWith("spatia.bulk-import:"))
+      .map(([, value]) => value),
+  );
+  assert.equal(durableValues.length, 1);
+  assert.match(durableValues[0], /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i);
+  if ((await saveImport.isVisible()) && (await saveImport.isEnabled())) {
+    await Promise.all([
+      page.waitForResponse((response) => response.url().endsWith("/users/bulk")),
+      saveImport.click(),
+    ]);
+  }
+  assert.equal(
+    importCount(),
+    beforeLoss + 1,
+    "A lost bulk receipt must not discard an import by replaying it",
+  );
+  const resumeElsewhere = observer.getByRole("button", {
+    name: "Resume account import",
+    exact: true,
+  });
+  await resumeElsewhere.waitFor();
+  await observer.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  await observer
+    .getByRole("dialog", { name: "Account Creation" })
+    .getByLabel("Name", { exact: true })
+    .fill("Manual entry is independent");
+  await observer
+    .getByRole("dialog", { name: "Account Creation" })
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await resumeElsewhere.click();
+  const elsewhere = observer.getByRole("dialog", { name: "Account Creation" });
+  await elsewhere.getByRole("button", { name: "Check import receipt" }).click();
+  await elsewhere.getByText("Recovery Student", { exact: true }).waitFor();
+  const freshProfile = await browser.newContext();
+  await freshProfile.route("**/api/v1/**", serveApi);
+  const freshPage = await freshProfile.newPage();
+  const anotherOperation = "12345678-1111-4111-8111-112233445566";
+  importReceipts.set(anotherOperation, {
+    operationId: anotherOperation,
+    orgId,
+    created: [],
+    credentials: [],
+    acknowledged: false,
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+  });
+  await freshPage.goto(page.url());
+  const discovered = freshPage.getByRole("region", { name: "Unacknowledged account imports" });
+  await discovered
+    .getByRole("button", { name: `Review import ${anotherOperation}`, exact: true })
+    .waitFor();
+  await discovered
+    .getByRole("button", { name: `Review import ${durableValues[0]}`, exact: true })
+    .waitFor();
+  assert.equal(
+    await freshPage.evaluate(
+      () => Object.keys(localStorage).filter((key) => key.startsWith("spatia.bulk-import:")).length,
+    ),
+    0,
+  );
+  await discovered
+    .getByRole("button", { name: `Review import ${anotherOperation}`, exact: true })
+    .click();
+  const emptyImport = freshPage.getByRole("dialog", { name: "Account Creation" });
+  await emptyImport.getByRole("button", { name: "Check import receipt" }).click();
+  await emptyImport.getByText("0 accounts created by this import.", { exact: true }).waitFor();
+  await emptyImport.getByRole("button", { name: "Finish import" }).click();
+  await emptyImport.waitFor({ state: "detached" });
+  await discovered
+    .getByRole("button", { name: `Review import ${durableValues[0]}`, exact: true })
+    .click();
+  await freshPage
+    .getByRole("dialog", { name: "Account Creation" })
+    .getByRole("button", { name: "Check import receipt" })
+    .click();
+  await freshPage
+    .getByRole("dialog", { name: "Account Creation" })
+    .getByText("Recovery Student", { exact: true })
+    .waitFor();
+  await freshProfile.close();
+  assert.equal(importCount(), beforeLoss + 1);
+  await page.reload();
+  await page.getByRole("button", { name: "Resume account import", exact: true }).click();
+  const recovered = page.getByRole("dialog", { name: "Account Creation", exact: true });
+  await recovered.getByRole("button", { name: "Check import receipt", exact: true }).click();
+  await recovered.getByText("Recovery Student", { exact: true }).waitFor();
+  assert.equal(unconfirmedDownloads, 0, "No file is offered before server confirmation");
+  const recoveredDownload = page.waitForEvent("download");
+  await recovered.getByRole("button", { name: "Download credentials", exact: true }).click();
+  const recoveredFile = await recoveredDownload;
+  const recoveredText = await readFile(await recoveredFile.path(), "utf8");
+  assert.ok(recoveredText.includes('"Recovery Student"'));
+  assert.ok(
+    recoveredText.includes(
+      writes
+        .filter((entry) => isBulkCreate(entry.path))
+        .at(-1)
+        .body.at(-1).initialPassword,
+    ),
+    "The recovered credential matches the original",
+  );
+  assert.equal(importCount(), beforeLoss + 1);
+  await recovered.getByRole("button", { name: "Acknowledge credential handoff" }).click();
+  await recovered.waitFor({ state: "detached" });
+  await elsewhere.waitFor({ state: "detached" });
+  await resumeElsewhere.waitFor({ state: "detached" });
+  await observer.close();
+  await page
+    .getByRole("button", { name: "View account for Recovery Student", exact: true })
+    .waitFor();
   const storage = await page.evaluate(() =>
     JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
   );
   assert.ok(!storage.includes("password1") && !storage.includes("password2"));
-  for (const value of batch[0].body) assert.ok(!storage.includes(value.initialPassword));
+  for (const attempt of writes.filter((write) => isBulkCreate(write.path)))
+    for (const value of attempt.body) assert.ok(!storage.includes(value.initialPassword));
+  assert.equal(
+    unconfirmedDownloads,
+    1,
+    "Only the explicitly requested recovered file was downloaded",
+  );
   assert.deepEqual(errors, []);
   console.log(
     "Account directory browser checks passed: create, override, errors, reload, filters, lifecycle, mobile, return navigation, failed-load recovery and sound.",

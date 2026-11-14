@@ -21,15 +21,26 @@ try {
     ["Educator", 200],
     ["Educator", 503],
     ["Educator", 200, true],
+    ["Educator", 200, "changed"],
+    ["Educator", 200, "malformed"],
     ["Creator", 200],
     ["Creator", 503],
   ]) {
-    const page = await browser.newPage();
+    const context = await browser.newContext();
+    const page = await context.newPage();
     page.setDefaultTimeout(7000);
     const writes = [];
     const assignments = [];
     let assetReads = 0;
-    await page.route("**/api/v1/**", async (route) => {
+    let delayedSource;
+    let releaseSource;
+    const sourceStarted = new Promise((resolve) => {
+      delayedSource = resolve;
+    });
+    const sourceReleased = new Promise((resolve) => {
+      releaseSource = resolve;
+    });
+    await page.context().route("**/api/v1/**", async (route) => {
       const request = route.request();
       const path = new URL(request.url()).pathname;
       if (path === "/api/v1/auth/session") return route.fulfill({ json: { ...session, role } });
@@ -113,6 +124,10 @@ try {
         });
       if (path === "/api/v1/projects" && request.method() === "POST") {
         writes.push(request.postDataJSON());
+        if (missingSource === "changed" && writes.length === 1) {
+          delayedSource();
+          await sourceReleased;
+        }
         return route.fulfill({
           status: 201,
           json: {
@@ -145,6 +160,17 @@ try {
       continue;
     }
     if (role === "Educator") {
+      if (missingSource === "malformed") {
+        const key = `spatia.assignment.source:${userId}`;
+        await page.evaluate((key) => localStorage.setItem(key, "{partial"), key);
+        await page.goto(origin + "/new-project");
+        await page.getByRole("button", { name: "I checked my projects" }).click();
+        await page.waitForURL(origin + "/home");
+        assert.equal(await page.evaluate((key) => localStorage.getItem(key), key), null);
+        assert.deepEqual(writes, []);
+        await context.close();
+        continue;
+      }
       if (missingSource) {
         await page.evaluate(
           ({ userId, projectId }) =>
@@ -206,6 +232,36 @@ try {
       await page.getByRole("combobox", { name: /^Class/ }).click();
       await page.getByRole("option", { name: "Class", exact: true }).click();
       await page.getByRole("checkbox", { name: /Alice/ }).check();
+      if (!missingSource && assetsStatus === 200) {
+        await page.evaluate((key) => {
+          const original = Storage.prototype.setItem;
+          Storage.prototype.setItem = function (name, value) {
+            if (name === key) {
+              Storage.prototype.setItem = original;
+              throw new DOMException("Storage full", "QuotaExceededError");
+            }
+            return original.call(this, name, value);
+          };
+        }, `spatia.assignment.source:${userId}`);
+        await page.getByRole("button", { name: "Create project" }).click();
+        await page
+          .getByRole("alert")
+          .filter({ hasText: /browser could not save recovery|could not be confirmed/i })
+          .first()
+          .waitFor();
+        assert.equal(writes.length, 0, "A source marker must exist before the project POST");
+        assert.equal(assignments.length, 0);
+        assert.equal(
+          await page.getByRole("button", { name: "I checked my projects" }).count(),
+          0,
+          "A failed preflight must leave the educator on the editable assignment form",
+        );
+        assert.equal(await page.getByLabel("Project title").inputValue(), "Blank project");
+        assert.equal(await page.getByLabel("Project description").inputValue(), "Description");
+        assert.equal(await page.getByLabel("Project instructions").inputValue(), "Instructions");
+        assert.equal(await page.getByLabel(/^Due date/).inputValue(), "2027-12-01");
+        assert.equal(await page.getByRole("checkbox", { name: /Alice/ }).isChecked(), true);
+      }
       await page.getByRole("button", { name: "Create project" }).click();
       if (missingSource) {
         await page.getByText(/project is no longer available or cannot be managed/i).waitFor();
@@ -217,7 +273,55 @@ try {
             userId,
           ),
         );
-        await page.getByRole("button", { name: "Start a new project" }).click();
+        if (missingSource === "changed") {
+          const other = await page.context().newPage();
+          await other.goto(origin + "/new-project");
+          await other.getByLabel("Project title").fill("Another project");
+          await other.getByLabel("Project description").fill("Another description");
+          await other.getByLabel("Project instructions").fill("Other instructions");
+          await other.getByLabel(/^Due date/).fill("2027-12-01");
+          await other.getByRole("combobox", { name: /^Class/ }).click();
+          await other.getByRole("option", { name: "Class", exact: true }).click();
+          await other.getByRole("checkbox", { name: /Alice/ }).check();
+          const otherCreate = other.getByRole("button", { name: "Create project" });
+          await otherCreate.click();
+          const startReplacement = other.getByRole("button", { name: "Start a new project" });
+          await startReplacement.click();
+          await startReplacement.waitFor({ state: "detached" });
+          await otherCreate.click();
+          await sourceStarted;
+          const key = `spatia.assignment.source:${userId}`;
+          const replacement = await other.evaluate((key) => localStorage.getItem(key), key);
+          assert.ok(replacement);
+          await page.getByRole("button", { name: "Start a new project" }).click();
+          const retained = await page.evaluate((key) => localStorage.getItem(key), key);
+          releaseSource();
+          assert.equal(retained, replacement, "A stale tab must not clear another source creation");
+          await other.getByText(/assignment was not created/i).waitFor();
+          await page.getByText(/saved source changed in another tab/i).waitFor();
+          const receipt = await other.evaluate((key) => JSON.parse(localStorage.getItem(key)), key);
+          assert.equal(receipt.receipt.projectId, projectId);
+          await other.close();
+          await page.close();
+          continue;
+        }
+        const discardSource = page.getByRole("button", { name: "Start a new project" });
+        const key = `spatia.assignment.source:${userId}`;
+        await page.evaluate(async (key) => {
+          const acquired = Promise.withResolvers();
+          const release = Promise.withResolvers();
+          window.releaseSourceLock = release.resolve;
+          void navigator.locks.request(key, async () => {
+            acquired.resolve();
+            await release.promise;
+          });
+          await acquired.promise;
+        }, key);
+        await discardSource.click();
+        assert.equal(await discardSource.isDisabled(), true);
+        assert.notEqual(await page.evaluate((key) => localStorage.getItem(key), key), null);
+        await page.evaluate(() => window.releaseSourceLock());
+        await discardSource.waitFor({ state: "detached" });
         assert.equal(await page.getByLabel("Project title").inputValue(), "Blank project");
         assert.equal(
           await page.evaluate(

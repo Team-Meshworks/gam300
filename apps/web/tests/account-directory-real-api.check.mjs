@@ -4,6 +4,7 @@ import { createServer } from "vite";
 import { createServer as createBridge } from "node:http";
 import { request } from "node:https";
 import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 
 assert.ok(process.env.SPATIA_API_ORIGIN && process.env.SPATIA_TEST_ADMIN);
 const server = await createServer({ server: { port: 0 }, logLevel: "silent" });
@@ -112,6 +113,101 @@ try {
       .count(),
     0,
   );
+  let imported = 0;
+  let operationId = "";
+  const bulkPath = /\/api\/v1\/admin\/organizations\/[\da-f-]+\/bulk-imports\/[\da-f-]+$/;
+  await page.route(bulkPath, async (route) => {
+    const upstream = await route.fetch();
+    if (upstream.status() !== 201) {
+      const problem = await upstream.json().catch(() => null);
+      assert.fail(
+        `Provisioning must commit before the reply is lost (HTTP ${upstream.status()}, ${problem?.code ?? "unknown problem"}).`,
+      );
+    }
+    imported++;
+    operationId = new URL(route.request().url()).pathname.split("/").at(-1);
+    await route.abort("failed");
+  });
+  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  let importer = page.getByRole("dialog", { name: "Account Creation", exact: true });
+  const picker = page.waitForEvent("filechooser");
+  await importer.getByRole("button", { name: "Upload CSV", exact: true }).click();
+  await (
+    await picker
+  ).setFiles({
+    name: "recovery.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Name,DOB\nReceipt Student,2008-01-02"),
+  });
+  await importer.getByRole("button", { name: "Save changes", exact: true }).click();
+  await importer.getByRole("alert").waitFor();
+  assert.equal(imported, 1);
+  await page.reload();
+  await page.getByRole("button", { name: "Resume account import", exact: true }).click();
+  importer = page.getByRole("dialog", { name: "Account Creation", exact: true });
+  await importer.getByRole("button", { name: "Check import receipt", exact: true }).click();
+  await importer.getByText("Receipt Student", { exact: true }).waitFor();
+  const freshProfile = await browser.newContext();
+  const handoffPage = await freshProfile.newPage();
+  handoffPage.on("request", (request) => {
+    if (request.method() === "PUT" && bulkPath.test(new URL(request.url()).pathname)) imported++;
+  });
+  await handoffPage.goto(origin + "/login");
+  await handoffPage.getByLabel("Username", { exact: true }).fill(process.env.SPATIA_TEST_ADMIN);
+  await handoffPage
+    .getByLabel("Password", { exact: true })
+    .fill(
+      process.env.SPATIA_TEST_FORCED_ADMIN === "true"
+        ? "Admin-replacement2!"
+        : "Synthetic-long-password1!",
+    );
+  await handoffPage.getByRole("button", { name: "Log in", exact: true }).click();
+  await handoffPage.waitForURL(origin + "/admin/dashboard");
+  await handoffPage.goto(page.url());
+  assert.equal(
+    await handoffPage.evaluate(
+      () => Object.keys(localStorage).filter((key) => key.startsWith("spatia.bulk-import:")).length,
+    ),
+    0,
+  );
+  await handoffPage
+    .getByRole("region", { name: "Unacknowledged account imports" })
+    .getByRole("button", { name: `Review import ${operationId}`, exact: true })
+    .click();
+  importer = handoffPage.getByRole("dialog", { name: "Account Creation", exact: true });
+  await importer.getByRole("button", { name: "Check import receipt", exact: true }).click();
+  await importer.getByText("Receipt Student", { exact: true }).waitFor();
+  const fileEvent = handoffPage.waitForEvent("download");
+  await importer.getByRole("button", { name: "Download credentials", exact: true }).click();
+  const handoff = await fileEvent;
+  const lines = (await readFile(await handoff.path(), "utf8")).trimEnd().split("\r\n");
+  assert.equal(lines.length, 2);
+  const cells = lines[1].slice(1, -1).split('","');
+  assert.equal(cells[0], "Receipt Student");
+  assert.equal(cells[1], "receiptstudent02012008");
+  assert.ok(cells[2].length >= 12);
+  const containsCredential = await handoffPage.evaluate(
+    (password) =>
+      [localStorage, sessionStorage].some((store) =>
+        Object.values(store).some((value) => value.includes(password)),
+      ),
+    cells[2],
+  );
+  assert.equal(containsCredential, false);
+  await importer
+    .getByRole("button", { name: "Acknowledge credential handoff", exact: true })
+    .click();
+  await importer.waitFor({ state: "detached" });
+  assert.equal(imported, 1);
+  await freshProfile.close();
+  const learnerContext = await browser.newContext();
+  const learnerPage = await learnerContext.newPage();
+  await learnerPage.goto(origin + "/login");
+  await learnerPage.getByLabel("Username", { exact: true }).fill(cells[1]);
+  await learnerPage.getByLabel("Password", { exact: true }).fill(cells[2]);
+  await learnerPage.getByRole("button", { name: "Log in", exact: true }).click();
+  await learnerPage.getByRole("heading", { name: "Change your password." }).waitFor();
+  await learnerContext.close();
   const owner = await browser.newContext();
   const login = await owner.newPage();
   await login.goto(origin + "/login");

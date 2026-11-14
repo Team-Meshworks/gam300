@@ -9,6 +9,49 @@ type ReadSource = (
 ) => Promise<{ kind: "available"; revision: number } | { kind: "unavailable" } | { kind: "retry" }>;
 export const blankSourceKey = (actorId: string) => `spatia.assignment.source:${actorId}`;
 
+export function blankSourceProject(
+  stored: string,
+): { projectId: string; imageKey?: string } | null {
+  try {
+    const value: unknown = JSON.parse(stored);
+    if (
+      !isRecord(value) ||
+      !isRecord(value.receipt) ||
+      !projectReceipt(value.receipt) ||
+      typeof value.receipt.projectId !== "string" ||
+      (value.imageKey !== undefined && typeof value.imageKey !== "string")
+    )
+      return null;
+    return {
+      projectId: value.receipt.projectId,
+      ...(value.imageKey !== undefined ? { imageKey: value.imageKey } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function clearBlankSource(
+  storage: Store,
+  actorId: string,
+  expected: { record: string | null } | { projectId: string },
+): Promise<boolean> {
+  const key = blankSourceKey(actorId);
+  return navigator.locks.request(key, () => {
+    const stored = storage.getItem(key);
+    if (stored === null) return false;
+    if (
+      "record" in expected
+        ? stored !== expected.record
+        : blankSourceProject(stored)?.projectId !== expected.projectId
+    )
+      return false;
+    storage.removeItem(key);
+    if (storage.getItem(key) !== null) throw new Error("The source record could not be cleared.");
+    return true;
+  });
+}
+
 export async function createBlankSource(
   storage: Store,
   write: Write,
@@ -25,6 +68,7 @@ export async function createBlankSource(
   | { kind: "rejected"; message: string }
 > {
   const key = blankSourceKey(actorId);
+  let dispatched = false;
   try {
     const imageKey = image
       ? Array.from(
@@ -36,11 +80,10 @@ export async function createBlankSource(
           .join("")
       : undefined;
     const saved = storage.getItem(key);
-    if (saved) {
-      const value: unknown = JSON.parse(saved);
-      if (isRecord(value) && projectReceipt(value.receipt)) {
-        if (value.imageKey !== imageKey) return { kind: "image-mismatch" };
-        const receipt = value.receipt as { projectId: string; revision: number };
+    if (saved !== null) {
+      const receipt = blankSourceProject(saved);
+      if (receipt) {
+        if (receipt.imageKey !== imageKey) return { kind: "image-mismatch" };
         const current = await readSource(actorId, receipt.projectId);
         if (current.kind === "unavailable") return { kind: "source-unavailable" };
         if (current.kind === "retry")
@@ -52,10 +95,16 @@ export async function createBlankSource(
       }
       return { kind: "unknown" };
     }
-    const marker = JSON.stringify({ title, environmentAssetId, ...(imageKey ? { imageKey } : {}) });
+    const marker = JSON.stringify({
+      attemptId: crypto.randomUUID(),
+      title,
+      environmentAssetId,
+      ...(imageKey ? { imageKey } : {}),
+    });
     storage.setItem(key, marker);
     if (storage.getItem(key) !== marker)
       return { kind: "rejected", message: "The browser could not save recovery information." };
+    dispatched = true;
     const outcome = await write(actorId, "/api/v1/projects", "POST", {
       title,
       ...(environmentAssetId ? { environmentAssetId } : {}),
@@ -82,6 +131,11 @@ export async function createBlankSource(
       revision: Number(outcome.value.revision),
     };
   } catch {
-    return { kind: "unknown" };
+    if (dispatched) return { kind: "unknown" };
+    return {
+      kind: "rejected",
+      message:
+        "The browser could not save recovery information. Check browser storage and try again.",
+    };
   }
 }

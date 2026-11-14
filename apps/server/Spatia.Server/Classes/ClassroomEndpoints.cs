@@ -204,6 +204,12 @@ public static class ClassroomEndpoints
     {
         if (lockRow)
         {
+            // Pin the parent before the classroom or its projects. An organization purge then waits
+            // for the whole class write, including foreign-key checks when it creates student drafts.
+            await database.Database.SqlQuery<Guid>($"""
+                SELECT o.id AS "Value" FROM organizations o JOIN classrooms c ON c.organization_id = o.id
+                WHERE c.id = {id} FOR KEY SHARE OF o
+                """).ToListAsync(cancellationToken);
             await database.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM classrooms WHERE id = {id} FOR UPDATE")
                 .ToListAsync(cancellationToken);
         }

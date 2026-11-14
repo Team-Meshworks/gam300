@@ -70,7 +70,7 @@ try {
           );
           return (
             result.ok &&
-            result.value?.document.scenes[0].objects.length === count &&
+            result.value?.document?.scenes[0].objects.length === count &&
             result.value.document.scenes[0].hotspots.length === hotspots &&
             result.value.document.scenes[0].interactions.length === interactions &&
             result.value.history?.future.length === futureCount

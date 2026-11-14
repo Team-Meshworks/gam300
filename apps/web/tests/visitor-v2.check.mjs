@@ -55,6 +55,9 @@ if (process.argv.includes("--playback-only")) {
     release = resolve;
   });
   let assetRequests = 0;
+  let holdAssets = false;
+  let releaseAssets;
+  let assetGate;
   try {
     const page = await browser.newPage();
     page.on("pageerror", (error) => errors.push(error.message));
@@ -81,6 +84,7 @@ if (process.argv.includes("--playback-only")) {
       }
       if (path.endsWith("/bytes")) {
         assetRequests++;
+        if (holdAssets) await assetGate;
         return route.fulfill({
           contentType: "model/gltf-binary",
           body: path.includes(environmentId) ? room : model,
@@ -93,7 +97,9 @@ if (process.argv.includes("--playback-only")) {
     const componentPath = new URL("../visitor/ExhibitionCanvas.tsx", import.meta.url).pathname;
     const component = await page.request.get(`${origin}/@fs${componentPath}`);
     assert.ok(component.ok());
-    const threePath = (await component.text()).match(/import \* as THREE from "([^"]+)"/)?.[1];
+    const componentText = await component.text();
+    const threePath = componentText.match(/import \* as THREE from "([^"]+)"/)?.[1];
+    const fpsPath = componentText.match(/import \{ FpsControls \} from "([^"]+)"/)?.[1];
     assert.ok(threePath);
     await page.goto(`${origin}/p/${publicationId}`);
     await page.addScriptTag({
@@ -319,6 +325,212 @@ if (process.argv.includes("--playback-only")) {
       await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
     }
 
+    // A navigation point runs its own click rules before falling back to its saved destination.
+    const second = snapshot.scenes[1];
+    const panel = first.objects[0].components.find((item) => item.type === "text");
+    const pointRule = {
+      id: "10000000-0000-4000-8000-000000000001",
+      enabled: true,
+      trigger: { type: "click", targetId: navigation.id.toUpperCase() },
+      actions: [
+        { type: "showPanel", panelId: panel.id },
+        { type: "navigateScene", sceneId: first.id, viewpointId: first.viewpoints[0].id },
+      ],
+    };
+    first.rules.push(pointRule);
+    holdAssets = true;
+    assetGate = new Promise((resolve) => {
+      releaseAssets = resolve;
+    });
+    await page.reload();
+    await page.locator(".visitor-information summary").click();
+    const earlyPoint = page.getByRole("button", { name: navigation.label, exact: true });
+    assert.equal(
+      await earlyPoint.isDisabled(),
+      true,
+      "Navigation point must wait for playback listeners",
+    );
+    holdAssets = false;
+    releaseAssets();
+    await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
+    await page.evaluate(() => {
+      window.pointActions = 0;
+      document
+        .querySelector("[data-exhibition-scene]")
+        .addEventListener("exhibit-show-panel", () => window.pointActions++);
+    });
+    const originalCanvas = await page.locator("canvas").elementHandle();
+    await page.getByRole("button", { name: navigation.label, exact: true }).click();
+    await page.waitForFunction((canvas) => !canvas.isConnected, originalCanvas);
+    const pointResult = {
+      actions: await page.evaluate(() => window.pointActions),
+      destination: await page.getByRole("combobox").inputValue(),
+    };
+    first.rules.pop();
+
+    // Scene-start navigation followed by an elapsed return used to mount A again.
+    // Observe scene entry and a later action from B, whichever actually happens first.
+    const returnDoor = {
+      id: "10000000-0000-4000-8000-000000000002",
+      type: "hotspot",
+      label: "Go back deliberately",
+    };
+    const secondPanel = { ...panel, id: "10000000-0000-4000-8000-000000000003" };
+    second.objects[0].components.push(returnDoor, secondPanel);
+    first.rules[1].enabled = true;
+    second.interactions = [
+      {
+        when: { type: "time-elapsed", seconds: 1 },
+        do: { type: "navigate-scene", sceneId: first.id.toUpperCase() },
+      },
+    ];
+    second.rules = [
+      {
+        id: "10000000-0000-4000-8000-000000000004",
+        enabled: true,
+        trigger: { type: "elapsed", seconds: 1 },
+        actions: [{ type: "showPanel", panelId: secondPanel.id }],
+      },
+      {
+        id: "10000000-0000-4000-8000-000000000005",
+        enabled: true,
+        trigger: { type: "click", targetId: returnDoor.id },
+        actions: [
+          { type: "navigateScene", sceneId: first.id, viewpointId: first.viewpoints[0].id },
+        ],
+      },
+    ];
+    await page.addInitScript(() => {
+      window.enteredScenes = [];
+      new MutationObserver(() => {
+        const id = document.querySelector("[data-exhibition-scene]")?.dataset.exhibitionScene;
+        if (id && window.enteredScenes.at(-1) !== id) window.enteredScenes.push(id);
+      }).observe(document, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ["data-exhibition-scene"],
+      });
+    });
+    await page.reload();
+    await page.waitForFunction(
+      () =>
+        window.enteredScenes.length >= 3 || document.querySelector(".visitor-information")?.open,
+    );
+    const automatic = await page.evaluate(() => window.enteredScenes.slice(0, 3));
+    assert.deepEqual(
+      { pointResult, automatic },
+      {
+        pointResult: { actions: 1, destination: "0" },
+        automatic: [first.id, second.id],
+      },
+    );
+    await page.getByRole("button", { name: returnDoor.label, exact: true }).click();
+    await page
+      .getByRole("status")
+      .getByText(/automatic scene navigation/i)
+      .waitFor();
+    assert.equal(await page.getByRole("combobox").inputValue(), "0");
+
+    // Entering a previous room by walking into its zone is a new interaction.
+    // The incoming stationary camera starts outside the zone.
+    const returnZone = {
+      id: "10000000-0000-4000-8000-000000000006",
+      name: "Return zone",
+      transform: { position: [1.25, 1, 5], rotation: [0, 0, 0, 1], scale: [1, 4, 2] },
+    };
+    second.zones = [returnZone];
+    second.interactions = [];
+    second.rules = [
+      {
+        id: "10000000-0000-4000-8000-000000000007",
+        enabled: true,
+        trigger: { type: "zoneEnter", zoneId: returnZone.id },
+        actions: [
+          { type: "navigateScene", sceneId: first.id, viewpointId: first.viewpoints[0].id },
+        ],
+      },
+    ];
+    await page.reload();
+    await page.waitForFunction(
+      (id) => document.querySelector("[data-exhibition-scene]")?.dataset.exhibitionScene === id,
+      second.id,
+    );
+    await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
+    await page.locator("canvas").focus();
+    await page.keyboard.down("d");
+    try {
+      await page.waitForFunction(() =>
+        document
+          .querySelector(".visitor-status")
+          ?.textContent.includes("Automatic scene navigation"),
+      );
+    } finally {
+      await page.keyboard.up("d");
+    }
+    assert.deepEqual(await page.evaluate(() => window.enteredScenes), [
+      first.id,
+      second.id,
+      first.id,
+    ]);
+    // Explicit camera controls start a new chain before their destination enters a zone.
+    second.viewpoints.push({
+      id: "10000000-0000-4000-8000-000000000008",
+      name: "Zone view",
+      camera: { ...second.viewpoints[0].camera, position: [1.25, 1.6, 5] },
+    });
+    await page.reload();
+    await page.waitForFunction(
+      (id) => document.querySelector("[data-exhibition-scene]")?.dataset.exhibitionScene === id,
+      second.id,
+    );
+    await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Zone view", exact: true }).click();
+    await page.waitForFunction(
+      (id) => window.enteredScenes.includes(id) && window.enteredScenes.length >= 3,
+      first.id,
+    );
+    assert.deepEqual((await page.evaluate(() => window.enteredScenes)).slice(0, 3), [
+      first.id,
+      second.id,
+      first.id,
+    ]);
+
+    returnZone.transform.position = [0, 1.6, 5];
+    gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    await page.reload();
+    await page.addScriptTag({
+      type: "module",
+      content: `import * as THREE from ${JSON.stringify(threePath)};
+      import { FpsControls } from ${JSON.stringify(fpsPath)};
+      const sync = FpsControls.prototype.syncFromCamera;
+      FpsControls.prototype.syncFromCamera = function () { window.v2Fps = this; return sync.call(this); };
+      const update = THREE.PerspectiveCamera.prototype.updateProjectionMatrix;
+      THREE.PerspectiveCamera.prototype.updateProjectionMatrix = function () { window.v2Camera = this; return update.call(this); };`,
+    });
+    release();
+    await page
+      .getByRole("status")
+      .getByText(/automatic scene navigation/i)
+      .waitFor();
+    await page.evaluate(() => {
+      window.v2Camera.position.set(10, 1.6, 5);
+      window.v2Fps.syncFromCamera();
+    });
+    await page.waitForTimeout(500);
+    await page.getByRole("button", { name: "Reset view", exact: true }).click();
+    await page.waitForTimeout(500);
+    await page.waitForFunction(() => window.enteredScenes.length >= 3, null, { timeout: 5000 });
+    assert.deepEqual((await page.evaluate(() => window.enteredScenes)).slice(0, 3), [
+      first.id,
+      second.id,
+      first.id,
+    ]);
+    second.viewpoints.pop();
+    first.rules[1].enabled = false;
+
     // Supported rules load normally; external legacy audio still fails before fetching assets
     snapshot.scenes[0].rules[0].enabled = true;
     gate = Promise.resolve();
@@ -396,18 +608,18 @@ const camera=new THREE.PerspectiveCamera();camera.position.set(0,0,5);
 const controls={target:new THREE.Vector3(),update(){}};
 const roots=new Map(scene.objects.map(o=>{const root=new THREE.Group();root.visible=o.visible;return[o.id,root]}));
 const root=createRoot(document.getElementById("root"));
-const navigate=(...args)=>calls.push(args);
-flushSync(()=>root.render(<><button id="start">Start exhibition</button><ExhibitionContent scene={scene as any} assets={data.assets} navigate={navigate}/></>));
+const navigate=(scene,view)=>{calls.push([scene,view]);return true;};
+flushSync(()=>root.render(<><button id="start">Start exhibition</button><ExhibitionContent scene={scene as any} assets={data.assets} navigate={navigate} playbackReady={true}/></>));
 await new Promise(resolve=>requestAnimationFrame(resolve));
 const content=document.querySelector('[data-exhibition-scene]');
-const runtime=createVisitorPlayback(scene as any,camera,controls,roots,content,navigate,message=>reports.push(message));
+const runtime=createVisitorPlayback(scene as any,camera,controls,roots,content,navigate,message=>reports.push(message),()=>{});
 document.querySelector('#start').addEventListener('click',()=>runtime.start());
 content.querySelector('[data-component-id="panel"]').hidden=true;
 content.querySelector('[data-component-id="image"]').hidden=true;
 const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=url=>{revoked.push(url);revoke(url)};
 (window as any).probe={runtime,scene,camera,roots,calls,reports,links,controls,original,revoked,unmount:()=>{root.unmount();HTMLAnchorElement.prototype.click=originalClick},
  sound:()=>roots.get("owner").children.find(n=>n.type==="Audio"),
- restart:()=>createVisitorPlayback(scene as any,camera,controls,roots,content,navigate,message=>reports.push(message)),
+ restart:()=>createVisitorPlayback(scene as any,camera,controls,roots,content,navigate,message=>reports.push(message),()=>{}),
  hiddenPlay(){scene.rules.find(r=>r.id==="click").actions.splice(0,2,{type:"setVisible",objectId:"owner",visible:false},{type:"playMedia",mediaId:"spatial"});runtime.click("owner")},
 };
 `;

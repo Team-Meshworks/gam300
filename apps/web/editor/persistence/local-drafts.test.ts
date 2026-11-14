@@ -12,6 +12,7 @@ import {
 } from "./local-drafts";
 import type { IDraftDatabase } from "./draft-db";
 import { createDocumentStore } from "../document-store";
+import { degreesToQuaternion } from "../ui/rotation-angles";
 import { connectServerProjectSession } from "./server-project-session";
 import { validateServerSaveRecovery } from "./server-save-recovery";
 import type { ServerDraftRequest, ServerDraftResult } from "./server-draft-write";
@@ -314,6 +315,54 @@ describe("persisted server save identity", () => {
     });
   });
 
+  it("does not reuse a cleared storage revision that an older tab can still write", async () => {
+    const database = new FakeDraftDatabase();
+    const serverSave = { revision: 7, confirmedJson: serializedFixture(), pending: null };
+    expect(
+      await applySaveRecoverySession(
+        { ...recoverySession(), serverSave },
+        0,
+        assets,
+        database,
+        scope,
+      ),
+    ).toEqual({ ok: true, value: 1 });
+    await clearConfirmedServerRecovery(scope, database);
+    const reopened = await getRecoverySession(assets, database, scope);
+    if (!reopened.ok) throw new Error(reopened.error.message);
+    const newer = {
+      ...recoverySession(),
+      document: { ...recoverySession().document, title: "New tab's offline work" },
+    };
+    expect(
+      (
+        await applySaveRecoverySession(
+          { ...newer, serverSave },
+          reopened.value?.revision ?? 0,
+          assets,
+          database,
+          scope,
+        )
+      ).ok,
+    ).toBe(true);
+    const stale = await applySaveRecoverySession(
+      {
+        ...recoverySession(),
+        document: { ...recoverySession().document, title: "Stale tab" },
+        serverSave,
+      },
+      1,
+      assets,
+      database,
+      scope,
+    );
+    expect(stale.ok).toBe(false);
+    expect(await getRecoverySession(assets, database, scope)).toMatchObject({
+      ok: true,
+      value: { document: { title: "New tab's offline work" } },
+    });
+  });
+
   it("clears only confirmed cache data and preserves pending or newer local work", async () => {
     // Walk through a confirmed copy, an uncertain request and an unsent edit
     // Only the first record is safe for automatic cleanup
@@ -327,10 +376,14 @@ describe("persisted server save identity", () => {
       scope,
     );
     expect(await clearConfirmedServerRecovery(scope, database)).toEqual({ ok: true, value: true });
-    expect(await getRecoverySession(assets, database, scope)).toEqual({ ok: true, value: null });
+    expect(await getRecoverySession(assets, database, scope)).toMatchObject({
+      ok: true,
+      value: { revision: 1, document: null },
+    });
+    expect([...database.records.values()]).toEqual([{ revision: 1, cleared: true }]);
     await applySaveRecoverySession(
       { ...recoverySession(), serverSave },
-      0,
+      1,
       assets,
       database,
       scope,
@@ -342,7 +395,7 @@ describe("persisted server save identity", () => {
         document: { ...recoverySession().document, title: "Unsynced" },
         serverSave: confirmed,
       },
-      1,
+      2,
       assets,
       database,
       scope,
@@ -437,6 +490,43 @@ describe("server project session lifecycle", () => {
     expect(write).not.toHaveBeenCalled();
   });
 
+  it("schedules a corrected draft when its older invalid checkpoint is still running", async () => {
+    const { store, database, write, session } = setup();
+    let releaseOpen!: () => void;
+    const held = new Promise<void>((resolve) => {
+      releaseOpen = resolve;
+    });
+    const open = database.getIndexedDB.bind(database);
+    vi.spyOn(database, "getIndexedDB").mockImplementationOnce(async () => {
+      await held;
+      return open();
+    });
+    expect(
+      store.setInteractions([
+        { when: { type: "scene-starts" }, do: { type: "open-link", url: "" } },
+      ]).ok,
+    ).toBe(true);
+    const pending = session.flush();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(database.getIndexedDB).toHaveBeenCalledTimes(1);
+    expect(
+      store.setInteractions([
+        { when: { type: "scene-starts" }, do: { type: "open-link", url: "https://example.org/" } },
+      ]).ok,
+    ).toBe(true);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(write).not.toHaveBeenCalled();
+    releaseOpen();
+    await pending;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(write.mock.calls[0]![0].body).document.scenes[0].interactions[0].do.url).toBe(
+      "https://example.org/",
+    );
+    expect(session.getStatus()).toBe("saved");
+    await session.dispose();
+  });
+
   // An export cannot cover an edit made while the picker is open
   it("refuses to leave when another edit arrives during export", async () => {
     const { store, session } = setup();
@@ -506,6 +596,45 @@ describe("server project session lifecycle", () => {
     session.dispose();
   });
 
+  it("reattaches an undo snapshot retained in memory after storage failure", async () => {
+    const { store, session, database, write } = setup();
+    expect(store.createGroup("Exhibits").ok).toBe(true);
+    await session.flush();
+    store.undo();
+    vi.spyOn(database, "getIndexedDB").mockRejectedValueOnce(new Error("Quota exceeded"));
+    expect(await session.dispose()).toMatchObject({ ok: false });
+    const retained = session.getRecovery();
+    const reopened = createDocumentStore([]);
+    const encoded = serializeProject(retained.document, assets, { allowDraftLinks: true });
+    if (!encoded.ok) throw new Error(encoded.error.message);
+    expect(
+      reopened.loadProject(encoded.value, assets, retained.history, { allowDraftLinks: true }).ok,
+    ).toBe(true);
+    const options = {
+      accountId: "alice",
+      store: reopened,
+      revision: retained.serverSave!.revision,
+      storageRevision: retained.revision,
+      assetKinds: assets,
+      signal: new AbortController().signal,
+      onStatus: vi.fn(),
+      database,
+      write,
+    };
+    expect(() =>
+      connectServerProjectSession({
+        ...options,
+        recovery: { ...retained, document: { ...retained.document, title: "Different draft" } },
+      }),
+    ).toThrow("Recovery does not match");
+    const resumed = connectServerProjectSession({ ...options, recovery: retained });
+    await resumed.flush();
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(resumed.getStatus()).toBe("saved");
+    expect(reopened.getSnapshot().canRedo).toBe(true);
+    await resumed.dispose();
+  });
+
   // Logout disconnects editor changes and network events from the old account
   it("removes listeners on logout so the next account cannot retry old work", async () => {
     const { store, account, events, write, onStatus } = setup();
@@ -517,6 +646,54 @@ describe("server project session lifecycle", () => {
     await vi.advanceTimersByTimeAsync(5_000);
     expect(write).not.toHaveBeenCalled();
     expect(onStatus).toHaveBeenCalledTimes(count);
+  });
+
+  it("saves a rotated crate and reopens the undo and redo history for another crate's rename", async () => {
+    const { store, write, session, database } = setup();
+    const [first, second] = store.getSnapshot().objects;
+    if (!first || !second) throw new Error("Expected two crates");
+    const rotation = degreesToQuaternion([0, 226, 0]);
+    expect(store.setTransform(second.id, { ...second.transform, rotation }).ok).toBe(true);
+    expect(store.renameObject(first.id, "Rotated exhibit").ok).toBe(true);
+    await session.flush();
+    const leave = await session.prepareToLeave("recovery");
+    const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
+    expect({
+      writes: write.mock.calls.length,
+      checkpointed: recovered.ok && !!recovered.value?.document,
+      preserved: leave.ok && leave.value,
+    }).toEqual({ writes: 1, checkpointed: true, preserved: true });
+    expect(JSON.parse(write.mock.calls[0]![0].body).document.scenes[0].objects[0].name).toBe(
+      "Rotated exhibit",
+    );
+    if (!recovered.ok || !recovered.value?.document) throw new Error("Missing checkpoint");
+    expect(recovered.value.history).toBeDefined();
+    expect(recovered.value.historyWarning).toBeUndefined();
+    const reopened = createDocumentStore([]);
+    expect(
+      reopened.loadProject(
+        JSON.stringify(recovered.value.document),
+        assets,
+        recovered.value.history,
+      ).ok,
+    ).toBe(true);
+    const objects = () => reopened.getSnapshot().objects;
+    reopened.undo();
+    expect(objects()[0]!.name).toBe(first.name);
+    expect(objects()[1]!.transform.rotation[1]).toBeCloseTo(rotation[1], 14);
+    reopened.undo();
+    expect(objects()[1]!.transform.rotation).toEqual(second.transform.rotation);
+
+    const withRedo = reopened.getRecoveryHistory();
+    const next = createDocumentStore([]);
+    expect(
+      next.loadProject(JSON.stringify(reopened.getSnapshot().project), assets, withRedo).ok,
+    ).toBe(true);
+    next.redo();
+    next.redo();
+    expect(next.getSnapshot().objects[0]!.name).toBe("Rotated exhibit");
+    expect(next.getSnapshot().objects[1]!.transform.rotation[3]).toBeCloseTo(rotation[3], 14);
+    await session.dispose();
   });
 
   // Reopened history must belong to the recovered document
@@ -534,7 +711,7 @@ describe("server project session lifecycle", () => {
     );
     const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
     expect(recovered.ok).toBe(true);
-    if (!recovered.ok || !recovered.value) throw new Error("Missing recovery");
+    if (!recovered.ok || !recovered.value?.document) throw new Error("Missing recovery");
     expect(recovered.value.history).toBeDefined();
     const reopened = createDocumentStore([]);
     // Restore into another store so the check cannot reuse history still held in memory
@@ -563,7 +740,8 @@ describe("server project session lifecycle", () => {
     expect(write).not.toHaveBeenCalled();
     await session.dispose();
     const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
-    if (!recovered.ok || !recovered.value) throw new Error("Missing previous project backup");
+    if (!recovered.ok || !recovered.value?.document)
+      throw new Error("Missing previous project backup");
     const reopened = createDocumentStore([]);
     expect(
       reopened.loadProject(
@@ -600,9 +778,11 @@ describe("server project session lifecycle", () => {
       projectId,
     });
     expect(await session.dispose()).toMatchObject({ ok: true, value: true });
-    expect(await getRecoverySession(assets, database, { accountId: "alice", projectId })).toEqual({
+    expect(
+      await getRecoverySession(assets, database, { accountId: "alice", projectId }),
+    ).toMatchObject({
       ok: true,
-      value: null,
+      value: { document: null, revision: 1 },
     });
     expect(
       await getRecoverySession(assets, database, { accountId: "bob", projectId }),
@@ -626,6 +806,20 @@ it("rejects blank account-scoped recovery without replacing the previous backup"
   );
   expect(await getRecoverySession(assets, database, scope)).toMatchObject({ ok: false });
   expect(database.records.size).toBe(1);
+});
+
+it.each([
+  { revision: 0, cleared: true },
+  { revision: 1, cleared: true, document: null },
+])("rejects malformed cleared recovery metadata: %j", async (record) => {
+  const database = new FakeDraftDatabase();
+  const scope = { accountId: "alice", projectId };
+  database.records.set(
+    `session:${JSON.stringify(["account", scope.accountId, projectId])}`,
+    record,
+  );
+  expect(await getRecoverySession(assets, database, scope)).toMatchObject({ ok: false });
+  expect([...database.records.values()]).toEqual([record]);
 });
 
 it.each([1, 2])(

@@ -4,28 +4,33 @@ import uploadIcon from "@iconify-icons/lucide/upload";
 import checkIcon from "@iconify-icons/lucide/check";
 import faEye from "@iconify-icons/lucide/eye";
 import faEyeSlash from "@iconify-icons/lucide/eye-off";
-import { useId, useRef, useState, type FormEvent } from "react";
-import { importAccounts, downloadCredentials, readAccountCsv } from "./account-csv";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import {
+  importAccounts,
+  downloadCredentials,
+  readAccountCsv,
+  type NewAccount,
+} from "./account-csv";
+import type { BulkImport, BulkImportReview } from "./bulk-import";
+
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { Select } from "../../shared/ui/Select";
 import type { AccountChanges, ManagedAccount } from "./directory-client";
-
-export type NewAccount = {
-  displayName: string;
-  userName: string;
-  role: "Creator" | "Educator";
-  initialPassword: string;
-};
+import { BulkImportHandoff } from "./BulkImportHandoff";
 export function AccountDialog({
   account,
   organizationName,
   onClose,
   onSave,
-  onImport,
+  bulkImport,
+  resumeImport,
+  onCheckDirectory,
 }: {
-  onImport?: (values: NewAccount[]) => Promise<readonly string[]>;
+  onCheckDirectory: () => void;
+  bulkImport?: BulkImport | undefined;
+  resumeImport: { id: string; local: boolean } | null;
   account?: ManagedAccount | undefined;
   organizationName: string;
   onClose: () => void;
@@ -41,7 +46,16 @@ export function AccountDialog({
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [operationId, setOperationId] = useState<string | null>(resumeImport?.id ?? null);
+  const [review, setReview] = useState<BulkImportReview | null>(null);
   const saving = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const upload = useRef<HTMLInputElement>(null);
   const [credentials, setCredentials] = useState<NewAccount[]>([]);
   const csvSource = useRef<string | null>(null);
@@ -76,24 +90,31 @@ export function AccountDialog({
   const enabled = (field: string) => !account || overrides[field] === true;
   const changed = !account || Object.values(overrides).some(Boolean);
   function close() {
-    if (!saving.current) onClose();
+    if (saving.current) return;
+    if (operationId) onCheckDirectory();
+    else onClose();
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (saving.current || !changed) return;
+    if (saving.current || operationId || !changed) return;
     saving.current = true;
     setPending(true);
     setError("");
     try {
-      if (!account && csvSource.current && onImport) {
+      if (!account && csvSource.current) {
+        if (!bulkImport)
+          throw new Error("The import is unavailable. Check the organisation directory.");
         const values = importAccounts(csvSource.current, role).map((value, index) => ({
           ...value,
           initialPassword: credentials[index]!.initialPassword,
         }));
-        const created = new Set(await onImport(values));
-        if (created.size > 0)
-          downloadCredentials(values.filter((value) => created.has(value.userName)));
-        onClose();
+        const { credentials: available, ...receipt } = await bulkImport.start(values);
+        if (!mounted.current) return;
+        setOperationId(receipt.operationId);
+        setReview(receipt);
+        setCredentials([]);
+        csvSource.current = null;
+        if (available.length) downloadCredentials(available);
         return;
       }
       await onSave(
@@ -112,6 +133,25 @@ export function AccountDialog({
             },
       );
     } catch (reason) {
+      if (bulkImport && !account) {
+        try {
+          const stored = bulkImport.pending();
+          if (stored) {
+            setOperationId(stored);
+            setCredentials([]);
+            csvSource.current = null;
+            setError(
+              "The import or credential download could not be confirmed. Check the same import receipt.",
+            );
+            return;
+          }
+        } catch {
+          setError(
+            "The browser could not read the account import reference. Check browser storage before importing.",
+          );
+          return;
+        }
+      }
       setError(reason instanceof Error ? reason.message : "The account could not be saved.");
     } finally {
       saving.current = false;
@@ -133,6 +173,17 @@ export function AccountDialog({
       )
     );
   }
+  if (operationId && bulkImport)
+    return (
+      <BulkImportHandoff
+        operation={bulkImport}
+        operationId={operationId}
+        local={resumeImport?.local ?? true}
+        initialReview={review}
+        initialError={error}
+        onClose={onCheckDirectory}
+      />
+    );
   return (
     <Dialog
       title={account ? "View Account Details" : "Account Creation"}
@@ -188,7 +239,7 @@ export function AccountDialog({
         <fieldset className="sp-credentials" disabled={pending || imported}>
           <legend className="sp-credentials-heading">
             <span>Account Credentials</span>
-            {!account && onImport && (
+            {!account && bulkImport && (
               <span
                 className="sp-csv-help"
                 onMouseEnter={() => setCsvHelp(true)}

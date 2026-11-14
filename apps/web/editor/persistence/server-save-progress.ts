@@ -57,6 +57,11 @@ export function createServerSaveProgress(projectId: string, initialRevision: num
       return true;
     },
 
+    // Only a definite validation rejection can retire a mutation without a receipt
+    reject() {
+      pending = null;
+    },
+
     getSnapshot() {
       return {
         revision,

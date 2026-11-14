@@ -12,28 +12,34 @@ namespace Spatia.Server.Assets;
 public sealed class AssetAdministrationService(ApplicationDbContext database, AssetUploadValidator validator)
 {
 
-    // Load metadata without allocating every retained GLB for the administrative list
-    public async Task<AssetAdministrationRecord[]> ListAsync(CancellationToken token) =>
-        (await database.AssetCandidates.AsNoTracking().OrderByDescending(asset => asset.CreatedAt)
-            .Select(asset => new AssetCandidate
-            {
-                Id = asset.Id,
-                Name = asset.Name,
-                Kind = asset.Kind,
-                Category = asset.Category,
-                Sha256 = asset.Sha256,
-                Bytes = Array.Empty<byte>(),
-                Status = asset.Status,
-                ValidationJson = asset.ValidationJson,
-                Hidden = asset.Hidden,
-                Deleted = asset.Deleted,
-                RemovedFromProjects = asset.RemovedFromProjects,
-                Source = asset.Source,
-                License = asset.License,
-                ReviewNotes = asset.ReviewNotes,
-            }).Take(1000).ToArrayAsync(token)).Select(Record).ToArray();
+    // List and retry responses need administration metadata only, even for 20 MB assets.
+    private IQueryable<AssetCandidate> CandidateMetadata => database.AssetCandidates.AsNoTracking()
+        .Select(asset => new AssetCandidate
+        {
+            Id = asset.Id,
+            Name = asset.Name,
+            Kind = asset.Kind,
+            Category = asset.Category,
+            Sha256 = asset.Sha256,
+            Bytes = Array.Empty<byte>(),
+            Status = asset.Status,
+            ValidationJson = asset.ValidationJson,
+            CreatedAt = asset.CreatedAt,
+            Hidden = asset.Hidden,
+            Deleted = asset.Deleted,
+            RemovedFromProjects = asset.RemovedFromProjects,
+            Source = asset.Source,
+            License = asset.License,
+            ReviewNotes = asset.ReviewNotes,
+        });
 
-    public async Task<AssetAdministrationRecord?> SubmitAsync(string name, string kind, string? category,
+    public async Task<AssetAdministrationRecord[]> ListAsync(CancellationToken token) =>
+        (await CandidateMetadata.OrderByDescending(asset => asset.CreatedAt).Take(1000).ToArrayAsync(token)).Select(Record).ToArray();
+
+    internal async Task<AssetAdministrationRecord> ReadRecordAsync(Guid id, CancellationToken token) =>
+        Record(await CandidateMetadata.SingleAsync(asset => asset.Id == id, token));
+
+    public async Task<(AssetAdministrationRecord Record, bool Created)?> SubmitAsync(string name, string kind, string? category,
         byte[] bytes, Guid actor, AssetReviewRequest? metadata, CancellationToken token)
     {
 
@@ -43,22 +49,41 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             return null;
         }
 
-        // Validate privately before allocating an immutable identity or admitting another stored upload
+        var label = name[..^4];
+        var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        // Validation stays outside the quota lock so other uploads can validate concurrently.
         var validation = kind == "audio" ? AssetAudioValidator.Validate(bytes) : await validator.ValidateAsync(bytes, token);
+        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
+        await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(167168)", token);
+        // Review and retirement never change these catalogue fields. Keep every historical ID
+        // addressable and choose a stable original when a pre-existing catalogue has duplicates.
+        var existing = await CandidateMetadata
+            .Where(asset => asset.Sha256 == digest && asset.Name == label && asset.Kind == kind && asset.Category == category)
+            .OrderBy(asset => asset.CreatedAt).ThenBy(asset => asset.Id)
+            .FirstOrDefaultAsync(token);
+        if (existing is not null)
+        {
+            return (Record(existing), false);
+        }
         if (validation is null)
         {
             return null;
         }
+        var count = await database.AssetCandidates.CountAsync(token);
+        var total = await database.AssetCandidates.SumAsync(item => (long?)item.Bytes.Length, token) ?? 0;
+        if (count >= 1000 || total + bytes.Length > 1024L * 1024 * 1024)
+        {
+            return null;
+        }
 
-        // A valid administrator upload is immediately selectable; failed validation stays private
-        // Fingerprint the exact uploaded bytes once and retain that version through later retirement
+        // New candidates alone consume quota and receive an immutable ID and the submitted provenance.
         var asset = new AssetCandidate
         {
             Id = Guid.NewGuid(),
-            Name = name[..^4],
+            Name = label,
             Kind = kind,
             Category = category,
-            Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)),
+            Sha256 = digest,
             Bytes = bytes,
             Status = validation.Value.Valid ? "approved" : "invalid",
             Hidden = !validation.Value.Valid,
@@ -71,21 +96,10 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
-        // Serialize quota admission across requests before adding another persistent upload
-        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
-        await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(167168)", token);
-        var count = await database.AssetCandidates.CountAsync(token);
-        var total = await database.AssetCandidates.SumAsync(item => (long?)item.Bytes.Length, token) ?? 0;
-        if (count >= 1000 || total + bytes.Length > 1024L * 1024 * 1024)
-        {
-            return null;
-        }
-
-        // Persist only after quota admission; disposal rolls the transaction back on every earlier return
         database.AssetCandidates.Add(asset);
         await database.SaveChangesAsync(token);
         await transaction.CommitAsync(token);
-        return Record(asset);
+        return (Record(asset), true);
     }
 
     public async Task<AssetAdministrationRecord?> ReviewAsync(Guid id, AssetReviewRequest review, Guid actor, CancellationToken token)
@@ -99,7 +113,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
                 .SetProperty(asset => asset.ReviewedBy, actor), token);
 
         // Return the persisted record so the client replaces its state only after the database accepts review
-        return changed == 1 ? Record((await database.AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == id, token))) : null;
+        return changed == 1 ? await ReadRecordAsync(id, token) : null;
     }
 
     public async Task<AssetAdministrationRecord?> ChangeAsync(Guid id, string action, CancellationToken token)
@@ -113,7 +127,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
                 .ExecuteUpdateAsync(update => update.SetProperty(asset => asset.Hidden, action == "hide"), token);
 
         // A missing or concurrently retired row stays a conflict rather than a fabricated success
-        return changed == 1 ? Record(await database.AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == id, token)) : null;
+        return changed == 1 ? await ReadRecordAsync(id, token) : null;
     }
 
     // The caller owns the transaction and checks live administrator authority before committing
@@ -122,7 +136,8 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
     {
         // Block project creation, writes and row-locking publication/review operations during the global change
         await database.Database.ExecuteSqlRawAsync("LOCK TABLE projects IN EXCLUSIVE MODE", token);
-        var asset = await database.AssetCandidates.FromSqlInterpolated($"SELECT * FROM asset_candidates WHERE id = {id} FOR UPDATE")
+        // Non-key updates must coexist with receipt foreign-key checks on this asset.
+        var asset = await database.AssetCandidates.FromSqlInterpolated($"SELECT * FROM asset_candidates WHERE id = {id} FOR NO KEY UPDATE")
             .SingleOrDefaultAsync(token);
         if (asset is null || asset.Status != "approved" || asset.RemovedFromProjects || !asset.Deleted) { return null; }
         var assetId = id.ToString("D");

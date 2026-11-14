@@ -525,12 +525,19 @@ function ProjectResults({
 function AddOrganization({
   client,
   onClose,
-  onCreated,
+  onDirectory,
 }: {
   client: Client;
   onClose: () => void;
-  onCreated: (name: string) => void;
+  onDirectory: () => void;
 }) {
+  const [recovery, setRecovery] = useState(() => {
+    try {
+      return { attempt: client.pendingOrganization(), error: "" };
+    } catch (reason) {
+      return { attempt: null, error: errorMessage(reason) };
+    }
+  });
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -542,9 +549,14 @@ function AddOrganization({
     setError("");
     try {
       await client.createOrganization(name);
-      onCreated(name.trim());
+      onDirectory();
     } catch (reason) {
       setError(errorMessage(reason));
+      try {
+        setRecovery({ attempt: client.pendingOrganization(), error: "" });
+      } catch (failure) {
+        setRecovery({ attempt: null, error: errorMessage(failure) });
+      }
     } finally {
       busy.current = false;
       setPending(false);
@@ -559,29 +571,66 @@ function AddOrganization({
         if (!busy.current) onClose();
       }}
     >
-      <form
-        className="admin-organisation-form"
-        aria-busy={pending}
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        <Field id="organisation-name" label="Organisation name">
-          <input
-            id="organisation-name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            maxLength={256}
-            required
-            disabled={pending}
-          />
-        </Field>
-        {error && <p role="alert">{error}</p>}
-        <Button type="submit" variant="primary" disabled={pending || !name.trim()}>
-          {pending ? "Creating…" : "Create Organisation"}
-        </Button>
-      </form>
+      {recovery.attempt || recovery.error ? (
+        <div className="admin-organisation-form">
+          <p role="alert">
+            {recovery.attempt
+              ? recovery.attempt.name
+                ? `Creation of “${recovery.attempt.name}” could not be confirmed. Check the directory before creating another organisation.`
+                : "The previous organisation request could not be read. Check the directory before creating another organisation."
+              : recovery.error}
+          </p>
+          <Button onClick={onDirectory}>Check organisation directory</Button>
+          {recovery.attempt && (
+            <Button
+              disabled={pending}
+              onClick={async () => {
+                if (!recovery.attempt || busy.current) return;
+                busy.current = true;
+                setPending(true);
+                try {
+                  await client.acknowledgeOrganization(recovery.attempt);
+                  setRecovery({ attempt: null, error: "" });
+                  setName("");
+                  setError("");
+                } catch (reason) {
+                  setError(errorMessage(reason));
+                } finally {
+                  busy.current = false;
+                  setPending(false);
+                }
+              }}
+            >
+              I checked the directory
+            </Button>
+          )}
+          {error && <p role="status">{error}</p>}
+        </div>
+      ) : (
+        <form
+          className="admin-organisation-form"
+          aria-busy={pending}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
+        >
+          <Field id="organisation-name" label="Organisation name">
+            <input
+              id="organisation-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              maxLength={256}
+              required
+              disabled={pending}
+            />
+          </Field>
+          {error && <p role="alert">{error}</p>}
+          <Button type="submit" variant="primary" disabled={pending || !name.trim()}>
+            {pending ? "Creating…" : "Create Organisation"}
+          </Button>
+        </form>
+      )}
     </Dialog>
   );
 }
@@ -848,10 +897,7 @@ export function AdminDashboard({
         <AddOrganization
           client={client}
           onClose={() => setModal(null)}
-          onCreated={() => {
-            // Continue directly to the directory after the server confirms creation
-            onOpenOrganisations();
-          }}
+          onDirectory={onOpenOrganisations}
         />
       )}
     </div>

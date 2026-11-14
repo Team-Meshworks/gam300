@@ -1,3 +1,6 @@
+import { createBulkImport, ImportRejected, ImportRequestError } from "./bulk-import";
+import type { NewAccount } from "./account-csv";
+
 export interface ManagedAccount {
   userId: string;
   displayName: string;
@@ -56,6 +59,8 @@ function account(value: unknown): ManagedAccount {
     throw new Error("The account service returned an invalid account.");
   return value as unknown as ManagedAccount;
 }
+export class DirectoryWriteUnconfirmed extends Error {}
+
 export function createDirectoryClient(request: typeof fetch = fetch, accountId?: string) {
   async function send(path: string, init: RequestInit = {}, timeout = 15000): Promise<unknown> {
     let response: Response;
@@ -67,17 +72,33 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
         cache: "no-store",
         signal: AbortSignal.timeout(timeout),
       });
-    } catch {
-      throw new Error(
-        init.method === "DELETE"
-          ? "Deletion could not be confirmed. Close this window and refresh the directory before trying again."
-          : init.method
-            ? "The save could not be confirmed. Close this window and refresh the directory before trying again."
-            : "The directory could not be reached. Please try again.",
-      );
+    } catch (cause) {
+      if (init.method)
+        throw new DirectoryWriteUnconfirmed(
+          init.method === "DELETE"
+            ? "Deletion could not be confirmed. Close this window and refresh the directory before trying again."
+            : "The save could not be confirmed. Close this window and refresh the directory before trying again.",
+          { cause },
+        );
+      throw new Error("The directory could not be reached. Please try again.", { cause });
     }
     if (!response.ok) {
+      if (init.method && response.status >= 500)
+        throw new DirectoryWriteUnconfirmed(
+          "The save could not be confirmed. Refresh the directory.",
+        );
       const problem: unknown = await response.json().catch(() => null);
+      if (
+        record(problem) &&
+        typeof problem.code === "string" &&
+        [
+          "bulk_import_not_found",
+          "bulk_import_abandoned",
+          "bulk_import_committed",
+          "bulk_import_conflict",
+        ].includes(problem.code)
+      )
+        throw new ImportRequestError(problem.code);
       const messages: Record<string, string> = {
         organization_confirmation_required:
           "Enter the organisation name exactly as shown to confirm deletion.",
@@ -97,7 +118,7 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
           "This account changed. Close this window and refresh before trying again.",
         invalid_account_input: "Check the account details. Passwords need 12–128 characters.",
       };
-      throw new Error(
+      const message =
         response.status === 401
           ? "Your session has expired. Sign in again."
           : response.status === 403
@@ -105,20 +126,52 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
             : response.status === 429
               ? "Too many changes. Please wait before trying again."
               : (record(problem) && typeof problem.code === "string" && messages[problem.code]) ||
-                "The directory request failed. Please try again.",
-      );
+                "The directory request failed. Please try again.";
+      if (
+        init.method === "PUT" &&
+        path.includes("/bulk-imports/") &&
+        [400, 403, 404, 413, 422, 429].includes(response.status)
+      )
+        throw new ImportRejected(message);
+      throw new Error(message);
     }
+    if (
+      init.method === "POST" &&
+      path.includes("/bulk-imports/") &&
+      (path.endsWith("/acknowledge") || path.endsWith("/abandon")) &&
+      response.status !== 204
+    )
+      throw new DirectoryWriteUnconfirmed(
+        "The import confirmation could not be verified. Check the same receipt.",
+      );
     if (response.status === 204) return null;
     try {
       return await response.json();
-    } catch {
-      throw new Error("The directory returned an invalid response. Refresh before trying again.");
+    } catch (cause) {
+      if (init.method)
+        throw new DirectoryWriteUnconfirmed(
+          "The directory returned an invalid response. Refresh before trying again.",
+          { cause },
+        );
+      throw new Error("The directory returned an invalid response. Refresh before trying again.", {
+        cause,
+      });
     }
   }
   async function write(path: string, method: string, body: object, timeout = 15000) {
-    const csrf = await send("/api/v1/auth/csrf");
-    if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken)
-      throw new Error("Your session could not be verified. Sign in again.");
+    let csrf: unknown;
+    try {
+      csrf = await send("/api/v1/auth/csrf");
+      if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken)
+        throw new Error("Your session could not be verified. Sign in again.");
+    } catch (cause) {
+      if (method === "PUT" && path.includes("/bulk-imports/"))
+        throw new ImportRejected(
+          "The account import could not be sent. Check your session and try again.",
+          { cause },
+        );
+      throw cause;
+    }
     return send(
       path,
       {
@@ -226,16 +279,23 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
         initialPassword: string;
       },
     ) => account(await write("/api/v1/admin/users", "POST", { ...values, orgId })),
-    createBulk: async (orgId: string, values: import("./AccountDialog").NewAccount[]) => {
+    bulkImport: (orgId: string) => createBulkImport(accountId ?? "", orgId, write, send),
+    createBulk: async (orgId: string, values: NewAccount[]) => {
       const result = await write(
         "/api/v1/admin/users/bulk",
         "POST",
         values.map((value) => ({ ...value, orgId })),
         90000,
       );
+      const unconfirmed = "Creation could not be verified. Refresh the directory before retrying.";
       if (!Array.isArray(result) || result.length > values.length)
-        throw new Error("Creation could not be verified. Refresh the directory before retrying.");
-      const accounts = result.map(account);
+        throw new DirectoryWriteUnconfirmed(unconfirmed);
+      let accounts: ManagedAccount[];
+      try {
+        accounts = result.map(account);
+      } catch (cause) {
+        throw new DirectoryWriteUnconfirmed(unconfirmed, { cause });
+      }
       const expected = new Map(values.map((value) => [value.userName, value]));
       if (
         new Set(accounts.map((value) => value.userId)).size !== accounts.length ||
@@ -244,7 +304,7 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
           (item) => item.orgId !== orgId || expected.get(item.userName)?.role !== item.role,
         )
       )
-        throw new Error("Creation could not be verified. Refresh the directory before retrying.");
+        throw new DirectoryWriteUnconfirmed(unconfirmed);
       return accounts;
     },
     update: async (userId: string, values: AccountChanges) =>

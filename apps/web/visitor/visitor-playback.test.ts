@@ -105,8 +105,9 @@ function fixture(count = 1, rules: readonly ProjectRule[] = []) {
     { target: new THREE.Vector3(), update() {} },
     new Map(),
     content as unknown as HTMLElement,
-    vi.fn(),
+    vi.fn(() => true),
     report,
+    vi.fn(),
   );
   return { runtime, nodes, owners, panels, report };
 }

@@ -153,6 +153,27 @@ public sealed class ProjectDocumentService
             ? new(null, new("project", "Removed assets cannot be saved or copied")) : serialized;
     }
 
+    internal static async Task<bool> CanWriteDraftAsync(ApplicationDbContext database, string json, string? existingJson,
+        CancellationToken cancellationToken)
+    {
+        var ids = new List<Guid>();
+        foreach (var reference in AssetDocumentReferences.Read(json))
+        {
+            if (Guid.TryParseExact(reference, "D", out var id)) { ids.Add(id); }
+        }
+        if (ids.Count == 0) { return true; }
+        var keys = ids.ToArray();
+        // Match the global removal's project-before-asset order. A new project has no row to lock yet.
+        await database.Database.ExecuteSqlRawAsync("LOCK TABLE projects IN ROW EXCLUSIVE MODE", cancellationToken);
+        var assets = await database.AssetCandidates.FromSqlInterpolated($"""
+            SELECT * FROM asset_candidates WHERE id = ANY({keys}) ORDER BY id FOR SHARE
+            """).AsNoTracking().Select(asset => new { asset.Id, asset.Status, asset.Hidden, asset.Deleted, asset.RemovedFromProjects })
+            .ToArrayAsync(cancellationToken);
+        var existing = existingJson is null ? [] : AssetDocumentReferences.Read(existingJson);
+        return assets.Length == keys.Length && assets.All(asset => asset.Status == "approved" && !asset.RemovedFromProjects
+            && ((!asset.Hidden && !asset.Deleted) || existing.Contains(asset.Id.ToString())));
+    }
+
     private static FormatResult<IAuthoredProject> Bind(Guid projectId, FormatResult<IAuthoredProject> result) =>
         result.Ok && Guid.Parse(result.Value!.ProjectId) != projectId
             ? new(null, new("project.projectId", "Document project ID does not match the route")) : result;

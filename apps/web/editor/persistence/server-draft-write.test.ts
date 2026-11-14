@@ -80,6 +80,16 @@ describe("server draft transport", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    [{ code: "invalid_document" }, "invalid"],
+    [{ code: "project_id_mismatch" }, "rejected"],
+    [{}, "rejected"],
+  ])("distinguishes a known uncommitted document rejection: %j", async (problem, kind) => {
+    expect(
+      await writeServerDraft(request, signal, responses(Response.json(problem, { status: 422 }))),
+    ).toEqual({ kind });
+  });
+
   it("treats a malformed success receipt as an unconfirmed write", async () => {
     const fetcher = responses(Response.json({ ...receipt, revision: "1" }));
     expect(await writeServerDraft(request, signal, fetcher)).toEqual({ kind: "failed" });

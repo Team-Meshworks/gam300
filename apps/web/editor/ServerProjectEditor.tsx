@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { assets } from "virtual:asset-catalogue";
 import { App } from "./App";
+import { playUiSound } from "./audio/ui-sounds";
 import { BaseModelChooser } from "./home/BaseModelChooser";
 import { needsBaseModel } from "./home/base-model";
 import { RequestApproval } from "./reviews/RequestApproval";
@@ -38,6 +39,7 @@ const workspace = createWorkspaceClient();
 type Candidate = {
   opened: OpenedServerProject;
   recovery: RecoverySession | null;
+  storageRevision: number;
   controller: AbortController;
 };
 type Active = {
@@ -52,6 +54,8 @@ const saveErrors: Partial<Record<ServerSaveStatus, string>> = {
   failed: "Save failed. Your edits are still here. Retry or export a copy.",
   conflict:
     "Another revision was saved. Export your edits or open the server version; nothing will be overwritten automatically.",
+  invalid:
+    "Save needs changes. Check your document and assets, then try again. Your edits are still here.",
   rejected:
     "Saving is unavailable for this account or project. Keep a recovery copy or export your edits before leaving.",
 };
@@ -351,7 +355,7 @@ function ServerProjectSession({
       store,
       assetKinds: kinds,
       revision: recovery?.serverSave?.revision ?? opened.revision,
-      storageRevision: next.recovery?.revision ?? 0,
+      storageRevision: next.storageRevision,
       signal: controller.signal,
       onStatus: setStatus,
       ...(recovery ? { recovery } : {}),
@@ -403,7 +407,12 @@ function ServerProjectSession({
           throw new Error("This project is read-only. Your stored recovery copy was kept.");
         if (retained.current) {
           await install(
-            { opened: result.value, recovery: retained.current.recovery, controller },
+            {
+              opened: result.value,
+              recovery: retained.current.recovery,
+              storageRevision: retained.current.recovery.revision,
+              controller,
+            },
             true,
           );
           owner = current.current;
@@ -415,8 +424,13 @@ function ServerProjectSession({
         });
         if (controller.signal.aborted) return;
         if (!recovery.ok) throw new Error(recovery.error.message);
-        const next = { opened: result.value, recovery: recovery.value, controller };
-        if (recovery.value) setCandidate(next);
+        const next = {
+          opened: result.value,
+          recovery: recovery.value?.document ? recovery.value : null,
+          storageRevision: recovery.value?.revision ?? 0,
+          controller,
+        };
+        if (next.recovery) setCandidate(next);
         else {
           await install(next, false);
           owner = current.current;
@@ -572,6 +586,7 @@ function ServerProjectSession({
         saved = active.session.getStatus() === "saved";
       }
     });
+    if (saved && !active?.controller.signal.aborted) playUiSound("save");
     return saved;
   }
 
@@ -646,6 +661,7 @@ function ServerProjectSession({
     if (active?.session.getStatus() === "saved") {
       void leave("save", destination);
     } else {
+      playUiSound("warning");
       setDeparture(destination);
     }
   }
@@ -743,7 +759,7 @@ function ServerProjectSession({
             store,
             title: active.title,
             dirty: status !== "saved",
-            failed: ["failed", "conflict", "rejected"].includes(status),
+            failed: ["failed", "conflict", "rejected", "invalid"].includes(status),
             saving: status === "saving",
             departing: departure !== null || busy || choosingBase,
             busy: busy || choosingBase,

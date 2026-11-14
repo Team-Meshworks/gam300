@@ -262,6 +262,14 @@ try {
     true,
     "The approved saved project is ready to publish",
   );
+  // Capture the real receipt before the app navigates away from its POST response.
+  let publication;
+  await fresh.route(`**/api/v1/projects/${project}/publications`, async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const response = await route.fetch();
+    if (response.status() === 201) publication = await response.json();
+    await route.fulfill({ response });
+  });
   const publicationResponse = fresh.waitForResponse(
     (response) =>
       response.url().endsWith(`/api/v1/projects/${project}/publications`) &&
@@ -270,20 +278,26 @@ try {
   await publishing.getByRole("button", { name: "Publish Project", exact: true }).click();
   const committed = await publicationResponse;
   assert.equal(committed.status(), 201);
-  const publication = await committed.json();
+  const { publicationId } = committed.request().postDataJSON();
+  assert.ok(publicationId);
+  assert.equal(publication.publicationId, publicationId);
   await fresh.waitForURL(`${origin}/home?tab=published`);
   const visitorContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const visitor = await visitorContext.newPage();
   visitor.setDefaultTimeout(20000);
+  const preview = fresh
+    .locator(`article[aria-labelledby="title-${project}"]`)
+    .getByRole("link", { name: "Preview", exact: true });
+  await preview.waitFor();
+  assert.equal(await preview.getAttribute("href"), publication.visitorUrl);
   const shared = new URL(publication.visitorUrl);
+  assert.equal(shared.pathname, `/p/${publicationId}`);
   await visitor.goto(origin + shared.pathname + shared.search + shared.hash);
   await visitor.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
   await visitor.getByRole("button", { name: "Enable audio", exact: true }).click();
   await visitor.locator("canvas").waitFor();
   assert.equal(
-    (
-      await visitorContext.request.get(`${origin}/api/v1/publications/${publication.publicationId}`)
-    ).status(),
+    (await visitorContext.request.get(`${origin}/api/v1/publications/${publicationId}`)).status(),
     200,
   );
   await visitorContext.close();

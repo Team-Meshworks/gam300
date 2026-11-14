@@ -9,8 +9,13 @@ import {
   localDateToDueUnixSeconds,
   localDeadlineToUnixSeconds,
 } from "./deadline";
-import { createWorkspaceClient, isRecord } from "../home/workspace-api";
-import { blankSourceKey, createBlankSource } from "./blank-source";
+import { createWorkspaceClient } from "../home/workspace-api";
+import {
+  blankSourceKey,
+  blankSourceProject,
+  clearBlankSource,
+  createBlankSource,
+} from "./blank-source";
 import "./assignment-screens.css";
 import {
   assignmentChoices,
@@ -95,9 +100,10 @@ export function AssignmentCreationScreen({
   const [setup, setSetup] = useState<Setup | null>(null);
   const [message, setMessage] = useState("");
   const [sourceId, setSourceId] = useState("");
-  const [sourceUncertain, setSourceUncertain] = useState<
-    "unknown" | "unavailable" | "image" | null
-  >(null);
+  const [sourceUncertain, setSourceUncertain] = useState<{
+    reason: "unknown" | "unavailable" | "image";
+    record: string | null;
+  } | null>(null);
   const [students, setStudents] = useState<EligibleStudent[]>([]);
   const [initialClass, setInitialClass] = useState("");
   const [rosterMessage, setRosterMessage] = useState("");
@@ -132,10 +138,8 @@ export function AssignmentCreationScreen({
         const saved = loadPending(session.userId);
         if (createBlank && !saved) {
           const stored = localStorage.getItem(blankSourceKey(session.userId));
-          if (stored) {
-            const parsed: unknown = JSON.parse(stored);
-            setSourceUncertain(!isRecord(parsed) || !isRecord(parsed.receipt) ? "unknown" : null);
-          }
+          if (stored !== null && !blankSourceProject(stored))
+            setSourceUncertain({ reason: "unknown", record: stored });
         }
         const choices = saved
           ? { classes: [], projects: [] }
@@ -279,8 +283,12 @@ export function AssignmentCreationScreen({
         }
         const result = await submitAssignment(request, previouslyUncertain);
         if (result.kind === "confirmed") {
+          if (createBlank) {
+            await clearBlankSource(localStorage, request.actorId, {
+              projectId: request.body.sourceProjectId,
+            });
+          }
           localStorage.removeItem(pendingKey(request.actorId));
-          if (createBlank) localStorage.removeItem(blankSourceKey(request.actorId));
           setPending(null);
           setConfirmed({
             classId: request.classId,
@@ -352,42 +360,47 @@ export function AssignmentCreationScreen({
           kind: "rejected",
           message: "This browser cannot safely coordinate project creation.",
         };
-      const result = await navigator.locks.request(
-        `spatia.assignment.source:${setup.session.userId}`,
-        () =>
-          createBlankSource(
-            localStorage,
-            workspace.write,
-            setup.session.userId,
-            draft.title.trim(),
-            "",
-            async (actorId, projectId) => {
-              try {
-                const before = await assignmentSession();
-                if (before.userId !== actorId || before.mustChangePassword)
-                  return { kind: "retry" };
-                const projects = await workspace.projects(false);
-                const after = await assignmentSession();
-                if (after.userId !== actorId || after.mustChangePassword) return { kind: "retry" };
-                const current = projects.find(
-                  (project) => project.projectId.toLowerCase() === projectId.toLowerCase(),
-                );
-                return current?.permissions.canManage
-                  ? { kind: "available", revision: current.revision }
-                  : { kind: "unavailable" };
-              } catch {
-                return { kind: "retry" };
-              }
-            },
-            image,
-          ),
-      );
+      const key = blankSourceKey(setup.session.userId);
+      const { result, record } = await navigator.locks.request(key, async () => {
+        const result = await createBlankSource(
+          localStorage,
+          workspace.write,
+          setup.session.userId,
+          draft.title.trim(),
+          "",
+          async (actorId, projectId) => {
+            try {
+              const before = await assignmentSession();
+              if (before.userId !== actorId || before.mustChangePassword) return { kind: "retry" };
+              const projects = await workspace.projects(false);
+              const after = await assignmentSession();
+              if (after.userId !== actorId || after.mustChangePassword) return { kind: "retry" };
+              const current = projects.find(
+                (project) => project.projectId.toLowerCase() === projectId.toLowerCase(),
+              );
+              return current?.permissions.canManage
+                ? { kind: "available", revision: current.revision }
+                : { kind: "unavailable" };
+            } catch {
+              return { kind: "retry" };
+            }
+          },
+          image,
+        );
+        const record =
+          result.kind === "unknown" ||
+          result.kind === "image-mismatch" ||
+          result.kind === "source-unavailable"
+            ? localStorage.getItem(key)
+            : null;
+        return { result, record };
+      });
       if (result.kind === "unknown") {
-        setSourceUncertain("unknown");
+        setSourceUncertain({ reason: "unknown", record });
         return { kind: "unknown" };
       }
       if (result.kind === "image-mismatch") {
-        setSourceUncertain("image");
+        setSourceUncertain({ reason: "image", record });
         return {
           kind: "rejected",
           message:
@@ -395,7 +408,7 @@ export function AssignmentCreationScreen({
         };
       }
       if (result.kind === "source-unavailable") {
-        setSourceUncertain("unavailable");
+        setSourceUncertain({ reason: "unavailable", record });
         return {
           kind: "rejected",
           message: "The project is no longer available. Check your projects before starting again.",
@@ -447,26 +460,42 @@ export function AssignmentCreationScreen({
       {sourceUncertain && !pending && (
         <div role="alert" className="sp-creation-notice">
           <p>
-            {sourceUncertain === "image"
+            {sourceUncertain.reason === "image"
               ? "A previously created project has a different image. Starting another project keeps the earlier one in your projects."
-              : sourceUncertain === "unavailable"
+              : sourceUncertain.reason === "unavailable"
                 ? "The project is no longer available or cannot be managed. You can start a new project without losing these details."
                 : "Creating the project could not be confirmed. Check your projects before trying again to avoid creating a duplicate."}
           </p>
           <Button
-            onClick={() => {
+            disabled={busy}
+            onClick={async () => {
+              if (inFlight.current) return;
+              inFlight.current = true;
+              setBusy(true);
               try {
-                localStorage.removeItem(blankSourceKey(setup.session.userId));
-                if (sourceUncertain !== "unknown") setSourceUncertain(null);
+                if (
+                  !(await clearBlankSource(localStorage, setup.session.userId, {
+                    record: sourceUncertain.record,
+                  }))
+                ) {
+                  setMessage(
+                    "The saved source changed in another tab. Reload and check your projects.",
+                  );
+                  return;
+                }
+                if (sourceUncertain.reason !== "unknown") setSourceUncertain(null);
                 else location.assign("/home");
               } catch {
                 setMessage(
                   "The recovery warning could not be cleared. Your project may still exist.",
                 );
+              } finally {
+                inFlight.current = false;
+                setBusy(false);
               }
             }}
           >
-            {sourceUncertain !== "unknown" ? "Start a new project" : "I checked my projects"}
+            {sourceUncertain.reason !== "unknown" ? "Start a new project" : "I checked my projects"}
           </Button>
         </div>
       )}
