@@ -83,6 +83,15 @@ const api = async (route) => {
 };
 await context.route("**/api/v1/**", api);
 const page = await context.newPage();
+await page.addInitScript(() => {
+  window.editorCues = [];
+  const play = HTMLMediaElement.prototype.play;
+  HTMLMediaElement.prototype.play = function () {
+    const cue = new URL(this.src, location.href).pathname.match(/\/(save|warning)\.wav$/)?.[1];
+    if (cue) window.editorCues.push(cue);
+    return play.call(this);
+  };
+});
 page.on("pageerror", (error) => errors.push(error.message));
 page.on("dialog", (dialog) => dialog.accept());
 const url = `${base}/?projectId=${fixture.projectId}`;
@@ -584,7 +593,9 @@ try {
   await ready();
   await page.screenshot({ path: ".artifacts/scrum67-editor.png" });
   await edit("Autosaved in the real editor");
+  await page.keyboard.press("Control+s");
   await saved();
+  const manualSaveCues = await page.evaluate(() => window.editorCues);
   assert.equal(document.scenes[0].name, "Autosaved in the real editor");
   assert.equal(writes.length, 1);
   // A definite validation rejection survives reload without replaying stale bytes.
@@ -624,6 +635,12 @@ try {
   await page.locator('.save-state[data-state="failed"]').waitFor();
   await page.getByRole("alert").filter({ hasText: "Save failed" }).waitFor();
   await page.getByRole("button", { name: "Leave editor", exact: true }).click();
+  await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).waitFor();
+  assert.deepEqual(
+    { manualSaveCues, dirtyDepartureCues: await page.evaluate(() => window.editorCues) },
+    { manualSaveCues: ["save"], dirtyDepartureCues: ["warning"] },
+    "Confirm a user-requested save and warn when departure opens over a dirty project",
+  );
   await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).click();
   assert.equal(
     await page.getByLabel("Scene name", { exact: true }).inputValue(),

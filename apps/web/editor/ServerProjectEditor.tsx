@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { assets } from "virtual:asset-catalogue";
 import { App } from "./App";
+import { playUiSound } from "./audio/ui-sounds";
 import { BaseModelChooser } from "./home/BaseModelChooser";
 import { needsBaseModel } from "./home/base-model";
 import { RequestApproval } from "./reviews/RequestApproval";
@@ -585,6 +586,7 @@ function ServerProjectSession({
         saved = active.session.getStatus() === "saved";
       }
     });
+    if (saved && !active?.controller.signal.aborted) playUiSound("save");
     return saved;
   }
 
@@ -659,6 +661,7 @@ function ServerProjectSession({
     if (active?.session.getStatus() === "saved") {
       void leave("save", destination);
     } else {
+      playUiSound("warning");
       setDeparture(destination);
     }
   }

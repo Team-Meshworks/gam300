@@ -120,7 +120,13 @@ try {
           export function Viewport(props) {
             React.useEffect(() => {
               props.onCamera({
-                prepareAsset: async (id) => { (window.preparedAssets ??= []).push(id); return true; },
+                prepareAsset: async (id) => {
+                  (window.preparedAssets ??= []).push(id);
+                  if (id === window.heldAssetId) {
+                    await new Promise((resolve) => { window.releasePreparation = resolve; });
+                  }
+                  return true;
+                },
                 capture: () => ({position: [0, 1, 0], rotation: [0, 0, 0, 1], fovDegrees: 40}),
                 show() {}, locate() {}, toggleDisplayMedia() {}, hotspotAnchor() {}, bounds() { return null; },
               });
@@ -189,6 +195,61 @@ try {
 
   const approvedPicker = await roomPickerPage();
   const approvedId = "22222222-2222-4222-8222-222222222222";
+  const delayedPicker = await roomPickerPage();
+  const delayedPage = delayedPicker.page;
+  const placement = delayedPage.locator(".viewport-stage");
+  async function startDelayedPick(preparingId = approvedId) {
+    await delayedPage.evaluate((id) => {
+      window.heldAssetId = id;
+      window.releasePreparation = undefined;
+    }, preparingId);
+    await delayedPicker.select("Approved Starter room");
+    await delayedPage.waitForFunction(() => !!window.releasePreparation);
+  }
+  async function finishDelayedPick() {
+    await delayedPage.evaluate(async () => {
+      window.releasePreparation();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+    return placement.getAttribute("data-placing-asset");
+  }
+  await startDelayedPick();
+  await delayedPicker.select("Starter room");
+  await delayedPage.waitForFunction(
+    () => document.querySelector(".viewport-stage")?.dataset.placingAsset === "test-room-v1",
+  );
+  const afterNewerChoice = await finishDelayedPick();
+  await startDelayedPick();
+  await delayedPage.keyboard.press("Escape");
+  const afterCancel = await finishDelayedPick();
+  assert.deepEqual(
+    { afterNewerChoice, afterCancel },
+    { afterNewerChoice: "test-room-v1", afterCancel: "" },
+    "A late asset preparation cannot replace the newer selection or re-arm canceled placement",
+  );
+  await delayedPicker.choose("Starter room", "test-room-v1");
+  await delayedPicker.waitForDocument("test-room-v1", 0);
+  await startDelayedPick("test-room-module-v1");
+  await delayedPage.getByRole("button", { name: "Rooms", exact: true }).click();
+  const invalidRoom = delayedPage
+    .getByRole("group", { name: "Rooms options" })
+    .getByRole("button", { name: "Different room", exact: true });
+  const transfer = await delayedPage.evaluateHandle(() => new DataTransfer());
+  const card = await invalidRoom.elementHandle();
+  await card.dispatchEvent("dragstart", { dataTransfer: transfer });
+  await card.dispatchEvent("dragend", { dataTransfer: transfer });
+  await card.dispose();
+  await transfer.dispose();
+  await delayedPage
+    .getByText("An approved room model is required to add an adjoining room.")
+    .waitFor();
+  assert.equal(
+    await finishDelayedPick(),
+    "",
+    "A rejected replacement drag must also retire the earlier preparation",
+  );
+  await delayedPage.close();
+
   await approvedPicker.select("Approved Starter room");
   await approvedPicker.page.waitForFunction(
     (id) => document.querySelector(".viewport-stage")?.getAttribute("data-placing-asset") === id,
