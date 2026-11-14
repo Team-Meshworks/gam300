@@ -8,11 +8,17 @@ import type {
 
 // Keep all requests on the authenticated application origin; never send cookies to an upload URL
 export function createAssetAdministrationService(actorId: string): AssetAdministrationService {
+  const unknownWrite = {
+    ok: false,
+    kind: "unknown",
+    message: "The change may have been applied. Check the asset list before trying again.",
+  } as const;
   async function request<T>(
     path: string,
     signal: AbortSignal,
     init?: RequestInit,
   ): Promise<AssetAdministrationResult<T>> {
+    let writeSent = false;
     try {
       const headers = new Headers(init?.headers);
       headers.set("X-Spatia-Account", actorId);
@@ -45,8 +51,21 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
       }
 
       // Send the bounded write only after obtaining a token; reads use the same account-bound origin
+      writeSent = !!init?.method;
       const response = await fetch(path, { ...init, credentials: "same-origin", headers, signal });
       if (!response.ok) {
+        if (writeSent && (response.status >= 500 || response.status === 408)) {
+          const problem: unknown = await response.json().catch(() => null);
+          if (
+            !(
+              response.status === 503 &&
+              record(problem) &&
+              problem.code === "asset_intake_unavailable"
+            )
+          ) {
+            return unknownWrite;
+          }
+        }
         return failure(response.status);
       }
       // Treat confirmed responses as untrusted until their lifecycle fields pass validation
@@ -54,7 +73,9 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
 
       // Check the HTTP boundary before a malformed record can enable destructive controls
       if (!(init?.method ? isCandidate(value) : isAdministrationData(value))) {
-        return { ok: false, kind: "unavailable", message: "Asset service returned invalid data" };
+        return writeSent
+          ? unknownWrite
+          : { ok: false, kind: "unavailable", message: "Asset service returned invalid data" };
       }
       return { ok: true, value: value as T };
 
@@ -63,11 +84,13 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
       if (signal.aborted) {
         throw error;
       }
-      return {
-        ok: false,
-        kind: "unavailable",
-        message: "The change could not be confirmed. Reload before retrying",
-      };
+      return writeSent
+        ? unknownWrite
+        : {
+            ok: false,
+            kind: "unavailable",
+            message: "Asset service is unavailable. Please try again.",
+          };
     }
   }
 
