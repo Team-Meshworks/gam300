@@ -214,6 +214,21 @@ it("keeps an uncertain creation when another tab acknowledges a superseded attem
   expect(client.pendingOrganization()?.name).toBe("Another School");
 });
 
+it("accepts the existing active organisation returned to another profile and releases a definite name conflict", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(json({ id: actor, name: "  NORTH School ", isActive: true }, 200))
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(json({ code: "organization_name_in_use" }, 409));
+  const client = createDashboardClient(actor, request);
+  await client.createOrganization("North School");
+  expect(client.pendingOrganization()).toBeNull();
+  await expect(client.createOrganization("Old campus")).rejects.toThrow("directory");
+  expect(client.pendingOrganization()).toBeNull();
+  expect(request).toHaveBeenCalledTimes(4);
+});
+
 it("unlocks a definite rejection and keeps a mismatched confirmation for review", async () => {
   const request = vi
     .fn<typeof fetch>()

@@ -56,7 +56,7 @@ public sealed class AdministrationEndpointTests
     {
         await using var fixture = await AdministratorFixtureAsync();
         var organization = await CreateOrganizationAsync(fixture);
-        var otherOrganization = await CreateOrganizationAsync(fixture);
+        var otherOrganization = await CreateOrganizationAsync(fixture, "Other synthetic admin organization");
         async Task<(Guid Id, string Name)> Provision(string role, Guid orgId)
         {
             var name = "class-flow-" + Guid.NewGuid().ToString("N");
@@ -170,6 +170,56 @@ public sealed class AdministrationEndpointTests
                 ? ApplicationRoles.CreatorId : ApplicationRoles.EducatorId);
         }
         await AssertSafeAsync(fixture, response, InitialPassword);
+    }
+
+    [Test]
+    public async Task Organization_CreateAcrossIndependentSessions_UsesOneStoredId()
+    {
+        var barrier = new ProvisionTransactionBarrier();
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options => options.AddInterceptors(barrier)));
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        using var other = fixture.CreateClient();
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator), other);
+        var token = await fixture.GetCsrfAsync();
+        var otherToken = await fixture.GetCsrfAsync(other);
+        const string path = "/api/v1/admin/organizations";
+        barrier.Arm();
+        var first = AuthTestRequests.PostAsync(fixture, path, new { name = "  North School " }, token: token);
+        var second = AuthTestRequests.PostAsync(fixture, path, new { name = "NORTH SCHOOL" }, other, otherToken);
+        using var left = await first;
+        using var right = await second;
+        var receipts = new[] { left, right };
+        await Assert.That(receipts.Count(response => response.StatusCode == HttpStatusCode.Created)).IsEqualTo(1);
+        await Assert.That(receipts.Count(response => response.StatusCode == HttpStatusCode.OK)).IsEqualTo(1);
+        var created = await receipts.Single(response => response.StatusCode == HttpStatusCode.Created).Content.ReadFromJsonAsync<OrganizationResponse>();
+        var replay = await receipts.Single(response => response.StatusCode == HttpStatusCode.OK).Content.ReadFromJsonAsync<OrganizationResponse>();
+        await Assert.That(replay).IsEqualTo(created);
+        using var retry = await AuthTestRequests.PostAsync(fixture, path, new { name = "north school" }, other, otherToken);
+        await Assert.That(retry.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(await retry.Content.ReadFromJsonAsync<OrganizationResponse>()).IsEqualTo(created);
+        using var separate = await AuthTestRequests.PostAsync(fixture, path, new { name = "North School East" }, token: token);
+        await Assert.That(separate.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Organizations.CountAsync()).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task Organization_CreatePreservesDisabledAndHistoricalSameNameOrganizations()
+    {
+        await using var fixture = await AdministratorFixtureAsync();
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var disabled = new Organization { Name = "Closed school", IsActive = false };
+        database.Organizations.AddRange(disabled, new Organization { Name = "Campus" }, new Organization { Name = " campus " });
+        await database.SaveChangesAsync();
+        foreach (var name in new[] { " closed SCHOOL ", "CAMPUS" })
+        {
+            using var result = await SendAsync(fixture, "/api/v1/admin/organizations", new { name });
+            await AuthTestRequests.AssertProblemAsync(result, HttpStatusCode.Conflict, "organization_name_in_use");
+        }
+        await Assert.That(await database.Organizations.CountAsync()).IsEqualTo(3);
+        await Assert.That((await database.Organizations.AsNoTracking().SingleAsync(row => row.Id == disabled.Id)).IsActive).IsFalse();
     }
 
     [Test]
@@ -800,9 +850,9 @@ public sealed class AdministrationEndpointTests
         }
     }
 
-    private static async Task<Guid> CreateOrganizationAsync(HttpsApplicationFixture fixture)
+    private static async Task<Guid> CreateOrganizationAsync(HttpsApplicationFixture fixture, string name = "Synthetic admin organization")
     {
-        using var response = await SendAsync(fixture, "/api/v1/admin/organizations", new { name = "Synthetic admin organization" });
+        using var response = await SendAsync(fixture, "/api/v1/admin/organizations", new { name });
         if (response.StatusCode != HttpStatusCode.Created)
         {
             throw new InvalidOperationException("Expected a synthetic organization to be created.");

@@ -142,9 +142,10 @@ public static class AssetAdministrationEndpoints
         var actor = context.Features.Get<CurrentAccount>()!.UserId;
 
         // Validation or storage unavailability leaves no approved entry and must remain retryable to the client
-        var record = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token);
-        return record is null ? ApiProblems.Create(context, 503, "asset_intake_unavailable", "Asset validation or storage is unavailable")
-            : Results.Json(record, statusCode: StatusCodes.Status201Created);
+        var result = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token);
+        return result is { } upload
+            ? Results.Json(upload.Record, statusCode: upload.Created ? StatusCodes.Status201Created : StatusCodes.Status200OK)
+            : ApiProblems.Create(context, 503, "asset_intake_unavailable", "Asset validation or storage is unavailable");
     }
 
     private static async Task<IResult?> RecheckAdministratorAsync(HttpContext context, ProjectAccessService access, CancellationToken token)

@@ -291,16 +291,24 @@ export function createDashboardClient(
           if (
             !record(result) ||
             !id(result.id) ||
-            result.name !== attempt.name ||
+            typeof result.name !== "string" ||
+            result.name.trim().toLowerCase() !== attempt.name.toLowerCase() ||
             result.isActive !== true
           )
             throw new Error("Invalid organisation receipt");
         } catch (reason) {
           if (
             reason instanceof DashboardRequestError &&
-            [400, 401, 403, 429].includes(reason.status)
+            [400, 401, 403, 409, 429].includes(reason.status)
           ) {
             clearOrganization(encoded);
+            if (reason.status === 409)
+              throw new Error(
+                "That organisation name is in use. Check the organisation directory.",
+                {
+                  cause: reason,
+                },
+              );
             throw reason;
           }
           throw new Error("Creation could not be confirmed. Check the organisation directory.", {

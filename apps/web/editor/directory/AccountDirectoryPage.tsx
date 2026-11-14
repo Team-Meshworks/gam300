@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createDashboardClient } from "../admin/dashboard-client";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
-import { AccountDialog, type NewAccount } from "./AccountDialog";
+import { AccountDialog } from "./AccountDialog";
+import type { BulkImportSummary } from "./bulk-import";
+import type { NewAccount } from "./account-csv";
 import { OrganizationDirectory } from "./OrganizationDirectory";
 import { DeleteOrganizationDialog } from "./DeleteOrganizationDialog";
 import {
@@ -36,6 +38,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState<ManagedAccount | "create" | null>(null);
+  const [resume, setResume] = useState<{ id: string; local: boolean } | null>(null);
   const [preview, setPreview] = useState<{ title: string; body: ReactNode } | null>(null);
   const [toggle, setToggle] = useState<ManagedAccount | null>(null);
   const [deletingAccount, setDeletingAccount] = useState<ManagedAccount | null>(null);
@@ -265,6 +268,48 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
     }
   }
   const organization = organizations?.find((row) => row.id === selected);
+  const orgId = organization?.isActive ? organization.id : null;
+  const bulkImport = useMemo(() => (orgId ? client.bulkImport(orgId) : undefined), [client, orgId]);
+  const [importVersion, setImportVersion] = useState(0);
+  const [discovery, setDiscovery] = useState<{
+    orgId: string;
+    items: BulkImportSummary[];
+    error: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!bulkImport || !orgId) return;
+    let active = true;
+    void bulkImport.discover().then(
+      (items) => {
+        if (active) setDiscovery({ orgId, items, error: "" });
+      },
+      (cause) => {
+        if (active) setDiscovery({ orgId, items: [], error: message(cause) });
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [bulkImport, orgId, importVersion, attempt]);
+  useEffect(
+    () => bulkImport?.watch(() => setImportVersion((version) => version + 1)),
+    [bulkImport],
+  );
+  let localImport: string | null = null;
+  let importReadError = "";
+  if (bulkImport) {
+    try {
+      localImport = bulkImport.pending();
+    } catch (cause) {
+      importReadError = message(cause);
+    }
+  }
+  const listed = discovery?.orgId === orgId ? discovery : null;
+  const otherImports = listed?.items.filter((item) => item.operationId !== localImport) ?? [];
+  function openImport(id: string, local: boolean) {
+    setResume({ id, local });
+    setModal("create");
+  }
   if (loading && organizations === null) return <p role="status">Loading organisations…</p>;
   if (error && organizations === null)
     return (
@@ -276,6 +321,40 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
   return (
     <div className="sp-directory">
       {notice && <p role="status">{notice}</p>}
+      {importReadError && <p role="alert">{importReadError}</p>}
+      {organization && !modal && (
+        <>
+          {localImport && (
+            <Button onClick={() => openImport(localImport!, true)}>Resume account import</Button>
+          )}
+          {listed?.error && (
+            <p role="alert">
+              Recent account imports could not be loaded.{" "}
+              <Button onClick={() => setImportVersion((value) => value + 1)}>
+                Retry account imports
+              </Button>
+            </p>
+          )}
+          {otherImports.length > 0 && (
+            <section aria-label="Unacknowledged account imports">
+              <h2>Unacknowledged account imports</h2>
+              <ul>
+                {otherImports.map((item) => (
+                  <li key={item.operationId}>
+                    <span>
+                      {new Date(item.createdAt).toLocaleString()} · {item.createdCount} accounts
+                      created
+                    </span>{" "}
+                    <Button onClick={() => openImport(item.operationId, false)}>
+                      Review import {item.operationId}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+      )}
       <OrganizationDirectory
         administration
         searchQuery={query}
@@ -323,7 +402,10 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
         projectError={projectError}
         onPreview={(title, body) => setPreview({ title, body })}
         accountActions={{
-          onCreate: () => setModal("create"),
+          onCreate: () => {
+            setResume(null);
+            setModal("create");
+          },
           onView: (id) => void view(id),
           onToggleActive: (id) => {
             setNotice("");
@@ -372,18 +454,15 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
           organizationName={organization.name}
           onClose={() => setModal(null)}
           onSave={save}
+          resumeImport={modal === "create" ? resume : null}
+          bulkImport={
+            modal === "create" && (resume || (!importReadError && !localImport))
+              ? bulkImport
+              : undefined
+          }
           onCheckDirectory={() => {
             setModal(null);
-            setNotice(
-              "Check the intended imported accounts. Open View Account to override a temporary password when needed.",
-            );
             refresh();
-          }}
-          onImport={async (values) => {
-            const saved = await client.createBulk(organization.id, values);
-            setAccounts((rows) => [...rows, ...saved]);
-            setNotice("");
-            return saved.map((value) => value.userName);
           }}
         />
       )}
