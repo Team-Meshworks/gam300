@@ -1,3 +1,4 @@
+import { displayGeometry } from "../../shared/asset-runtime/catalogue";
 import { combineAbortSignals } from "../../shared/network/abort-signals";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { knownRoomGeometry } from "../../shared/asset-runtime/catalogue";
@@ -53,6 +54,7 @@ export async function readServerAssets(
       url: row.url as string,
       sha256: row.sha256,
       thumbnail: null,
+      ...(row.kind === "model" ? displayGeometry[row.sha256.toLowerCase()] : undefined),
       ...(measured ? { boundsMeters: measured, placement: "bottom-center" as const } : {}),
       ...(typeof row.category === "string" ? { category: row.category } : {}),
     };

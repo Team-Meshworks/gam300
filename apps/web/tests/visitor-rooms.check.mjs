@@ -102,7 +102,7 @@ try {
   });
 
   // Instrument the same Three.js module as the visitor before releasing the manifest.
-  const componentPath = new URL("../visitor/ExhibitionCanvas.tsx", import.meta.url).pathname;
+  const componentPath = new URL("../shared/player/ExhibitionCanvas.tsx", import.meta.url).pathname;
   const component = await page.request.get(`${origin}/@fs${componentPath}`);
   assert.ok(component.ok(), "Visitor component is served by the development server");
   const transformed = await component.text();

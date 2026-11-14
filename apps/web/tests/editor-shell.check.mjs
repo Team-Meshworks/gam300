@@ -995,8 +995,12 @@ try {
   const recordAlert = (dialog) => alerts.push(dialog.message());
   page.on("dialog", recordAlert);
   await page.getByRole("button", { name: "Preview", exact: true }).click();
-  const previewTargets = page.getByRole("navigation", { name: "Interactive objects" });
-  const crateTarget = previewTargets.getByRole("button", { name: "Sample crate", exact: true });
+  await page.getByText("Exhibit information", { exact: true }).click();
+  const previewTargets = page.getByRole("region", { name: "Exhibit information" });
+  const crateTarget = previewTargets.getByRole("button", {
+    name: "Activate Sample crate",
+    exact: true,
+  });
   await crateTarget.waitFor();
   await crateTarget.focus();
   await page.keyboard.press("Enter");

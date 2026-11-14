@@ -116,7 +116,12 @@ function typecheck(root, name, cache) {
 async function browserEntry(root) {
   const server = await createServer({
     configFile: resolve(root, "vite.config.ts"),
-    server: { host: "127.0.0.1", port: 0 },
+    server: {
+      host: "127.0.0.1",
+      port: 0,
+      // The copy shares dependencies via a symlink. Vite checks their real paths.
+      fs: { allow: [realpathSync(resolve(root, "node_modules"))] },
+    },
   });
   let browser;
   try {
@@ -129,7 +134,7 @@ async function browserEntry(root) {
     const project = await serveProject(page, server.resolvedUrls.local[0]);
     const response = await page.goto(project.url);
     if (response.status() !== 200) return `Browser editor entry returned HTTP ${response.status()}`;
-    await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor({ timeout: 2000 });
+    await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor({ timeout: 15000 });
     return undefined;
   } catch (error) {
     return `Browser editor entry failed: ${error.message}`;

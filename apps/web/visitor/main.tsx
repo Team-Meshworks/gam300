@@ -1,9 +1,8 @@
 import { combineAbortSignals } from "../shared/network/abort-signals";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { loadPublication, type PublishedExhibition } from "./publication";
-import { ExhibitionContent } from "./ExhibitionContent";
-import { ExhibitionCanvas } from "./ExhibitionCanvas";
+import { ExhibitionPlayer } from "../shared/player/ExhibitionPlayer";
 import "./visitor.css";
 
 function Visitor() {
@@ -11,47 +10,6 @@ function Visitor() {
   const [exhibition, setExhibition] = useState<PublishedExhibition | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
-  const [scene, setScene] = useState(0);
-  const [viewpoint, setViewpoint] = useState<Readonly<{ id: string }>>();
-
-  const [playbackReady, setPlaybackReady] = useState<Readonly<{
-    exhibition: PublishedExhibition;
-    scene: number;
-    viewpoint: typeof viewpoint;
-  }> | null>(null);
-
-  const visitedScenes = useRef(new Set<string>());
-  const [navigationLoop, setNavigationLoop] = useState(false);
-  const currentSceneKey = exhibition?.document.scenes[scene]?.id.toLowerCase();
-
-  function beginNavigationEvent() {
-    setNavigationLoop(false);
-    if (!currentSceneKey) return;
-    if (visitedScenes.current.size === 1 && visitedScenes.current.has(currentSceneKey)) return;
-    visitedScenes.current.clear();
-    visitedScenes.current.add(currentSceneKey);
-  }
-
-  // Navigation changes only the visitor's current view; the published document stays unchanged
-  function navigate(sceneId: string, viewpointId?: string, deliberate = false): boolean {
-    const index =
-      exhibition?.document.scenes.findIndex(
-        (item) => item.id.toLowerCase() === sceneId.toLowerCase(),
-      ) ?? -1;
-    if (index < 0) return false;
-    const key = sceneId.toLowerCase();
-    if (deliberate) beginNavigationEvent();
-    else if (visitedScenes.current.has(key)) {
-      setNavigationLoop(true);
-      return false;
-    }
-    visitedScenes.current.add(key);
-    setScene(index);
-
-    // A fresh request reapplies the saved camera even when the visitor chooses the same point again
-    setViewpoint(viewpointId === undefined ? undefined : { id: viewpointId });
-    return true;
-  }
   useEffect(() => {
     const controller = new AbortController();
     const initialTitle = document.title;
@@ -68,11 +26,6 @@ function Visitor() {
         if (!controller.signal.aborted) {
           setExhibition(value);
 
-          // A reloaded publication starts fresh rather than keeping a scene index from the old response
-          visitedScenes.current = new Set([value.document.scenes[0]!.id.toLowerCase()]);
-          setNavigationLoop(false);
-          setScene(0);
-          setViewpoint(undefined);
           document.title = `${value.document.title} · Spatia`;
         }
       })
@@ -114,10 +67,7 @@ function Visitor() {
       <a className="skip" href="#exhibition">
         Skip to exhibition
       </a>
-      <main
-        id="exhibition"
-        className={exhibition && !error ? "visitor-preview is-walking" : "visitor-state"}
-      >
+      <main id="exhibition" className={exhibition && !error ? undefined : "visitor-state"}>
         {error ? (
           <>
             <h1>Exhibition unavailable</h1>
@@ -136,53 +86,7 @@ function Visitor() {
             </button>
           </>
         ) : exhibition ? (
-          <>
-            <h1 className="sr-only">{exhibition.document.title}</h1>
-            <div className="visitor-scene-picker">
-              <label>
-                Scene
-                <select
-                  value={scene}
-                  onChange={(event) => {
-                    const target = exhibition.document.scenes[Number(event.target.value)];
-                    if (target) navigate(target.id, undefined, true);
-                  }}
-                >
-                  {exhibition.document.scenes.map((item, index) => (
-                    <option key={item.id} value={index}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <ExhibitionCanvas
-              key={scene}
-              exhibition={exhibition}
-              sceneIndex={scene}
-              viewpoint={viewpoint}
-              navigate={navigate}
-              beginNavigationEvent={beginNavigationEvent}
-              onPlaybackReady={(ready) =>
-                setPlaybackReady(ready ? { exhibition, scene, viewpoint } : null)
-              }
-            />
-            {navigationLoop && (
-              <p className="visitor-status" role="status">
-                Automatic scene navigation stopped at a repeated scene.
-              </p>
-            )}
-            <ExhibitionContent
-              scene={exhibition.document.scenes[scene]!}
-              assets={exhibition.assets}
-              playbackReady={
-                playbackReady?.exhibition === exhibition &&
-                playbackReady.scene === scene &&
-                playbackReady.viewpoint === viewpoint
-              }
-              navigate={(id, view) => navigate(id, view, true)}
-            />
-          </>
+          <ExhibitionPlayer exhibition={exhibition} />
         ) : (
           <p role="status">Opening exhibition…</p>
         )}

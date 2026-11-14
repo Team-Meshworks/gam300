@@ -94,7 +94,8 @@ if (process.argv.includes("--playback-only")) {
     });
 
     // Observe the rendered scene and camera while keeping the real loader and controls
-    const componentPath = new URL("../visitor/ExhibitionCanvas.tsx", import.meta.url).pathname;
+    const componentPath = new URL("../shared/player/ExhibitionCanvas.tsx", import.meta.url)
+      .pathname;
     const component = await page.request.get(`${origin}/@fs${componentPath}`);
     assert.ok(component.ok());
     const componentText = await component.text();
@@ -571,8 +572,8 @@ async function checkPlayback() {
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import * as THREE from "three";
-import { createVisitorPlayback } from "/visitor/visitor-playback";
-import { ExhibitionContent } from "/visitor/ExhibitionContent";
+import { createVisitorPlayback } from "/shared/player/playback";
+import { ExhibitionContent } from "/shared/player/ExhibitionContent";
 const data = await (await fetch("/fixture-data")).json();
 const pose={position:[0,0,5],rotation:[0,0,0,1],fovDegrees:60};
 const transform={position:[0,0,0],rotation:[0,0,0,1],scale:[1,1,1]};

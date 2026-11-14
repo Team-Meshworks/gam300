@@ -210,3 +210,66 @@ it("rejects model placement on non-model assets", () => {
     ),
   ).toThrow();
 });
+
+it("loads the student's V1 hotspot actions from the published snapshot", async () => {
+  const objectId = "44444444-4444-4444-8444-444444444444";
+  const hotspotId = "55555555-5555-4555-8555-555555555555";
+  const source = {
+    schemaVersion: 1,
+    projectId: id,
+    title: "Legacy exhibit",
+    scenes: [
+      {
+        id: "33333333-3333-4333-8333-333333333333",
+        name: "Room",
+        environmentAssetId: "room",
+        startCamera: { position: [0, 1, 3], rotation: [0, 0, 0, 1], fovDegrees: 40 },
+        objects: [
+          {
+            id: objectId,
+            assetId: asset,
+            name: "Model",
+            transform: { position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+          },
+        ],
+        hotspots: [{ id: hotspotId, objectId, position: [0, 0, 0] }],
+        interactions: [
+          {
+            when: { type: "visitor-clicks-hotspot", targetHotspotId: hotspotId },
+            do: { type: "print-hi" },
+          },
+        ],
+      },
+    ],
+  };
+  const manifest = {
+    ...value,
+    assets: [
+      ...value.assets,
+      {
+        ...value.assets[0],
+        id: "room",
+        kind: "environment",
+        url: `/api/v1/publications/${id}/assets/room/bytes`,
+      },
+    ],
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => Response.json(url.endsWith("/manifest") ? manifest : source)),
+  );
+  const loaded = await loadPublication(id, new AbortController().signal);
+  expect(loaded.document.scenes[0]).toMatchObject({ interactions: source.scenes[0]!.interactions });
+});
+
+it("restores the display surface for a captured media stand by verified model hash", () => {
+  const stand = {
+    ...value.assets[0]!,
+    sha256: "74cdcb81fa381cf6bb7754c657a2bf1341d3db0934c732e893f79fd3d2939998",
+  };
+  expect(readPublicationManifest({ ...value, assets: [stand] }, id).assets[0]).toMatchObject({
+    placement: "bottom-center",
+    displayRole: "digital",
+    displaySurface: { width: 1.1, height: 0.63 },
+  });
+});

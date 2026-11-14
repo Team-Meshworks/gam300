@@ -1,10 +1,12 @@
 import * as THREE from "three";
-import type { ProjectAction, ProjectRule } from "../shared/project/project-content";
-import type { InteractionAction } from "../shared/project/project-types";
-import type { PublishedExhibition } from "./publication";
-import { isPortableHttpsUrl } from "../shared/project/portable-url";
+import type { ProjectAction, ProjectRule } from "../project/project-content";
+import type { InteractionAction } from "../project/project-types";
+import type { PlayerSnapshot } from "./player-snapshot";
+import { isPortableHttpsUrl } from "../project/portable-url";
+import { createInteractionSession } from "../preview/interaction-session";
+import { dispatchRules } from "../preview/rule-dispatch";
 
-export type VisitorScene = PublishedExhibition["document"]["scenes"][number];
+export type VisitorScene = PlayerSnapshot["document"]["scenes"][number];
 
 // Web Audio allows only one source per element, including after a saved-view change
 const audioSources = new WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>();
@@ -16,9 +18,9 @@ export function createVisitorPlayback(
   controls: { target: THREE.Vector3; update(): void },
   roots: Map<string, THREE.Object3D>,
   content: HTMLElement,
-  navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean,
+  navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean | void,
   report: (message: string) => void,
-  beginNavigationEvent: () => void,
+  beginNavigationEvent: () => void = () => {},
 ) {
   // Keep timing, zone entry and camera movement scoped to this visit rather than the saved rules
   let started = false,
@@ -47,7 +49,7 @@ export function createVisitorPlayback(
   const gaze = new Map<string, number>();
   const hotspots = "hotspots" in source ? source.hotspots : [];
   const interactions = "interactions" in source ? source.interactions : [];
-  const rules = "rules" in source ? source.rules.filter((rule) => rule.enabled) : [];
+  const rules = "rules" in source ? source.rules : [];
   let movement:
     | {
         from: THREE.Vector3;
@@ -165,10 +167,23 @@ export function createVisitorPlayback(
         view(action.viewpointId);
         break;
       case "navigate-scene":
-        departing = navigate(action.sceneId, "", deliberate);
+        departing = navigate(action.sceneId, "", deliberate) !== false;
         break;
     }
   }
+  const legacySession = createInteractionSession(interactions, hotspots, {
+    run(action) {
+      if (departing || disposed) return true;
+      legacy(action);
+      return departing;
+    },
+    runClicked(action) {
+      if (departing || disposed) return true;
+      legacy(action, true);
+      return departing;
+    },
+    stop() {},
+  });
   // Execute in authored order and stop the old scene immediately after navigation
   function execute(actions: readonly ProjectAction[], deliberate: boolean) {
     for (const action of actions) {
@@ -210,17 +225,20 @@ export function createVisitorPlayback(
           view(action.viewpointId, action.durationSeconds);
           break;
         case "navigateScene":
-          departing = navigate(action.sceneId, action.viewpointId, deliberate);
+          departing = navigate(action.sceneId, action.viewpointId, deliberate) !== false;
           break;
       }
     }
   }
-  // Disabled rules were excluded at startup; runtime dispatch never edits their saved state
   function run(matches: (rule: ProjectRule) => boolean, deliberate = false) {
-    for (const rule of rules) {
-      if (departing || disposed) break;
-      if (matches(rule)) execute(rule.actions, deliberate);
-    }
+    dispatchRules(
+      rules,
+      (rule) => rule.enabled && !departing && !disposed && matches(rule),
+      (rule) => {
+        execute(rule.actions, deliberate);
+        return departing || disposed;
+      },
+    );
   }
   function start() {
     if (disposed || departing) return;
@@ -268,10 +286,7 @@ export function createVisitorPlayback(
         media(id);
       }
     });
-    for (const interaction of interactions) {
-      if (departing) break;
-      if (interaction.when.type === "scene-starts") legacy(interaction.do);
-    }
+    legacySession.sceneStarted();
     run((rule) => rule.trigger.type === "sceneStart");
   }
   function clickRules(targets: string[]) {
@@ -301,21 +316,7 @@ export function createVisitorPlayback(
           ?.components.filter((item) => item.type === "hotspot")
           .map((item) => item.id) ?? []),
       );
-    for (const interaction of interactions) {
-      if (departing) break;
-      if (
-        interaction.when.type === "visitor-clicks-hotspot" &&
-        targets.some((id) =>
-          equal(
-            id,
-            interaction.when.type === "visitor-clicks-hotspot"
-              ? interaction.when.targetHotspotId
-              : "",
-          ),
-        )
-      )
-        legacy(interaction.do, true);
-    }
+    legacySession.objectClicked(objectId);
     clickRules(targets);
   }
   const activate = (event: Event) => click((event as CustomEvent<string>).detail);
@@ -374,17 +375,7 @@ export function createVisitorPlayback(
       if (!started || disposed || departing || document.hidden) return;
       elapsed += delta;
       // Timed triggers fire once per scene visit; re-entering creates a fresh playback session
-      interactions.forEach((interaction, index) => {
-        const key = `legacy-${index}`;
-        if (
-          interaction.when.type === "time-elapsed" &&
-          elapsed >= (interaction.when.seconds ?? 2) &&
-          !timers.has(key)
-        ) {
-          timers.add(key);
-          if (!departing) legacy(interaction.do);
-        }
-      });
+      legacySession.update(delta);
       run((rule) => {
         const trigger = rule.trigger;
         if (trigger.type === "elapsed" && elapsed >= trigger.seconds && !timers.has(rule.id)) {
@@ -447,6 +438,7 @@ export function createVisitorPlayback(
     },
     dispose() {
       disposed = true;
+      legacySession.reset();
       // Release subscriptions and audio connections before the canvas or content is replaced
       pendingMedia.clear();
       blockedMedia.clear();

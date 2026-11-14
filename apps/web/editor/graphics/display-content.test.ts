@@ -82,7 +82,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("display resources", () => {
-  it("plays silently while editing and requires explicit visitor playback", () => {
+  it("autoplays muted in editing and preview, and allows playback with sound", () => {
     const display = createDisplayContent(assets, vi.fn());
     display.sync([object], new Map([[object.id, new THREE.Group()]]));
     display.toggle(object.id);
@@ -91,33 +91,49 @@ describe("display resources", () => {
     expect(video.muted).toBe(true);
     expect(video.play).toHaveBeenCalledTimes(1);
     display.setPreview(true);
-    expect(video.muted).toBe(false);
+    expect(video.muted).toBe(true);
     expect(video.pause).toHaveBeenCalled();
-    expect(video.play).toHaveBeenCalledTimes(1);
-    display.toggle(object.id);
     expect(video.play).toHaveBeenCalledTimes(2);
+    display.toggle(object.id);
+    expect(video.muted).toBe(false);
+    expect(video.play).toHaveBeenCalledTimes(3);
     display.setPreview(false);
     expect(video.muted).toBe(true);
-    expect(video.play).toHaveBeenCalledTimes(3);
+    expect(video.play).toHaveBeenCalledTimes(4);
     expect(video.pause).toHaveBeenCalled();
     display.dispose();
   });
-  it("resumes editing videos after visibility returns without starting visitor playback", () => {
+  it("resumes videos after visibility returns in both modes", () => {
     const display = createDisplayContent(assets, vi.fn());
     display.sync([object], new Map([[object.id, new THREE.Group()]]));
     video.onloadeddata?.();
     video.play.mockClear();
     Object.defineProperty(document, "hidden", { value: true, configurable: true });
     display.pause();
-    display.resumeEditing();
+    display.resume();
     expect(video.play).not.toHaveBeenCalled();
     Object.defineProperty(document, "hidden", { value: false, configurable: true });
-    display.resumeEditing();
+    display.resume();
     expect(video.play).toHaveBeenCalledTimes(1);
     display.setPreview(true);
     video.play.mockClear();
     display.pause();
-    display.resumeEditing();
+    display.resume();
+    expect(video.play).toHaveBeenCalledTimes(1);
+    display.dispose();
+  });
+  it("does not resume a video paused by the visitor", () => {
+    const display = createDisplayContent(assets, vi.fn());
+    display.setPreview(true);
+    display.sync([object], new Map([[object.id, new THREE.Group()]]));
+    video.onloadeddata?.();
+    expect(video.muted).toBe(true);
+    expect(video.play).toHaveBeenCalledTimes(1);
+    video.paused = false;
+    display.toggle(object.id);
+    video.play.mockClear();
+    display.pause();
+    display.resume();
     expect(video.play).not.toHaveBeenCalled();
     display.dispose();
   });

@@ -1,3 +1,4 @@
+export { displayGeometry } from "./display-geometry";
 export { knownRoomGeometry } from "./known-room-geometry";
 
 // Approved 3D categories are shared by filtering and its consuming picker
