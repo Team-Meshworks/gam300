@@ -13,6 +13,7 @@ type Display = {
   group: THREE.Group;
   dispose: () => void;
   pause: () => void;
+  resume: () => void;
   setPreview: (active: boolean) => void;
   toggle: () => void;
 };
@@ -65,6 +66,7 @@ export function createDisplayContent(
     let video: HTMLVideoElement | undefined;
     let image: HTMLImageElement | undefined;
     let videoReady = false;
+    let wantsPlayback = true;
     function plane(width: number, height: number, y: number, texture: THREE.Texture) {
       textures.add(texture);
       const geometry = new THREE.PlaneGeometry(width, height);
@@ -153,20 +155,18 @@ export function createDisplayContent(
         video.playsInline = true;
         video.loop = !preview || content.loop;
         video.volume = content.volume;
-        video.muted = !preview;
+        video.muted = true;
         video.onloadeddata = () => {
           if (disposed || !video) return;
           videoReady = true;
           const texture = new THREE.VideoTexture(video);
           texture.colorSpace = THREE.SRGBColorSpace;
           replace(texture, video.videoWidth, video.videoHeight);
-          if (!preview && !document.hidden) void video.play().catch(() => {});
+          if (wantsPlayback && !document.hidden) void video.play().catch(() => {});
         };
         video.onerror = failure;
-        // Editing plays silently; visitor playback still requires a click.
         video.src = media.url;
         video.load();
-        replace(textCanvas("Video · click in Preview to play", surface.width, mediaHeight));
       }
     }
     return {
@@ -175,17 +175,25 @@ export function createDisplayContent(
       pause() {
         video?.pause();
       },
+      resume() {
+        if (video && videoReady && wantsPlayback) void video.play().catch(() => {});
+      },
       setPreview(active) {
         if (!video) return;
         video.pause();
-        video.muted = !active;
+        wantsPlayback = true;
+        video.muted = true;
         video.loop = !active || (content.type === "video" && content.loop);
-        if (!active && videoReady && !document.hidden) void video.play().catch(() => {});
+        if (videoReady && !document.hidden) void video.play().catch(() => {});
       },
       toggle() {
         if (!preview || document.hidden || !video || disposed) return;
-        if (!video.paused) video.pause();
-        else
+        if (!video.paused) {
+          wantsPlayback = false;
+          video.pause();
+        } else {
+          wantsPlayback = true;
+          video.muted = false;
           void video.play().catch(() => {
             if (!disposed && !videoReady)
               replace(
@@ -196,6 +204,7 @@ export function createDisplayContent(
                 ),
               );
           });
+        }
       },
       dispose() {
         disposed = true;
@@ -260,8 +269,8 @@ export function createDisplayContent(
     pause() {
       displays.forEach((display) => display.pause());
     },
-    resumeEditing() {
-      if (!preview && !document.hidden) displays.forEach((display) => display.setPreview(false));
+    resume() {
+      if (!document.hidden) displays.forEach((display) => display.resume());
     },
     toggle(id: string) {
       displays.get(id)?.toggle();

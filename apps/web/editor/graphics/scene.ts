@@ -550,7 +550,7 @@ export function initScene(
     lastFrameTime = now;
     spatialAudio.setVisible(!document.hidden);
     if (document.hidden) displays.pause();
-    else displays.resumeEditing();
+    else displays.resume();
   };
   document.addEventListener("visibilitychange", visibilityChanged);
   const animate = (now: number) => {

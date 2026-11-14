@@ -58,8 +58,11 @@ function Media({
     return url ? <img src={url} alt={component.alt} /> : <p role="status">Loading image…</p>;
   // Native Play also unlocks the scene's spatial graph before the media becomes audible
   const common = {
-    onPlay: (event: React.SyntheticEvent<HTMLMediaElement>) =>
-      event.currentTarget.dispatchEvent(new CustomEvent("exhibit-start", { bubbles: true })),
+    onPlay: (event: React.SyntheticEvent<HTMLMediaElement>) => {
+      const node = event.currentTarget;
+      if (!(node instanceof HTMLVideoElement && node.muted))
+        node.dispatchEvent(new CustomEvent("exhibit-start", { bubbles: true }));
+    },
     src: url || undefined,
     controls: true,
     loop: component.loop,
