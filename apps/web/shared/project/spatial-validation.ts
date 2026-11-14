@@ -66,6 +66,9 @@ function validateRotation(raw: unknown, path: string): ValidationResult<Quaterni
     return invalid(path, "Rotation must be a unit quaternion within 0.000001 of length 1");
   }
 
+  // Renormalizing unit-length roundoff can alternate between two quaternions on successive saves.
+  if (Math.abs(length - 1) <= 4 * Number.EPSILON) return { ok: true, value: [...raw] };
+
   // Copy before normalizing so validation leaves the imported values alone
   const [x, y, z, w] = raw;
   return { ok: true, value: [x / length, y / length, z / length, w / length] };
