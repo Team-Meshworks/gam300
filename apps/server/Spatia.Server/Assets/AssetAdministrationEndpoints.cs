@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.AspNetCore.Mvc;
 using Spatia.Server.Accounts;
 using Spatia.Server.Projects;
@@ -11,7 +10,7 @@ using Spatia.Server.Security;
 namespace Spatia.Server.Assets;
 
 /// <summary>Maps administrator-only intake and retirement through the existing cookie and CSRF boundaries</summary>
-public static class AssetAdministrationEndpoints
+public static partial class AssetAdministrationEndpoints
 {
     public static IEndpointRouteBuilder MapAssetAdministration(this IEndpointRouteBuilder endpoints)
     {
@@ -76,19 +75,12 @@ public static class AssetAdministrationEndpoints
 
             if (request.RemoveFromProjects || request.Action == "remove")
             {
-                await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
-                if (await RecheckAdministratorAsync(context, access, token) is { } denied) { return denied; }
-                var removed = await service.RemoveAsync(id, documents, token);
-                if (removed is null) { return ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing it"); }
-                if (await RecheckAdministratorAsync(context, access, token) is { } changed) { return changed; }
-                await transaction.CommitAsync(token);
-                token.ThrowIfCancellationRequested();
-                return context.Features.Get<ValidatedAccountSession>() is not { } session || session.Clock.GetUtcNow() >= session.ExpiresUtc
-                    ? ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired) : Results.Ok(removed);
+                return await RemoveAsync(id, null, false, context, service, database, access, documents, token);
             }
             var record = await service.ChangeAsync(id, request.Action, token);
             return record is null ? ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing it") : Results.Ok(record);
         });
+        MapRemovalReceipts(group);
         return endpoints;
     }
 

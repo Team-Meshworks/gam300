@@ -32,6 +32,13 @@ internal static class AuthTestRequests
         return await client.SendAsync(request);
     }
 
+    public static async Task<HttpResponseMessage> PutAsync(HttpClient client, string path, object body, string token)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, path) { Content = JsonContent.Create(body) };
+        request.Headers.Add("X-CSRF-TOKEN", token);
+        return await client.SendAsync(request);
+    }
+
     public static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode status, string code)
     {
         await Assert.That(response.StatusCode).IsEqualTo(status);

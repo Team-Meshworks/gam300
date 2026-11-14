@@ -36,6 +36,9 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
     public async Task<AssetAdministrationRecord[]> ListAsync(CancellationToken token) =>
         (await CandidateMetadata.OrderByDescending(asset => asset.CreatedAt).Take(1000).ToArrayAsync(token)).Select(Record).ToArray();
 
+    internal async Task<AssetAdministrationRecord> ReadRecordAsync(Guid id, CancellationToken token) =>
+        Record(await CandidateMetadata.SingleAsync(asset => asset.Id == id, token));
+
     public async Task<(AssetAdministrationRecord Record, bool Created)?> SubmitAsync(string name, string kind, string? category,
         byte[] bytes, Guid actor, AssetReviewRequest? metadata, CancellationToken token)
     {
@@ -110,7 +113,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
                 .SetProperty(asset => asset.ReviewedBy, actor), token);
 
         // Return the persisted record so the client replaces its state only after the database accepts review
-        return changed == 1 ? Record((await database.AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == id, token))) : null;
+        return changed == 1 ? await ReadRecordAsync(id, token) : null;
     }
 
     public async Task<AssetAdministrationRecord?> ChangeAsync(Guid id, string action, CancellationToken token)
@@ -124,7 +127,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
                 .ExecuteUpdateAsync(update => update.SetProperty(asset => asset.Hidden, action == "hide"), token);
 
         // A missing or concurrently retired row stays a conflict rather than a fabricated success
-        return changed == 1 ? Record(await database.AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == id, token)) : null;
+        return changed == 1 ? await ReadRecordAsync(id, token) : null;
     }
 
     // The caller owns the transaction and checks live administrator authority before committing
@@ -133,7 +136,8 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
     {
         // Block project creation, writes and row-locking publication/review operations during the global change
         await database.Database.ExecuteSqlRawAsync("LOCK TABLE projects IN EXCLUSIVE MODE", token);
-        var asset = await database.AssetCandidates.FromSqlInterpolated($"SELECT * FROM asset_candidates WHERE id = {id} FOR UPDATE")
+        // Non-key updates must coexist with receipt foreign-key checks on this asset.
+        var asset = await database.AssetCandidates.FromSqlInterpolated($"SELECT * FROM asset_candidates WHERE id = {id} FOR NO KEY UPDATE")
             .SingleOrDefaultAsync(token);
         if (asset is null || asset.Status != "approved" || asset.RemovedFromProjects || !asset.Deleted) { return null; }
         var assetId = id.ToString("D");
