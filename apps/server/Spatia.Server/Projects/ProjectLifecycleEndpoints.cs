@@ -83,6 +83,11 @@ public static class ProjectLifecycleEndpoints
     {
         if (!ValidRevision(request.ExpectedRevision) || !ValidTitle(request.Title)) { return InvalidInput(context); }
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        // A new copy references its organization. Pin that parent before locking the source project.
+        await database.Database.SqlQuery<Guid>($"""
+            SELECT o.id AS "Value" FROM organizations o JOIN projects p ON p.organization_id = o.id
+            WHERE p.id = {id} FOR KEY SHARE OF o
+            """).ToListAsync(cancellationToken);
         var authorization = await access.LockAsync(context, id, ProjectLockPurpose.EditDraft, cancellationToken);
         if (authorization.Failure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
         var source = authorization.Snapshot!;
@@ -97,7 +102,8 @@ public static class ProjectLifecycleEndpoints
         if (!parsed.Ok) { return ApiProblems.Create(context, 503, "project_unavailable", "The project is unavailable."); }
         return await InsertAsync(context, database, documents, transaction, account, source.OrganizationId,
             Copy(parsed.Value!, Guid.NewGuid(), request.Title), cancellationToken,
-            await database.Projects.Where(project => project.Id == id).Select(project => project.ImageId).SingleAsync(cancellationToken));
+            await database.Projects.Where(project => project.Id == id).Select(project => project.ImageId).SingleAsync(cancellationToken),
+            source.UnvalidatedDocumentJson);
     }
 
     private static async Task<IResult> AssignAsync(Guid id, ProjectAssignmentsRequest request, HttpContext context,
@@ -165,7 +171,8 @@ public static class ProjectLifecycleEndpoints
     }
 
     private static async Task<IResult> InsertAsync(HttpContext context, ApplicationDbContext database, ProjectDocumentService documents,
-        IDbContextTransaction transaction, CurrentAccount account, Guid organizationId, IAuthoredProject document, CancellationToken cancellationToken, Guid? imageId = null)
+        IDbContextTransaction transaction, CurrentAccount account, Guid organizationId, IAuthoredProject document, CancellationToken cancellationToken, Guid? imageId = null,
+        string? retainedFrom = null)
     {
         var id = Guid.Parse(document.ProjectId);
         var assignments = account.Role == ApplicationRoles.Administrator ? Array.Empty<ProjectAssignment>() :
@@ -177,12 +184,14 @@ public static class ProjectLifecycleEndpoints
                 CanManage = account.Role == ApplicationRoles.Educator,
                 CanPublish = account.Role == ApplicationRoles.Educator,
             }];
-        if (!StageDraft(database, documents, organizationId, document, assignments, imageId)) { return InvalidDocument(context); }
+        var draft = StageDraft(database, documents, organizationId, document, assignments, imageId);
+        if (draft is null || !await ProjectDocumentService.CanWriteDraftAsync(database, draft.DocumentJson, retainedFrom, cancellationToken))
+        { return InvalidDocument(context); }
         await database.SaveChangesAsync(cancellationToken);
         return await CommitAsync(context, database, transaction, id, true, cancellationToken);
     }
 
-    internal static bool StageDraft(ApplicationDbContext database, ProjectDocumentService documents, Guid organizationId,
+    internal static Project? StageDraft(ApplicationDbContext database, ProjectDocumentService documents, Guid organizationId,
         IAuthoredProject document, IReadOnlyCollection<ProjectAssignment> assignments, Guid? imageId = null)
     {
         if (database.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.ReadCommitted)
@@ -190,13 +199,13 @@ public static class ProjectLifecycleEndpoints
             throw new InvalidOperationException("Project creation requires a caller-owned read-committed transaction.");
         }
         var serialized = documents.Serialize(document);
-        if (!serialized.Ok) { return false; }
+        if (!serialized.Ok) { return null; }
         var id = Guid.Parse(document.ProjectId);
         if (assignments.Any(assignment => assignment.ProjectId != id || assignment.UserId == Guid.Empty))
         {
             throw new ArgumentException("Project assignments must refer to this draft and an account.", nameof(assignments));
         }
-        database.Projects.Add(new Project
+        var draft = new Project
         {
             Id = id,
             OrganizationId = organizationId,
@@ -204,9 +213,10 @@ public static class ProjectLifecycleEndpoints
             SchemaVersion = document.SchemaVersion,
             DocumentJson = serialized.Value!,
             UpdatedAt = DateTimeOffset.UtcNow
-        });
+        };
+        database.Projects.Add(draft);
         database.ProjectAssignments.AddRange(assignments);
-        return true;
+        return draft;
     }
 
     private static async Task AdvanceAsync(ApplicationDbContext database, ProjectAccessSnapshot project, bool archived, CancellationToken cancellationToken)
