@@ -195,6 +195,8 @@ These cases also reproduce on the integrated dev code. The earlier signed-in sav
 | P2 · [SCRUM-186](https://meshworkss.atlassian.net/browse/SCRUM-186) | Hold model preparation, then choose a different room, press Escape or drag an incompatible adjoining room. Releasing the first load armed the old room in all three Chrome cases. | Retire the selection on replacement/cancel and reject late completion in an obsolete document or interaction. [Real picker regression](../apps/web/tests/room-preview.check.mjs). |
 | P3 · [SCRUM-185](https://meshworkss.atlassian.net/browse/SCRUM-185) | The signed-in editor confirmed an explicit save and opened its dirty-departure prompt, but Chrome observed neither expected sound. The visual warning itself was present. | Play the existing cue on confirmed explicit save and on opening the preservation prompt. Automatic saves stay quiet. [Server editor](../apps/web/editor/ServerProjectEditor.tsx), [browser regression](../apps/web/tests/server-autosave.check.mjs). |
 
+An integrated CI run caught the teacher moderation test reading its ready-state title before visibility had loaded. The regression now holds the response, asserts the disabled loading state, then checks the original title, moderation writes and absence of draft writes after readiness. [Teacher moderation test](../apps/web/tests/teacher-review-refresh.check.mjs).
+
 ## Earlier confirmed failures and regressions
 
 | Priority / issue | Reachable invalid state and source trace | Fix and regression |
