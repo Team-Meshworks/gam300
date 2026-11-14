@@ -90,7 +90,8 @@ if (process.argv.includes("--playback-only")) {
     });
 
     // Observe the rendered scene and camera while keeping the real loader and controls
-    const componentPath = new URL("../shared/player/ExhibitionCanvas.tsx", import.meta.url).pathname;
+    const componentPath = new URL("../shared/player/ExhibitionCanvas.tsx", import.meta.url)
+      .pathname;
     const component = await page.request.get(`${origin}/@fs${componentPath}`);
     assert.ok(component.ok());
     const threePath = (await component.text()).match(/import \* as THREE from "([^"]+)"/)?.[1];

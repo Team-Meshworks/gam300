@@ -48,25 +48,15 @@ async function openEditor(id = projectId) {
   });
   contexts.push(context);
   await context.addInitScript(() => {
-    window.spatialPlays = 0;
-    const create = AudioContext.prototype.createBufferSource;
-    AudioContext.prototype.createBufferSource = function (...args) {
-      const source = create.apply(this, args);
-      const start = source.start.bind(source);
-      const connect = source.connect.bind(source);
-      let started = false;
-      source.start = (...values) => {
-        started = true;
-        return start(...values);
-      };
-      source.connect = (destination, ...values) => {
-        if (started && destination instanceof PannerNode) {
-          window.spatialPlays++;
-          window.spatialContext = this;
-        }
-        return connect(destination, ...values);
-      };
-      return source;
+    const connect = MediaElementAudioSourceNode.prototype.connect;
+    MediaElementAudioSourceNode.prototype.connect = function (destination, ...args) {
+      const result = connect.call(this, destination, ...args);
+      if (
+        destination instanceof PannerNode &&
+        this.mediaElement.matches("audio[data-spatial-owner]")
+      )
+        window.spatialSource = this;
+      return result;
     };
   });
   const next = await context.newPage();
@@ -301,9 +291,18 @@ try {
   const playing = await audioBytes;
   assert.equal(playing.status(), 200);
   assert.equal(playing.headers()["content-type"], "audio/mp4");
-  await page.waitForFunction(
-    () => window.spatialPlays > 0 && window.spatialContext?.state === "running",
-  );
+  await page.getByLabel("Exhibition view", { exact: true }).waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Enable audio", exact: true }).click();
+  await page.waitForFunction((ownerId) => {
+    const source = window.spatialSource;
+    const audio = source?.mediaElement;
+    return (
+      source?.context.state === "running" &&
+      audio.dataset.spatialOwner === ownerId &&
+      !audio.paused &&
+      audio.currentTime > 0
+    );
+  }, crates[0].id);
   await page.screenshot({
     path: path.join(artifactDirectory, "03-production-spatial-audio.png"),
     animations: "disabled",
