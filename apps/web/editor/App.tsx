@@ -1,14 +1,12 @@
-import { roomFitsGrid } from "../shared/project/room-placement";
 import { environmentObject } from "../shared/project/selection-transform";
 import { AudioLibrary, type AudioLibraryMode } from "./ui/AudioLibrary";
 import { ExhibitPopups } from "./ui/ExhibitPopups";
 import type { ContentObject } from "../shared/project/project-content";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { assets as developmentAssets } from "virtual:asset-catalogue";
 import {
   isStarterRoomEnvironment,
-  isStarterRoomModel,
-  starterRoomCompanion,
+  isRoomModel,
+  roomCompanion,
   type CatalogueAsset,
 } from "../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET, HOTSPOT_ASSET_ID } from "../shared/asset-runtime/hotspot";
@@ -16,7 +14,7 @@ import type { SceneObject, Vector3Tuple } from "../shared/project/scene-object";
 import type { HotspotDropTarget, ProjectHotspot, Transform } from "../shared/project/project-types";
 import { missingProjectCapabilities } from "../shared/project/project-capabilities";
 import { playUiSound, setUiSoundVolume } from "./audio/ui-sounds";
-import { createDocumentStore } from "./document-store";
+import type { createDocumentStore } from "./document-store";
 import {
   handleDeleteShortcut,
   handleHistoryShortcut,
@@ -35,18 +33,14 @@ import { ContentEditor, type ContentKind, type ExhibitFields } from "./ui/Conten
 import { PreviewTargets } from "./ui/PreviewTargets";
 import { SettingsPanel } from "./ui/SettingsPanel";
 import { SidePanels } from "./ui/SidePanels";
-import { TopBar, type TopBarSession } from "./ui/TopBar";
+import { TopBar } from "./ui/TopBar";
 import { applyTheme, loadSettings, saveSettings, type UserSettings } from "./ui/user-settings";
-import { OlderSceneImport } from "./OlderSceneImport";
 import { Scenes } from "./Scenes";
 import { Viewpoints } from "./Viewpoints";
 import { Viewport, type ViewpointCamera } from "./viewport/Viewport";
 import { MobileControls } from "./viewport/MobileControls";
 import { isMobileTouchDevice } from "./viewport/mobile-device";
 import type { FpsMobileControls } from "./graphics/scene";
-
-import { ProjectConfirmation } from "./ProjectConfirmation";
-import { useProjectSession } from "./persistence/use-project-session";
 
 const EMPTY_INTERACTIONS: readonly Interaction[] = Object.freeze([]);
 const EMPTY_HOTSPOTS: readonly ProjectHotspot[] = Object.freeze([]);
@@ -60,20 +54,48 @@ export type ServerEditorSession = {
   failed: boolean;
   saving: boolean;
   departing: boolean;
+  busy: boolean;
   save: (exportFile?: boolean) => Promise<boolean>;
   leave: () => void;
-  publish: () => void;
+  openServerVersion: () => void;
+  logout: () => void;
+  publish?: () => void;
+  publishLabel?: "Request approval" | "Awaiting approval" | "Publish";
+  publishDisabled?: boolean;
+  importFile: (file: File) => Promise<void>;
 };
 
-export function App({ server }: { server?: ServerEditorSession }) {
-  const assets = server?.assets ?? developmentAssets;
-  const selectionAssets = server?.selectionAssets ?? assets;
+function countSceneRules(
+  snapshot: ReturnType<ReturnType<typeof createDocumentStore>["getSnapshot"]>,
+): number {
+  const scene = snapshot.project?.scenes.find((entry) => entry.id === snapshot.activeSceneId);
+  const canonical =
+    snapshot.project?.schemaVersion === 2
+      ? (snapshot.project.scenes.find((entry) => entry.id === snapshot.activeSceneId)?.rules
+          .length ?? 0)
+      : 0;
+  return (scene?.interactions.length ?? 0) + canonical;
+}
+
+function removalNotice(label: string, removedRules: number): string {
+  return removedRules > 0
+    ? `${label} and ${removedRules} related ${removedRules === 1 ? "rule" : "rules"}. Undo restores everything.`
+    : `${label}. Undo restores it.`;
+}
+
+export function App({
+  server,
+  readOnlyPreview = false,
+}: {
+  server: ServerEditorSession;
+  readOnlyPreview?: boolean;
+}) {
+  const { assets, selectionAssets, store } = server;
   const editorAssets = useMemo(() => [...assets, HOTSPOT_ASSET], [assets]);
   const assetKinds = useMemo(
     () => new Map(editorAssets.map((asset) => [asset.id, asset.kind])),
     [editorAssets],
   );
-  const [store] = useState(() => server?.store ?? createDocumentStore(editorAssets));
   const { objects, project, activeSceneId, loadGeneration, canUndo, canRedo } =
     useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [displayEditing, setDisplayEditing] = useState<string | null>(null);
@@ -121,10 +143,33 @@ export function App({ server }: { server?: ServerEditorSession }) {
       ? { objectId: pendingText.objectId, component }
       : undefined;
   }, [pendingText]);
+  const [previewPicker, setPreviewPicker] = useState<"rooms" | "assets" | null>(null);
   const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
   const onThumbnail = useCallback((id: string, url: string) => {
     setGeneratedThumbnails((previous) => ({ ...previous, [id]: url }));
   }, []);
+  useEffect(() => {
+    if (!previewPicker) return;
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void import("./graphics/library-previews")
+      .then(({ generateLibraryPreviews }) => {
+        if (!disposed)
+          cleanup = generateLibraryPreviews(
+            editorAssets.filter((asset) =>
+              previewPicker === "rooms" ? asset.kind === "environment" : asset.kind === "model",
+            ),
+            onThumbnail,
+          );
+      })
+      .catch(() => {
+        // Catalogue thumbnails remain available when generated previews cannot load.
+      });
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }, [editorAssets, onThumbnail, previewPicker]);
   const thumbnailFor = (id: string) =>
     editorAssets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
   const [status, setStatus] = useState<ViewportStatus>("loading");
@@ -151,6 +196,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
     // Every new message gets its own fade, even when the text repeats
     setFeedback((previous) => ({ text, sequence: previous.sequence + 1 }));
   }, []);
+  const reportRuleRemoval = (before: ReturnType<typeof store.getSnapshot>, label: string) => {
+    const removed = countSceneRules(before) - countSceneRules(store.getSnapshot());
+    if (removed > 0)
+      setNotice(
+        `${label}. Removed ${removed} related ${removed === 1 ? "rule" : "rules"}. Undo restores everything.`,
+      );
+  };
   useEffect(() => {
     const timer = setTimeout(() => {
       setFeedback((previous) => (previous.text ? { ...previous, text: "" } : previous));
@@ -194,12 +246,10 @@ export function App({ server }: { server?: ServerEditorSession }) {
     projectScene !== undefined &&
     projectScene.environmentVisible !== false &&
     selectedId === projectScene.id;
-  const [hasDeleted, setHasDeleted] = useState(false);
   const selectedObject = roomSelected
     ? environmentObject(projectScene)
     : objects.find((object) => object.id === selection);
-  const hasChanges = project !== null || objects.length > 0 || hasDeleted;
-  const visitor = modeState?.mode === "visitor";
+  const visitor = readOnlyPreview || modeState?.mode === "visitor";
   const mobileDevice = isMobileTouchDevice();
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
   // Start inside the scene, the overview button switch to the orbit camera
@@ -236,26 +286,52 @@ export function App({ server }: { server?: ServerEditorSession }) {
             ...(scene?.audio ?? []),
             ...(scene?.objects.flatMap((object) => object.components) ?? []),
           ].find((entry) => entry.type === "audio" && entry.id.toLowerCase() === id.toLowerCase());
-          if (audio?.type !== "audio" || audio.mode !== "global") return undefined;
+          if (audio?.type !== "audio") {
+            return undefined;
+          }
           const asset = assets.find(
             (entry) => entry.id === audio.assetId && entry.kind === "audio",
           );
-          return asset ? { url: asset.url, loop: audio.loop, volume: audio.volume } : undefined;
+          return asset
+            ? {
+                url: asset.url,
+                loop: audio.loop,
+                volume: audio.volume,
+                ...(audio.mode === "spatial"
+                  ? { play: () => viewCamera?.playSpatialAudio?.(audio.id) }
+                  : {}),
+              }
+            : undefined;
         }),
         navigation.beginEvent,
       ),
-    [projectScene, navigation, store, assets],
+    [projectScene, navigation, store, assets, viewCamera],
   );
   const interactionHandlerRef = useRef(interactionHandler);
   useEffect(() => {
     interactionHandlerRef.current = interactionHandler;
   }, [interactionHandler]);
+  const previewStarted = useRef<ModeManager | null>(null);
+  useEffect(() => {
+    if (!readOnlyPreview || !manager || status !== "ready" || previewStarted.current === manager)
+      return;
+    previewStarted.current = manager;
+    navigation.start();
+    manager.setMode("visitor");
+  }, [readOnlyPreview, manager, navigation, status]);
+  useEffect(
+    () => () => {
+      if (readOnlyPreview) navigation.end();
+    },
+    [readOnlyPreview, navigation],
+  );
+  const previewReady = !readOnlyPreview || modeState?.mode === "visitor";
   // Leaving Preview, replacing the handler or unmounting ends that preview session
   useEffect(() => {
-    if (!visitor) return;
+    if (!visitor || !previewReady) return;
     interactionHandler.sceneStarted();
     return () => interactionHandler.reset();
-  }, [visitor, interactionHandler]);
+  }, [visitor, interactionHandler, previewReady]);
   const onObjectClick = useCallback((id: string) => {
     interactionHandlerRef.current.objectClicked(id);
   }, []);
@@ -277,51 +353,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
 
   useEffect(() => (manager === null ? undefined : manager.subscribe(setModeState)), [manager]);
 
-  const onReplace = useCallback(() => {
-    setPlacingAssetId(null);
-    setShowExhibitTools(false);
-    setSelectedId(null);
-    setDragging(null);
-    setError("");
-    setHasDeleted(false);
-  }, []);
-  const importInput = useRef<HTMLInputElement>(null);
-  const openFileUpload = useCallback(() => importInput.current?.click(), []);
-  const localSession = useProjectSession(
-    store,
-    editorAssets,
-    project,
-    objects.length,
-    onReplace,
-    setNotice,
-    openFileUpload,
-    () => playUiSound("save"),
-    !server,
-  );
-  const storageOperation = server ? (server.departing ? "switch" : null) : localSession.operation;
-  const busy = storageOperation !== null;
-  const fileName = server?.title ?? localSession.fileName;
-  const dirty = server?.dirty ?? localSession.dirty;
-  const failed = server?.failed ?? localSession.fileFailed;
-  const saving = server?.saving ?? storageOperation === "file";
-  const toolbarSession: TopBarSession = {
-    fileName,
-    dirty,
-    busy,
-    saveState: saving ? "saving" : failed ? "failed" : dirty ? "pending" : "saved",
-    save: server?.save ?? localSession.save,
-    local: server ? null : localSession,
-  };
-  const confirmation = !server && localSession.confirmation;
-  const sessionError = server ? "" : localSession.error;
-  // Here rather than in the dialog, whose mount effect run twice in development
-  useEffect(() => {
-    if (confirmation) playUiSound("warning");
-  }, [confirmation]);
-  const switching =
-    storageOperation === "switch" ||
-    storageOperation === "recover" ||
-    storageOperation === "import";
+  const { departing } = server;
 
   const deleteSelection = useCallback(() => {
     if (visitor) return;
@@ -343,7 +375,12 @@ export function App({ server }: { server?: ServerEditorSession }) {
       }
       setSelectedId(null);
       setError("");
-      setNotice("Audio removed. Undo restores it.");
+      setNotice(
+        removalNotice(
+          "Removed audio",
+          countSceneRules(current) - countSceneRules(store.getSnapshot()),
+        ),
+      );
       playUiSound("delete");
       return;
     }
@@ -359,25 +396,16 @@ export function App({ server }: { server?: ServerEditorSession }) {
       setError(result.error.message);
       return;
     }
+    const removedRules = countSceneRules(current) - countSceneRules(store.getSnapshot());
     setError("");
-    setHasDeleted(true);
     setSelectedId(null);
-    setNotice(`Deleted ${result.value.name}. Undo restores it.`);
+    setNotice(removalNotice(`Deleted ${result.value.name}`, removedRules));
     playUiSound("delete");
   }, [store, selection, selectedId, visitor, setNotice]);
 
   useEffect(() => {
     function onHistoryKeyDown(event: KeyboardEvent) {
-      // Foreground file operations own the keyboard; background backups must not block edits.
-      if (
-        placingAssetId ||
-        audioLibrary ||
-        pendingText ||
-        visitor ||
-        (storageOperation !== null && storageOperation !== "backup")
-      ) {
-        return;
-      }
+      if (placingAssetId || audioLibrary || pendingText || visitor || departing) return;
       const editingText = event.composedPath().some(isTextEditingTarget);
       handleHistoryShortcut(event, store, editingText);
       handleObjectShortcut(
@@ -430,7 +458,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
   }, [
     store,
     selection,
-    storageOperation,
+    departing,
     visitor,
     setNotice,
     deleteSelection,
@@ -440,9 +468,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
   ]);
 
   useEffect(() => {
-    // Filename identifies the browser tab; save status stays in the editor
-    document.title = `${fileName || "Untitled"} - Spatia`;
-  }, [fileName]);
+    document.title = `${server.title} - Spatia`;
+  }, [server.title]);
 
   // Keep keyboard saving on the same path as the menu and its file picker
   useEffect(() => {
@@ -452,12 +479,18 @@ export function App({ server }: { server?: ServerEditorSession }) {
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        document.getElementById(event.shiftKey ? "project-save-as" : "project-save")?.click();
+        if (server && !event.shiftKey) {
+          if (!departing && project !== null) {
+            void server.save();
+          }
+        } else {
+          document.getElementById(event.shiftKey ? "project-save-as" : "project-save")?.click();
+        }
       }
     }
     addEventListener("keydown", saveShortcut);
     return () => removeEventListener("keydown", saveShortcut);
-  }, [visitor]);
+  }, [visitor, server, departing, project]);
 
   const onTransform = useCallback(
     (id: string, transform: Transform) => {
@@ -475,9 +508,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
       const result =
         ids.length > 1 ||
         id === snapshot.activeSceneId ||
-        snapshot.objects.some(
-          (object) => object.id === id && isStarterRoomModel(assets, object.assetId),
-        )
+        snapshot.objects.some((object) => object.id === id && isRoomModel(assets, object.assetId))
           ? store.setSelectionTransform(ids, id, transform)
           : parentId !== undefined &&
               parentId !== ((object as ContentObject | undefined)?.parentId ?? null)
@@ -499,10 +530,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
     hotspotTarget?: HotspotDropTarget,
     roomId: string | null = null,
   ) {
-    if (visitor) {
-      return;
-    }
-    localSession.clearError();
+    if (visitor || departing) return;
     if (assetId === HOTSPOT_ASSET_ID) {
       if (projectScene === undefined) {
         setNotice("Choose a room before adding hotspots");
@@ -528,30 +556,17 @@ export function App({ server }: { server?: ServerEditorSession }) {
       return;
     }
 
-    // Choosing the first room turns the grid scene into a saveable project
     // Room placement uses the environment slot so it survives JSON reconstruction
     if (assetKinds.get(assetId) === "environment") {
-      if (isStarterRoomEnvironment(assets, assetId) && !projectScene && !roomFitsGrid(position)) {
-        setError("Keep the whole room inside the grid");
-        return;
-      }
-      const creatingDuringInitialRecovery =
-        busy && storageOperation === "recover" && project === null;
-      if (busy && storageOperation !== "backup" && !creatingDuringInitialRecovery) {
-        setNotice("Wait for the project to finish opening, then choose a room");
-        return;
-      }
-
       // The same room tile creates the environment first and independent room instances afterward
       // Keep the model reference used by saved room instances behind this one catalogue choice
-      if (
-        projectScene &&
-        isStarterRoomEnvironment(assets, projectScene.environmentAssetId) &&
-        isStarterRoomEnvironment(assets, assetId)
-      ) {
-        const companion = starterRoomCompanion(selectionAssets);
+      if (projectScene?.environmentAssetId) {
+        const companion = roomCompanion(
+          selectionAssets,
+          assets.find((asset) => asset.id === assetId),
+        );
         if (!companion) {
-          setError("An approved Starter room model is required to add an adjoining room.");
+          setError("An approved room model is required to add an adjoining room.");
           setDragging(null);
           return;
         }
@@ -566,36 +581,14 @@ export function App({ server }: { server?: ServerEditorSession }) {
         setDragging(null);
         return;
       }
-      if (project !== null) {
-        const changed = store.setEnvironment(assetId);
-        if (!changed.ok) setError(changed.error.message);
-        else {
-          setError("");
-          setNotice("Scene environment updated. Undo is available.");
-          playUiSound("assetPlace");
-        }
-        setDragging(null);
-        return;
+      const changed = store.setEnvironment(assetId);
+      if (!changed.ok) setError(changed.error.message);
+      else {
+        setError("");
+        setNotice("Scene environment updated. Undo is available.");
+        playUiSound("assetPlace");
       }
-      const created = store.createProject(assetId);
-      if (!created.ok) {
-        setError(created.error.message);
-        return;
-      }
-      setError("");
-      setSelectedId(created.value.scenes[0]!.id);
       setDragging(null);
-      if (!server && created.value.scenes[0]?.objects.length === 0) {
-        localSession.markPristine(created.value);
-      }
-      setNotice("Project created; choose Save to name its file");
-      playUiSound("assetPlace");
-      return;
-    }
-    // Clicks and drops share this path; room selection starts the project before furnishing it
-    if (store.getSnapshot().project === null) {
-      setDragging(null);
-      setError("Choose a room first");
       return;
     }
 
@@ -668,19 +661,14 @@ export function App({ server }: { server?: ServerEditorSession }) {
         Skip to scene
       </a>
       <TopBar
-        session={toolbarSession}
-        onLeave={server?.leave}
-        onPublish={server?.publish}
-        hasProject={project !== null}
-        hasChanges={hasChanges}
+        session={server}
         ready={status === "ready"}
         visitor={visitor}
-        switching={switching}
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={store.undo}
         onRedo={store.redo}
-        canPreview={!pendingText && manager !== null && (!busy || storageOperation === "backup")}
+        canPreview={!pendingText && manager !== null && !departing}
         onPreview={() => {
           const current = store.getSnapshot().project;
           const unavailable =
@@ -696,6 +684,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
                     "content:video",
                     "content:audio",
                     "audio:global",
+                    "audio:spatial",
                     "interaction:play-audio",
                     "text:placement",
                     "environment:transform",
@@ -727,8 +716,13 @@ export function App({ server }: { server?: ServerEditorSession }) {
               }),
             );
           if (unavailable.length > 0 || unsupportedDisplay) {
+            // Keep capability paths tied to the saved data so authors can find the blocked feature
+            const reasons = unavailable.map((issue) => `${issue.capability} at ${issue.path}`);
+            if (unsupportedDisplay) {
+              reasons.push("Place text, images and videos on a supported display");
+            }
             setNotice(
-              "This preview does not support all the scenes and interactions in this project",
+              `This preview does not support all the scenes and interactions in this project: ${reasons.join("; ")}`,
             );
             return;
           }
@@ -758,33 +752,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
         }
         onSettings={() => setSettingsOpen((open) => !open)}
       />
-      {/* Reset the input so choosing the same file again still fires a change */}
-      {!server && (
-        <input
-          ref={importInput}
-          id="project-import"
-          type="file"
-          accept=".json,application/json"
-          hidden
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0];
-            event.currentTarget.value = "";
-            if (file !== undefined) {
-              void localSession.importFile(file);
-            }
-          }}
-        />
-      )}
-
-      {!server && (
-        <OlderSceneImport
-          olderSceneFiles={localSession.olderSceneFiles}
-          assets={assets}
-          onImport={localSession.importConvertedFile}
-          onError={setError}
-        />
-      )}
-      <main className="workspace" inert={switching}>
+      <main className="workspace" inert={departing}>
         <SidePanels
           assets={assets}
           sceneAudio={
@@ -793,18 +761,26 @@ export function App({ server }: { server?: ServerEditorSession }) {
               : []
           }
           onHotspotRemove={(id) => {
+            const before = store.getSnapshot();
             const result = store.deleteHotspot(id);
             if (!result.ok) setNotice(result.error.message);
+            else
+              setNotice(
+                removalNotice(
+                  "Removed hotspot",
+                  countSceneRules(before) - countSceneRules(store.getSnapshot()),
+                ),
+              );
           }}
           scenes={
             <Scenes
-              key={`${loadGeneration}:${project?.projectId ?? "new"}:${activeSceneId}:${projectScene?.name}`}
+              key={`${loadGeneration}:${activeSceneId}:${projectScene?.name}`}
               scenes={project?.scenes ?? []}
               activeSceneId={activeSceneId}
               assets={selectionAssets}
               existingAssets={assets}
               store={store}
-              disabled={visitor || switching || status !== "ready"}
+              disabled={visitor || departing || status !== "ready"}
               onSwitch={() => {
                 setSelectedId(null);
                 setDragging(null);
@@ -819,7 +795,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 views={projectScene.viewpoints ?? []}
                 startCamera={projectScene.startCamera}
                 camera={viewCamera}
-                disabled={visitor || switching || status !== "ready"}
+                disabled={visitor || departing || status !== "ready"}
                 store={store}
               />
             ) : (
@@ -887,6 +863,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           loadGeneration={loadGeneration}
           assets={editorAssets}
           selectableAssets={selectionAssets}
+          onAudioError={setNotice}
           objects={objects}
           projectScene={projectScene ?? null}
           selectedId={roomSelected ? projectScene.id : selection}
@@ -894,6 +871,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           textPlacement={textPlacement}
           onTextPlace={(placement) => {
             if (!pendingText) return;
+            const before = store.getSnapshot();
             const result = store.editExhibit(pendingText.objectId, pendingText.before, {
               ...pendingText.fields,
               components: pendingText.fields.components.map((component) =>
@@ -904,12 +882,14 @@ export function App({ server }: { server?: ServerEditorSession }) {
               setError(result.error.message);
               return;
             }
+            reportRuleRemoval(before, "Updated content");
             setPendingText(null);
             setShowExhibitTools(true);
           }}
           placingAssetId={placingAssetId}
           onPlacementCancel={() => setPlacingAssetId(null)}
-          editingEnabled={!switching}
+          editingEnabled={!departing && !readOnlyPreview}
+          allowInspection={readOnlyPreview}
           navigationTool={pendingText ? "orbit" : navigationTool}
           view={view}
           status={status}
@@ -950,6 +930,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 onEdit={openContent}
                 onLibrary={() => setDisplayEditing(selectedObject.id)}
                 onRemoveText={() => {
+                  const before = store.getSnapshot();
                   const result = store.editExhibit(selectedObject.id, selectedObject, {
                     name: selectedObject.name,
                     transform: selectedObject.transform,
@@ -958,10 +939,25 @@ export function App({ server }: { server?: ServerEditorSession }) {
                     ).filter((component) => component.type !== "text"),
                   });
                   if (!result.ok) setError(result.error.message);
+                  else
+                    setNotice(
+                      removalNotice(
+                        "Removed text",
+                        countSceneRules(before) - countSceneRules(store.getSnapshot()),
+                      ),
+                    );
                 }}
                 onRemoveMedia={() => {
+                  const before = store.getSnapshot();
                   const result = store.removeDisplayMedia(selectedObject.id);
                   if (!result.ok) setError(result.error.message);
+                  else
+                    setNotice(
+                      removalNotice(
+                        "Removed media",
+                        countSceneRules(before) - countSceneRules(store.getSnapshot()),
+                      ),
+                    );
                 }}
                 onRemoveContent={
                   assets.find((asset) => asset.id === selectedObject.assetId)?.displayRole ===
@@ -970,8 +966,16 @@ export function App({ server }: { server?: ServerEditorSession }) {
                     (object) => (object as Partial<ContentObject>).parentId === selectedObject.id,
                   )
                     ? () => {
+                        const before = store.getSnapshot();
                         const result = store.removeDisplayedAsset(selectedObject.id);
                         if (!result.ok) setError(result.error.message);
+                        else
+                          setNotice(
+                            removalNotice(
+                              "Removed displayed object",
+                              countSceneRules(before) - countSceneRules(store.getSnapshot()),
+                            ),
+                          );
                       }
                     : undefined
                 }
@@ -1003,6 +1007,7 @@ export function App({ server }: { server?: ServerEditorSession }) {
           )}
           {!visitor && (
             <BottomBar
+              onPickerChange={setPreviewPicker}
               assets={selectionAssets.filter((a) => a.kind === "model" || a.kind === "environment")}
               hotspot={HOTSPOT_ASSET}
               ready={status === "ready"}
@@ -1014,12 +1019,15 @@ export function App({ server }: { server?: ServerEditorSession }) {
               onAdd={async (assetId) => {
                 const before = store.getSnapshot();
                 const adjoiningRoom =
-                  projectScene &&
-                  isStarterRoomEnvironment(assets, projectScene.environmentAssetId) &&
-                  isStarterRoomEnvironment(assets, assetId);
-                const modelId = adjoiningRoom ? starterRoomCompanion(selectionAssets)?.id : assetId;
+                  projectScene?.environmentAssetId && assetKinds.get(assetId) === "environment";
+                const modelId = adjoiningRoom
+                  ? roomCompanion(
+                      selectionAssets,
+                      assets.find((asset) => asset.id === assetId),
+                    )?.id
+                  : assetId;
                 if (!modelId) {
-                  setError("An approved Starter room model is required to add an adjoining room.");
+                  setError("An approved room model is required to add an adjoining room.");
                   return;
                 }
                 if (!(await viewCamera?.prepareAsset(modelId)) || store.getSnapshot() !== before)
@@ -1028,7 +1036,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
                 // Supplied rooms are complete environment layouts, selected at the scene origin.
                 if (
                   assetKinds.get(assetId) === "environment" &&
-                  !isStarterRoomEnvironment(assets, assetId)
+                  !isStarterRoomEnvironment(assets, assetId) &&
+                  !projectScene?.environmentAssetId
                 ) {
                   setPlacingAssetId(null);
                   place(assetId, [0, 0, 0]);
@@ -1038,22 +1047,20 @@ export function App({ server }: { server?: ServerEditorSession }) {
                   place(assetId, [0, 0, 0]);
                   return;
                 }
-                if (project === null && assetKinds.get(assetId) !== "environment") {
-                  setError("Choose a room first");
-                  return;
-                }
                 setPlacingAssetId(assetId);
                 setNavigationTool("select");
               }}
               onDragChange={(assetId) => {
                 if (
                   assetId &&
-                  projectScene &&
-                  isStarterRoomEnvironment(assets, projectScene.environmentAssetId) &&
-                  isStarterRoomEnvironment(assets, assetId) &&
-                  !starterRoomCompanion(selectionAssets)
+                  projectScene?.environmentAssetId &&
+                  assetKinds.get(assetId) === "environment" &&
+                  !roomCompanion(
+                    selectionAssets,
+                    assets.find((asset) => asset.id === assetId),
+                  )
                 ) {
-                  setError("An approved Starter room model is required to add an adjoining room.");
+                  setError("An approved room model is required to add an adjoining room.");
                   setDragging(null);
                   return;
                 }
@@ -1080,11 +1087,11 @@ export function App({ server }: { server?: ServerEditorSession }) {
               <p className="walk-hint">
                 {visitor
                   ? captured
-                    ? "Preview mode · Left click to interact · Hold Alt for the mouse · Esc to stop"
-                    : `Preview mode · ${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump`
+                    ? "Preview mode \u00b7 Left click to interact \u00b7 Hold Alt for the mouse \u00b7 Esc to stop"
+                    : `Preview mode \u00b7 ${canCapture ? "Click the scene" : "Drag"} to look around \u00b7 WASD to walk \u00b7 Space to jump`
                   : captured
-                    ? "Click selects what's under the + · Hold the click to carry it, scroll to push or pull · Hold right click to turn it · Hold Alt for the mouse · Esc to stop"
-                    : `${canCapture ? "Click the scene" : "Drag"} to look around · WASD to walk · Space to jump, double tap to fly · C to go down`}
+                    ? "Click selects what's under the + \u00b7 Hold the click to carry it, scroll to push or pull \u00b7 Hold right click to turn it \u00b7 Hold Alt for the mouse \u00b7 Esc to stop"
+                    : `${canCapture ? "Click the scene" : "Drag"} to look around \u00b7 WASD to walk \u00b7 Space to jump, double tap to fly \u00b7 C to go down`}
               </p>
             </>
           )}
@@ -1126,7 +1133,10 @@ export function App({ server }: { server?: ServerEditorSession }) {
               setView("third");
               return { ok: true, value: true };
             }
-            return store.editExhibit(contentEdit.objectId, before, fields);
+            const previous = store.getSnapshot();
+            const result = store.editExhibit(contentEdit.objectId, before, fields);
+            if (result.ok) reportRuleRemoval(previous, "Updated content");
+            return result;
           }}
           onClose={() => setContentEdit(null)}
         />
@@ -1146,16 +1156,8 @@ export function App({ server }: { server?: ServerEditorSession }) {
           onClose={() => setAudioLibrary(null)}
         />
       )}
-      <p
-        key={`${storageOperation === "recover" || storageOperation === "import" ? storageOperation : "notice"}-${feedback.sequence}`}
-        className="draft-feedback"
-        role="status"
-      >
-        {storageOperation === "recover"
-          ? "Reopening saved work…"
-          : storageOperation === "import"
-            ? "Reading project file…"
-            : notice}
+      <p key={feedback.sequence} className="draft-feedback" role="status">
+        {notice}
       </p>
       {displayEditing &&
         !visitor &&
@@ -1178,24 +1180,9 @@ export function App({ server }: { server?: ServerEditorSession }) {
             />
           ) : null;
         })()}
-      {confirmation && (
-        <ProjectConfirmation
-          fileName={fileName || "Untitled"}
-          busy={localSession.deciding}
-          onChoice={localSession.answer}
-        />
-      )}
-      {(sessionError || error) && (
-        <p
-          key={sessionError || error}
-          className="action-error"
-          role="alert"
-          onAnimationEnd={() => {
-            localSession.clearError();
-            setError("");
-          }}
-        >
-          {sessionError || error}
+      {error && (
+        <p key={error} className="action-error" role="alert" onAnimationEnd={() => setError("")}>
+          {error}
         </p>
       )}
     </div>

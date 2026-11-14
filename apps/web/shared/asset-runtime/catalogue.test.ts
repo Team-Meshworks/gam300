@@ -8,7 +8,7 @@ import {
   searchAssets,
   type CatalogueAsset,
 } from "./catalogue";
-import { createDocumentStore } from "../../editor/document-store";
+import { createLoadedStore } from "../../tests/project-store-fixture";
 
 const assets: readonly CatalogueAsset[] = Object.freeze([
   Object.freeze({
@@ -57,7 +57,7 @@ describe("catalogue search", () => {
   });
 
   it("places a search result through existing history and preserves its ID on redo", () => {
-    const store = createDocumentStore(assets);
+    const store = createLoadedStore(assets, "room");
     const match = searchAssets(assets, "BLUE")[0];
     expect(match).toBeDefined();
     const result = store.addObject(match!.id, [1, 0, -2]);
@@ -133,4 +133,24 @@ it("pins Starter geometry to both packaged manifest entries", () => {
   ) as { assets: { assetId: string; sha256: string }[] };
   for (const id of ["test-room-v1", "test-room-module-v1"])
     expect(manifest.assets.find((asset) => asset.assetId === id)?.sha256).toBe(STARTER_ROOM_SHA256);
+});
+
+it("keeps approved room geometry aligned with the matching asset hashes", async () => {
+  const { knownRoomGeometry } = await import("./catalogue");
+  const manifest = JSON.parse(
+    readFileSync(new URL("../../../../assets/manifest.json", import.meta.url), "utf8"),
+  );
+  const rooms = manifest.assets.filter(
+    (asset: { kind: string; assetId: string }) =>
+      asset.kind === "environment" && /^room-(?:space1|doors-[1-4-]+)-v1$/.test(asset.assetId),
+  );
+  expect(rooms.length).toBe(16);
+  for (const room of rooms) {
+    expect(knownRoomGeometry[room.sha256]).toEqual(room.boundsMeters);
+    const modelId = room.assetId.replace(/-v1$/, "-module-v1");
+    const model = manifest.assets.find((asset: { assetId: string }) => asset.assetId === modelId);
+    expect(model?.kind).toBe("model");
+    expect(model?.sha256).toBe(room.sha256);
+    expect(model?.boundsMeters).toEqual(room.boundsMeters);
+  }
 });

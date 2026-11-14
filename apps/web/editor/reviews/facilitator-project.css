@@ -1,0 +1,342 @@
+.facilitator-project-view,
+.sp-facilitator-submission {
+  --sp-surface: #fffdfb;
+  --sp-soft: #f5f4f2;
+  --sp-close-surface: #e4e1dc;
+  --sp-close-ink: #000;
+  --sp-border: #e7e2dc;
+  --sp-ink: #292723;
+  --sp-muted: #77716b;
+  --review-backdrop: rgb(41 39 35 / 25%);
+  --facilitator-viewport-background: #e9ece7;
+  --review-body-font: Inter, sans-serif;
+  --review-heading-font: var(--sp-font);
+  --review-shadow: 0 16px 48px rgb(41 39 35 / 12%);
+  --review-control-hover: #eae5df;
+  --review-primary-hover: #51473d;
+  --review-close-hover: #d7d2cb;
+  font-family: var(--review-body-font);
+  color: var(--sp-ink);
+}
+.sp-facilitator-submission.sp-dialog {
+  margin: auto;
+  border: 1px solid var(--sp-border);
+  background: var(--sp-surface);
+  box-shadow: var(--review-shadow);
+  max-height: calc(100% - 48px);
+  overflow: auto;
+}
+.sp-facilitator-submission::backdrop {
+  background: var(--review-backdrop);
+}
+.facilitator-project-view .sp-button,
+.sp-facilitator-submission .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--sp-border);
+  background: var(--sp-surface);
+  color: var(--sp-ink);
+  border-radius: 20px;
+  padding: 8px 24px;
+  font: inherit;
+  cursor: pointer;
+}
+.sp-facilitator-submission .sp-button--primary {
+  background: var(--sp-ink);
+  color: var(--sp-surface);
+}
+.sp-facilitator-submission .sp-button:disabled,
+.facilitator-project-view .sp-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.sp-facilitator-submission .sp-dialog-dismiss {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sp-close-surface);
+}
+.sp-facilitator-submission .sp-dialog-dismiss svg {
+  display: block;
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+.facilitator-project-header a {
+  color: inherit;
+  text-decoration: none;
+  font-size: 13px;
+}
+.facilitator-project-header a:hover {
+  text-decoration: underline;
+}
+.facilitator-project-view .fps-meter {
+  display: none;
+}
+.facilitator-project-view .sp-button:focus-visible,
+.sp-facilitator-submission .sp-button:focus-visible {
+  outline: 2px solid var(--sp-ink);
+  outline-offset: 3px;
+}
+.facilitator-project-view {
+  position: fixed;
+  inset: 0;
+  background: var(--facilitator-viewport-background);
+  color: var(--sp-ink, #292723);
+}
+.facilitator-project-header {
+  position: absolute;
+  z-index: 2;
+  inset: 24px 32px auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 24px;
+  border-radius: 24px;
+  background: var(--sp-surface, #fffdfb);
+}
+.facilitator-project-header h1 {
+  font-size: 20px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.facilitator-project-canvas {
+  width: 100%;
+  height: 100%;
+}
+.facilitator-project-header .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+}
+.facilitator-project-status {
+  position: absolute;
+  inset: auto 24px 24px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--sp-surface, #fffdfb);
+}
+.facilitator-project-scenes {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .facilitator-project-header {
+    inset: 12px 12px auto;
+    gap: 12px;
+    padding: 12px;
+  }
+  .facilitator-project-header h1 {
+    font-size: 16px;
+  }
+}
+
+.sp-facilitator-submission .sp-dialog-dismiss {
+  color: var(--sp-close-ink);
+}
+.sp-facilitator-submission .sp-dialog-dismiss svg {
+  width: 18px;
+  height: 18px;
+}
+.sp-facilitator-submission .sp-button-label {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+.sp-facilitator-submission .sp-dialog-body > p:last-child {
+  font-size: 11px;
+  line-height: 17px;
+}
+.sp-facilitator-submission .sp-review-subtitle {
+  margin-block: 8px 16px;
+  color: var(--sp-muted);
+  font-size: 12px;
+}
+
+.sp-facilitator-submission > h2,
+.sp-facilitator-submission .sp-dialog-body > h3 {
+  font-family: var(--review-heading-font);
+  font-weight: 700;
+}
+.sp-facilitator-submission > h2 {
+  margin: 0 48px 16px 0;
+}
+.sp-facilitator-submission .sp-dialog-body > h3 {
+  margin: 0 0 8px;
+}
+.sp-facilitator-submission .sp-progress-list:empty {
+  display: none;
+}
+.sp-facilitator-submission .sp-progress-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sp-facilitator-submission .sp-dialog-body > p:last-child {
+  margin: 0;
+}
+.sp-facilitator-submission .sp-progress-draft textarea {
+  font-family: var(--review-body-font);
+}
+.sp-facilitator-submission.sp-dialog {
+  height: fit-content;
+  min-height: 0;
+}
+
+.facilitator-project-header > .facilitator-project-review {
+  width: 148px;
+  height: 50px;
+  min-height: 50px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: var(--sp-soft);
+  font-size: 20px;
+  font-weight: 600;
+}
+@media (max-width: 600px) {
+  .facilitator-project-header > .facilitator-project-review {
+    width: 96px;
+    height: 40px;
+    min-height: 40px;
+    font-size: 15px;
+  }
+}
+
+.facilitator-project-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 148px minmax(0, 1fr);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  pointer-events: none;
+}
+.facilitator-project-header > a {
+  justify-self: start;
+  pointer-events: auto;
+}
+.facilitator-project-header > h1 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.facilitator-project-header > .facilitator-project-review {
+  grid-column: 2;
+  grid-row: 1;
+  pointer-events: auto;
+}
+@media (max-width: 600px) {
+  .facilitator-project-header {
+    grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1fr);
+  }
+}
+
+.sp-facilitator-submission .sp-progress-actions .sp-button {
+  min-height: 36px;
+  padding: 6px 16px;
+}
+.facilitator-project-header > .facilitator-project-review {
+  width: auto;
+  height: 36px;
+  min-height: 36px;
+  padding-inline: 20px;
+  justify-self: center;
+  font-size: 15px;
+}
+
+.facilitator-project-header > .facilitator-project-review {
+  width: 148px;
+  height: 50px;
+  min-height: 50px;
+  padding: 0;
+  font-size: 20px;
+}
+.facilitator-project-header > .facilitator-project-close {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sp-close-surface);
+  color: var(--sp-close-ink);
+  pointer-events: auto;
+}
+.facilitator-project-close svg {
+  display: block;
+}
+.facilitator-project-review .sp-button-label {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+@media (max-width: 600px) {
+  .facilitator-project-header > .facilitator-project-review {
+    width: 96px;
+    height: 40px;
+    min-height: 40px;
+    font-size: 15px;
+  }
+}
+
+.facilitator-project-view {
+  --facilitator-review-fill: #f2efe6;
+}
+.facilitator-project-header > .facilitator-project-review {
+  width: 112px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 13px;
+  background: var(--facilitator-review-fill);
+  font-size: 15px;
+  font-weight: 600;
+}
+.facilitator-project-header > .facilitator-project-close {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+}
+
+.facilitator-project-view .sp-button:hover:not(:disabled, .sp-button--primary),
+.sp-facilitator-submission .sp-button:hover:not(:disabled, .sp-button--primary) {
+  background: var(--review-control-hover);
+}
+.sp-facilitator-submission .sp-button--primary:hover:not(:disabled) {
+  background: var(--review-primary-hover);
+}
+.facilitator-project-view
+  .facilitator-project-header
+  > .facilitator-project-review:hover:not(:disabled) {
+  background: var(--review-control-hover);
+}
+.facilitator-project-view .facilitator-project-header > .facilitator-project-close:hover,
+.sp-facilitator-submission .sp-dialog-dismiss:hover:not(:disabled) {
+  background: var(--review-close-hover);
+}
+
+/* Review uses the creator's preview engine; its existing review header remains above it. */
+.facilitator-project-canvas > .editor-shell {
+  height: 100dvh;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+.facilitator-project-canvas .app-header,
+.facilitator-project-canvas .skip-link {
+  display: none;
+}

@@ -15,6 +15,22 @@ namespace Spatia.Server.Tests;
 public sealed class ClassAssignmentPersistenceTests
 {
     [Test]
+    public async Task AssignmentEditing_DowngradeCannotRestoreRemovedStudentAccess()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var data = await SeedAsync(fixture);
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await database.ClassAssignments.Where(row => row.Id == data.AssignmentId)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.Revision, 1));
+        await database.ClassAssignmentStudents.Where(row => row.AssignmentId == data.AssignmentId)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.IsActive, false));
+        var migrator = database.GetService<IMigrator>();
+        await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync("20261107185607_AddProgressReviews"));
+        await Assert.That((await database.ClassAssignmentStudents.SingleAsync(row => row.AssignmentId == data.AssignmentId)).IsActive).IsFalse();
+    }
+
+    [Test]
     public async Task ClassAssignmentDatabase_MetadataAndClassOriginPersistOutsideProjectJson()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");

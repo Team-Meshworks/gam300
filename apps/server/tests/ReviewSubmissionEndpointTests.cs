@@ -19,6 +19,38 @@ namespace Spatia.Server.Tests;
 public sealed class ReviewSubmissionEndpointTests
 {
     [Test]
+    public async Task AssignmentStudentStatus_ReflectsCurrentSubmissionAndApprovalWithoutLeakingToOtherStudents()
+    {
+        await using var fixture = await CreateFixtureAsync(new FixtureAssets());
+        var data = await SeedAsync(fixture, false);
+        var submissionId = Guid.NewGuid();
+        using (var submitted = await SubmitAsync(fixture, data.ProjectId, submissionId, 0, true))
+        { await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var assignmentId = await database.ClassAssignments.Select(row => row.Id).SingleAsync();
+        var path = $"/api/v1/classes/{data.ClassroomId:D}/assignments/{assignmentId:D}";
+        using var studentView = await fixture.Client.GetAsync(path);
+        var studentItem = (await studentView.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects")[0];
+        await Assert.That(studentItem.TryGetProperty("approvalStatus", out _)).IsFalse();
+        await Assert.That(studentItem.TryGetProperty("published", out _)).IsFalse();
+        using var educator = fixture.CreateClient();
+        await fixture.SignInAsync(data.Educator, educator);
+        async Task<string?> Status()
+        {
+            using var response = await educator.GetAsync(path);
+            return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects")[0].GetProperty("approvalStatus").GetString();
+        }
+        await Assert.That(await Status()).IsEqualTo("awaiting-approval");
+        using (var approved = await ReviewDecisionEndpointTests.DecideAsync(fixture, educator, data.ProjectId, submissionId, Guid.NewGuid(), 0, "approved", "Good work"))
+        { await Assert.That(approved.StatusCode).IsEqualTo(HttpStatusCode.Created); }
+        await Assert.That(await Status()).IsEqualTo("approved");
+        using (var saved = await SaveAsync(fixture, data.ProjectId))
+        { await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK); }
+        await Assert.That(await Status()).IsEqualTo("changes-since-submission");
+    }
+
+    [Test]
     [Arguments(1, "rotation")]
     [Arguments(2, "rotation")]
     [Arguments(1, "read-limit")]
@@ -151,28 +183,36 @@ public sealed class ReviewSubmissionEndpointTests
     [Arguments("unavailable")]
     [Arguments("incomplete")]
     [Arguments("invalid")]
-    public async Task ReviewSubmission_UnavailableOrInvalidAssetResolutionLeavesNoEvidence(string mode)
+    public async Task ReviewSubmission_UnavailableOrInvalidAssetResolutionKeepsSavedDocument(string mode)
     {
         var resolver = new FixtureAssets { Mode = mode };
         await using var fixture = await CreateFixtureAsync(resolver);
         var data = await SeedAsync(fixture, false);
-        using var denied = await SubmitAsync(fixture, data.ProjectId, Guid.NewGuid(), 0, true);
-        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
-        await Assert.That((await denied.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString())
-            .IsEqualTo("review_assets_unavailable");
+        using var submitted = await SubmitAsync(fixture, data.ProjectId, Guid.NewGuid(), 0, true);
+        await Assert.That(submitted.StatusCode).IsEqualTo(HttpStatusCode.Created);
         await using var scope = fixture.Database.Services.CreateAsyncScope();
-        await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ReviewSubmissions.CountAsync()).IsEqualTo(0);
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var submission = await database.ReviewSubmissions.AsNoTracking().SingleAsync();
+        var saved = await database.Projects.AsNoTracking().SingleAsync(row => row.Id == data.ProjectId);
+        await Assert.That(submission.DocumentJson).IsEqualTo(saved.DocumentJson);
+        await Assert.That(submission.AssetReferencesJson).IsEqualTo("[]");
     }
 
     [Test]
-    public async Task ReviewSubmission_DefaultAssetResolverFailsClosed()
+    public async Task ReviewSubmission_BuiltInAssetsDoNotRequireApprovedPool()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var data = await SeedAsync(fixture, false);
-        using var denied = await SubmitAsync(fixture, data.ProjectId, Guid.NewGuid(), 0, true);
-        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
+        var submissionId = Guid.NewGuid();
+        using var response = await SubmitAsync(fixture, data.ProjectId, submissionId, 0, true);
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
         await using var scope = fixture.Database.Services.CreateAsyncScope();
-        await Assert.That(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ReviewSubmissions.CountAsync()).IsEqualTo(0);
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var saved = await database.Projects.AsNoTracking().SingleAsync(row => row.Id == data.ProjectId);
+        var submission = await database.ReviewSubmissions.AsNoTracking().SingleAsync(row => row.Id == submissionId);
+        await Assert.That(submission.DocumentJson).IsEqualTo(saved.DocumentJson);
+        await Assert.That(submission.SourceRevision).IsEqualTo(saved.Revision);
+        await Assert.That(submission.AssetReferencesJson).IsEqualTo("[]");
     }
 
     [Test]
@@ -258,7 +298,7 @@ public sealed class ReviewSubmissionEndpointTests
             await database.SaveChangesAsync();
         }
         await fixture.SignInAsync(student);
-        return new(educator, student, other, classroom, project, due);
+        return new(educator, student, other, classroom, assignment, project, due);
     }
 
     private static Project NewProject(Guid id, Guid organization, string title) => new()
@@ -294,7 +334,7 @@ public sealed class ReviewSubmissionEndpointTests
         return await fixture.Client.SendAsync(message);
     }
 
-    internal sealed record Seeded(Guid Educator, Guid Student, Guid OtherStudent, Guid ClassroomId, Guid ProjectId, long Due);
+    internal sealed record Seeded(Guid Educator, Guid Student, Guid OtherStudent, Guid ClassroomId, Guid AssignmentId, Guid ProjectId, long Due);
 
     internal sealed class FixtureAssets : IReviewAssetResolver
     {

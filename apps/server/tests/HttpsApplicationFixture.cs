@@ -129,9 +129,9 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
             throw;
         }
     }
-    public async Task<HttpsApplicationFixture> CreateSiblingAsync(Action<WebApplicationBuilder> configure)
+    public async Task<HttpsApplicationFixture> CreateSiblingAsync(Action<WebApplicationBuilder> configure, string? environmentName = null)
     {
-        var fixture = new HttpsApplicationFixture(Database, _certificate, KeyDirectory, Clock, false, configure, _environmentName);
+        var fixture = new HttpsApplicationFixture(Database, _certificate, KeyDirectory, Clock, false, configure, environmentName ?? _environmentName);
         try
         {
             await fixture.StartAsync();

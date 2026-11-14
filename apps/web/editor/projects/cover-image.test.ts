@@ -13,6 +13,6 @@ it("offers a device image picker instead of a Gallery radio option", () => {
     }),
   );
   expect(html).toContain('type="file"');
-  expect(html).toContain('accept="image/*"');
+  expect(html).toContain('accept="image/png,image/jpeg,image/webp"');
   expect(html).not.toContain('value="Gallery"');
 });

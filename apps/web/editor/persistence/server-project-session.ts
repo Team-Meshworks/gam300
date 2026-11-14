@@ -58,6 +58,7 @@ export function connectServerProjectSession(options: {
   // Server revision is tracked separately by autosave
   let storageRevision = options.storageRevision;
   let disposed = false;
+  let backupError = "";
   let closing: Promise<ValidationResult<boolean>> | undefined;
   let backupQueue = Promise.resolve(true);
   // Hold onto the previous project's history when the store switches projects
@@ -67,9 +68,6 @@ export function connectServerProjectSession(options: {
   function captureRecovery(snapshot: ServerSaveSnapshot) {
     return Object.freeze({
       ...snapshot,
-      fileName: options.recovery?.fileName ?? "",
-      savedJson: null,
-      pristine: false,
       ...(capturedHistory ? { history: capturedHistory } : {}),
     });
   }
@@ -100,14 +98,19 @@ export function connectServerProjectSession(options: {
             storageRevision,
             options.assetKinds,
             database,
-            { scope },
+            scope,
           );
           // Final backup may finish after logout, still under the captured account key
           // Only this disposed owner's storage counter changes; no editor callbacks run
-          if (!result.ok) return false;
+          if (!result.ok) {
+            backupError = result.error.message;
+            return false;
+          }
+          backupError = "";
           storageRevision = result.value;
           return true;
         } catch {
+          backupError = "";
           return false;
         }
       });
@@ -182,6 +185,13 @@ export function connectServerProjectSession(options: {
         }
       } catch {
         preserved = false;
+      }
+      if (choice === "recovery" && !preserved) {
+        return invalid(
+          "storage",
+          backupError ||
+            "Browser backup failed. Keep editing or export your changes before leaving.",
+        );
       }
       if (disposed || !preserved || captured !== autosave.getDocumentJson()) {
         return invalid(

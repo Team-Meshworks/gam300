@@ -28,13 +28,15 @@ public static class ProjectLifecycleEndpoints
     private static async Task<IResult> CreateAsync(CreateProjectRequest request, HttpContext context,
         ApplicationDbContext database, ProjectAccessService access, ProjectDocumentService documents, CancellationToken cancellationToken)
     {
-        if (!ValidTitle(request.Title) || (request.Document is null) == (request.EnvironmentAssetId is null))
+        if (!ValidTitle(request.Title) || (request.Document is not null && request.EnvironmentAssetId is not null))
         {
             return InvalidInput(context);
         }
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
         var account = await access.ResolveCurrentAccountAsync(context, cancellationToken);
         if (AccountFailure(context, account) is { } failure) { return failure; }
+        if (account!.Role == ApplicationRoles.Administrator)
+        { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden); }
         var organizationId = account!.OrganizationId ?? request.OrgId;
         if (account.OrganizationId is { } ownOrganization && request.OrgId is { } requested && requested != ownOrganization)
         {
@@ -52,6 +54,13 @@ public static class ProjectLifecycleEndpoints
             if (!parsed.Ok) { return InvalidDocument(context); }
             document = Copy(parsed.Value!, id, request.Title);
         }
+        else if (request.EnvironmentAssetId is null)
+        {
+            document = new ContentProject(2, id.ToString("D"), request.Title,
+                [new ContentScene(Guid.NewGuid().ToString("D"), "Scene", null,
+                    new CameraPose([12, 16, 18], [-0.29962059992658957, 0.2752183320355054, 0.09071781822041597, 0.9089844021041025], 40),
+                    [], [], [], [], [], [], [])]);
+        }
         else
         {
             document = new LegacyProject(1, id.ToString("D"), request.Title,
@@ -61,7 +70,12 @@ public static class ProjectLifecycleEndpoints
             var serialized = documents.Serialize(document);
             if (!serialized.Ok || !documents.Read(serialized.Value!).Ok) { return InvalidDocument(context); }
         }
-        return await InsertAsync(context, database, documents, transaction, account, organizationId.Value, document, cancellationToken);
+        // Validate optional bytes before staging either row so a rejected image cannot leave a partial project
+        var image = request.Image is null ? null : ProjectImageValidation.Read(request.Image);
+        if (request.Image is not null && image is null)
+        { return ApiProblems.Create(context, 422, "invalid_project_image", "Choose a valid PNG, JPEG or WebP image within the image limits."); }
+        if (image is not null) { database.ProjectImages.Add(image); }
+        return await InsertAsync(context, database, documents, transaction, account, organizationId.Value, document, cancellationToken, image?.Id);
     }
 
     private static async Task<IResult> DuplicateAsync(Guid id, DuplicateProjectRequest request, HttpContext context,
@@ -82,7 +96,8 @@ public static class ProjectLifecycleEndpoints
         var parsed = documents.ReadStored(id, source.SchemaVersion, source.UnvalidatedDocumentJson);
         if (!parsed.Ok) { return ApiProblems.Create(context, 503, "project_unavailable", "The project is unavailable."); }
         return await InsertAsync(context, database, documents, transaction, account, source.OrganizationId,
-            Copy(parsed.Value!, Guid.NewGuid(), request.Title), cancellationToken);
+            Copy(parsed.Value!, Guid.NewGuid(), request.Title), cancellationToken,
+            await database.Projects.Where(project => project.Id == id).Select(project => project.ImageId).SingleAsync(cancellationToken));
     }
 
     private static async Task<IResult> AssignAsync(Guid id, ProjectAssignmentsRequest request, HttpContext context,
@@ -150,7 +165,7 @@ public static class ProjectLifecycleEndpoints
     }
 
     private static async Task<IResult> InsertAsync(HttpContext context, ApplicationDbContext database, ProjectDocumentService documents,
-        IDbContextTransaction transaction, CurrentAccount account, Guid organizationId, IAuthoredProject document, CancellationToken cancellationToken)
+        IDbContextTransaction transaction, CurrentAccount account, Guid organizationId, IAuthoredProject document, CancellationToken cancellationToken, Guid? imageId = null)
     {
         var id = Guid.Parse(document.ProjectId);
         var assignments = account.Role == ApplicationRoles.Administrator ? Array.Empty<ProjectAssignment>() :
@@ -162,13 +177,13 @@ public static class ProjectLifecycleEndpoints
                 CanManage = account.Role == ApplicationRoles.Educator,
                 CanPublish = account.Role == ApplicationRoles.Educator,
             }];
-        if (!StageDraft(database, documents, organizationId, document, assignments)) { return InvalidDocument(context); }
+        if (!StageDraft(database, documents, organizationId, document, assignments, imageId)) { return InvalidDocument(context); }
         await database.SaveChangesAsync(cancellationToken);
         return await CommitAsync(context, database, transaction, id, true, cancellationToken);
     }
 
     internal static bool StageDraft(ApplicationDbContext database, ProjectDocumentService documents, Guid organizationId,
-        IAuthoredProject document, IReadOnlyCollection<ProjectAssignment> assignments)
+        IAuthoredProject document, IReadOnlyCollection<ProjectAssignment> assignments, Guid? imageId = null)
     {
         if (database.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.ReadCommitted)
         {
@@ -185,6 +200,7 @@ public static class ProjectLifecycleEndpoints
         {
             Id = id,
             OrganizationId = organizationId,
+            ImageId = imageId,
             SchemaVersion = document.SchemaVersion,
             DocumentJson = serialized.Value!,
             UpdatedAt = DateTimeOffset.UtcNow

@@ -2,12 +2,13 @@ import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import { launchBrowser } from "./browser-security.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { serveProject } from "./authoring-project-fixture.mjs";
 
 const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:4173/",
   args: ["--enable-unsafe-swiftshader"],
 });
-const url = process.argv[2] ?? "http://127.0.0.1:4173/";
+const url = new URL("/", process.argv[2] ?? "http://127.0.0.1:4173/").href;
 const isDevelopment = process.env.BUILD_MODE === "development";
 const manifest = JSON.parse(
   readFileSync(new URL("../../../assets/manifest.json", import.meta.url), "utf8"),
@@ -44,31 +45,8 @@ async function addAsset(page, name) {
   await placeAtRoomCenter(page);
 }
 
-async function importProject(page, name, content, errors) {
-  await page.getByLabel("Project options", { exact: true }).click();
-  // Open is enabled only after project recovery finishes, independently of scene readiness.
-  await page.getByRole("button", { name: "Open", exact: true }).click({ trial: true });
-  await page.locator("#project-import").setInputFiles({
-    name,
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(content)),
-  });
-  try {
-    await page.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
-  } catch (error) {
-    const messages = await page
-      .locator('[role="status"], [role="alert"]')
-      .allTextContents()
-      .catch(() => []);
-    console.error("Project import did not open the expected scene", {
-      name,
-      messages: messages.slice(0, 10).map((message) => message.trim().slice(0, 500)),
-      errors: errors.slice(-10).map((message) => message.slice(0, 500)),
-    });
-    throw error;
-  }
-}
-
+let page;
+const errors = [];
 try {
   const legacyModel = await fetch(new URL("models/snowglobe.glb", url));
   assert.notEqual(
@@ -78,8 +56,8 @@ try {
     "glTF",
     "The build must not ship a duplicate public model alongside the catalogue asset",
   );
-  const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
-  const errors = [];
+  page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+  const project = await serveProject(page, url);
   page.on("pageerror", (error) => errors.push(error.message));
   const corePath = "**/assets/three-core-*.js";
   const { promise: coreGate, resolve: releaseCore } = Promise.withResolvers();
@@ -88,10 +66,8 @@ try {
     await route.continue();
   });
   const coreRequest = page.waitForRequest(corePath);
-  const snowglobeResponse = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === `/restricted-assets/${snowglobeHash}.glb`,
-  );
-  await page.goto(url);
+  // The blocked renderer chunk can delay the load event; the shell must render while it is pending.
+  await page.goto(project.url, { waitUntil: "commit" });
   await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
   await coreRequest;
   assert.equal(await page.locator("canvas").count(), 0, "Shell renders before Three.js arrives");
@@ -103,16 +79,18 @@ try {
   releaseCore();
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(await page.locator("canvas").count(), 1);
-  // Packaged builds follow the same room-first authoring flow as the local editor
+  // The project editor loads selected assets on demand.
   await addAsset(page, "Starter room");
   await addAsset(page, "Sample crate");
   assert.equal(await page.locator(".object-row").count(), 1);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
+  const snowglobeResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === `/restricted-assets/${snowglobeHash}.glb`,
+  );
   await addAsset(page, "Snow globe");
   const snowglobe = await snowglobeResponse;
   assert.ok(snowglobe.ok(), "The selected manifest snowglobe loads on demand");
-  assert.match(snowglobe.headers()["cache-control"], /private, no-store/);
   assert.equal(await page.locator(".object-row").count(), 1);
   // A collapsed tree must restore the same selected object when reopened
   const placedObjectId = await page.locator(".object-row").getAttribute("data-object-id");
@@ -126,32 +104,10 @@ try {
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
 
-  const sample = page.getByRole("button", { name: "Open sample project", exact: true });
   assert.equal(
-    await sample.count(),
-    isDevelopment ? 1 : 0,
-    "Sample control matches the build mode",
+    await page.getByRole("button", { name: "Open sample project", exact: true }).count(),
+    0,
   );
-  if (isDevelopment) {
-    // Whole-project undo restores the untouched room, so there is no work to discard.
-    await sample.click();
-    await page.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
-    assert.equal(await page.locator(".object-row").count(), 2);
-    assert.equal(await page.getByRole("dialog").count(), 0);
-
-    // A remaining edit must still prompt; Cancel keeps it and Don't Save discards it.
-    await addAsset(page, "Sample crate");
-    assert.equal(await page.locator(".object-row").count(), 3);
-    await sample.click();
-    await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
-    await page.getByRole("dialog").waitFor({ state: "hidden" });
-    assert.equal(await page.locator(".object-row").count(), 3);
-    await sample.click();
-    await page.getByRole("dialog").getByRole("button", { name: "Don’t Save", exact: true }).click();
-    await page.getByRole("dialog").waitFor({ state: "hidden" });
-    await page.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
-    assert.equal(await page.locator(".object-row").count(), 2);
-  }
 
   const chunks = await page.evaluate(() =>
     performance
@@ -175,8 +131,6 @@ try {
   // Packaged builds must execute supported scene navigation and restore the authoring scene
   const contentPage = await browser.newPage();
   contentPage.on("pageerror", (error) => errors.push(error.message));
-  await contentPage.goto(url);
-  await contentPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   const content = JSON.parse(
     readFileSync(new URL("../shared/project/fixtures/m2-project.json", import.meta.url), "utf8"),
   );
@@ -195,7 +149,10 @@ try {
       },
     ];
   });
-  await importProject(contentPage, "two-scene.json", content, errors);
+  const contentProject = await serveProject(contentPage, url, content);
+  await contentPage.goto(contentProject.url);
+  await contentPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await contentPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
   await contentPage.getByRole("button", { name: "Preview", exact: true }).click();
   await contentPage.locator(".editor-shell.is-previewing").waitFor();
   const targets = contentPage.getByRole("navigation", { name: "Interactive objects" });
@@ -227,24 +184,32 @@ try {
   ];
   const unsupportedPage = await browser.newPage();
   unsupportedPage.on("pageerror", (error) => errors.push(error.message));
-  await unsupportedPage.goto(url);
+  const unsupportedProject = await serveProject(unsupportedPage, url, unsupported);
+  await unsupportedPage.goto(unsupportedProject.url);
   await unsupportedPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await importProject(unsupportedPage, "unsupported-rule.json", unsupported, errors);
   await unsupportedPage.getByRole("button", { name: "Preview", exact: true }).click();
   await unsupportedPage
     .getByRole("status")
     .filter({ hasText: "This preview does not support all the scenes and interactions" })
     .waitFor();
+  assert.match(
+    await unsupportedPage
+      .getByRole("status")
+      .filter({ hasText: "This preview does not support" })
+      .innerText(),
+    /trigger:sceneStart at project\.scenes\[0\]\.rules\[0\]\.trigger/,
+  );
   assert.equal(await unsupportedPage.locator(".editor-shell.is-previewing").count(), 0);
   assert.equal(await unsupportedPage.locator(".object-row").count(), 2);
   await unsupportedPage.close();
 
   // Use a fresh document so an already-evaluated module cannot hide a failed download
   const failed = await browser.newPage();
+  const failedProject = await serveProject(failed, url);
   failed.on("pageerror", (error) => errors.push(error.message));
   const scenePath = "**/assets/scene-*.js";
   await failed.route(scenePath, (route) => route.fulfill({ status: 503, body: "Unavailable" }));
-  await failed.goto(url);
+  await failed.goto(failedProject.url);
   await failed.getByRole("status").filter({ hasText: "Couldn't start the 3D view" }).waitFor();
   await failed.unroute(scenePath);
   await failed.getByRole("button", { name: "Reload editor", exact: true }).click();
@@ -262,6 +227,7 @@ try {
     for (let run = 0; run < 3; run++) {
       const context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
       const measured = await context.newPage();
+      const measuredProject = await serveProject(measured, url);
       const session = await context.newCDPSession(measured);
       await session.send("Network.enable");
       await session.send("Network.setCacheDisabled", { cacheDisabled: true });
@@ -272,7 +238,7 @@ try {
         uploadThroughput: 125_000,
       });
       await session.send("Emulation.setCPUThrottlingRate", { rate: 4 });
-      await measured.goto(url);
+      await measured.goto(measuredProject.url);
       await measured.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
       samples.push(
         await measured.evaluate(() => ({
@@ -300,6 +266,24 @@ try {
       }),
     );
   }
+} catch (error) {
+  console.error("Packaged editor failure:", {
+    url: page?.url(),
+    pageErrors: errors,
+    messages: await page
+      ?.locator('[role="status"], [role="alert"]')
+      .allTextContents()
+      .catch(() => []),
+    placement: await page
+      ?.locator(".viewport-stage")
+      .getAttribute("data-placing-asset")
+      .catch(() => null),
+    body: await page
+      ?.locator("body")
+      .innerText()
+      .catch(() => "Page unavailable"),
+  });
+  throw error;
 } finally {
   await browser.close();
 }

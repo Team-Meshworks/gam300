@@ -1,3 +1,4 @@
+import { createLoadedStore } from "../tests/project-store-fixture";
 import { describe, expect, it } from "vitest";
 import { createAssetLibrary } from "./asset-library";
 import { createDocumentStore } from "./document-store";
@@ -27,8 +28,7 @@ const assets: CatalogueAsset[] = [
 
 // Start every picker flow with its own room-backed project and independent history
 function setup() {
-  const store = createDocumentStore(assets);
-  store.createProject("room");
+  const store = createLoadedStore(assets, "room");
   return { store, library: createAssetLibrary(assets, store) };
 }
 
@@ -87,8 +87,10 @@ describe("asset library behavior without a popup implementation", () => {
     library.choose("vase");
 
     // A new document invalidates the captured choice even when it uses the same room
-    store.resetProject();
-    store.createProject("room");
+    const other = { ...store.getSnapshot().project!, projectId: crypto.randomUUID() };
+    expect(
+      store.loadProject(JSON.stringify(other), new Map(assets.map((a) => [a.id, a.kind]))).ok,
+    ).toBe(true);
     expect(library.place([0, 0, 0]).ok).toBe(false);
     expect(store.getSnapshot().objects).toHaveLength(0);
     expect(library.getSnapshot().mode).toBe("closed");
@@ -185,8 +187,7 @@ describe("asset library behavior without a popup implementation", () => {
   });
   it("replaces one display slot and removes it with atomic undo and stable references", () => {
     const catalogue = [...assets, { ...assets[1]!, id: "crate", name: "Crate" }];
-    const store = createDocumentStore(catalogue);
-    store.createProject("room");
+    const store = createLoadedStore(catalogue, "room");
     const library = createAssetLibrary(catalogue, store);
     const placed = store.addObject("vase", [0, 0, 0]);
     if (!placed.ok) throw new Error(placed.error);
@@ -259,8 +260,7 @@ describe("asset library behavior without a popup implementation", () => {
     // These generic room fixtures check repeated placement independently of Starter room snapping
     const module = { ...assets[1]!, id: "room-module", name: "Starter room" };
     const catalogue = [...assets, module];
-    const store = createDocumentStore(catalogue);
-    store.createProject("room");
+    const store = createLoadedStore(catalogue, "room");
     const library = createAssetLibrary(catalogue, store);
     for (const x of [10, 20]) {
       library.open();
@@ -285,8 +285,10 @@ describe("asset library behavior without a popup implementation", () => {
     ]);
   });
   it("replaces one slot and restores removal without losing the display case", () => {
-    const store = createDocumentStore([...assets, { ...assets[1]!, id: "crate", name: "Crate" }]);
-    store.createProject("room");
+    const store = createLoadedStore(
+      [...assets, { ...assets[1]!, id: "crate", name: "Crate" }],
+      "room",
+    );
     const placed = store.addObject("vase", [0, 0, 0]);
     if (!placed.ok) throw new Error(placed.error);
     const id = placed.object.id;
@@ -339,8 +341,7 @@ it("combines the approved 3D category with search without changing the project",
     { ...assets[1]!, id: "shirt", name: "Blue Shirt", category: "Clothing" },
     { ...assets[1]!, id: "hammer", name: "Blue Hammer", category: "Tools & Equipment" },
   ];
-  const store = createDocumentStore(catalogue);
-  store.createProject("room");
+  const store = createLoadedStore(catalogue, "room");
   const library = createAssetLibrary(catalogue, store);
   const before = store.getSnapshot();
   library.open();

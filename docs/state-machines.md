@@ -13,15 +13,15 @@ Inventory for [SCRUM-180](https://meshworkss.atlassian.net/browse/SCRUM-180), ba
 
 | State | Event and guard | Next state / effect |
 | --- | --- | --- |
-| Editor session checking | Active session without forced password change | Ready; mount editor |
-| Checking | No session or forced change | Signed out; offer sign-in |
+| Project entry checking | Session and project context resolved | Open the editable draft, facilitator view, or published view according to role and access |
+| Checking | No session or forced password change | Prompt for sign-in before editing |
 | Checking | Request fails | Error; retry checks again; cleanup suppresses stale result |
 | Workspace loading | Session and role resolved | Available home, administration, review or editor route; denied/error otherwise |
 | Active account/session | Disable, security-stamp change, forced password change, or hard expiry | Server rejects or restricts subsequent requests |
 | Project active | Authorized manager archives | Archived: editing, publishing and assignment changes disallowed |
 | Archived | Authorized manager restores | Active, subject to current grants and class membership |
 
-Sources: [editor gate](../apps/web/editor/accounts/EditorSessionGate.tsx), [workspace](../apps/web/editor/workspace/WorkspacePage.tsx), [account client](../apps/web/editor/accounts/account-client.ts), [server editor](../apps/web/editor/ServerProjectEditor.tsx), [account resolver](../apps/server/Spatia.Server/Security/CurrentAccountResolver.cs), [cookie events](../apps/server/Spatia.Server/Security/CurrentAccountCookieEvents.cs), [session service](../apps/server/Spatia.Server/Accounts/AccountSessionService.cs), and [project access](../apps/server/Spatia.Server/Projects/ProjectAccessService.cs). Dirty/pending editor work also constrains departure; see [project confirmation](../apps/web/editor/ProjectConfirmation.tsx).
+Sources: [project entry](../apps/web/editor/reviews/FacilitatorProjectView.tsx), [workspace](../apps/web/editor/workspace/WorkspacePage.tsx), [account client](../apps/web/editor/accounts/account-client.ts), [server editor](../apps/web/editor/ServerProjectEditor.tsx), [account resolver](../apps/server/Spatia.Server/Security/CurrentAccountResolver.cs), [cookie events](../apps/server/Spatia.Server/Security/CurrentAccountCookieEvents.cs), [session service](../apps/server/Spatia.Server/Accounts/AccountSessionService.cs), and [project access](../apps/server/Spatia.Server/Projects/ProjectAccessService.cs). Dirty/pending editor work also constrains departure; see [departure choices](../apps/web/editor/ServerProjectEditor.tsx).
 
 ### Identity and administration details
 
@@ -53,22 +53,21 @@ Sources: [account session](../apps/server/Spatia.Server/Accounts/AccountSessionS
 
 History recovery validates snapshots and limit; invalid history can be discarded while retaining the document. Sources: [command history](../apps/web/editor/command-history.ts), [transform command](../apps/web/editor/transform-command.ts), [recovery history](../apps/web/editor/recovery-history.ts), [app](../apps/web/editor/App.tsx), [renderer](../apps/web/editor/graphics/scene.ts), and [spatial validation](../apps/web/shared/project/spatial-validation.ts).
 
-## Local file and browser recovery
+## Browser recovery, import and file export
 
 | State | Event and guard | Next state / effect |
 | --- | --- | --- |
-| Clean / dirty | Committed edit | Dirty; schedule recovery after editing pause |
-| Recovery pending | IndexedDB transaction commits at expected storage revision | Backup document, history and baseline |
-| Recovery pending | Failure or revision conflict | Preserve memory; surface failure and pause retries until explicit save |
-| Confirmed server recovery | Clear after confirmed work | Replace private payload with a strict `{revision, cleared: true}` marker retaining its revision; loading reports an empty session with that revision |
-| Cleared marker | New backup at its current revision | Store new payload at the next revision; stale writers with an earlier revision conflict |
-| File connected | Save | Acquire exclusive writable; compare disk text to baseline while holding it; write and close before updating baseline and clean state |
-| File connected | Exclusive writer unavailable, disk changed, permission/write fails or cancel | Abort acquired stream on mismatch/failure; preserve document and previous baseline; report failure/conflict |
-| Download fallback | Export JSON | Download initiated; no proof of disk completion and no clean-state transition |
-| New/open with unsaved work | Confirm and replacement backup commits | Replace project; otherwise retain existing work |
-| Reload | Valid recovery | Restore document, valid history and baseline; file permission reconnects on save |
+| Account/project open | Committed edit | Queue a browser checkpoint with the document, undo history and server retry metadata |
+| Checkpoint pending | IndexedDB transaction commits at the expected storage revision | Advance the storage revision |
+| Checkpoint pending | Storage failure or stale expected revision | Preserve in-memory edits and the newer stored copy. Offer recovery or export on departure |
+| Confirmed recovery | Dispose after the final checkpoint | Replace the payload with a strict `{revision, cleared: true}` marker |
+| Cleared marker | Reopen, then save a new checkpoint | Open the server version without a recovery prompt and use the retained revision. The next write advances it and excludes stale writers |
+| Recoverable document | Reopen with matching account and project | Offer stored changes or the server version. An older backup without retry metadata can be exported |
+| Export chosen | Destination selected | Acquire the exclusive writer, compare the file to the captured baseline, write, and confirm on close. Abort the acquired stream on mismatch or failure |
+| Download fallback or canceled export | No confirmed file write | Keep the editor open during a departure decision |
+| Import chosen | Valid file and allowed account | Create a separate server project. A lost create response retains the uncertainty marker until reconciliation |
 
-Sources: [session coordinator](../apps/web/editor/persistence/use-project-session.ts), [recovery storage](../apps/web/editor/persistence/recovery-session.ts), [legacy drafts](../apps/web/editor/persistence/local-drafts.ts), [legacy migration](../apps/web/editor/persistence/local-recovery-migration.ts), [file operations](../apps/web/editor/persistence/project-files.ts), and [database](../apps/web/editor/persistence/draft-db.ts). Expected storage revisions prevent silent replacement of another browser session's recovery. Clearing a record must not reset or reuse its counter: an older tab may still hold that counter. The cleared marker contains no project document or private payload. Older code can reject the new marker on reopen; already-open older tabs must reload to obtain the corrected cleanup behavior. Local backup and disk save have distinct confirmation boundaries.
+The signed-in editor reads and writes account/project keys in the version-2 database. The former standalone editor’s unscoped records stay untouched. File export, a browser checkpoint and a server receipt each confirm a different destination. See [server editor](../apps/web/editor/ServerProjectEditor.tsx), [recovery storage](../apps/web/editor/persistence/recovery-session.ts), [export writer](../apps/web/editor/persistence/project-files.ts) and [database schema](../apps/web/editor/persistence/draft-db.ts).
 
 ## Server autosave and recovery
 
@@ -191,7 +190,7 @@ A theoretical interleaving alone is not proof of a reproduced product bug. Table
 
 | Source / representation | Inventory |
 | --- | --- |
-| [WorkspacePage](../apps/web/editor/workspace/WorkspacePage.tsx): `loading`, `error`, `ready`; [EditorSessionGate](../apps/web/editor/accounts/EditorSessionGate.tsx): `checking`, `ready`, `signed-out`, `error`; [LoginPage](../apps/web/editor/entry/LoginPage.tsx): session/pending | Identity and account sequencing |
+| [WorkspacePage](../apps/web/editor/workspace/WorkspacePage.tsx): `loading`, `error`, `ready`; [ProjectEntry](../apps/web/editor/reviews/FacilitatorProjectView.tsx) selects the authorized editor, review or published view; [LoginPage](../apps/web/editor/entry/LoginPage.tsx): session/pending | Identity and account sequencing |
 | [asset-library](../apps/web/editor/asset-library.ts): `closed`, `browsing`, `placing` (tested helper, not production wired); [mode manager](../apps/web/editor/graphics/modeManager.ts): editor/visitor × first/third × capture | Placement and camera |
 | [server autosave](../apps/web/editor/persistence/server-autosave.ts): `saved`, `unsaved`, `saving`, `failed`, `conflict`, `rejected`, `invalid`; [draft result](../apps/web/editor/persistence/server-draft-write.ts): `saved`, `conflict`, `rejected`, `failed`, `invalid` | Persistence and confirmed findings |
 | [NewProjectForm](../apps/web/editor/projects/NewProjectForm.tsx), [ClassAssignmentForm](../apps/web/editor/projects/ClassAssignmentForm.tsx), [ProjectCreation](../apps/web/editor/home/ProjectCreation.tsx), [ProjectGrantEditor](../apps/web/editor/home/ProjectGrantEditor.tsx), [ProjectHome](../apps/web/editor/home/ProjectHome.tsx), [ClassHome](../apps/web/editor/home/ClassHome.tsx) | Distinct UI write lifecycles |
@@ -203,38 +202,22 @@ A theoretical interleaving alone is not proof of a reproduced product bug. Table
 
 [OrganizationDeletion](../apps/server/Spatia.Server/Accounts/OrganizationDeletion.cs) locks organization projects in ID order and then classrooms. [ClassroomEndpoints](../apps/server/Spatia.Server/Classes/ClassroomEndpoints.cs) locks a classroom before affected projects; [ClassAssignmentCoordinator](../apps/server/Spatia.Server/Classes/ClassAssignmentCoordinator.cs) likewise locks a classroom before the source project. These opposite orders admit a possible database deadlock under concurrent operations. PostgreSQL selects a victim and rolls its transaction back; deletion handles `40P01`, whereas class operations do not. This source trace is a candidate, not a reproduced invalid durable state or assigned severity; validate with a controlled concurrency regression before filing it as a confirmed bug.
 
-## State-machine fix verification
+## Persistence and session ownership
 
-Under pinned Node 24.22.2, checks passed: 87 Vitest files / 886 tests; `tsc -b`; oxlint; oxfmt (391 files); architecture (413 sources, 1,583 imports); editor build (252 modules); and visitor build (41 modules). The visitor build retained its existing >500 KB chunk warning. Local document links and `git diff --check` passed. Both full server-autosave and local-drafts browser suites passed under pinned Node 24.22.2 with Chrome for Testing 157.0.8103.38. One pinned autosave run timed out waiting for saved state after reopening following publication; a diagnostic rerun passed. An earlier capability-revocation timeout also passed on an unchanged rerun. Their causes are unconfirmed. Backend review is source-only; no live server or database concurrency tests were run.
+The [save progress tracker](../apps/web/editor/persistence/server-save-progress.ts) owns each pending mutation, its original request bytes and revision, and the last confirmed document. [Autosave](../apps/web/editor/persistence/server-autosave.ts) schedules checkpoints and sends the captured request. The [server project session](../apps/web/editor/persistence/server-project-session.ts) captures the matching undo history before queuing a checkpoint. Only a committed transaction advances the account/project storage revision, including a final checkpoint after disposal.
+
+[Recovery storage](../apps/web/editor/persistence/recovery-session.ts) validates account-scoped records, retains cleared revisions and reads the existing version-2 envelope. The [database opener](../apps/web/editor/persistence/draft-db.ts) owns the store name and schema. The signed-in editor and facilitator preview use the [asset reader](../apps/web/editor/persistence/server-assets.ts) directly. Standalone editing and local-file migration were retired on dev.
+
+Four [save progress cases](../apps/web/editor/persistence/server-save-progress.test.ts) cover restored attempts with and without newer edits, definite rejection, and a mismatched server revision. A [held IndexedDB write](../apps/web/editor/persistence/local-drafts.test.ts) exercises two edits, undo during a pending departure, sequential storage revisions, and undo after reopening the second checkpoint.
+
+## Verification
+
+After merging dev at `1560743`, all 1,043 web unit tests across 111 files passed under Node 24.22.2. TypeScript, the editor and visitor production builds, and the architecture check passed (536 sources and 2,229 imports). The [hosted recovery checks](https://github.com/Team-Meshworks/gam300/actions/runs/43564671144/job/132355771006) passed against the signed-in editor, including real IndexedDB revisions, overlapping OPFS exports and save retries.
+
+On the stacked ownership refactor, all 1,048 web unit tests across 111 files passed, including the five ownership cases above. Both production builds, TypeScript, the live import graph, and formatting of all 521 web files passed.
+
+Before this integration, under pinned Node 24.22.2, checks passed: 87 Vitest files / 886 tests; `tsc -b`; oxlint; oxfmt (391 files); architecture (413 sources, 1,583 imports); editor build (252 modules); and visitor build (41 modules). The visitor build retained its existing >500 KB chunk warning. Local document links and `git diff --check` passed. Both full server-autosave and local-drafts browser suites passed under pinned Node 24.22.2 with Chrome for Testing 157.0.8103.38. One pinned autosave run timed out waiting for saved state after reopening following publication; a diagnostic rerun passed. An earlier capability-revocation timeout also passed on an unchanged rerun. Their causes are unconfirmed. Backend review is source-only; no live server or database concurrency tests were run.
 
 ## Coverage and limits
 
 This inventory covers editor, workspace/account surfaces, project persistence, classroom/review/publication flows, visitor, runtime resources and server domain state represented by linked source. UI preview/demo fixtures, visual hover/focus values, build/deployment, external browser/network/storage internals and library-internal state are not separate product machines. Some independent booleans and form instances are grouped by lifecycle; consult source for field-specific guards. Source review is not an exhaustive proof of all asynchronous interleavings or external service behavior. Tests and dated evidence belong in their issue/progress records.
-
-## Persistence/session ownership review — 2026-11-07
-
-This scoped `untangle-codebase` pass starts from `03ed0b1` in the separate `refactor/persistence-ownership` worktree. It preserves the state machines and regression assertions above; optional comment and test cleanup are excluded. Before implementation, the existing persistence/session baseline passed: 9 Vitest files / 134 tests and the architecture check (413 sources, 1,583 imports).
-
-### Decision log
-
-| Completed ownership change | Problems recorded before edits | Required behavior retained |
-| --- | --- | --- |
-| Give save progress one complete immutable pending attempt and explicit recovery initialization | `server-save-progress` owns mutation/revision/edit sequence while `server-autosave` separately owns pending bytes and a request; recovery relies on synthetic `edited → begin → edited` calls across these owners | Byte-identical uncertain retries, matching receipts only, edits during requests remaining dirty, fresh mutation only after definite validation rejection, sticky conflict/rejection |
-| Capture and queue complete recovery snapshots in the server session | Autosave queues JSON/metadata while the session captures history and storage revision; the delayed callback reparses JSON and needs a document-equality fallback to avoid attaching newer history | Snapshot/history consistency, ordered revision-checked writes, account/project isolation, final backup before confirmed cleanup, suppression of disposed-session UI updates |
-| Make autosave depend explicitly on its transport and checkpoint; expose UI types at the session boundary | Optional checkpoint silently succeeds; default transport lacks the session's captured account; editor imports an autosave implementation type; project-read forwards an unrelated asset reader | Production composition remains account-bound; transport timeout, cancellation, receipt validation and recovery validation stay separate |
-| Give the fixed IndexedDB schema one owner and separate legacy migration from current recovery | Schema/store constants and legacy reads span `draft-db`, `idb-database-connection` and `local-drafts`; current recovery shares a large module with per-project legacy storage; the React hook assembles migration candidates and old file links | Same database version, stores, keys and record formats; legacy fallback remains available; malformed storage is retained; history can degrade without discarding a valid document |
-| Make local migration inputs explicit at the recovery write boundary | Positional `previousProjectId` and `scope` select unrelated local/server workflows, requiring an `undefined` placeholder in server code | Revision comparison, replacement, old-scene archival and legacy retirement remain in the same transaction; cleared markers retain their revision and contain no private payload |
-| Give the toolbar a presentation contract with explicit local actions | Toolbar takes the entire local hook return type; App spreads a disabled local session to manufacture a server session; the local Open fallback reaches a UI-owned input through a global ID | Distinct local/server save workflows, existing disabled states, explicit file-picking user gesture and local-only actions |
-| Remove verified unused production state/API | `rememberProjectFile`, the connection class's `closeDatabase`, and the hook's write-only `recovered` field have no consumers; the connection singleton has no variable configuration | Legacy file-link reads remain; exclusive writer acquisition, baseline comparison under the lock, close-as-commit and abort-on-failure stay in the shared file writer |
-
-Special cases retained by design: quiet-period/max-delay scheduling; uncertain versus definitely rejected writes; revision and UUID limits; local draft links that cannot yet be sent; interrupted/blocked IndexedDB opens; stale-tab conflicts; local room-selection records versus scoped cleared markers; older-format archival; canceled pickers and download initiation not confirming a save; concurrent edits during import/export/departure; offline identity checks that cannot prove logout; disposal joining outstanding work. These protect distinct external outcomes and are not cleanup targets.
-
-The final boundaries are [complete pending attempts and confirmations](../apps/web/editor/persistence/server-save-progress.ts), [autosave scheduling and outcomes](../apps/web/editor/persistence/server-autosave.ts), [account-bound recovery snapshots and their write queue](../apps/web/editor/persistence/server-project-session.ts), [current recovery transactions](../apps/web/editor/persistence/recovery-session.ts), [legacy migration](../apps/web/editor/persistence/local-recovery-migration.ts), and [the fixed database schema/opener](../apps/web/editor/persistence/draft-db.ts). [TopBar](../apps/web/editor/ui/TopBar.tsx) now accepts presentation state and a nullable group of local actions; [App](../apps/web/editor/App.tsx) composes those explicitly and owns the upload input/ref. The disabled local hook remains an unconditional React hook invocation, with its effects disabled in server mode; its return value no longer supplies a fabricated server session.
-
-Database names, version, store keys and persisted record formats are unchanged. Transport, recovery-input validation, debounce policy and exclusive file writing retain their separate responsibilities. Existing regression assertions remain; test edits follow moved imports and dependency setup. Five additional cases cover restored pending requests with/without newer edits, definite mutation retirement, revision mismatch, and queued document/history snapshots with sequential revisions and successful undo after reopening. Independent UI, server-session and local-storage reviews found no further worthwhile ownership changes in this scope.
-
-Verification under Node 24.22.2: 87 Vitest files / 891 tests, `tsc -b`, oxlint, oxfmt (392 files), live architecture graph (414 sources, 1,593 imports), editor build (253 modules) and visitor build (41 modules) passed. Architecture enforcement passed all 14 forbidden-import/resolution probes and all module-removal dependency checks, with active source hashes unchanged. Local document links and `git diff --check` also passed.
-
-The existing `server-autosave.check.mjs`, `local-drafts.check.mjs` and `history-recovery.check.mjs` browser suites passed serially under Chrome for Testing 157.0.8103.38 with the browser sandbox and loopback-only network policy. These exercise real IndexedDB and file writing, exact retries, corrected invalid saves, cleared-revision protection, overlapping writers, account changes, departure decisions, legacy migration and restored undo/redo. The first architecture test attempt refused an older installed Chrome; its rerun used the verified browser. The first autosave browser run timed out before editor rendering with an empty page and no page-error event. An unchanged rerun using a separate Vite dependency cache passed; the original timeout's cause is not confirmed.
-
-The visitor build retains its existing >500 KB chunk warning. Optional comment/test cleanup was skipped. This pass changes no backend behavior, does not run CI or a live server/database, and does not prove every asynchronous interleaving. The refactor is isolated on `refactor/persistence-ownership`, based on `03ed0b1`, and depends on the state-machine fixes in [PR #75](https://github.com/Team-Meshworks/gam300/pull/75).

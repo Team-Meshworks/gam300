@@ -1,3 +1,9 @@
+.sp-shell--asset-administration .sp-workspace {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .sp-workspace-links {
   display: flex;
   flex-wrap: wrap;

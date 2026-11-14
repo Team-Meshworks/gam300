@@ -1,3 +1,5 @@
+export { knownRoomGeometry } from "./known-room-geometry";
+
 // Approved 3D categories are shared by filtering and its consuming picker
 export const assetCategories = [
   "All",
@@ -52,6 +54,71 @@ export function isStarterRoomModel(assets: readonly CatalogueAsset[], id: string
   );
 }
 
+export function isRoomModelAsset(asset: CatalogueAsset) {
+  return (
+    isStarterRoomModelAsset(asset) ||
+    (asset.kind === "model" && /^room-(?:space1|doors-[1-4](?:-[1-4])*)-module-v1$/.test(asset.id))
+  );
+}
+
+export function isRoomModel(assets: readonly CatalogueAsset[], id: string | undefined) {
+  const model = assets.find((asset) => asset.id === id && asset.kind === "model");
+  return (
+    id === "test-room-module-v1" ||
+    (!!model &&
+      (isRoomModelAsset(model) ||
+        (!/^0{64}$/.test(model.sha256) &&
+          assets.some(
+            (asset) =>
+              asset.kind === "environment" &&
+              !!asset.boundsMeters &&
+              asset.sha256.toLowerCase() === model.sha256.toLowerCase(),
+          ))))
+  );
+}
+
+export function roomCompanion(
+  assets: readonly CatalogueAsset[],
+  environment: CatalogueAsset | undefined,
+) {
+  if (!environment || environment.kind !== "environment") return undefined;
+  if (!environment.boundsMeters && !isStarterRoomEnvironment([environment], environment.id))
+    return undefined;
+  if (/^0{64}$/.test(environment.sha256)) return undefined;
+  return assets.find(
+    (asset) =>
+      asset.kind === "model" && asset.sha256.toLowerCase() === environment.sha256.toLowerCase(),
+  );
+}
+
+export function roomFootprint(assets: readonly CatalogueAsset[], id: string) {
+  const selected = assets.find((asset) => asset.id === id);
+  const bounds =
+    selected?.boundsMeters ??
+    assets.find(
+      (asset) =>
+        asset.boundsMeters &&
+        selected &&
+        asset.sha256.toLowerCase() === selected.sha256.toLowerCase(),
+    )?.boundsMeters;
+  return bounds
+    ? {
+        halfWidth: (bounds.max[0] - bounds.min[0]) / 2,
+        halfDepth: (bounds.max[2] - bounds.min[2]) / 2,
+      }
+    : { halfWidth: 5, halfDepth: 5 };
+}
+
+export function isRoomEnvironment(
+  assets: readonly CatalogueAsset[],
+  id: string | null | undefined,
+) {
+  return (
+    isStarterRoomEnvironment(assets, id) ||
+    assets.some((asset) => asset.id === id && asset.kind === "environment" && !!asset.boundsMeters)
+  );
+}
+
 // New room instances may use only a model in the selectable catalogue.
 export function starterRoomCompanion(assets: readonly CatalogueAsset[]) {
   return (
@@ -63,7 +130,7 @@ export function starterRoomCompanion(assets: readonly CatalogueAsset[]) {
 // Match server identities only when they refer to the known packaged room geometry.
 export function isStarterRoomEnvironment(
   assets: readonly CatalogueAsset[],
-  id: string | undefined,
+  id: string | null | undefined,
 ) {
   if (id === "test-room-v1") return true;
   const environment = assets.find((asset) => asset.id === id && asset.kind === "environment");
@@ -86,4 +153,15 @@ export function searchAssets(
       (category === "All" || asset.category === category) &&
       asset.name.toLowerCase().includes(name),
   );
+}
+
+// Server entries follow local samples, so identical geometry keeps its approved save identity.
+export function uniqueRoomAssets(assets: readonly CatalogueAsset[]) {
+  return [
+    ...new Map(
+      assets
+        .filter((asset) => asset.kind === "environment")
+        .map((asset) => [asset.sha256.toLowerCase() || asset.id, asset]),
+    ).values(),
+  ];
 }

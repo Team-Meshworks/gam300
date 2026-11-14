@@ -26,6 +26,11 @@ public sealed class ClassroomEndpointTests
         var foreign = await fixture.CreateAccountAsync();
         var organization = await OrganizationAsync(fixture, educator);
         await MoveToOrganizationAsync(fixture, organization, colleague, student, otherStudent);
+        await using (var scope = fixture.Database.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Users.Where(row => row.Id == student)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.DisplayName, "Alice Example"));
+        }
         await fixture.SignInAsync(educator);
         var id = await CreateAsync(fixture, "Studio", [colleague]);
 
@@ -39,6 +44,7 @@ public sealed class ClassroomEndpointTests
             var items = (await eligible.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").EnumerateArray().ToArray();
             await Assert.That(items.Select(item => item.GetProperty("userId").GetGuid()).ToHashSet().SetEquals([student, otherStudent])).IsTrue();
             await Assert.That(items.Single(item => item.GetProperty("userId").GetGuid() == student).GetProperty("enrolled").GetBoolean()).IsTrue();
+            await Assert.That(items.Single(item => item.GetProperty("userId").GetGuid() == student).GetProperty("displayName").GetString()).IsEqualTo("Alice Example");
             await Assert.That(items.Single(item => item.GetProperty("userId").GetGuid() == otherStudent).GetProperty("enrolled").GetBoolean()).IsFalse();
             await Assert.That(eligible.Headers.CacheControl?.NoStore).IsTrue();
         }

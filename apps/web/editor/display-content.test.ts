@@ -1,5 +1,5 @@
+import { createLoadedStore } from "../tests/project-store-fixture";
 import { describe, it, expect } from "vitest";
-import { createDocumentStore } from "./document-store";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { displayPosition } from "./display-position";
 import type { ContentObject } from "../shared/project/project-content";
@@ -39,8 +39,7 @@ const assets: CatalogueAsset[] = [
   },
 ];
 function setup() {
-  const store = createDocumentStore(assets);
-  store.createProject("room");
+  const store = createLoadedStore(assets, "room");
   const result = store.addObject("stand", [0, 0, 0]);
   if (!result.ok) throw new Error(result.error);
   return { store, object: result.object };

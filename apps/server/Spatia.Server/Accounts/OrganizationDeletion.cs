@@ -74,8 +74,14 @@ public static partial class AccountDirectoryEndpoints
             // Ordinary edits/deletes remain forbidden; publication IDs are permanently retired by the trigger.
             await database.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('spatia.purge_organization', {id.ToString("D")}, true)", cancellationToken);
             await database.ReviewDecisions.Where(row => submissionIds.Contains(row.SubmissionId)).ExecuteDeleteAsync(cancellationToken);
+            await database.ProgressReviews.Where(row => projectIds.Contains(row.ProjectId)).ExecuteDeleteAsync(cancellationToken);
             await database.ReviewSubmissions.Where(row => projectIds.Contains(row.ProjectId)).ExecuteDeleteAsync(cancellationToken);
             await database.PublicationAccess.Where(row => publicationIds.Contains(row.PublicationId)).ExecuteDeleteAsync(cancellationToken);
+            // Remove only this organization's links; globally shared built-in blobs remain immutable.
+            await database.Database.ExecuteSqlInterpolatedAsync($"""
+                DELETE FROM development_publication_assets
+                WHERE publication_id = ANY({publicationIds})
+                """, cancellationToken);
             await database.Publications.Where(row => projectIds.Contains(row.ProjectId)).ExecuteDeleteAsync(cancellationToken);
             await database.ProjectProvenances.Where(row => row.OrganizationId == id).ExecuteDeleteAsync(cancellationToken);
             await database.ClassAssignmentStudents.Where(row => row.OrganizationId == id).ExecuteDeleteAsync(cancellationToken);

@@ -21,6 +21,7 @@ export function Viewpoints({
 }) {
   const [name, setName] = useState("");
   const [selected, setSelected] = useState("");
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [open, setOpen] = useState(false);
   const [dragged, setDragged] = useState<string | null>(null);
@@ -34,6 +35,7 @@ export function Viewpoints({
     report(store.moveViewpoint(id, index), "View order updated. Undo is available.");
   }
   const view = views.find((v) => v.id === selected);
+  const deletingView = views.find((v) => v.id === deleting);
   const startingView = getStartingView({
     viewpoints: views,
     startCamera,
@@ -50,6 +52,7 @@ export function Viewpoints({
         : (current + direction + views.length) % views.length;
     const next = views[index]!;
     setSelected(next.id);
+    setDeleting(null);
     setName(next.name);
     camera.show(next.camera);
     setMessage(`Showing ${next.name}, view ${index + 1} of ${views.length}.`);
@@ -162,6 +165,7 @@ export function Viewpoints({
                       aria-pressed={selected === entry.id}
                       onClick={() => {
                         setSelected(entry.id);
+                        setDeleting(null);
                         setName(entry.name);
                       }}
                     >
@@ -252,15 +256,39 @@ export function Viewpoints({
             type="button"
             disabled={!view}
             onClick={() => {
-              if (!view) return;
-              const result = store.deleteViewpoint(view.id);
-              if (result.ok) playUiSound("delete");
-              report(result, "View deleted. Undo restores it.");
+              if (view) setDeleting(view.id);
             }}
           >
             Delete view
           </button>
         </div>
+        {deletingView && (
+          <div role="group" aria-label="Confirm view deletion">
+            <p>
+              Deleting “{deletingView.name}” also removes its associated navigation points and
+              rules. Undo restores them all.
+            </p>
+            <button type="button" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const result = store.deleteViewpoint(deletingView.id);
+                if (result.ok) {
+                  setDeleting(null);
+                  playUiSound("delete");
+                }
+                report(
+                  result,
+                  "View, associated navigation points and rules deleted. Undo restores them all.",
+                );
+              }}
+            >
+              Confirm delete view
+            </button>
+          </div>
+        )}
       </fieldset>
       <p role="status">{message}</p>
     </section>

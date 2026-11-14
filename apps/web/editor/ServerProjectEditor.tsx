@@ -2,9 +2,14 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { assets } from "virtual:asset-catalogue";
 import { App } from "./App";
+import { BaseModelChooser } from "./home/BaseModelChooser";
+import { needsBaseModel } from "./home/base-model";
+import { RequestApproval } from "./reviews/RequestApproval";
+import { PublishDialog } from "./publications/PublishDialog";
+import { allPages, createReviewClient } from "./reviews/review-client";
 import { HOTSPOT_ASSET } from "../shared/asset-runtime/hotspot";
 import { createDocumentStore } from "./document-store";
-import { createAccountClient } from "./accounts/account-client";
+import { createAccountClient, type AccountRole } from "./accounts/account-client";
 import { LoginRedirect } from "./accounts/LoginRedirect";
 import { readServerAssets } from "./persistence/server-assets";
 import { readServerProject, type OpenedServerProject } from "./persistence/server-project-read";
@@ -20,23 +25,30 @@ import {
   writeProjectFile,
 } from "./persistence/project-files";
 import { serializeProject } from "../shared/project/project-serialization";
+import { deserializeProject } from "../shared/project/project-deserialization";
+import { MAX_PROJECT_BYTES } from "../shared/project/project-limits";
+import { createWorkspaceClient, isId, isRecord, projectReceipt } from "./home/workspace-api";
+import { Icon } from "./ui/Icon";
+import { parseProgressContext, reviewReturnUrl } from "./projects/progress-navigation";
 
 const accounts = createAccountClient();
+const reviews = createReviewClient();
+const workspace = createWorkspaceClient();
 type Candidate = {
   opened: OpenedServerProject;
   recovery: RecoverySession | null;
+  storageRevision: number;
   controller: AbortController;
 };
 type Active = {
   session: ReturnType<typeof connectServerProjectSession>;
   accountId: string;
+  orgId: string | null;
+  role: AccountRole;
   controller: AbortController;
   title: string;
 };
-const labels: Record<ServerSaveStatus, string> = {
-  saved: "Saved to server",
-  unsaved: "Unsaved changes",
-  saving: "Saving to server...",
+const saveErrors: Partial<Record<ServerSaveStatus, string>> = {
   failed: "Save failed. Your edits are still here. Retry or export a copy.",
   conflict:
     "Another revision was saved. Export your edits or open the server version; nothing will be overwritten automatically.",
@@ -50,27 +62,43 @@ function ChoiceDialog({
   title,
   children,
   cancel,
+  busy = false,
+  className = "",
 }: {
   title: string;
   children: ReactNode;
   cancel: () => void;
+  busy?: boolean;
+  className?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const node = dialog.current;
     node?.showModal();
+    node?.querySelector<HTMLButtonElement>("[data-initial-focus]")?.focus();
     return () => node?.close();
   }, []);
   return (
     <dialog
       ref={dialog}
-      className="project-confirmation"
+      className={`project-confirmation ${className}`}
       aria-label={title}
       onCancel={(event) => {
         event.preventDefault();
-        cancel();
+        if (!busy) {
+          cancel();
+        }
       }}
     >
+      <button
+        className="project-confirmation-close"
+        type="button"
+        aria-label="Close dialog"
+        disabled={busy}
+        onClick={cancel}
+      >
+        <Icon name="close" />
+      </button>
       <h2>{title}</h2>
       {children}
     </dialog>
@@ -83,6 +111,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
   const [catalogue, setCatalogue] = useState<{
     all: readonly CatalogueAsset[];
     available: readonly CatalogueAsset[];
+    unavailable: boolean;
   } | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -98,10 +127,27 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
           return;
         }
         if (identity.mustChangePassword) throw new Error("Sign in before opening this project.");
-        const [approved, retained] = await Promise.all([
-          readServerAssets(identity.userId, controller.signal),
-          readServerAssets(identity.userId, controller.signal, fetch, projectId),
-        ]);
+        let approved: readonly CatalogueAsset[];
+        let retained: readonly CatalogueAsset[];
+        let unavailable = false;
+        try {
+          [approved, retained] = await Promise.all([
+            readServerAssets(identity.userId, controller.signal),
+            readServerAssets(identity.userId, controller.signal, fetch, projectId),
+          ]);
+        } catch (cause) {
+          // Only open without a catalogue when the saved document needs no assets
+          const empty = await readServerProject(
+            projectId,
+            identity.userId,
+            new Map(),
+            controller.signal,
+          );
+          if (!empty.ok || controller.signal.aborted) throw cause;
+          approved = [];
+          retained = [];
+          unavailable = true;
+        }
         const current = await accounts.getSession();
         if (controller.signal.aborted) return;
         if (!current) {
@@ -125,6 +171,7 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
               ).values(),
             ],
             available: [...developmentAssets, ...approved],
+            unavailable,
           });
       } catch (cause) {
         if (!controller.signal.aborted)
@@ -136,25 +183,47 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
   if (signedOut) return <LoginRedirect />;
   if (!catalogue)
     return (
-      <main>
-        <h1>Open project</h1>
-        {error ? (
-          <>
-            <p role="alert">{error}</p>
-            <button onClick={() => setAttempt((value) => value + 1)}>Retry opening</button>{" "}
-            <a href="/home">Home</a>
-          </>
+      <main className="editor-opening">
+        {!error ? (
+          <span className="sr-only" role="status">
+            Loading approved assets...
+          </span>
         ) : (
-          <p role="status">Loading approved assets…</p>
+          <ChoiceDialog
+            title="Couldn’t open your project"
+            className="creator-recovery-dialog creator-opening-dialog"
+            cancel={() => location.assign("/home")}
+          >
+            <p role="alert">{error}</p>
+            <div className="creator-recovery-actions">
+              <div className="creator-recovery-versions">
+                <button onClick={() => location.assign("/home")}>Back to projects</button>
+                <button
+                  className="creator-recovery-primary-action"
+                  onClick={() => setAttempt((value) => value + 1)}
+                >
+                  Retry opening
+                </button>
+              </div>
+            </div>
+          </ChoiceDialog>
         )}
       </main>
     );
   return (
-    <ServerProjectSession
-      projectId={projectId}
-      catalogue={catalogue.all}
-      available={catalogue.available}
-    />
+    <>
+      {catalogue.unavailable && (
+        <p role="status">
+          Some 3D assets are unavailable. Save and reopen the project when the asset service
+          returns.
+        </p>
+      )}
+      <ServerProjectSession
+        projectId={projectId}
+        catalogue={catalogue.all}
+        available={catalogue.available}
+      />
+    </>
   );
 }
 
@@ -174,6 +243,7 @@ function ServerProjectSession({
   );
   const [store] = useState(() => createDocumentStore(editorAssets));
   const [active, setActive] = useState<Active | null>(null);
+  const [choosingBase, setChoosingBase] = useState(false);
   const [signedOut, setSignedOut] = useState(false);
   const current = useRef<Active | null>(null);
   const retained = useRef<{ accountId: string; recovery: RecoverySession } | null>(null);
@@ -185,7 +255,73 @@ function ServerProjectSession({
   const busyRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [departure, setDeparture] = useState<"home" | "logout" | "reload" | "publish" | null>(null);
-
+  const [approval, setApproval] = useState<{
+    owner: Active;
+    revision: number;
+    approved: boolean | null;
+    pending: boolean;
+  } | null>(null);
+  const [requestApproval, setRequestApproval] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [approvalVersion, setApprovalVersion] = useState(0);
+  useEffect(() => {
+    if (!active || status !== "saved") return;
+    const controller = new AbortController();
+    async function refreshApproval() {
+      try {
+        const revision = active!.session.getRecovery().serverSave?.revision;
+        const value = await workspace.read(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/publication-readiness`,
+          controller.signal,
+          active!.accountId,
+        );
+        const identity = await accounts.getSession();
+        // Approval belongs to one account and saved revision, never to later edits
+        if (
+          !controller.signal.aborted &&
+          identity?.userId === active!.accountId &&
+          !identity.mustChangePassword &&
+          isRecord(value) &&
+          value.projectId === projectId &&
+          value.revision === revision &&
+          typeof revision === "number" &&
+          (value.approved === null || typeof value.approved === "boolean")
+        ) {
+          let pending = false;
+          if (value.approved === false && value.completionConfirmed === true) {
+            const submissions = await allPages((cursor) => reviews.submissions(projectId, cursor));
+            const latest = submissions.sort((a, b) => b.sequence - a.sequence)[0];
+            const review = latest ? await reviews.getReview(projectId, latest.submissionId) : null;
+            pending =
+              !!review?.isCurrentSubmission &&
+              review.revision === revision &&
+              !review.latestDecision;
+          }
+          if (!controller.signal.aborted)
+            setApproval({ owner: active!, revision, approved: value.approved, pending });
+        }
+      } catch {
+        // Submission and publication pages retain their authoritative checks if readiness is unavailable
+      }
+    }
+    void refreshApproval();
+    window.addEventListener("focus", refreshApproval);
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", refreshApproval);
+    };
+  }, [active, status, projectId, approvalVersion]);
+  const canPublish =
+    approval?.owner === active &&
+    (approval?.approved === null ||
+      (approval?.approved === true &&
+        status === "saved" &&
+        approval.revision === active?.session.getRecovery().serverSave?.revision));
+  const awaitingApproval =
+    approval?.owner === active &&
+    approval.pending &&
+    status === "saved" &&
+    approval.revision === active?.session.getRecovery().serverSave?.revision;
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
       if (retained.current) {
@@ -207,23 +343,32 @@ function ServerProjectSession({
       );
     const recovery = recover ? next.recovery : null;
     const document = recovery?.document ?? opened.document;
-    const loaded = store.loadProject(JSON.stringify(document), kinds, recovery?.history, {
-      allowDraftLinks: !!recovery,
-    });
+    const options = { allowDraftLinks: !!recovery };
+    const encoded = serializeProject(document, kinds, options);
+    if (!encoded.ok) throw new Error(encoded.error.message);
+    const loaded = store.loadProject(encoded.value, kinds, recovery?.history, options);
     if (!loaded.ok) throw new Error(loaded.error.message);
     const session = connectServerProjectSession({
       accountId: opened.accountId,
       store,
       assetKinds: kinds,
       revision: recovery?.serverSave?.revision ?? opened.revision,
-      storageRevision: next.recovery?.revision ?? 0,
+      storageRevision: next.storageRevision,
       signal: controller.signal,
       onStatus: setStatus,
       ...(recovery ? { recovery } : {}),
     });
-    const owner = { session, accountId: opened.accountId, controller, title: document.title };
+    const owner = {
+      session,
+      accountId: opened.accountId,
+      orgId: identity.orgId,
+      role: identity.role,
+      controller,
+      title: document.title,
+    };
     current.current = owner;
     setActive(owner);
+    setChoosingBase(needsBaseModel(opened.revision, identity.role, recover));
     setCandidate(null);
     retained.current = null;
     setError(recovery?.historyWarning ?? "");
@@ -260,7 +405,12 @@ function ServerProjectSession({
           throw new Error("This project is read-only. Your stored recovery copy was kept.");
         if (retained.current) {
           await install(
-            { opened: result.value, recovery: retained.current.recovery, controller },
+            {
+              opened: result.value,
+              recovery: retained.current.recovery,
+              storageRevision: retained.current.recovery.revision,
+              controller,
+            },
             true,
           );
           owner = current.current;
@@ -272,8 +422,13 @@ function ServerProjectSession({
         });
         if (controller.signal.aborted) return;
         if (!recovery.ok) throw new Error(recovery.error.message);
-        const next = { opened: result.value, recovery: recovery.value, controller };
-        if (recovery.value?.document) setCandidate(next);
+        const next = {
+          opened: result.value,
+          recovery: recovery.value?.document ? recovery.value : null,
+          storageRevision: recovery.value?.revision ?? 0,
+          controller,
+        };
+        if (next.recovery) setCandidate(next);
         else {
           await install(next, false);
           owner = current.current;
@@ -296,6 +451,38 @@ function ServerProjectSession({
     // eslint-disable-next-line react-hooks-js/exhaustive-deps
   }, [projectId, attempt, store]);
 
+  async function checkDraftAccount(owner: Active) {
+    const identity = await accounts.getSession();
+    if (owner.controller.signal.aborted) return null;
+    if (
+      identity?.userId === owner.accountId &&
+      identity.orgId === owner.orgId &&
+      identity.role === owner.role &&
+      !identity.mustChangePassword
+    )
+      return identity;
+
+    // Lock the live draft before awaiting account-scoped recovery storage
+    retained.current = { accountId: owner.accountId, recovery: owner.session.getRecovery() };
+    owner.controller.abort();
+    current.current = null;
+    setActive(null);
+    setDeparture(null);
+    setLoading(true);
+    const preserved = await owner.session.dispose();
+    retained.current = preserved?.ok
+      ? null
+      : { accountId: owner.accountId, recovery: owner.session.getRecovery() };
+    setLoading(false);
+    if (!identity && preserved?.ok) setSignedOut(true);
+    setError(
+      preserved?.ok
+        ? "Your account changed or expired. Sign in with the original account to reopen your retained draft."
+        : "Your account changed or expired and recovery storage failed. Your draft is held only in this tab. Keep it open, sign in with the original account, then retry.",
+    );
+    return null;
+  }
+
   useEffect(() => {
     if (!active) return;
     const owner = active;
@@ -304,29 +491,7 @@ function ServerProjectSession({
       if (checking || owner.controller.signal.aborted) return;
       checking = true;
       try {
-        const identity = await accounts.getSession();
-        if (owner.controller.signal.aborted) return;
-        if (!identity || identity.mustChangePassword || identity.userId !== owner.accountId) {
-          // Lock the live draft before awaiting storage; a new account must never see it.
-          retained.current = { accountId: owner.accountId, recovery: owner.session.getRecovery() };
-          owner.controller.abort();
-          current.current = null;
-          setActive(null);
-          setDeparture(null);
-          setLoading(true);
-          const preserved = await owner.session.dispose();
-          retained.current = preserved?.ok
-            ? null
-            : { accountId: owner.accountId, recovery: owner.session.getRecovery() };
-          setLoading(false);
-          // Redirect only after the account-scoped recovery copy is safely stored.
-          if (!identity && preserved?.ok) setSignedOut(true);
-          setError(
-            preserved?.ok
-              ? "Your account changed or expired. Sign in with the original account to reopen your retained draft."
-              : "Your account changed or expired and recovery storage failed. Your draft is held only in this tab. Keep it open, sign in with the original account, then retry.",
-          );
-        }
+        await checkDraftAccount(owner);
       } catch {
         // Offline editing retains the captured account; server writes also enforce that identity.
       } finally {
@@ -393,10 +558,11 @@ function ServerProjectSession({
     try {
       await action();
     } catch (cause) {
-      if (!wasPickerCancelled(cause))
+      if (!wasPickerCancelled(cause)) {
         setError(
           cause instanceof Error ? cause.message : "The operation failed. Your draft was kept.",
         );
+      }
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -421,41 +587,164 @@ function ServerProjectSession({
     return saved;
   }
 
-  async function leave(choice: "save" | "recovery" | "export" | "cancel") {
+  async function importFile(file: File) {
+    await run(async () => {
+      if (!active || active.controller.signal.aborted) {
+        return;
+      }
+      if (file.size > MAX_PROJECT_BYTES) {
+        throw new Error("Project JSON exceeds the 5 MiB file limit");
+      }
+      const imported = deserializeProject(await file.text(), kinds);
+      if (!imported.ok) {
+        throw new Error(imported.error.message);
+      }
+      const key = `spatia:uncertain-project-creation:${active.accountId}`;
+      if (sessionStorage.getItem(key) === "1") {
+        throw new Error(
+          "Check All Projects before importing again; an earlier creation may have completed",
+        );
+      }
+      // Keep this draft safe and import into a new project instead of overwriting it
+      await active.session.flush();
+      if (active.session.getStatus() !== "saved") {
+        throw new Error("Save this project before importing another file");
+      }
+      const identity = await checkDraftAccount(active);
+      if (!identity) {
+        return;
+      }
+      const projectAccess = identity.orgId
+        ? null
+        : await workspace.read(`/api/v1/projects/${projectId}/assignments`);
+      const organizationId =
+        identity.orgId ??
+        (isRecord(projectAccess) && isId(projectAccess.organizationId)
+          ? projectAccess.organizationId
+          : null);
+      if (!organizationId) {
+        throw new Error("The project organisation could not be verified; your draft is unchanged");
+      }
+      sessionStorage.setItem(key, "1");
+      if (sessionStorage.getItem(key) !== "1") {
+        throw new Error("Browser storage is unavailable; import was not sent");
+      }
+      const result = await workspace.write(active.accountId, "/api/v1/projects", "POST", {
+        title: imported.value.title,
+        document: imported.value,
+        orgId: organizationId,
+      });
+      if (result.kind === "rejected") {
+        sessionStorage.removeItem(key);
+        throw new Error(result.message);
+      }
+      // A lost receipt may already have created the project; keep the existing creation guard
+      if (result.kind !== "confirmed" || !projectReceipt(result.value) || !isRecord(result.value)) {
+        throw new Error("Import could not be confirmed; check All Projects before trying again");
+      }
+      sessionStorage.removeItem(key);
+      const preserved = await active.session.prepareToLeave("save");
+      if (!preserved.ok || !preserved.value) {
+        throw new Error(
+          "The imported project is in All Projects; keep this draft open until its save completes",
+        );
+      }
+      location.assign(`/?projectId=${encodeURIComponent(String(result.value.projectId))}`);
+    });
+  }
+
+  function requestDeparture(destination: NonNullable<typeof departure>) {
+    // Read the live save state so a just-made edit still gets its preservation prompt
+    if (active?.session.getStatus() === "saved") {
+      void leave("save", destination);
+    } else {
+      setDeparture(destination);
+    }
+  }
+
+  async function leave(choice: "save" | "recovery" | "export" | "cancel", destination = departure) {
     if (choice === "cancel") {
       setDeparture(null);
       return;
     }
     await run(async () => {
-      if (!active || !departure) return;
-      const result = await active.session.prepareToLeave(choice, exportJson);
-      if (!result.ok) throw new Error(result.error.message);
-      if (!result.value) return;
+      if (!active || !destination) return;
+      let result = await active.session.prepareToLeave(choice, exportJson);
+      if (!result.ok) {
+        if (choice === "recovery") {
+          // Diagnose older live sessions too without replacing another tab's backup
+          const stored = await loadRecoverySession(kinds, {
+            accountId: active.accountId,
+            projectId,
+          });
+          if (!stored.ok) throw new Error(stored.error.message);
+          const currentRecovery = active.session.getRecovery();
+          if ((stored.value?.revision ?? 0) !== currentRecovery.revision) {
+            // An identical newer checkpoint already preserves this tab's complete recovery state
+            const { revision: _storedRevision, ...savedCopy } = stored.value ?? { revision: 0 };
+            const { revision: _currentRevision, ...currentCopy } = currentRecovery;
+            if (JSON.stringify(savedCopy) === JSON.stringify(currentCopy))
+              result = { ok: true, value: true };
+            else
+              throw new Error(
+                "The browser backup changed in another tab. Export your changes before leaving.",
+              );
+          }
+        }
+        if (!result.ok) throw new Error(result.error.message);
+      }
+      if (!result.value)
+        throw new Error("This editing session has ended. Export your changes before leaving.");
       active.controller.abort();
       await active.session.dispose();
       current.current = null;
       setActive(null);
       setDeparture(null);
-      if (departure === "reload") {
+      if (destination === "reload") {
         setAttempt((value) => value + 1);
         return;
       }
-      if (departure === "logout") {
+      if (destination === "logout") {
         // Recheck before changing cookies so a different account is never signed out here.
         const identity = await accounts.getSession();
         if (identity?.userId === active.accountId) await accounts.signOut(active.accountId);
       }
       location.assign(
-        departure === "logout"
+        destination === "logout"
           ? "/login"
-          : departure === "publish"
+          : destination === "publish"
             ? `/publish?projectId=${encodeURIComponent(projectId)}`
-            : "/home",
+            : reviewReturnUrl(new URLSearchParams(location.search), active.role),
       );
     });
   }
 
+  async function chooseBaseModel(assetId: string) {
+    await run(async () => {
+      if (
+        !active ||
+        !available.some((asset) => asset.id === assetId && asset.kind === "environment")
+      )
+        return;
+      if (!(await checkDraftAccount(active))) return;
+      const result = store.setEnvironment(assetId);
+      if (!result.ok) throw new Error(result.error.message);
+      // Keep setup visible until the normal save session acknowledges the selected room.
+      await active.session.flush();
+      if (active.session.getStatus() !== "saved")
+        throw new Error(
+          "Your base model could not be saved. Retry to continue; your choice is kept in this browser.",
+        );
+      if (!(await checkDraftAccount(active))) return;
+      setChoosingBase(false);
+    });
+  }
+
   if (signedOut) return <LoginRedirect />;
+  const saveError = active && saveErrors[status];
+  const backupConflict =
+    error.includes("browser backup changed in another tab") ||
+    error.includes("Recovery changed in another tab");
   return (
     <div className="server-editor-shell">
       {active ? (
@@ -468,118 +757,217 @@ function ServerProjectSession({
             dirty: status !== "saved",
             failed: ["failed", "conflict", "rejected", "invalid"].includes(status),
             saving: status === "saving",
-            departing: departure !== null,
+            departing: departure !== null || busy || choosingBase,
+            busy: busy || choosingBase,
             save,
-            leave: () => setDeparture("home"),
-            publish: () => setDeparture("publish"),
+            leave: () => requestDeparture("home"),
+            importFile,
+            openServerVersion: () => requestDeparture("reload"),
+            logout: () => requestDeparture("logout"),
+            ...(!parseProgressContext(new URLSearchParams(location.search), projectId)
+              ? {
+                  publish: () => (canPublish ? setPublishOpen(true) : setRequestApproval(true)),
+                  publishLabel: canPublish
+                    ? "Publish"
+                    : awaitingApproval
+                      ? "Awaiting approval"
+                      : "Request approval",
+                  publishDisabled: false,
+                }
+              : {}),
           }}
         />
       ) : (
-        <main>
-          <h1>Open project</h1>
-          {loading && <p role="status">Opening your project...</p>}
+        <main className="editor-opening">
+          {loading && (
+            <span className="sr-only" role="status">
+              Opening your project...
+            </span>
+          )}
           {!loading && !candidate && (
-            <>
-              <button onClick={() => setAttempt((value) => value + 1)}>Retry opening</button>{" "}
-              <a href="/login">Log in</a>
-            </>
+            <ChoiceDialog
+              title="Couldn’t open your project"
+              className="creator-recovery-dialog creator-opening-dialog"
+              cancel={() => location.assign("/home")}
+            >
+              <p role="alert">{error || "Return to your projects and try opening it again."}</p>
+              <div className="creator-recovery-actions">
+                <div className="creator-recovery-versions">
+                  <button onClick={() => location.assign("/home")}>Back to projects</button>
+                  <button
+                    className="creator-recovery-primary-action"
+                    onClick={() => setAttempt((value) => value + 1)}
+                  >
+                    Retry opening
+                  </button>
+                </div>
+              </div>
+            </ChoiceDialog>
           )}
         </main>
       )}
-      {active && (
-        <aside className="server-session" aria-label="Server project">
-          <span role="status">{labels[status]}</span>
-          {status === "failed" && (
-            <button disabled={busy} onClick={() => void save()}>
-              Retry save
-            </button>
-          )}
-          <button disabled={busy} onClick={() => void save(true)}>
-            Export a copy
-          </button>
-          <button disabled={busy} onClick={() => setDeparture("reload")}>
-            Open server version
-          </button>
-          <button disabled={busy} onClick={() => setDeparture("logout")}>
-            Log out
-          </button>
-        </aside>
+      {active && choosingBase && (
+        <BaseModelChooser
+          assets={available}
+          busy={busy}
+          error={error}
+          onContinue={(assetId) => void chooseBaseModel(assetId)}
+          onCancel={() => setChoosingBase(false)}
+        />
       )}
       {candidate && (
         <ChoiceDialog
-          title="A recovery copy is available"
+          busy={busy}
+          title="Recover your changes?"
+          className="creator-recovery-dialog"
           cancel={() => {
             candidate.controller.abort();
-            setCandidate(null);
+            location.assign("/home");
           }}
         >
           <p>
-            Choose which version to open. Recovering keeps the original save revision; a conflict
-            will never overwrite someone else's work.
+            Open your browser backup or use the version saved to the server.{" "}
+            <button
+              className="creator-recovery-export"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const document = candidate.recovery?.document;
+                  if (!document) return;
+                  const encoded = serializeProject(document, kinds);
+                  if (!encoded.ok) throw new Error(encoded.error.message);
+                  await exportJson(encoded.value);
+                })
+              }
+            >
+              Export backup
+            </button>
           </p>
-          <button
-            disabled={busy || !candidate.recovery?.serverSave}
-            onClick={() => void run(() => install(candidate, true))}
-          >
-            Recover my edits
-          </button>
-          <button
-            disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                const document = candidate.recovery?.document;
-                if (!document) return;
-                const encoded = serializeProject(document, kinds);
-                if (!encoded.ok) throw new Error(encoded.error.message);
-                await exportJson(encoded.value);
-              })
-            }
-          >
-            Export recovery copy
-          </button>
-          <button disabled={busy} onClick={() => void run(() => install(candidate, false))}>
-            Use server version and discard recovery
-          </button>
-          <button
-            disabled={busy}
-            onClick={() => {
-              candidate.controller.abort();
-              setCandidate(null);
-            }}
-          >
-            Cancel
-          </button>
+          <div className="creator-recovery-actions">
+            <div className="creator-recovery-versions">
+              <button disabled={busy} onClick={() => void run(() => install(candidate, false))}>
+                Use saved version
+              </button>
+              <button
+                className="creator-recovery-primary-action"
+                disabled={busy || !candidate.recovery?.serverSave}
+                onClick={() => void run(() => install(candidate, true))}
+              >
+                Recover changes
+              </button>
+            </div>
+          </div>
           {error && <p role="alert">{error}</p>}
         </ChoiceDialog>
       )}
+      {publishOpen && active && (
+        <PublishDialog
+          key={`${projectId}:${active.accountId}`}
+          actorId={active.accountId}
+          save={active.session.flush}
+          isSaved={() => active.session.getStatus() === "saved"}
+          onClose={() => setPublishOpen(false)}
+        />
+      )}
+      {requestApproval && active && (
+        <RequestApproval
+          key={`${projectId}:${active.accountId}`}
+          projectId={projectId}
+          actorId={active.accountId}
+          save={active.session.flush}
+          isSaved={(revision) =>
+            active.session.getStatus() === "saved" &&
+            active.session.getRecovery().serverSave?.revision === revision
+          }
+          onClose={() => setRequestApproval(false)}
+          onSubmitted={(revision, approved) => {
+            setApproval({
+              owner: active,
+              revision,
+              approved: Boolean(approved),
+              pending: !approved,
+            });
+            setApprovalVersion((value) => value + 1);
+            if (approved) {
+              setRequestApproval(false);
+              setPublishOpen(true);
+            }
+          }}
+        />
+      )}
       {departure && (
         <ChoiceDialog
-          title="Preserve your work before leaving"
+          busy={busy}
+          title={
+            backupConflict
+              ? "Save a copy before leaving?"
+              : error
+                ? "Leave without saving?"
+                : "Are you sure?"
+          }
+          className="creator-recovery-dialog creator-exit-dialog"
           cancel={() => {
             if (!busy) setDeparture(null);
           }}
         >
-          <p>
-            Continue after a confirmed save, a browser recovery copy, or a completed file export.
+          <p role={error.startsWith("Work is not fully preserved;") ? "alert" : undefined}>
+            {backupConflict
+              ? "Another tab has a different backup. Export this version to keep your changes."
+              : error
+                ? "Your changes aren’t saved to the server. Keep a browser backup or"
+                : "Your project will be saved before you exit."}
+            {error && !backupConflict && (
+              <>
+                {" "}
+                <button
+                  className="creator-recovery-export"
+                  aria-label="Export and Exit"
+                  disabled={busy}
+                  onClick={() => void leave("export")}
+                >
+                  Export and exit
+                </button>
+              </>
+            )}
           </p>
-          <button disabled={busy} onClick={() => void leave("save")}>
-            Save and continue
-          </button>
-          <button disabled={busy} onClick={() => void leave("recovery")}>
-            Keep recovery and continue
-          </button>
-          <button disabled={busy} onClick={() => void leave("export")}>
-            Export and continue
-          </button>
-          <button disabled={busy} onClick={() => void leave("cancel")}>
-            Cancel
-          </button>
-          {error && <p role="alert">{error}</p>}
+          <div className="creator-recovery-actions">
+            <div className="creator-recovery-versions">
+              <button
+                disabled={busy}
+                onClick={() => void leave("cancel")}
+                autoFocus
+                data-initial-focus
+              >
+                {error ? "Keep editing" : "Cancel"}
+              </button>
+              <button
+                className="creator-recovery-primary-action"
+                aria-label={
+                  backupConflict ? "Export and Exit" : error ? "Keep Recovery and Exit" : undefined
+                }
+                disabled={busy}
+                onClick={() => void leave(backupConflict ? "export" : error ? "recovery" : "save")}
+              >
+                {busy
+                  ? "Please wait..."
+                  : backupConflict
+                    ? "Export and exit"
+                    : error
+                      ? "Leave with backup"
+                      : "Exit"}
+              </button>
+            </div>
+          </div>
+          {error && !backupConflict && !error.startsWith("Work is not fully preserved;") && (
+            <p role="alert">{error}</p>
+          )}
         </ChoiceDialog>
       )}
-      {error && !candidate && !departure && (
+      {active && (error || saveError) && !candidate && !departure && !choosingBase && (
         <p className="server-session-error" role="alert">
           {error}
+          {error && saveError && " "}
+          {saveError}
         </p>
       )}
     </div>

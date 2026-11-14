@@ -1,10 +1,142 @@
+import { createLoadedStore, testRoom } from "../tests/project-store-fixture";
 import { serializeProject } from "../shared/project/project-serialization";
 import { deserializeProject } from "../shared/project/project-deserialization";
-import { afterEach, assert, expect, it, vi } from "vitest";
+import { assert, expect, it } from "vitest";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { createDocumentStore } from "./document-store.ts";
+import m2 from "../shared/project/fixtures/m2-project.json";
 
-afterEach(() => vi.restoreAllMocks());
+it("refuses scene creation and placement until an existing project is loaded", () => {
+  const assets: CatalogueAsset[] = [
+    testRoom,
+    {
+      id: "crate",
+      name: "Crate",
+      kind: "model",
+      url: "crate.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+  ];
+  const store = createDocumentStore(assets);
+  const before = store.getSnapshot();
+  expect(store.createScene("First scene", testRoom.id).ok).toBe(false);
+  expect(store.addObject("crate", [0, 0, 0]).ok).toBe(false);
+  expect(store.getSnapshot()).toBe(before);
+});
+
+it("opens an empty scene and can add and undo an approved environment", () => {
+  const room: CatalogueAsset = {
+    id: "room",
+    name: "Room",
+    kind: "environment",
+    url: "room.glb",
+    sha256: "0".repeat(64),
+    thumbnail: null,
+  };
+  const kinds = new Map([[room.id, room.kind]]);
+  const scene = m2.scenes[0]!;
+  const empty = {
+    ...m2,
+    scenes: [
+      {
+        ...scene,
+        environmentAssetId: null,
+        objects: [],
+        groups: [],
+        zones: [],
+        viewpoints: [],
+        rules: [],
+        hotspots: [],
+        interactions: [],
+      },
+    ],
+  };
+  const store = createDocumentStore([room]);
+  expect(store.loadProject(JSON.stringify(empty), kinds).ok).toBe(true);
+  expect(store.setEnvironment(room.id).ok).toBe(true);
+  expect(store.getSnapshot().project!.scenes[0]!.environmentAssetId).toBe(room.id);
+  store.undo();
+  expect(store.getSnapshot().project!.scenes[0]!.environmentAssetId).toBeNull();
+  const saved = serializeProject(store.getSnapshot().project!, kinds);
+  expect(saved.ok).toBe(true);
+  if (!saved.ok) throw new Error(saved.error.message);
+  expect(deserializeProject(saved.value, kinds).ok).toBe(true);
+});
+
+it("places a different sized room beside the starter and preserves it through save and reopen", () => {
+  const assets: CatalogueAsset[] = [
+    {
+      id: "test-room-v1",
+      name: "Starter",
+      kind: "environment",
+      url: "starter.glb",
+      sha256: "0".repeat(64),
+      thumbnail: null,
+    },
+    {
+      id: "room-space1-module-v1",
+      name: "Space1",
+      kind: "model",
+      url: "space.glb",
+      sha256: "1".repeat(64),
+      thumbnail: null,
+      placement: "bottom-center",
+      boundsMeters: { min: [-4, 0, -3], max: [4, 3, 3] },
+    },
+  ];
+  const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
+  const store = createLoadedStore(assets, "test-room-v1");
+  const added = store.addObject("room-space1-module-v1", [8, 0, 1]);
+  expect(added.ok).toBe(true);
+  if (!added.ok) throw new Error(added.error);
+  expect(added.object.transform.position).toEqual([9, 0, 0]);
+  const saved = serializeProject(store.getSnapshot().project!, kinds);
+  expect(saved.ok).toBe(true);
+  if (!saved.ok) throw new Error(saved.error.message);
+  const reopened = createDocumentStore(assets);
+  expect(reopened.loadProject(saved.value, kinds).ok).toBe(true);
+  expect(reopened.getSnapshot().objects[0]!.transform.position).toEqual([9, 0, 0]);
+  const room = reopened.getSnapshot().objects[0]!;
+  expect(reopened.setTransform(room.id, { ...room.transform, position: [0, 0, 7] }).ok).toBe(true);
+  expect(reopened.getSnapshot().objects[0]!.transform.position).toEqual([0, 0, 8]);
+  reopened.undo();
+  expect(reopened.getSnapshot().objects[0]!.transform.position).toEqual([9, 0, 0]);
+  reopened.redo();
+  expect(reopened.getSnapshot().objects[0]!.transform.position).toEqual([0, 0, 8]);
+  const moved = reopened.getSnapshot().objects[0]!;
+  expect(
+    reopened.setTransform(moved.id, {
+      ...moved.transform,
+      position: [0, 0, 9],
+      rotation: [0, Math.SQRT1_2, 0, Math.SQRT1_2],
+    }).ok,
+  ).toBe(true);
+  expect(reopened.getSnapshot().objects[0]!.transform.position[2]).toBeCloseTo(9);
+});
+
+it("rejects moving a single large room outside the visible grid", () => {
+  const room: CatalogueAsset = {
+    id: "room-space1-v1",
+    name: "Space1",
+    kind: "environment",
+    url: "room.glb",
+    sha256: "1".repeat(64),
+    thumbnail: null,
+    boundsMeters: { min: [-10, 0, -8], max: [10, 4, 8] },
+  };
+  const store = createLoadedStore([room], room.id);
+  const before = store.getSnapshot();
+  const sceneId = before.activeSceneId!;
+  expect(
+    store.setSelectionTransform([sceneId], sceneId, {
+      position: [31, 0, 0],
+      rotation: [0, 0, 0, 1],
+      scale: [1, 1, 1],
+    }).ok,
+  ).toBe(false);
+  expect(store.getSnapshot()).toBe(before);
+});
 
 it("preserves whole-room variants, exhibits and transforms through replacement, undo and reload", () => {
   const assets: CatalogueAsset[] = ["room-space1-v1", "room-doors-1-v1", "test-crate-v1"].map(
@@ -23,9 +155,7 @@ it("preserves whole-room variants, exhibits and transforms through replacement, 
         : {}),
     }),
   );
-  const store = createDocumentStore(assets);
-  assert.equal(store.createProject("room-space1-v1").ok, true);
-  assert.deepEqual(store.getSnapshot().project!.scenes[0]!.startCamera.position, [36, 48, 54]);
+  const store = createLoadedStore(assets, "room-space1-v1");
   const id = store.getSnapshot().activeSceneId!;
   const crate = store.addObject("test-crate-v1", [1, 0, 2]);
   if (!crate.ok) throw Error(crate.error);
@@ -66,52 +196,6 @@ it("preserves whole-room variants, exhibits and transforms through replacement, 
   assert.equal(store.getSnapshot().project!.scenes[0]!.environmentVisible, true);
 });
 
-it.each([
-  [0, "00000000-0000-7cc3-98c4-dc0c0c07398f"],
-  // RFC 9562 Appendix A.6 test vector
-  [1645557742000, "017f22e2-79b0-7cc3-98c4-dc0c0c07398f"],
-  [0xffffffffffff, "ffffffff-ffff-7cc3-98c4-dc0c0c07398f"],
-])("creates a UUIDv7 project ID at %i milliseconds", (timestamp, expected) => {
-  vi.spyOn(Date, "now").mockReturnValue(timestamp);
-  vi.spyOn(crypto, "randomUUID").mockReturnValueOnce("aaaaaaaa-bbbb-4cc3-98c4-dc0c0c07398f");
-  const store = createDocumentStore([
-    {
-      id: "room",
-      name: "Room",
-      kind: "environment",
-      url: "room.glb",
-      sha256: "0".repeat(64),
-      thumbnail: null,
-    },
-  ]);
-  const created = store.createProject("room");
-  if (!created.ok) throw new Error(created.error.message);
-  assert.equal(created.value.projectId, expected);
-});
-
-it("uses UUIDv7 when the Scenes panel creates the first project, retaining UUIDv4 scene IDs", () => {
-  vi.spyOn(Date, "now").mockReturnValue(1645557742000);
-  const store = createDocumentStore([
-    {
-      id: "room",
-      name: "Room",
-      kind: "environment",
-      url: "room.glb",
-      sha256: "0".repeat(64),
-      thumbnail: null,
-    },
-  ]);
-  assert.equal(store.createScene("First scene", "room").ok, true);
-  const project = store.getSnapshot().project!;
-  assert.match(project.projectId, /^017f22e2-79b0-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-  assert.equal(project.scenes[0]!.id[14], "4");
-  assert.equal(store.createScene("Second scene", "room").ok, true);
-  store.undo();
-  assert.equal(store.getSnapshot().project!.projectId, project.projectId);
-  store.redo();
-  assert.equal(store.getSnapshot().project!.projectId, project.projectId);
-});
-
 it("preserves mixed-asset placement, history branching and earlier snapshots", () => {
   const assets: CatalogueAsset[] = [
     {
@@ -139,7 +223,7 @@ it("preserves mixed-asset placement, history branching and earlier snapshots", (
     sha256: "0".repeat(64),
     thumbnail: null,
   });
-  const store = createDocumentStore(assets);
+  const store = createLoadedStore(assets, "test-room-v1");
   let notifications = 0;
   store.subscribe(() => notifications++);
   const initial = store.getSnapshot();
@@ -170,14 +254,8 @@ it("preserves mixed-asset placement, history branching and earlier snapshots", (
   const beforeUnknown = store.getSnapshot();
   assert.equal(store.addObject("unknown", [0, 0, 0]).ok, false);
   assert.equal(store.getSnapshot(), beforeUnknown);
-  const room = store.addObject("test-room-v1", [0, 0, 0]);
-  assert.equal(room.ok, true);
-  if (!room.ok) throw new Error(room.error);
-  assert.equal(room.object.assetId, "test-room-v1");
-  store.undo();
-  store.redo();
-  assert.equal(store.getSnapshot().objects.at(-1)?.id, room.object.id);
-  assert.equal(store.getSnapshot().objects.at(-1)?.assetId, "test-room-v1");
+  assert.isFalse(store.addObject("test-room-v1", [0, 0, 0]).ok);
+  assert.equal(store.getSnapshot(), beforeUnknown);
 
   const globe = store.addObject("sample-snowglobe-v1", [2, 0, 0]);
   assert.equal(globe.ok, true);
@@ -189,16 +267,20 @@ it("preserves mixed-asset placement, history branching and earlier snapshots", (
 });
 
 it("commits one reversible transform and rejects invalid moves without changing history", () => {
-  const store = createDocumentStore([
-    {
-      id: "crate",
-      name: "Crate",
-      kind: "model",
-      url: "crate.glb",
-      sha256: "0".repeat(64),
-      thumbnail: null,
-    },
-  ]);
+  const store = createLoadedStore(
+    [
+      testRoom,
+      {
+        id: "crate",
+        name: "Crate",
+        kind: "model",
+        url: "crate.glb",
+        sha256: "0".repeat(64),
+        thumbnail: null,
+      },
+    ],
+    testRoom.id,
+  );
   const placed = store.addObject("crate", [1, 0, 0]);
   if (!placed.ok) throw new Error(placed.error);
   const original = store.getSnapshot();
@@ -241,16 +323,20 @@ it("commits one reversible transform and rejects invalid moves without changing 
 });
 
 it("shares one undo order across incoming gizmo moves, edit sessions and deletion", () => {
-  const store = createDocumentStore([
-    {
-      id: "crate",
-      name: "Crate",
-      kind: "model",
-      url: "crate.glb",
-      sha256: "0".repeat(64),
-      thumbnail: null,
-    },
-  ]);
+  const store = createLoadedStore(
+    [
+      testRoom,
+      {
+        id: "crate",
+        name: "Crate",
+        kind: "model",
+        url: "crate.glb",
+        sha256: "0".repeat(64),
+        thumbnail: null,
+      },
+    ],
+    testRoom.id,
+  );
   const added = store.addObject("crate", [0, 0, 0]);
   if (!added.ok) throw new Error(added.error);
   const started = store.beginTransform(added.object.id);
@@ -294,11 +380,9 @@ it("stores interactions in the project and reloads them with the scene", () => {
       thumbnail: null,
     },
   ];
-  const store = createDocumentStore(assets);
-  assert.equal(store.setInteractions([]).ok, false);
+  const store = createLoadedStore(assets, "test-room-v1");
   const placed = store.addObject("test-crate-v1", [1, 0, 0]);
   if (!placed.ok) throw new Error(placed.error);
-  assert.equal(store.createProject("test-room-v1").ok, true);
   const hotspot = store.addHotspot(placed.object.id);
   if (!hotspot.ok) throw new Error(hotspot.error.message);
 
@@ -344,63 +428,6 @@ it("stores interactions in the project and reloads them with the scene", () => {
   );
 });
 
-it("creates a saveable room project while preserving model IDs, transforms and history", () => {
-  vi.spyOn(Date, "now").mockReturnValue(1645557742000);
-  const assets: CatalogueAsset[] = [
-    {
-      id: "test-room-v1",
-      name: "Room",
-      kind: "environment",
-      url: "room.glb",
-      sha256: "0".repeat(64),
-      thumbnail: null,
-    },
-    {
-      id: "test-crate-v1",
-      name: "Crate",
-      kind: "model",
-      url: "crate.glb",
-      sha256: "0".repeat(64),
-      thumbnail: null,
-    },
-  ];
-  const store = createDocumentStore(assets);
-  store.addObject("test-crate-v1", [2, 0, -3]);
-  const before = store.getSnapshot();
-  assert.equal(store.createProject("test-crate-v1").ok, false);
-  assert.equal(store.getSnapshot(), before);
-  const created = store.createProject("test-room-v1");
-  assert.equal(created.ok, true);
-  if (!created.ok) throw new Error(created.error.message);
-  assert.match(
-    created.value.projectId,
-    /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-  );
-  assert.equal(created.value.scenes[0]?.id[14], "4");
-  assert.equal(created.value.scenes[0]?.objects[0]?.id[14], "4");
-  assert.deepEqual(created.value.scenes[0]?.objects, before.objects);
-  assert.equal(created.value.scenes[0]?.environmentAssetId, "test-room-v1");
-  store.undo();
-  assert.equal(store.getSnapshot().project?.scenes[0]?.objects.length, 0);
-  store.redo();
-  assert.deepEqual(store.getSnapshot().objects, before.objects);
-  const reopened = createDocumentStore(assets);
-  assert.equal(
-    reopened.loadProject(
-      JSON.stringify(store.getSnapshot().project),
-      new Map(assets.map((a) => [a.id, a.kind])),
-    ).ok,
-    true,
-  );
-  assert.deepEqual(reopened.getSnapshot().project, store.getSnapshot().project);
-  assert.equal(store.createProject("test-room-v1").ok, false);
-  const empty = createDocumentStore(assets).createProject("test-room-v1");
-  assert.equal(empty.ok, true);
-  if (!empty.ok) throw new Error(empty.error.message);
-  assert.equal(empty.value.scenes[0]?.objects.length, 0);
-  assert.notEqual(empty.value.projectId, created.value.projectId);
-});
-
 it("attaches hotspots to objects and removes their rules with the object", () => {
   const assets: CatalogueAsset[] = [
     {
@@ -420,11 +447,9 @@ it("attaches hotspots to objects and removes their rules with the object", () =>
       thumbnail: null,
     },
   ];
-  const store = createDocumentStore(assets);
+  const store = createLoadedStore(assets, "test-room-v1");
   const object = store.addObject("test-crate-v1", [1, 0, 0]);
   if (!object.ok) throw new Error(object.error);
-  assert.equal(store.addHotspot(object.object.id).ok, false);
-  assert.equal(store.createProject("test-room-v1").ok, true);
 
   assert.equal(store.addHotspot(object.object.id, [NaN, 0, 0]).ok, false);
   const added = store.addHotspot(object.object.id, [0.25, 0, -0.5]);
@@ -486,10 +511,9 @@ it("deleting a hotspot keeps unrelated interactions", () => {
       thumbnail: null,
     },
   ];
-  const store = createDocumentStore(assets);
+  const store = createLoadedStore(assets, "test-room-v1");
   const object = store.addObject("test-crate-v1", [0, 0, 0]);
   if (!object.ok) throw new Error(object.error);
-  assert.equal(store.createProject("test-room-v1").ok, true);
   const hotspot = store.addHotspot(object.object.id);
   if (!hotspot.ok) throw new Error(hotspot.error.message);
   const sceneStart = {
@@ -535,8 +559,7 @@ it("snaps a module beside an approved Starter room and keeps its server identity
     },
   ];
   const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
-  const store = createDocumentStore(assets);
-  expect(store.createProject(approvedId).ok).toBe(true);
+  const store = createLoadedStore(assets, approvedId);
   const added = store.addObject("test-room-module-v1", [7.46, 0, -5.35]);
   expect(added.ok).toBe(true);
   if (!added.ok) throw new Error(added.error);
@@ -570,8 +593,7 @@ it("snaps a module beside an approved Starter room and keeps its server identity
   expect(store.getSnapshot().project!.scenes[0]!.environmentAssetId).toBe(approvedId);
   expect(store.getSnapshot().objects[0]!.transform.position).toEqual([12, 0, 3]);
 
-  const hidden = createDocumentStore(assets);
-  expect(hidden.createProject(approvedId).ok).toBe(true);
+  const hidden = createLoadedStore(assets, approvedId);
   expect(hidden.deleteObject(hidden.getSnapshot().activeSceneId!).ok).toBe(true);
   const alone = hidden.addObject("test-room-module-v1", [7.46, 0, -5.35]);
   expect(alone.ok).toBe(true);
@@ -600,8 +622,7 @@ it("reconnects an approved Starter room and its module when either moves", () =>
     },
   ];
   function layout() {
-    const store = createDocumentStore(assets);
-    expect(store.createProject(approvedId).ok).toBe(true);
+    const store = createLoadedStore(assets, approvedId);
     const room = store.addObject("test-room-module-v1", [10, 0, 0]);
     if (!room.ok) throw Error(room.error);
     return { store, room: room.object, first: store.getSnapshot().activeSceneId! };
@@ -639,8 +660,10 @@ it("reconnects an approved Starter room and its module when either moves", () =>
   ).toEqual([10, 0, 10]);
   expect(initialMove.store.getSnapshot().project!.scenes[0]!.environmentAssetId).toBe(approvedId);
 
-  const different = createDocumentStore([{ ...assets[0]!, sha256: "b".repeat(64) }, assets[1]!]);
-  expect(different.createProject(approvedId).ok).toBe(true);
+  const different = createLoadedStore(
+    [{ ...assets[0]!, sha256: "b".repeat(64) }, assets[1]!],
+    approvedId,
+  );
   const unrelatedRoom = different.addObject("test-room-module-v1", [10, 0, 0]);
   if (!unrelatedRoom.ok) throw Error(unrelatedRoom.error);
   expect(
@@ -683,8 +706,7 @@ it("places and moves an approved Starter model without changing its UUID", () =>
       thumbnail: null,
     },
   ];
-  const store = createDocumentStore(assets);
-  expect(store.createProject(environmentId).ok).toBe(true);
+  const store = createLoadedStore(assets, environmentId);
   const added = store.addObject(modelId, [7.46, 0, -5.35]);
   if (!added.ok) throw Error(added.error);
   expect(added.object.assetId).toBe(modelId);
@@ -723,8 +745,7 @@ it("places and moves an approved Starter model without changing its UUID", () =>
   expect(reopened.getSnapshot().objects[0]!.assetId).toBe(modelId);
   expect(reopened.getSnapshot().objects[0]!.transform.position).toEqual([0, 0, 10]);
 
-  const hidden = createDocumentStore(assets);
-  expect(hidden.createProject(environmentId).ok).toBe(true);
+  const hidden = createLoadedStore(assets, environmentId);
   const remaining = hidden.addObject(modelId, [10, 0, 0]);
   if (!remaining.ok) throw Error(remaining.error);
   expect(hidden.deleteObject(hidden.getSnapshot().activeSceneId!).ok).toBe(true);
@@ -756,8 +777,7 @@ it("snaps rooms to vacant adjoining sides while preserving undo and saved positi
       thumbnail: null,
     }),
   );
-  const store = createDocumentStore(assets);
-  assert.equal(store.createProject("test-room-v1").ok, true);
+  const store = createLoadedStore(assets, "test-room-v1");
   const add = (position: readonly [number, number, number]) => {
     const result = store.addObject("test-room-module-v1", position);
     assert.equal(result.ok, true);
@@ -770,7 +790,7 @@ it("snaps rooms to vacant adjoining sides while preserving undo and saved positi
   assert.deepEqual(add([1, 0, 8]).transform.position, [0, 0, 10]);
   assert.deepEqual(add([1, 0, -8]).transform.position, [0, 0, -10]);
   const blocked = store.getSnapshot();
-  assert.equal(store.addObject("test-room-module-v1", [19, 0, 0]).ok, false);
+  assert.equal(store.addObject("test-room-module-v1", [39, 0, 0]).ok, false);
   assert.equal(store.getSnapshot(), blocked);
   const next = add([9, 0, 9]);
   assert.deepEqual(next.transform.position, [10, 0, 10]);
@@ -828,8 +848,7 @@ it("rejects room scaling in direct edits and previews while allowing movement an
       thumbnail: null,
     }),
   );
-  const store = createDocumentStore(assets);
-  store.createProject("test-room-v1");
+  const store = createLoadedStore(assets, "test-room-v1");
   const added = store.addObject("test-room-module-v1", [10, 0, 0]);
   if (!added.ok) throw new Error(added.error);
   const room = added.object;
@@ -868,8 +887,7 @@ it("links hotspot playback to scene audio and removes only the hotspot and its r
     sha256: "0".repeat(64),
     thumbnail: null,
   }));
-  const store = createDocumentStore(assets);
-  store.createProject("room");
+  const store = createLoadedStore(assets, "room");
   const placed = store.addObject("object", [0, 0, 0]);
   if (!placed.ok) throw Error("Placement failed");
   store.addAudio("audio", "global", null);

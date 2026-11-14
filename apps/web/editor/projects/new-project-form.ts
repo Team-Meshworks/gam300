@@ -1,4 +1,4 @@
-import { localDeadlineToUnixSeconds } from "./deadline";
+import { localDateToDueUnixSeconds, localDeadlineToUnixSeconds } from "./deadline";
 
 // UI data contracts; the host maps them to the SCRUM-161 API.
 export type ProjectClass = Readonly<{ id: string; label: string }>;
@@ -16,7 +16,7 @@ export type NewProjectDraft = Readonly<{
   dueDate: string;
   classId: string;
   imageType: string;
-  // Local selection only; the future host owns upload and asset references
+  // Encoded and saved with the source project before students are assigned
   coverImage?: File;
   studentIds: readonly string[];
 }>;
@@ -29,14 +29,23 @@ export function validateNewProject(
   draft: NewProjectDraft,
   classes: readonly ProjectClass[],
   students: readonly EligibleStudent[],
+  dateOnly = false,
 ):
   | { ok: true; value: NewProjectDraft }
   | { ok: false; field: keyof NewProjectDraft; message: string } {
   for (const field of ["title", "description", "instructions"] as const) {
     if (!draft[field].trim()) return { ok: false, field, message: `Enter a project ${field}.` };
   }
-  if (localDeadlineToUnixSeconds(draft.dueDate) === null)
-    return { ok: false, field: "dueDate", message: "Choose a valid local due date and time." };
+  if (
+    (dateOnly
+      ? localDateToDueUnixSeconds(draft.dueDate)
+      : localDeadlineToUnixSeconds(draft.dueDate)) === null
+  )
+    return {
+      ok: false,
+      field: "dueDate",
+      message: dateOnly ? "Choose a valid due date." : "Choose a valid local due date and time.",
+    };
   if (!classes.some((item) => item.id === draft.classId))
     return { ok: false, field: "classId", message: "Choose an available class." };
   const eligibleIds = new Set(

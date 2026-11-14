@@ -1,25 +1,19 @@
 const DATABASE_NAME = "vthere-local-drafts";
 const DATABASE_VERSION = 2;
-export const DRAFT_STORE_NAME = "drafts";
 export const SESSION_STORE_NAME = "session";
-export const LOCAL_PRINCIPAL = "local";
-
-export interface IDraftDatabase {
-  getIndexedDB(): Promise<IDBDatabase>;
-}
-
-export function isCounter(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-}
 
 function upgradeDatabase(database: IDBDatabase): void {
-  // Keep the local namespace separate from future signed-in account records
-  if (!database.objectStoreNames.contains(DRAFT_STORE_NAME)) {
-    database.createObjectStore(DRAFT_STORE_NAME, { keyPath: ["principalKey", "projectId"] });
+  // Keep the version-2 schema compatible with existing browser profiles and open tabs.
+  if (!database.objectStoreNames.contains("drafts")) {
+    database.createObjectStore("drafts", { keyPath: ["principalKey", "projectId"] });
   }
   if (!database.objectStoreNames.contains(SESSION_STORE_NAME)) {
     database.createObjectStore(SESSION_STORE_NAME);
   }
+}
+
+export interface IDraftDatabase {
+  getIndexedDB(): Promise<IDBDatabase>;
 }
 
 export class IndexedDBDraftDatabase implements IDraftDatabase {

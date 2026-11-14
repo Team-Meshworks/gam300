@@ -12,8 +12,10 @@ import {
   type SavedProject,
   type SubmissionSummary,
 } from "./review-types";
-import type { LeaveGuard } from "./ReviewWorkspace";
+import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
 import { ReviewDocument } from "./ReviewDocument";
+import { ProgressReviews } from "./ProgressReviews";
+import { formatLocalDeadline } from "../projects/deadline";
 
 const labels = {
   pending: "Awaiting educator review",
@@ -38,6 +40,7 @@ export function ProjectReview({
   className,
   role,
   actorId,
+  orgId,
   onGuard,
 }: {
   client: ReviewClient;
@@ -47,6 +50,7 @@ export function ProjectReview({
   className: string;
   role: AccountRole;
   actorId: string;
+  orgId: string | null;
   onGuard: (guard: LeaveGuard) => void;
 }) {
   const [project, setProject] = useState<SavedProject | null>(null);
@@ -61,6 +65,7 @@ export function ProjectReview({
   const [phase, setPhase] = useState<"ready" | "confirm" | "sending" | "unknown">("ready");
   const [historyError, setHistoryError] = useState("");
   const [historyBusy, setHistoryBusy] = useState(false);
+  const [progressGuard, setProgressGuard] = useState<LeaveGuard>({ pending: false, dirty: false });
   const generation = useRef(0);
   const busy = useRef(false);
   const mounted = useRef(false);
@@ -119,8 +124,8 @@ export function ProjectReview({
       requests.current++;
     };
   }, [load]);
-  const locked = phase === "sending" || phase === "unknown";
-  const dirty = !!feedback || complete || phase === "confirm";
+  const locked = phase === "sending" || phase === "unknown" || progressGuard.pending;
+  const dirty = !!feedback || complete || phase === "confirm" || progressGuard.dirty;
   useEffect(() => {
     onGuard({ pending: locked, dirty });
   }, [onGuard, locked, dirty]);
@@ -283,7 +288,7 @@ export function ProjectReview({
           {studentName} · {className}
         </h2>
         <Button
-          disabled={loading || locked || phase === "confirm"}
+          disabled={loading || locked || phase === "confirm" || progressGuard.dirty}
           onClick={() => {
             setComplete(false);
             void load(review?.submissionId);
@@ -322,12 +327,25 @@ export function ProjectReview({
             This screen uses work saved on the server. Changes in an open editor or downloaded file
             are not submitted by this screen.
           </p>
+          <ProgressReviews
+            key={`${projectId}:${actorId}:${role}`}
+            projectId={projectId}
+            revision={project.revision}
+            actorId={actorId}
+            orgId={orgId}
+            educator={role === "Educator"}
+            {...(role === "Educator"
+              ? { publication: { studentId, studentName, projectTitle: project.document.title } }
+              : {})}
+            onGuard={setProgressGuard}
+            onClose={() => void load(review?.submissionId)}
+          />
           {submissions.length > 0 && (
             <Field id="review-history" label="Submission">
               <select
                 id="review-history"
                 value={review?.submissionId ?? ""}
-                disabled={loading || locked || phase === "confirm"}
+                disabled={loading || locked || phase === "confirm" || progressGuard.dirty}
                 onChange={(e) => {
                   if (
                     feedback &&
@@ -356,7 +374,8 @@ export function ProjectReview({
             <>
               <p className="sp-badge">{state ? labels[state] : ""}</p>
               <p>
-                Submitted {time(review.submittedAt)} · Due {time(review.dueAtUnixSeconds)} ·{" "}
+                Submitted {time(review.submittedAt)} · Due{" "}
+                {formatLocalDeadline(review.dueAtUnixSeconds) ?? "Unavailable"} ·{" "}
                 <strong>{review.isLate ? "Late submission" : "On time"}</strong>
               </p>
               {state === "historical" && (
@@ -491,45 +510,47 @@ export function ProjectReview({
               ) : null}
             </section>
           )}
-          <section className="sp-card sp-reviews" aria-label="Publication prerequisites">
-            <h3>Publication</h3>
-            <p>
-              Current revision approval:{" "}
-              {state === "approved" ? "confirmed" : "not confirmed for the selected submission"}.
-            </p>
-            <p>
-              Publish permission:{" "}
-              {project.permissions.canPublish
-                ? "allowed by current project permissions"
-                : "not granted"}
-              .
-            </p>
-            {state === "approved" &&
-            project.permissions.canPublish &&
-            !loading &&
-            phase === "ready" &&
-            !dirty ? (
-              <a
-                className="sp-button sp-button--primary"
-                href={`/publish?projectId=${encodeURIComponent(projectId)}`}
-              >
-                Publish project
-              </a>
-            ) : (
-              <Button disabled>Publish project</Button>
-            )}
-            <p className="sp-hint">
-              {loading || phase !== "ready"
-                ? "Wait for the current review action to finish before publishing."
-                : dirty
-                  ? "Save or discard your unsaved input before publishing."
-                  : state !== "approved"
-                    ? "The current submission must be approved before publishing."
-                    : !project.permissions.canPublish
-                      ? "Your current project access does not allow publishing."
-                      : "Continue to publishing to choose how to share this project."}
-            </p>
-          </section>
+          {role === "Educator" && (
+            <section className="sp-card sp-reviews" aria-label="Publication prerequisites">
+              <h3>Publication</h3>
+              <p>
+                Current revision approval:{" "}
+                {state === "approved" ? "confirmed" : "not confirmed for the selected submission"}.
+              </p>
+              <p>
+                Publish permission:{" "}
+                {project.permissions.canPublish
+                  ? "allowed by current project permissions"
+                  : "not granted"}
+                .
+              </p>
+              {state === "approved" &&
+              project.permissions.canPublish &&
+              !loading &&
+              phase === "ready" &&
+              !dirty ? (
+                <a
+                  className="sp-button sp-button--primary"
+                  href={`/publish?projectId=${encodeURIComponent(projectId)}`}
+                >
+                  Publish project
+                </a>
+              ) : (
+                <Button disabled>Publish project</Button>
+              )}
+              <p className="sp-hint">
+                {loading || phase !== "ready"
+                  ? "Wait for the current review action to finish before publishing."
+                  : dirty
+                    ? "Save or discard your unsaved input before publishing."
+                    : state !== "approved"
+                      ? "The current submission must be approved before publishing."
+                      : !project.permissions.canPublish
+                        ? "Your current project access does not allow publishing."
+                        : "Continue to publishing to choose how to share this project."}
+              </p>
+            </section>
+          )}
         </>
       )}
       {phase === "confirm" && intent && (

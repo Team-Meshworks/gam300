@@ -136,6 +136,45 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         }
     }
 
+    /// <summary>Creates new organisation accounts, skipping existing usernames; other failures roll back the new accounts.</summary>
+    /// <param name="requests">Accounts sharing one organisation.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The result and all created accounts.</returns>
+    public async Task<(IdentityResult Result, IReadOnlyList<ProvisionedAccount>? Accounts)> ProvisionAccountsAsync(
+        ProvisionAccountRequest[] requests, CancellationToken cancellationToken = default)
+    {
+        if (requests is not { Length: > 0 and <= 200 } || requests.Any(request => !IsValidAccount(request))
+            || requests.Any(request => request.Role == ApplicationRoles.Administrator)
+            || requests.Any(request => request.OrgId != requests[0].OrgId))
+        {
+            return (Failure("InvalidInput"), null);
+        }
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await database.Database.ExecuteSqlRawAsync(
+                "LOCK TABLE \"AspNetUserRoles\" IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
+            var accounts = new List<ProvisionedAccount>();
+            foreach (var request in requests.DistinctBy(request => users.NormalizeName(request.UserName)))
+            {
+                if (await users.FindByNameAsync(request.UserName) is not null) { continue; }
+                var outcome = await ProvisionCoreAsync(request, cancellationToken);
+                if (!outcome.Result.Succeeded)
+                {
+                    if (outcome.Result.Errors.Any(error => error.Code == "DuplicateUserName")) { continue; }
+                    return (outcome.Result, null);
+                }
+                accounts.Add(outcome.Account!);
+            }
+            await transaction.CommitAsync(cancellationToken);
+            return (IdentityResult.Success, accounts);
+        }
+        catch (DbUpdateException exception) when (IsDuplicateUserName(exception))
+        {
+            return (Failure("DuplicateUserName"), null);
+        }
+    }
+
     /// <summary>
     /// Sets a temporary password, invalidates existing credential stamps and requires a password change
     /// </summary>
@@ -155,12 +194,16 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        // Keep lifecycle changes out while concurrent resets retain their optimistic conflict check
+        await database.Database.ExecuteSqlRawAsync("""LOCK TABLE "AspNetUserRoles" IN SHARE MODE""", cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var user = await users.FindByIdAsync(userId.ToString("D"));
         if (user is null)
         {
             return Failure("UserNotFound");
         }
+        await database.Entry(user).ReloadAsync(cancellationToken);
+        if (user.IsDeleted) { return Failure("UserNotFound"); }
 
         cancellationToken.ThrowIfCancellationRequested();
         user.MustChangePassword = true;

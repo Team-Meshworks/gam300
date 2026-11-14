@@ -1,7 +1,12 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Spatia.Server.Accounts;
+using Spatia.Server.Assets;
+using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
@@ -13,10 +18,51 @@ public sealed class ReviewScreensIntegrationTests
     [Arguments(true)]
     public async Task ReviewScreens_UseAuthorizedSavedRevisionsAndReportUnavailableAssets(bool unavailableAssets)
     {
-        await using var fixture = unavailableAssets
-            ? await HttpsApplicationFixture.CreateAsync(environmentName: "Development")
-            : await ReviewSubmissionEndpointTests.CreateFixtureAsync(new());
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var seeded = await ReviewSubmissionEndpointTests.SeedAsync(fixture, late: true);
+        fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
+        // Match the student publication grant created by the real class assignment workflow
+        await using (var grantScope = fixture.App.Services.CreateAsyncScope())
+        {
+            var database = grantScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await database.ProjectAssignments.Where(row => row.ProjectId == seeded.ProjectId && row.UserId == seeded.Student)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.CanPublish, true));
+        }
+        if (unavailableAssets)
+        {
+            // Keep the authored catalogue ID valid while making its publication source bytes unavailable.
+            fixture.App.Configuration["DevelopmentPublication:AssetDirectory"] = Path.Combine(
+                Path.GetTempPath(), "spatia-missing-publication-assets-" + Guid.NewGuid().ToString("N"));
+        }
+        else
+        {
+            var bytes = AssetIntakeTests.CreateMinimalGlb();
+            await using var assetScope = fixture.App.Services.CreateAsyncScope();
+            var database = assetScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var asset = new AssetCandidate
+            {
+                Id = Guid.NewGuid(),
+                Name = "Synthetic room",
+                Kind = "environment",
+                Bytes = bytes,
+                Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)),
+                Status = "approved",
+                ValidationJson = "{}",
+                Source = "Synthetic fixture",
+                License = "Synthetic test only",
+                ReviewNotes = "Fixture approval",
+                SubmittedBy = seeded.Educator,
+                ReviewedBy = seeded.Educator,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            database.AssetCandidates.Add(asset);
+            var project = await database.Projects.SingleAsync(row => row.Id == seeded.ProjectId);
+            var document = JsonNode.Parse(project.DocumentJson)!;
+            document["scenes"]![0]!["environmentAssetId"] = asset.Id.ToString();
+            document["scenes"]![0]!["objects"] = new JsonArray();
+            project.DocumentJson = document.ToJsonString();
+            await database.SaveChangesAsync();
+        }
         await using var scope = fixture.Database.Services.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var student = (await users.FindByIdAsync(seeded.Student.ToString("D")))!;

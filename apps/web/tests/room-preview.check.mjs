@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, readFile } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
+import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
 const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5185/",
   args: ["--enable-unsafe-swiftshader"],
@@ -146,7 +147,8 @@ try {
           assets.push({...starter, id: "11111111-1111-4111-8111-111111111111", name: "Different room", sha256: "b".repeat(64)});`,
       });
     });
-    await page.goto(origin);
+    const project = await serveProject(page, origin);
+    await page.goto(project.url);
     await page.getByRole("button", { name: "Rooms", exact: true }).waitFor();
     const select = async (name) => {
       await page.getByRole("button", { name: "Rooms", exact: true }).click();
@@ -164,15 +166,7 @@ try {
       );
       await page.locator(".viewport-stage").click();
     };
-    const document = () =>
-      page.evaluate(async () => {
-        const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-        const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
-        const saved = await loadRecoverySession(
-          new Map(assets.map((asset) => [asset.id, asset.kind])),
-        );
-        return saved.ok ? saved.value?.document : null;
-      });
+    const document = () => project.document();
     const waitForDocument = async (environmentAssetId, count, matches = () => true) => {
       const deadline = Date.now() + 5000;
       while (Date.now() < deadline) {
@@ -187,7 +181,7 @@ try {
         await page.waitForTimeout(100);
       }
       throw new Error(
-        `Room document did not retain ${environmentAssetId} with ${count} added rooms`,
+        `Room document did not retain ${environmentAssetId} with ${count} added rooms: ${JSON.stringify(await document())}; ${(await page.locator('[role="alert"], [role="status"]').allTextContents()).join(" | ")}`,
       );
     };
     return { page, choose, select, document, waitForDocument };
@@ -231,11 +225,9 @@ try {
   const before = await unrelatedPicker.waitForDocument(unrelatedId, 0);
   await unrelatedPicker.select("Different room");
   assert.equal(await unrelatedPicker.page.locator(".scene-tree .object-row").count(), 0);
-  assert.equal(
-    await unrelatedPicker.page.getByText(/another copy of this room is not supported/i).count(),
-    0,
-    "A complete layout may be reselected",
-  );
+  await unrelatedPicker.page
+    .getByText("An approved room model is required to add an adjoining room.")
+    .waitFor();
   const reselected = await unrelatedPicker.waitForDocument(unrelatedId, 0);
   assert.equal(reselected.projectId, before.projectId);
   await unrelatedPicker.page.locator(".environment-row").click();
@@ -245,13 +237,6 @@ try {
     0,
     (scene) => scene.environmentVisible === false,
   );
-  await unrelatedPicker.select("Different room");
-  const restored = await unrelatedPicker.waitForDocument(
-    unrelatedId,
-    0,
-    (scene) => scene.environmentVisible !== false,
-  );
-  assert.equal(restored.projectId, before.projectId, "Restoring a layout keeps the same project");
   await unrelatedPicker.page.close();
 
   console.log("Approved room rendering:", JSON.stringify(measured));
@@ -280,7 +265,8 @@ try {
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
-  await page.goto(process.argv[2] ?? "http://127.0.0.1:5185/");
+  const project = await serveProject(page, process.argv[2] ?? "http://127.0.0.1:5185/");
+  await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Filters", exact: true }).count(), 0);
   assert.equal(
@@ -320,12 +306,7 @@ try {
   async function saved(count, matches = () => true) {
     const deadline = Date.now() + 15000;
     while (Date.now() < deadline) {
-      const doc = await page.evaluate(async () => {
-        const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-        const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
-        const r = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])));
-        return r.ok ? r.value?.document : null;
-      });
+      const doc = project.document();
       if (doc?.scenes[0].objects.length === count && matches(doc)) return doc;
       await page.waitForTimeout(100);
     }
@@ -335,6 +316,25 @@ try {
   await choose();
   await stage.click({ position: { x: 600, y: 350 } });
   let doc = await saved(0);
+  // Back the actual editor camera away so the enlarged 80 m grid edge is visible.
+  await page.evaluate(() => {
+    let mesh;
+    window.roomRoots.at(-1).traverse((node) => {
+      if (node.isMesh) mesh = node;
+    });
+    mesh.onBeforeRender = (_renderer, _scene, camera) => {
+      window.edgeCamera = camera;
+    };
+  });
+  await page.waitForFunction(() => window.edgeCamera);
+  await page.evaluate(() => {
+    const camera = window.edgeCamera;
+    window.edgeCameraPose = {
+      position: camera.position.toArray(),
+      quaternion: camera.quaternion.toArray(),
+    };
+    camera.position.multiplyScalar(4);
+  });
   await choose();
   let outside;
   const diagnostics = [];
@@ -392,6 +392,10 @@ try {
     "Returning to the grid restores the grey preview",
   );
   await page.keyboard.press("Escape");
+  await page.evaluate(() => {
+    window.edgeCamera.position.fromArray(window.edgeCameraPose.position);
+    window.edgeCamera.quaternion.fromArray(window.edgeCameraPose.quaternion);
+  });
   for (let count = 1; count <= 2; count++) {
     await choose();
     await stage.hover({ position: { x: 600, y: 350 } });
@@ -715,7 +719,7 @@ try {
   await assertLiveCamera("numeric room rotation and doorway update");
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await openSavedProject(page);
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   await saved(2);
   await mkdir("test-results/room-entrances", { recursive: true });
@@ -740,7 +744,7 @@ try {
   }
   await saved(0, (value) => value.scenes[0].environmentVisible === false);
   await page.reload();
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await openSavedProject(page);
   assert.equal(await page.locator(".scene-tree .environment-row").count(), 0);
   assert.equal(await page.locator(".scene-tree .object-row").count(), 0);
   await page.getByRole("button", { name: "Third person", exact: true }).click();

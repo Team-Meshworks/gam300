@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { playUiSound, setUiSoundVolume } from "../audio/ui-sounds";
 import { Icon } from "./Icon";
 import { applyTheme, type UserSettings } from "./user-settings";
@@ -15,10 +22,12 @@ export function SettingsPanel({
   settings,
   onSave,
   onClose,
+  icon = (name) => <Icon name={name} />,
 }: {
   settings: UserSettings;
   onSave: (settings: UserSettings) => void;
   onClose: () => void;
+  icon?: (name: "moon" | "sun" | "soundEffects") => ReactNode;
 }) {
   const [draft, setDraft] = useState(settings);
   const panel = useRef<HTMLElement>(null);
@@ -98,15 +107,13 @@ export function SettingsPanel({
         aria-label="Dark mode"
         onClick={() => setDraft({ ...draft, theme: dark ? "light" : "dark" })}
       >
-        <span className="theme-toggle-knob">
-          <Icon name={dark ? "moon" : "sun"} />
-        </span>
+        <span className="theme-toggle-knob">{icon(dark ? "moon" : "sun")}</span>
         {dark ? "Dark Mode" : "Light Mode"}
       </button>
 
       <h2 className="settings-heading">Audio</h2>
       <div className="settings-sound">
-        <Icon name="soundEffects" />
+        {icon("soundEffects")}
         <label htmlFor="sound-effects-volume">Sound Effects</label>
         <output htmlFor="sound-effects-volume">{percent}%</output>
         <input

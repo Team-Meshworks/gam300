@@ -1804,7 +1804,7 @@ Four lifecycle routes share FullAccount, CSRF and AccountWrite protection:
 
 | Route | Request and result |
 | --- | --- |
-| `POST /api/v1/projects` | Required bounded `title`, exactly one of `environmentAssetId` or complete `document`, and optional `orgId`; returns 201 metadata. |
+| `POST /api/v1/projects` | Required bounded `title`, optional `environmentAssetId` or complete `document` (mutually exclusive), and optional `orgId`; returns 201 metadata. |
 | `POST /api/v1/projects/{id}/duplicate` | Required integer `expectedRevision` and bounded `title`; returns 201 independent-copy metadata. |
 | `PATCH /api/v1/projects/{id}/assignments` | Required integer `expectedRevision`, `managedByUserIds`, `assignedCreatorIds`, `canPublishUserIds`; replaces the complete assignment set and returns 200 metadata. |
 | `PATCH /api/v1/projects/{id}/archive` | Required integer `expectedRevision` and boolean `archived`; true archives, false reopens; returns 200 metadata. |
@@ -1819,9 +1819,11 @@ fixed messages, never authored text or account details. Wrapped PostgreSQL inser
 failures now use the existing safe `503 storage_unavailable` mapping.
 
 Create derives organization from current membership; a supplied different organization
-is forbidden. Global Administrators explicitly select an active organization. A blank
-project uses an approved environment asset and the editor's v1 room/camera structure;
-imports preserve supported v1/v2 content. Imported authority is rejected. Server-owned
+is forbidden. Global Administrators explicitly select an active organization. With neither
+`environmentAssetId` nor `document`, creation produces an empty schema-v2 scene with
+`environmentAssetId: null`. An explicitly selected approved environment produces the
+legacy v1 room/camera structure; imports preserve supported v1/v2 content. The two
+inputs are mutually exclusive. Imported authority is rejected. Server-owned
 project IDs, revision 0 and initial assignments commit together. A Creator gets edit
 only; an Educator gets edit/manage/publish; a global Administrator needs no assignment.
 
@@ -2061,6 +2063,30 @@ This protects known original drafts only; copy/import policy remains deferred.
 Three focused access and concurrency cases passed on 29 October 2026, along with
 the Release build and both formatting checks. The original-student assignment
 rule and the 21 project-lifecycle regression cases passed on 30 October 2026.
+
+## Assignment editing (local implementation)
+
+`PATCH /api/v1/classes/{classId}/assignments/{assignmentId}` accepts a mutation ID,
+expected assignment revision, title, description, instructions, Unix-second deadline,
+and the complete selected student ID list. The server checks current class and project
+authority and active roster eligibility. Assignment edits and affected student drafts
+commit together under the existing locks; a stale revision conflicts, and an identical
+retry of the most recent edit returns its recorded revision. Reusing that mutation ID
+with different content or actor conflicts. This receipt is for the latest edit, not an
+unbounded history of retries.
+
+Removing a student deactivates the mapping without deleting their draft; selecting them
+again restores the existing mapping. Newly selected students receive independent drafts
+from the original source revision; if that source has changed, adding students conflicts.
+Metadata or membership changes advance affected draft revisions, so existing revision
+review rules continue to apply. Previously captured submission deadlines and immutable
+published snapshots are preserved. Assignment metadata remains server-owned.
+
+The educator date-only UI currently converts a selected date to local 23:59:59 before
+sending Unix seconds, per the user's 8 November request. The API continues to store an
+instant. This differs from the current SCRUM-161/162 Jira criteria for explicitly chosen
+date and time without end-of-day rounding; reconcile the product contract in Jira before
+claiming those criteria are satisfied.
 
 ## SCRUM-161 part 7: restart and reassignment evidence
 
@@ -2537,7 +2563,7 @@ decisions. Administrator directory powers do not grant review access.
 | Route | Request | Successful response |
 | --- | --- | --- |
 | `POST /api/v1/projects/{id}/submissions` | `{submissionId, expectedRevision, completionConfirmed: true}` | 201 for a new submission, 200 for an identical retry: `{submissionId, projectId, revision, submittedAt, dueAtUnixSeconds, isLate}`. |
-| `GET /api/v1/projects/{id}/submissions` | Optional `limit` (default 10, maximum 20) and exclusive UUID `cursor` | `{items, nextCursor}`; each item has `submissionId`, `revision`, `sequence`, `submittedAt`, `dueAtUnixSeconds`, `isLate`, `isCurrentSubmission`. |
+| `GET /api/v1/projects/{id}/submissions` | Optional `limit` (default 10, maximum 20) and exclusive UUID `cursor` | `{projectId, classId, assignmentId, items, nextCursor}`; each item has `submissionId`, `revision`, `sequence`, `submittedAt`, `dueAtUnixSeconds`, `isLate`, `isCurrentSubmission`. |
 | `GET /api/v1/projects/{id}/submissions/{submissionId}` | Same pagination parameters, applied to decision history | Submission detail described below, including the saved document and latest decision. |
 | `POST /api/v1/projects/{id}/submissions/{submissionId}/decisions` | `{decisionId, expectedRevision, outcome, feedback}` | 201 for a new decision, 200 for an identical retry: `{decisionId, submissionId, sequence, outcome, feedback, decidedAt}`. |
 
@@ -2573,7 +2599,7 @@ deadline or replace it with a device clock.
 | 401 authentication failure; 403 account, operation or `project_read_only` restriction | Preserve pending intent and recover the original account/access; never replay as another user. |
 | 404 `project_not_found` or `review_not_found` | Treat the requested work as unavailable; these codes disclose no other student's content or existence. |
 | 409 `revision_conflict`, `submission_conflict` or `review_decision_conflict` | Refresh authorized project and review state. An older submission or decision cannot authorize a newer revision. Do not silently substitute a new ID or overwrite newer work. |
-| 503 `review_assets_unavailable` or `project_unavailable` | No new evidence was accepted by this attempt. Approved retained assets or valid saved content must become available before a new submission can succeed. |
+| 503 `project_unavailable` | No new evidence was accepted by this attempt. Valid saved content must become available before a new submission can succeed. |
 | 503 `storage_unavailable`, transport failure or an otherwise unconfirmed write | The transaction might already have committed. Reconcile using the same ID, actor and original request fields before offering another write. |
 
 An identical authorized retry returns its original acknowledgement even after
@@ -2588,13 +2614,17 @@ acknowledgement is not proof of rollback.
 ### Asset and publisher handoffs
 
 `IReviewAssetResolver.ResolveAsync` runs inside the submission's existing
-read-committed transaction and project lock. It must resolve exactly one approved,
-retained immutable identity for every required environment, object and media asset,
-without committing or replacing the transaction. The returned SHA-256 strings must
-be 64 lowercase hexadecimal characters. Manifest validation rejects missing,
-duplicate, unexpected or malformed references; a well-formed hash alone does not
-prove byte retention or approval. SCRUM-73 owns that trusted supply and retention
-contract. The unavailable default stays in place until that implementation exists.
+read-committed transaction and project lock. When every required environment,
+object and media asset resolves to a valid approved retained reference, the
+submission records the complete manifest of asset IDs and lowercase SHA-256 hashes.
+
+As a temporary exception, submission proceeds when resolution is unavailable or
+incomplete, recording the exact saved document and an empty asset manifest. It does
+not invent hashes or retain the unresolved asset bytes. Consequently, that evidence
+cannot establish the exact historical appearance of those assets. The exception
+relaxes the immutable-asset review evidence requirement and does not establish
+SCRUM-164 acceptance. Publication still independently requires approved retained
+assets and remains subject to its existing authorization and review gates.
 
 The publisher must reauthorize its actor and keep the same project lock and
 transaction from `ReviewApproval.CheckLockedAsync` through publication commit.

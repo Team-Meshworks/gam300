@@ -31,7 +31,7 @@ const bundle = await build({
           return `
       export { readServerProject } from "${webRoot}editor/persistence/server-project-read.ts";
       export { writeServerDraft } from "${webRoot}editor/persistence/server-draft-write.ts";
-      export { loadRecoverySession } from "${webRoot}editor/persistence/local-drafts.ts";
+      export { loadRecoverySession } from "${webRoot}editor/persistence/recovery-session.ts";
       export { connectServerProjectSession } from "${webRoot}editor/persistence/server-project-session.ts";
       export { createDocumentStore } from "${webRoot}editor/document-store.ts";
     `;
@@ -124,6 +124,7 @@ try {
     organizationId: manager.organizationId,
     revision: 7,
     archived: false,
+    classAssignments: [],
     assignments: [
       { userId: accounts[0].userId, canEdit: true, canManage: false, canPublish: false },
       { userId: manager.userId, canEdit: true, canManage: true, canPublish: true },

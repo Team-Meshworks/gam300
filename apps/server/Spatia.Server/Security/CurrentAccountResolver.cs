@@ -27,7 +27,7 @@ public sealed class CurrentAccountResolver(ApplicationDbContext database)
     {
         var current = await (
             from user in database.Users.AsNoTracking()
-            where user.Id == userId
+            where user.Id == userId && !user.IsDeleted
             join assignment in database.UserRoles on user.Id equals assignment.UserId into assignments
             from assignment in assignments.DefaultIfEmpty()
             join assignedRole in database.Roles
@@ -51,6 +51,7 @@ public sealed class CurrentAccountResolver(ApplicationDbContext database)
                 RoleName = assignedRole == null ? null : assignedRole.Name,
                 MembershipRoleId = membership == null ? (Guid?)null : membership.RoleId,
                 OrganizationId = membership == null ? (Guid?)null : membership.OrganizationId,
+                OrganizationName = organization == null ? null : organization.Name,
                 OrganizationActive = organization != null && organization.IsActive,
             }).SingleOrDefaultAsync(cancellationToken);
 
@@ -79,6 +80,6 @@ public sealed class CurrentAccountResolver(ApplicationDbContext database)
             return null;
         }
 
-        return new CurrentAccount(userId, current.UserName, role, current.OrganizationId, current.MustChangePassword, current.DisplayName);
+        return new CurrentAccount(userId, current.UserName, role, current.OrganizationId, current.MustChangePassword, current.DisplayName, current.OrganizationName);
     }
 }

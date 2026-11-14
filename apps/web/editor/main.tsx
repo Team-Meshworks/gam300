@@ -1,9 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./App";
-import { EditorSessionGate } from "./accounts/EditorSessionGate";
-import { packaged } from "virtual:asset-catalogue";
 import { ServerProjectEditor } from "./ServerProjectEditor";
+import { ProjectEntry } from "./reviews/FacilitatorProjectView";
 import { preloadUiSounds } from "./audio/ui-sounds";
 import "./styles.css";
 
@@ -23,27 +21,12 @@ if (root === null) {
   throw new Error("The editor root element is missing");
 }
 
-if (import.meta.env.DEV && new URLSearchParams(location.search).has("asset-admin-test")) {
-  void import("./asset-administration/AssetAdministrationPreview").then(
-    ({ AssetAdministrationPreview }) => {
-      document.documentElement.classList.add("asset-admin-preview-page");
-      createRoot(root).render(<AssetAdministrationPreview />);
-    },
-  );
-} else {
-  createRoot(root).render(
-    <StrictMode>
-      {new URLSearchParams(location.search).has("projectId") ? (
-        <ServerProjectEditor
-          projectId={new URLSearchParams(location.search).get("projectId") ?? ""}
-        />
-      ) : !packaged ? (
-        <App />
-      ) : (
-        <EditorSessionGate>
-          <App />
-        </EditorSessionGate>
-      )}
-    </StrictMode>,
-  );
-}
+const projectId = new URLSearchParams(location.search).get("projectId");
+if (!projectId) throw new Error("The editor requires a project ID");
+createRoot(root).render(
+  <StrictMode>
+    <ProjectEntry projectId={projectId}>
+      <ServerProjectEditor projectId={projectId} />
+    </ProjectEntry>
+  </StrictMode>,
+);

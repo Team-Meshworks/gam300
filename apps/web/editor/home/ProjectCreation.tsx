@@ -6,6 +6,7 @@ import type { FormNavigationState } from "../projects/NewProjectForm";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { Field } from "../../shared/ui/Field";
+import { Select } from "../../shared/ui/Select";
 import { createWorkspaceClient, isId, isRecord, projectReceipt } from "./workspace-api";
 
 const api = createWorkspaceClient();
@@ -22,6 +23,7 @@ export function ProjectCreation({
   onNavigationStateChange?: ((state: FormNavigationState) => void) | undefined;
 }) {
   const [spaces, setSpaces] = useState<{ id: string; name: string }[] | null>(null);
+  const [spaceError, setSpaceError] = useState(false);
   const [organizations, setOrganizations] = useState<ManagedOrganization[]>([]);
   const [loadError, setLoadError] = useState("");
   const [version, setVersion] = useState(0);
@@ -68,29 +70,39 @@ export function ProjectCreation({
     void (async () => {
       try {
         const [rows, orgs] = await Promise.all([
-          api.read("/api/v1/assets"),
+          api
+            .read("/api/v1/assets")
+            .then((value) => {
+              if (!Array.isArray(value)) throw new Error("Invalid catalogue");
+              return value
+                .filter((row: unknown) => isRecord(row) && row.kind === "environment")
+                .map((row: unknown) => {
+                  if (
+                    !isRecord(row) ||
+                    !isId(row.id) ||
+                    typeof row.name !== "string" ||
+                    !row.name.trim()
+                  )
+                    throw new Error("Invalid space");
+                  return { id: row.id, name: row.name };
+                });
+            })
+            .catch(() => null),
           session.role === "Administrator" ? directory.organizations() : Promise.resolve([]),
         ]);
-        if (!Array.isArray(rows)) throw new Error("Invalid catalogue");
-        const environments = rows
-          .filter((row: unknown) => isRecord(row) && row.kind === "environment")
-          .map((row: unknown) => {
-            if (!isRecord(row) || !isId(row.id) || typeof row.name !== "string" || !row.name.trim())
-              throw new Error("Invalid space");
-            return { id: row.id, name: row.name };
-          });
         const current = await accounts.getSession();
         if (current?.userId !== session.userId || current.mustChangePassword)
           throw new Error("Account changed");
         if (!cancelled) {
-          setSpaces(environments);
+          setSpaces(rows ?? []);
+          setSpaceError(rows === null);
           setOrganizations(orgs.filter((org) => org.isActive));
           setLoadError("");
         }
       } catch {
         if (!cancelled)
           setLoadError(
-            "Approved 3D spaces or organisations could not be loaded. Retry before creating a project.",
+            "Your account or organisations could not be verified. Retry before creating a project.",
           );
       }
     })();
@@ -113,7 +125,7 @@ export function ProjectCreation({
       busy.current ||
       phase !== "ready" ||
       !title.trim() ||
-      !spaces?.some((space) => space.id === spaceId) ||
+      (spaceId !== "" && !spaces?.some((space) => space.id === spaceId)) ||
       (session.role === "Administrator" && !organizations.some((org) => org.id === orgId))
     )
       return;
@@ -131,7 +143,7 @@ export function ProjectCreation({
     setMessage("");
     const outcome = await api.write(session.userId, "/api/v1/projects", "POST", {
       title: title.trim(),
-      environmentAssetId: spaceId,
+      ...(spaceId ? { environmentAssetId: spaceId } : {}),
       ...(session.role === "Administrator" ? { orgId } : {}),
     });
     busy.current = false;
@@ -171,8 +183,38 @@ export function ProjectCreation({
     !active ||
     needsCheck ||
     !!loadError ||
-    !spaces?.length ||
+    (session.role !== "Administrator" && !session.orgId) ||
     (session.role === "Administrator" && !organizations.length);
+  const creator = session.role === "Creator";
+  // Keep the submit guard when creator actions sit outside the disabled fieldset
+  const createButton = (
+    <Button type="submit" variant="primary" disabled={!active || needsCheck || phase !== "ready"}>
+      Create project
+    </Button>
+  );
+  const cancelButton = (
+    <Button disabled={phase === "pending"} onClick={close}>
+      {phase === "unknown" ? "Back to projects" : "Cancel"}
+    </Button>
+  );
+  const discardActions = (
+    <>
+      <Button
+        onClick={() => {
+          setDiscard(false);
+          setOpen(false);
+          setTitle("");
+          setSpaceId("");
+          setOrgId("");
+        }}
+      >
+        Discard details
+      </Button>
+      <Button variant="primary" onClick={() => setDiscard(false)}>
+        Keep editing
+      </Button>
+    </>
+  );
   return (
     <div>
       <Button
@@ -209,17 +251,30 @@ export function ProjectCreation({
       )}
       {loadError ? (
         <p role="alert">
-          {loadError} <Button onClick={() => setVersion((value) => value + 1)}>Retry spaces</Button>
+          {loadError} <Button onClick={() => setVersion((value) => value + 1)}>Retry</Button>
         </p>
+      ) : session.role !== "Administrator" && !session.orgId ? (
+        <p role="status">An active organisation is required to create a project.</p>
       ) : spaces === null ? (
         <p role="status">Loading approved 3D spaces…</p>
-      ) : spaces.length === 0 ? (
-        <p role="status">No approved 3D spaces are available yet.</p>
       ) : session.role === "Administrator" && organizations.length === 0 ? (
         <p role="status">An active organisation is required to create a project.</p>
+      ) : spaceError ? (
+        <p role="status">
+          Available 3D spaces could not be loaded. You can start with an empty scene.{" "}
+          <Button onClick={() => setVersion((value) => value + 1)}>Retry spaces</Button>
+        </p>
+      ) : spaces.length === 0 ? (
+        <p role="status">Start with an empty scene. You can add a 3D space later.</p>
       ) : null}
       {open && (
-        <Dialog title="New project" onClose={close}>
+        <Dialog
+          title="New project"
+          onClose={close}
+          {...(creator ? { variant: "admin" as const } : {})}
+          className={creator ? "sp-creator-project-dialog" : ""}
+          closeDisabled={phase === "pending"}
+        >
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -227,7 +282,10 @@ export function ProjectCreation({
             }}
             aria-busy={phase === "pending"}
           >
-            <p>Start a blank project in an approved 3D space.</p>
+            <p>Start with an empty scene, or choose an available 3D space.</p>
+            {!spaceId && (
+              <p>Empty projects can be edited and assigned, but publishing is not yet available.</p>
+            )}
             {message && <p role="alert">{message}</p>}
             {phase === "pending" && <p role="status">Creating project… Keep this page open.</p>}
             <fieldset
@@ -238,27 +296,45 @@ export function ProjectCreation({
               <Field id="blank-project-title" label="Project title" required>
                 <input
                   id="blank-project-title"
+                  ref={(input) => {
+                    // Native dialog opening needs an autofocus target before its first focus pass
+                    if (input && creator) input.autofocus = true;
+                  }}
                   required
                   maxLength={256}
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                 />
               </Field>
-              <Field id="blank-project-space" label="3D space" required>
-                <select
-                  id="blank-project-space"
-                  required
+              {creator ? (
+                <Select
+                  label="3D space (optional)"
                   value={spaceId}
-                  onChange={(event) => setSpaceId(event.target.value)}
-                >
-                  <option value="">Choose a 3D space</option>
-                  {spaces?.map((space) => (
-                    <option key={space.id} value={space.id}>
-                      {space.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+                  options={[
+                    { value: "", label: "Empty scene" },
+                    ...(spaces ?? []).map((space) => ({ value: space.id, label: space.name })),
+                  ]}
+                  onChange={setSpaceId}
+                  disabled={!active || needsCheck || phase !== "ready"}
+                  className="sp-creator-space"
+                  menuClassName="sp-creator-space-menu"
+                />
+              ) : (
+                <Field id="blank-project-space" label="3D space (optional)">
+                  <select
+                    id="blank-project-space"
+                    value={spaceId}
+                    onChange={(event) => setSpaceId(event.target.value)}
+                  >
+                    <option value="">Empty scene</option>
+                    {spaces?.map((space) => (
+                      <option key={space.id} value={space.id}>
+                        {space.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               {session.role === "Administrator" && (
                 <Field id="blank-project-organisation" label="Organisation" required>
                   <select
@@ -276,33 +352,28 @@ export function ProjectCreation({
                   </select>
                 </Field>
               )}
-              <Button type="submit" variant="primary">
-                Create project
-              </Button>
+              {!creator && createButton}
             </fieldset>
-            <Button disabled={phase === "pending"} onClick={close}>
-              {phase === "unknown" ? "Back to projects" : "Cancel"}
-            </Button>
+            {creator ? (
+              <div className="sp-actions">
+                {cancelButton}
+                {createButton}
+              </div>
+            ) : (
+              cancelButton
+            )}
           </form>
         </Dialog>
       )}
       {discard && (
-        <Dialog title="Discard new project details?" onClose={() => setDiscard(false)}>
+        <Dialog
+          title="Discard new project details?"
+          onClose={() => setDiscard(false)}
+          {...(creator ? { variant: "admin" as const } : {})}
+          className={creator ? "sp-creator-project-dialog" : ""}
+        >
           <p>No project has been created. Your entered details will be discarded.</p>
-          <Button
-            onClick={() => {
-              setDiscard(false);
-              setOpen(false);
-              setTitle("");
-              setSpaceId("");
-              setOrgId("");
-            }}
-          >
-            Discard details
-          </Button>
-          <Button variant="primary" onClick={() => setDiscard(false)}>
-            Keep editing
-          </Button>
+          {creator ? <div className="sp-actions">{discardActions}</div> : discardActions}
         </Dialog>
       )}
     </div>

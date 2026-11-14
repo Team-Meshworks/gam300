@@ -38,7 +38,7 @@ public sealed class PublicationMigrationIntegrationTests
             previous = migration;
         }
         await Assert.That((await database.Database.GetAppliedMigrationsAsync()).Contains(publicationMigration)).IsFalse();
-        var data = await ReviewPersistenceTests.SeedAsync(fixture);
+        var data = await ReviewPersistenceTests.SeedAsync(fixture, legacyAssignmentSchema: true);
         var submission = ReviewPersistenceTests.Submission(data);
         database.ReviewSubmissions.Add(submission);
         database.ReviewDecisions.Add(ReviewPersistenceTests.Decision(data));
@@ -54,7 +54,7 @@ public sealed class PublicationMigrationIntegrationTests
             SavedAt = DateTimeOffset.UnixEpoch,
         });
         await database.SaveChangesAsync();
-        var before = await database.Projects.AsNoTracking().SingleAsync(row => row.Id == data.ProjectId);
+        var before = await database.Database.SqlQuery<string>($"""SELECT document::text AS "Value" FROM projects WHERE id = {data.ProjectId}""").SingleAsync();
 
         await database.Database.MigrateAsync();
         var edition = Guid.NewGuid();
@@ -65,7 +65,7 @@ public sealed class PublicationMigrationIntegrationTests
             PublishedById = data.EducatorId,
             SourceRevision = 7,
             SchemaVersion = 1,
-            DocumentJson = before.DocumentJson,
+            DocumentJson = before,
             AssetReferencesJson = submission.AssetReferencesJson,
             RequestDigest = new byte[32],
         });
@@ -75,7 +75,7 @@ public sealed class PublicationMigrationIntegrationTests
         await using var verify = fixture.Services.CreateAsyncScope();
         var reopened = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var draft = await reopened.Projects.SingleAsync(row => row.Id == data.ProjectId);
-        await Assert.That(draft.DocumentJson).IsEqualTo(before.DocumentJson);
+        await Assert.That(draft.DocumentJson).IsEqualTo(before);
         await Assert.That(draft.Revision).IsEqualTo(7L);
         await Assert.That((await reopened.ProjectSaveReceipts.SingleAsync()).ClientMutationId).IsEqualTo(mutation);
         await Assert.That((await reopened.ClassAssignmentStudents.SingleAsync()).ProjectId).IsEqualTo(data.ProjectId);

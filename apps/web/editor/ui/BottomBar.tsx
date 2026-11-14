@@ -9,11 +9,7 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import {
-  assetDragType,
-  isStarterRoomModelAsset,
-  type CatalogueAsset,
-} from "../../shared/asset-runtime/catalogue";
+import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { playUiSound } from "../audio/ui-sounds";
 import type { NavigationTool } from "../graphics/scene";
 import { AssetPicker } from "./AssetPicker";
@@ -21,6 +17,7 @@ import { dockEdges, loadDockEdge, nearestEdge, saveDockEdge, type DockEdge } fro
 import { Icon, type IconName } from "./Icon";
 import { displayPanelTools, displayCaseTools } from "./display-tools";
 import { furnitureTools } from "./furniture-tools";
+import { belongsInAssetPicker } from "./asset-selection";
 
 const cameraTools: { id: NavigationTool; label: string; hint: string; icon: IconName }[] = [
   { id: "select", label: "Select", hint: "Select · click objects to edit them", icon: "select" },
@@ -57,7 +54,7 @@ const baseCategories: { id: Category; label: string; items: Item[] }[] = [
     label: "Audio",
     items: [
       { label: "BGM", icon: "audioMusic" },
-      { label: "Sound effects", icon: "audioSpeaker" },
+      { label: "Spatial Audio", icon: "audioSpeaker" },
       { label: "Payphone audio", icon: "audioPhone" },
     ],
   },
@@ -74,6 +71,7 @@ export function BottomBar({
   tool,
   onToolChange,
   showCameraTools,
+  onPickerChange,
 }: {
   assets: readonly CatalogueAsset[];
   hotspot: CatalogueAsset;
@@ -86,6 +84,7 @@ export function BottomBar({
   onToolChange: (tool: NavigationTool) => void;
   // Available while editing; choosing a camera tool switches to third person
   showCameraTools: boolean;
+  onPickerChange: (mode: "rooms" | "assets" | null) => void;
 }) {
   const setDragImage = useDragImage();
   const categories = baseCategories.map((category) =>
@@ -102,6 +101,10 @@ export function BottomBar({
   const [selected, setSelected] = useState<SceneTool | null>(null);
   const roomsOpen = selected === "rooms";
   const libraryOpen = selected === "library" || roomsOpen;
+  useEffect(() => {
+    onPickerChange(roomsOpen ? "rooms" : libraryOpen ? "assets" : null);
+    return () => onPickerChange(null);
+  }, [roomsOpen, libraryOpen, onPickerChange]);
   const [draggingAsset, setDraggingAsset] = useState(false);
   const [picked, setPicked] = useState<Record<Category, number>>({
     rooms: 0,
@@ -253,15 +256,7 @@ export function BottomBar({
           <AssetPicker
             key={roomsOpen ? "rooms" : "assets"}
             mode={roomsOpen ? "rooms" : "assets"}
-            canAddAdjoiningRooms={assets.some(isStarterRoomModelAsset)}
-            assets={assets.filter((asset) =>
-              roomsOpen
-                ? asset.kind === "environment"
-                : !isStarterRoomModelAsset(asset) &&
-                  asset.kind !== "environment" &&
-                  !asset.displayRole &&
-                  !furnitureTools.some((tool) => tool.assetId === asset.id),
-            )}
+            assets={assets.filter((asset) => belongsInAssetPicker(asset, roomsOpen, assets))}
             ready={ready}
             thumbnailFor={thumbnailFor}
             onAdd={onAdd}
@@ -339,8 +334,8 @@ export function BottomBar({
                         type="button"
                         aria-label={item.label}
                         aria-pressed={picked[open.id] === index}
-                        aria-disabled={open.id === "audio" && index !== 0}
-                        title={open.id === "audio" && index !== 0 ? "Coming soon" : item.label}
+                        aria-disabled={open.id === "audio" && index === 2}
+                        title={open.id === "audio" && index === 2 ? "Coming soon" : item.label}
                         disabled={
                           item.assetId !== undefined &&
                           (!ready || !assets.some((asset) => asset.id === item.assetId))
@@ -363,7 +358,7 @@ export function BottomBar({
                         }}
                         onClick={() => {
                           // Keep future audio types visible without opening an unsupported authoring flow
-                          if (open.id === "audio" && index !== 0) return;
+                          if (open.id === "audio" && index === 2) return;
                           setPicked((previous) => ({ ...previous, [open.id]: index }));
                           setPopup(null);
                           playUiSound("assetSelect");
@@ -372,7 +367,7 @@ export function BottomBar({
                           else if (item.assetId) onAdd(item.assetId);
                         }}
                         {...popupTip.handlers(
-                          open.id === "audio" && index !== 0 ? "Coming soon" : item.label,
+                          open.id === "audio" && index === 2 ? "Coming soon" : item.label,
                         )}
                       >
                         <Icon name={item.icon} />

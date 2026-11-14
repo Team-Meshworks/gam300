@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, mkdir } from "node:fs/promises";
 import { launchPersistentBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
+import { serveProject } from "./authoring-project-fixture.mjs";
 
 // Run against a built preview. Real bundled GLBs are delivered by HTTP; only the account
 // API is simulated here. Actual Identity/database coverage lives in the HTTPS server suite.
@@ -17,6 +18,7 @@ const browser = await launchPersistentBrowser({
 });
 try {
   const page = await browser.newPage();
+  const project = await serveProject(page, origin);
   await page.setViewportSize({ width: 1440, height: 1000 });
   let signedIn = false;
   let denyCrate = false;
@@ -43,6 +45,7 @@ try {
                 role: "Creator",
                 orgId: "22222222-2222-4222-8222-222222222222",
                 mustChangePassword: false,
+                developmentAssetsAllowed: true,
               },
             }
           : { status: 401, json: {} },
@@ -55,14 +58,16 @@ try {
       ? route.fulfill({ status: 401, body: "Session required" })
       : route.continue();
   });
-  await page.goto(origin);
-  await page.getByRole("link", { name: "Sign in", exact: true }).waitFor();
+  await page.goto(project.url);
+  await page.waitForURL(
+    origin +
+      `/login?returnTo=${encodeURIComponent(new URL(project.url).pathname + new URL(project.url).search)}`,
+  );
   assert.equal(requested.size, 0, "Signed-out entry must not start protected model downloads");
-  await page.getByRole("link", { name: "Sign in", exact: true }).click();
   await page.getByLabel("Username", { exact: true }).fill("browser-check");
   await page.getByLabel("Password", { exact: true }).fill("Synthetic browser password 1!");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
-  await page.waitForURL(origin + "/");
+  await page.waitForURL(project.url);
   const ready = () => page.getByText("Scene ready", { exact: true }).waitFor();
   await ready();
   assert.equal(requested.size, 0, "An empty editor must not download the whole catalogue");
@@ -123,6 +128,7 @@ try {
   assert.ok(recovered, "The actual recovery transaction must finish before reload");
   denyCrate = true;
   await page.reload();
+  await page.getByRole("button", { name: "Recover changes" }).click();
   await page.getByRole("link", { name: "Sign in in another tab" }).waitFor();
   assert.equal(
     await page.locator(".object-row").count(),

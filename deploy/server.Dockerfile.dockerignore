@@ -7,12 +7,18 @@
 !apps/web/
 !apps/web/package.json
 !apps/web/package-lock.json
+# Include the capability profile embedded by the shared project format
+!apps/web/shared/
+!apps/web/shared/project/
+!apps/web/shared/project/publication-capabilities.json
 !tools/
 !tools/validate-intake.mjs
 !tools/asset-content-validation.mjs
-# Include metadata required by the server without bundling delivery or source assets
+# Capture development catalogue files in the API image; source files remain excluded
 !assets/
 !assets/manifest.json
+!assets/delivery/
+!assets/delivery/**
 **/bin/
 **/obj/
 **/test-results/

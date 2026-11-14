@@ -1,6 +1,34 @@
+@import "../shared/ui/scrollbars.css";
+@import "../shared/preview/preview.css";
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-500.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/inter/latin-700.css";
+
+/* Keep the page still while native dialogs and editor popups own the interaction */
+html:has(
+  dialog[open],
+  [role="dialog"],
+  .asset-picker,
+  .tool-popup,
+  .dock-menu,
+  details[open] > .draft-menu-panel
+),
+body:has(
+  dialog[open],
+  [role="dialog"],
+  .asset-picker,
+  .tool-popup,
+  .dock-menu,
+  details[open] > .draft-menu-panel
+) {
+  overflow-y: hidden;
+}
+
 :root {
   --text: #1f1d1a;
-  font-family: "Segoe UI", system-ui, sans-serif;
+  --sp-font: "Inter", sans-serif;
+  font-family: var(--sp-font);
   line-height: 1.45;
   color: #1f1d1a;
   background: #fffdf3;
@@ -75,10 +103,6 @@
     .dock-menu button
   )[aria-pressed="true"] {
   background: var(--button-strong);
-}
-:root[data-theme="dark"] .dev-action {
-  border-color: var(--line);
-  background: rgb(43 39 35 / 0.75);
 }
 :root[data-theme="dark"] .dock-menu {
   background: rgb(43 39 35 / 0.95);
@@ -534,7 +558,7 @@ a {
   top: calc(100% + 0.25rem);
   left: 0;
   z-index: 10;
-  width: 9rem;
+  width: 12rem;
   max-width: calc(100vw - 2rem);
   padding: 0.25rem;
   border: 1px solid #ded9d1;
@@ -665,19 +689,6 @@ a {
 .pill-button:disabled {
   color: var(--muted);
 }
-.dev-action {
-  min-height: 2rem;
-  padding: 0.25rem 0.8rem;
-  border: 1px dashed #c9c3b5;
-  border-radius: 999px;
-  background: rgb(255 253 243 / 0.75);
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-.dev-action:hover:not(:disabled) {
-  color: inherit;
-}
-
 .library {
   position: absolute;
   top: 6rem;
@@ -1145,139 +1156,6 @@ a {
   pointer-events: none;
 }
 /* First person aim, a click with the mouse locked picks what sit under it */
-.crosshair {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 1.25rem;
-  height: 1.25rem;
-  translate: -50% -50%;
-  pointer-events: none;
-}
-.crosshair::before,
-.crosshair::after {
-  content: "";
-  position: absolute;
-  background: #292e29;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.8);
-}
-.crosshair::before {
-  top: 0;
-  bottom: 0;
-  left: calc(50% - 1px);
-  width: 2px;
-}
-.crosshair::after {
-  top: calc(50% - 1px);
-  right: 0;
-  left: 0;
-  height: 2px;
-}
-.walk-hint {
-  position: absolute;
-  top: 6rem;
-  left: 50%;
-  max-width: calc(100% - 2rem);
-  margin: 0;
-  padding: 0.4rem 0.8rem;
-  border-radius: 999px;
-  background: var(--scene-hint-background);
-  color: var(--scene-hint-text);
-  font-size: 0.8125rem;
-  text-align: center;
-  translate: -50% 0;
-  pointer-events: none;
-}
-.view-toggle[aria-pressed="true"] {
-  background: #e7e2d6;
-}
-.viewport-feedback {
-  position: absolute;
-  top: 6rem;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem;
-  max-width: calc(100% - 2rem);
-  font-size: 0.875rem;
-  transform: translateX(-50%);
-}
-
-.mobile-controls {
-  position: absolute;
-  inset: auto 0 0;
-  z-index: 3;
-  display: none;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 1rem max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
-    max(1rem, env(safe-area-inset-left));
-  pointer-events: none;
-}
-.mobile-controls-left {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  pointer-events: none;
-}
-.mobile-joystick {
-  width: 9rem;
-  height: 9rem;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  touch-action: none;
-  pointer-events: auto;
-}
-.mobile-joystick-base {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-  border: 2px solid rgb(255 255 255 / 45%);
-  border-radius: 50%;
-  background: rgb(41 46 41 / 24%);
-  box-shadow: inset 0 0 0 1rem rgb(41 46 41 / 8%);
-}
-.mobile-joystick-thumb {
-  width: 4.25rem;
-  height: 4.25rem;
-  border: 2px solid rgb(255 255 255 / 70%);
-  border-radius: 50%;
-  background: rgb(41 46 41 / 62%);
-  transition: transform 80ms ease-out;
-}
-.mobile-jump-button {
-  min-width: 4.5rem;
-  min-height: 2.75rem;
-  padding: 0.4rem 1rem;
-  border: 0;
-  border-radius: 999px;
-  background: rgb(233 229 219 / 88%);
-  box-shadow: var(--shadow);
-  font-weight: 650;
-  pointer-events: auto;
-  touch-action: manipulation;
-}
-@media (hover: none) and (pointer: coarse) {
-  .is-walking .mobile-controls {
-    display: flex;
-  }
-}
-@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
-  /* Two full-size sticks and Jump are wider than a phone held upright */
-  .mobile-joystick {
-    width: min(7rem, 28vw);
-    height: min(7rem, 28vw);
-  }
-  .mobile-joystick-thumb {
-    width: 3.25rem;
-    height: 3.25rem;
-  }
-}
 .retry-button {
   min-height: 2.75rem;
   padding: 0.5rem 1rem;
@@ -1362,8 +1240,8 @@ a {
   height: 35px;
 }
 .room-picker .library-rail .figma-tool-icon[data-icon="door"] {
-  width: 35px;
-  height: 35px;
+  width: 28px;
+  height: 28px;
 }
 .asset-picker-title {
   display: flex;
@@ -1977,13 +1855,36 @@ a {
   display: none;
 }
 .project-confirmation {
-  width: min(24rem, calc(100vw - 2rem));
-  padding: 1.25rem;
-  color: #292e29;
-  background: #f7f5f2;
-  border: 1px solid #ded9d1;
+  position: fixed;
+  width: min(24rem, calc(100% - 2rem));
+  padding: 1.5rem;
+  color: var(--text);
+  background: var(--card-raised);
+  border: 1px solid var(--line);
   border-radius: 1rem;
   box-shadow: 0 12px 40px #292e2933;
+}
+.project-confirmation h2 {
+  padding-right: 48px;
+}
+.project-confirmation button.project-confirmation-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--pill);
+}
+.project-confirmation-close .icon {
+  width: 18px;
+  height: 18px;
 }
 .project-confirmation::backdrop {
   background: #292e2955;
@@ -1998,7 +1899,10 @@ a {
   gap: 0.5rem;
 }
 .project-confirmation button {
-  min-height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   padding: 0.35rem 1rem;
   background: #e9e5df;
   border: 1px solid #d5cfc7;
@@ -2083,10 +1987,6 @@ a {
   }
   .asset-grid {
     columns: 8rem;
-  }
-  /* Keep the dev sample button clear of the phone dock. */
-  .dev-action {
-    display: none;
   }
   .pill-button {
     padding-inline: 0.9rem;
@@ -2372,30 +2272,18 @@ a {
   flex: 1;
 }
 
-.server-session {
-  position: relative;
-  flex-shrink: 0;
-  z-index: 20;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  padding: 0.5rem 1rem;
-  background: var(--card);
-  border-top: 1px solid var(--line);
-}
-.server-session > span {
-  flex: 1;
-}
 .server-session-error {
   position: fixed;
   bottom: 4rem;
   left: 1rem;
   z-index: 21;
-  max-width: 40rem;
+  max-width: min(40rem, calc(100vw - 2rem));
   padding: 1rem;
-  background: #fff;
-  color: #a02020;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--card-raised);
+  color: var(--text);
+  box-shadow: var(--shadow);
 }
 
 /* Keep search/reset within the existing picker rather than adding another control row */
@@ -2945,12 +2833,6 @@ a {
 .draft-menu-panel button:disabled {
   color: var(--muted);
   cursor: not-allowed;
-}
-.draft-menu-panel #project-save {
-  margin-top: 0.25rem;
-  border-top: 1px solid var(--line);
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
 }
 
 :root {
@@ -3579,4 +3461,145 @@ dialog.sp-dialog.sp-display-dialog {
   border: 0;
   border-radius: 999px;
   background: var(--asset-scroll-thumb);
+}
+
+/* Keep editor entry blank while preserving loading announcements for assistive technology */
+.editor-opening {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #fff;
+}
+.editor-opening > :not(dialog) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Keep recovery choices separated while retaining every preservation path */
+.project-confirmation.creator-recovery-dialog {
+  box-sizing: border-box;
+  width: min(420px, calc(100% - 32px));
+  padding: 36px 28px;
+  border: 1px solid #e7e2dc;
+  border-radius: 28px;
+  background: #fff;
+  color: #332e2a;
+  box-shadow: 0 20px 80px rgb(41 39 35 / 20%);
+  font:
+    400 13px/20px Inter,
+    sans-serif;
+}
+.creator-recovery-dialog h2 {
+  margin: 0 44px 12px 0;
+  font-size: 22px;
+  line-height: 30px;
+}
+.creator-recovery-dialog p {
+  margin: 0 0 28px;
+  color: #6e685f;
+}
+.creator-recovery-dialog .creator-recovery-actions {
+  display: block;
+}
+.creator-recovery-versions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 11px;
+}
+
+.creator-recovery-dialog .creator-recovery-actions button {
+  min-height: 40px;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 24px;
+  background: #eeeae6;
+  color: #332e2a;
+  font:
+    600 13px/20px Inter,
+    sans-serif;
+}
+.creator-recovery-dialog .creator-recovery-actions .creator-recovery-primary-action {
+  background: #332e2a;
+  color: #fff;
+}
+.creator-recovery-dialog button.creator-recovery-export {
+  display: inline;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.creator-recovery-dialog button.creator-recovery-export:hover:not(:disabled) {
+  background: transparent;
+}
+
+.creator-recovery-dialog .creator-recovery-actions button:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+.creator-recovery-dialog button.project-confirmation-close {
+  top: 20px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+  background: #f3f4f6;
+  box-sizing: border-box;
+  min-height: 36px;
+  max-height: 36px;
+  max-width: 36px;
+  aspect-ratio: 1;
+  border: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+.creator-recovery-dialog button.project-confirmation-close .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.creator-recovery-dialog button:focus-visible {
+  outline: 2px solid #81796e;
+  outline-offset: 3px;
+}
+
+.creator-exit-dialog button.creator-recovery-export {
+  white-space: nowrap;
+}
+
+.project-confirmation.creator-exit-dialog {
+  width: min(410px, calc(100% - 32px));
+  padding-block: 32px;
+}
+.creator-exit-dialog h2 {
+  margin-bottom: 20px;
+  padding-right: 0;
+}
+.creator-exit-dialog p {
+  margin-bottom: 20px;
+}
+
+.project-confirmation.creator-opening-dialog {
+  width: min(400px, calc(100% - 32px));
+  padding: 28px;
+}
+.creator-opening-dialog h2 {
+  padding-right: 0;
+  margin-bottom: 20px;
+}
+.creator-opening-dialog p {
+  margin-bottom: 20px;
 }

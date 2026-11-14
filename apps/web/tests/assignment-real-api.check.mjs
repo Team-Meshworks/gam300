@@ -25,11 +25,14 @@ async function login(context, name) {
   await page.getByLabel("Username", { exact: true }).fill(name);
   await page.getByLabel("Password", { exact: true }).fill("Synthetic-long-password1!");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
-  await page.getByRole("link", { name: "Go to projects" }).click();
+  await page.waitForURL(`${origin}/home`);
   return page;
 }
 try {
-  browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
+  browser = await launchBrowser({
+    target: origin,
+    args: ["--enable-unsafe-swiftshader"],
+  });
   const teacher = await browser.newContext({
     ignoreHTTPSErrors: true,
     timezoneId: "Asia/Singapore",
@@ -48,132 +51,61 @@ try {
     ),
     "The seeded approved space must be returned by the actual API",
   );
-  try {
-    await page
-      .getByRole("button", { name: "New project", exact: true })
-      .waitFor({ state: "visible" });
-    await page.waitForFunction(() =>
-      [...document.querySelectorAll("button")].some(
-        (button) => button.textContent.trim() === "New project" && !button.disabled,
-      ),
-    );
-  } catch (error) {
-    const status = await page.locator('[role="alert"], [role="status"]').allTextContents();
-    throw new Error(`New project remained unavailable. Visible status: ${status.join(" | ")}`, {
-      cause: error,
-    });
-  }
-  await page.getByRole("button", { name: "New project", exact: true }).click();
-  const createDialog = page.getByRole("dialog", { name: "New project" });
-  await createDialog.getByLabel("Project title").fill("Live blank project");
-  await createDialog.getByLabel("3D space").selectOption(process.env.SPATIA_TEST_ENVIRONMENT);
+  await page.getByRole("link", { name: /New Project/ }).click();
+  await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
+  await page.getByLabel("Project title").fill("Live blank project");
+  await page.getByRole("textbox", { name: /^Project description/ }).fill("Blank source project");
+  await page.getByRole("textbox", { name: /^Project instructions/ }).fill("Explore the room.");
+  await page.getByLabel(/^Due date/).fill("2035-12-01");
+  await chooseProjectClass(page);
+  await page
+    .getByRole("checkbox", {
+      name: new RegExp(process.env.SPATIA_TEST_STUDENT),
+    })
+    .check();
   const createdResponse = page.waitForResponse(
     (item) => item.url().endsWith("/api/v1/projects") && item.request().method() === "POST",
   );
-  const environmentResponse = page.waitForResponse(
-    (item) =>
-      new URL(item.url()).pathname.endsWith(
-        `/assets/${process.env.SPATIA_TEST_ENVIRONMENT}/bytes`,
-      ) && item.request().method() === "GET",
-    { timeout: 30000 },
+  const initialAssignment = page.waitForResponse(
+    (item) => item.url().endsWith("/assignments") && item.request().method() === "POST",
   );
-  await createDialog.getByRole("button", { name: "Create project" }).click();
+  await page.getByRole("button", { name: "Create project", exact: true }).click();
   const created = await createdResponse;
   assert.equal(created.status(), 201);
+  assert.deepEqual(created.request().postDataJSON(), {
+    title: "Live blank project",
+  });
   const blank = await created.json();
-  await page.waitForURL(`**/?projectId=${blank.projectId}`);
-  const environment = await environmentResponse;
-  assert.equal(environment.status(), 200, "The editor loads the approved environment bytes");
-  assert.ok((await environment.body()).length > 0, "The environment response contains GLB bytes");
-  await page.waitForFunction(() =>
-    [...document.querySelectorAll('.viewport [role="status"]')].some(
-      (status) => status.textContent === "Scene ready",
-    ),
-  );
-  try {
-    await page.getByRole("button", { name: "Leave editor" }).click();
-  } catch (error) {
-    const status = await page.locator('[role="alert"], [role="status"]').allTextContents();
-    throw new Error(`Created editor did not open. Visible status: ${status.join(" | ")}`, {
-      cause: error,
-    });
-  }
-  await page.getByRole("button", { name: "Save and continue" }).click();
+  const initialReceipt = await initialAssignment;
+  assert.equal(initialReceipt.status(), 201);
+  assert.equal(initialReceipt.request().postDataJSON().sourceProjectId, blank.projectId);
+  assert.equal((await initialReceipt.json()).projects.length, 1);
   await page.waitForURL(`${origin}/home`);
-  await page.getByRole("heading", { name: "Live blank project" }).waitFor();
   const retainedId = process.env.SPATIA_TEST_RETAINED_PROJECT;
   const retainedAsset = process.env.SPATIA_TEST_RETAINED_ASSET;
-  const retainedBytes = page.waitForResponse(
-    (item) =>
-      new URL(item.url()).pathname ===
-      `/api/v1/projects/${retainedId}/assets/${retainedAsset}/bytes`,
-    { timeout: 30000 },
+  const retainedResponse = await teacher.request.get(
+    `${origin}/api/v1/projects/${retainedId}/assets/${retainedAsset}/bytes`,
   );
-  await page
-    .getByRole("listitem")
-    .filter({ has: page.getByRole("heading", { name: "Retained room project" }) })
-    .getByRole("button", { name: "Continue editing" })
-    .click();
-  await page.waitForURL(`**/?projectId=${retainedId}`);
-  const retainedResponse = await retainedBytes;
-  assert.equal(retainedResponse.status(), 200, "Saved retired room bytes remain available");
+  assert.equal(retainedResponse.status(), 200, "Existing projects retain retired room bytes");
   assert.ok((await retainedResponse.body()).length > 0);
-  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await page.getByRole("button", { name: "Rooms", exact: true }).click();
-  assert.equal(
-    await page
-      .getByRole("group", { name: "Rooms options" })
-      .getByRole("button", { name: "Retired browser room" })
-      .count(),
-    0,
-  );
-  await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Scenes", exact: true }).click();
-  assert.match(
-    await page.getByRole("combobox", { name: "Environment", exact: true }).textContent(),
-    /Retired browser room/,
-  );
-  await page.getByLabel("Scene name", { exact: true }).fill("Retained room saved");
-  assert.equal(
-    await page.getByRole("button", { name: "Add scene", exact: true }).isDisabled(),
-    true,
-    "A retired room cannot be selected for a new scene",
-  );
-  await page.getByRole("combobox", { name: "New scene environment" }).click();
-  await page.getByRole("option", { name: "Approved browser room" }).click();
-  assert.equal(
-    await page.getByRole("button", { name: "Add scene", exact: true }).isEnabled(),
-    true,
-  );
-  const retainedSave = page.waitForResponse(
-    (item) =>
-      new URL(item.url()).pathname.toLowerCase() ===
-        `/api/v1/projects/${retainedId}`.toLowerCase() && item.request().method() === "PUT",
-  );
-  await page.getByRole("button", { name: "Rename scene", exact: true }).click();
-  let savedRetained;
-  try {
-    savedRetained = await retainedSave;
-  } catch (error) {
-    const status = await page.locator('[role="alert"], [role="status"]').allTextContents();
-    throw new Error(
-      `Retained room save did not reach the API. Visible status: ${status.join(" | ")}`,
-      { cause: error },
-    );
-  }
-  assert.equal(savedRetained.status(), 200, "A project retaining the retired room can be saved");
-  await page.getByRole("button", { name: "Leave editor" }).click();
-  await page.getByRole("button", { name: "Save and continue" }).click();
-  await page.waitForURL(`${origin}/home`);
-  await page.getByRole("button", { name: "Classes", exact: true }).click();
+  await page.goto(`${origin}/classes`);
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
-  await page.getByLabel("Source project").selectOption(process.env.SPATIA_TEST_SOURCE);
+  assert.equal(await page.getByLabel("Source project").count(), 0);
   await page.getByLabel("Project title").fill("Live class assignment");
-  await page.getByLabel("Project description").fill("Independent exhibit");
-  await page.getByLabel("Project instructions").fill("Explain each exhibit.");
-  await page.getByLabel("Due date and time").fill("2026-12-01T15:30");
-  await page.getByLabel(/^Class/).selectOption(process.env.SPATIA_TEST_CLASS);
-  await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) }).check();
+  await page.getByRole("textbox", { name: /^Project description/ }).fill("Independent exhibit");
+  await page.getByRole("textbox", { name: /^Project instructions/ }).fill("Explain each exhibit.");
+  await page.getByLabel(/^Due date/).fill("2026-12-01");
+  await chooseProjectClass(page);
+  await page
+    .getByRole("checkbox", {
+      name: new RegExp(process.env.SPATIA_TEST_STUDENT),
+    })
+    .check();
+  await page
+    .getByRole("checkbox", {
+      name: new RegExp(process.env.SPATIA_TEST_OUTSIDER),
+    })
+    .check();
   const response = page.waitForResponse(
     (item) => item.url().endsWith("/assignments") && item.request().method() === "POST",
   );
@@ -181,11 +113,57 @@ try {
   const receiptResponse = await response;
   assert.equal(receiptResponse.status(), 201);
   const receipt = await receiptResponse.json();
-  assert.equal(receipt.projects.length, 1);
-  const project = receipt.projects[0].projectId;
+  assert.equal(receipt.projects.length, 2);
+  const rosterResponse = await teacher.request.get(
+    `${origin}/api/v1/classes/${process.env.SPATIA_TEST_CLASS}/eligible-students?limit=20`,
+  );
+  const roster = (await rosterResponse.json()).items;
+  const studentId = roster.find((row) => row.userName === process.env.SPATIA_TEST_STUDENT).userId;
+  const outsiderId = roster.find((row) => row.userName === process.env.SPATIA_TEST_OUTSIDER).userId;
+  const project = receipt.projects.find((row) => row.studentId === studentId).projectId;
+  const removedProject = receipt.projects.find((row) => row.studentId === outsiderId).projectId;
+  await page.goto(
+    `${origin}/home?classId=${process.env.SPATIA_TEST_CLASS}&assignmentId=${receipt.assignmentId}`,
+  );
   await page.getByRole("heading", { name: "Live class assignment" }).waitFor();
+  await page.getByRole("button", { name: "Edit Project Description" }).click();
+  await page
+    .getByRole("textbox", { name: /^Project description/ })
+    .fill("Updated independent exhibit");
+  const editing = page.waitForResponse(
+    (item) =>
+      item.url().endsWith("/assignments/" + receipt.assignmentId) &&
+      item.request().method() === "PATCH",
+  );
+  await page.getByRole("button", { name: "Save changes" }).click();
+  const edited = await editing;
+  assert.equal(edited.status(), 200);
+  const editBody = edited.request().postDataJSON();
+  assert.equal(editBody.expectedRevision, 0);
+  assert.ok(editBody.mutationId);
+  assert.deepEqual(new Set(editBody.studentIds), new Set([studentId, outsiderId]));
+  const token = await (await teacher.request.get(`${origin}/api/v1/auth/csrf`)).json();
+  const removal = await teacher.request.patch(
+    `${origin}/api/v1/classes/${process.env.SPATIA_TEST_CLASS}/assignments/${receipt.assignmentId}`,
+    {
+      headers: { "X-CSRF-TOKEN": token.requestToken },
+      data: {
+        ...editBody,
+        expectedRevision: 1,
+        mutationId: crypto.randomUUID(),
+        studentIds: [studentId],
+      },
+    },
+  );
+  assert.equal(removal.status(), 200);
+  await page.getByText("Updated independent exhibit", { exact: true }).waitFor();
+  const editedDetail = await teacher.request.get(
+    `${origin}/api/v1/classes/${process.env.SPATIA_TEST_CLASS}/assignments/${receipt.assignmentId}`,
+  );
+  assert.equal(editedDetail.status(), 200);
+  assert.equal((await editedDetail.json()).projects.length, 1);
   await page.reload();
-  await page.getByRole("button", { name: "Classes", exact: true }).click();
+  await page.goto(`${origin}/classes`);
   await page
     .getByRole("combobox", { name: "Class", exact: true })
     .selectOption(process.env.SPATIA_TEST_CLASS);
@@ -201,11 +179,14 @@ try {
     timezoneId: "Asia/Singapore",
   });
   const student = await login(studentContext, process.env.SPATIA_TEST_STUDENT);
-  await student.getByRole("button", { name: "Classes", exact: true }).click();
+  await student.goto(`${origin}/classes`);
   await student.getByRole("button", { name: "Live class assignment", exact: true }).click();
   await student.getByText("Explain each exhibit.", { exact: true }).waitFor();
   await student.getByRole("button", { name: "Open your project", exact: true }).click();
   await student.waitForURL(`**/?projectId=${project}`);
+  await student.getByRole("button", { name: "Rooms", exact: true }).click();
+  await student.getByRole("button", { name: "Approved browser room", exact: true }).click();
+  await student.locator('.save-state[data-state="saved"]').waitFor();
   await student.getByRole("button", { name: "Scenes", exact: true }).click();
   await student.getByLabel("Scene name", { exact: true }).fill("Saved by student");
   const savedResponse = student.waitForResponse(
@@ -214,10 +195,7 @@ try {
   );
   await student.getByRole("button", { name: "Rename scene", exact: true }).click();
   assert.equal((await savedResponse).status(), 200);
-  await student
-    .locator('.server-session [role="status"]')
-    .filter({ hasText: "Saved to server" })
-    .waitFor();
+  await student.locator('.save-state[data-state="saved"]').waitFor();
   const outsiderContext = await browser.newContext({ ignoreHTTPSErrors: true });
   await login(outsiderContext, process.env.SPATIA_TEST_OUTSIDER);
   assert.equal(
@@ -228,6 +206,10 @@ try {
     (await outsiderContext.request.get(`${origin}/api/v1/projects/${project}`)).status(),
     404,
   );
+  assert.equal(
+    (await outsiderContext.request.get(`${origin}/api/v1/projects/${removedProject}`)).status(),
+    404,
+  );
   const freshContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const fresh = await login(freshContext, process.env.SPATIA_TEST_STUDENT);
   await fresh.goto(`${origin}/?projectId=${project}`);
@@ -235,6 +217,78 @@ try {
   assert.equal(
     await fresh.getByLabel("Scene name", { exact: true }).inputValue(),
     "Saved by student",
+  );
+  // Follow the same assigned project across both roles and an anonymous visitor.
+  await fresh.getByRole("button", { name: "Request approval", exact: true }).click();
+  const approval = fresh.getByRole("dialog", { name: "Finish your work first", exact: true });
+  await approval.getByRole("button", { name: "Mark as Completed", exact: true }).click();
+  await fresh
+    .getByRole("dialog", { name: "Your teacher is reviewing your work", exact: true })
+    .getByRole("button", { name: "Back to Project", exact: true })
+    .click();
+  await approval.waitFor({ state: "detached" });
+  await page.goto(
+    `${origin}/home?${new URLSearchParams({
+      classId: process.env.SPATIA_TEST_CLASS,
+      assignmentId: receipt.assignmentId,
+      studentId,
+      reviewProjectId: project,
+    })}`,
+  );
+  const review = page.getByRole("dialog", { name: "Review submission", exact: true });
+  await review.getByLabel("Your review").fill("The saved room is ready to share.");
+  await review.getByRole("button", { name: "Approve to publish", exact: true }).click();
+  await review
+    .locator(".sp-review-subtitle")
+    .filter({ hasText: / · Approved$/ })
+    .waitFor();
+  await fresh.goto(`${origin}/home`);
+  await fresh.locator(`#student-project-${project}`).click();
+  const details = fresh.getByRole("dialog", { name: "Project details", exact: true });
+  await details.getByText("The saved room is ready to share.", { exact: true }).waitFor();
+  await details.getByRole("button", { name: "Publish", exact: true }).click();
+  const publishing = fresh.getByRole("dialog", {
+    name: "Ready to publish your project?",
+    exact: true,
+  });
+  await fresh.waitForFunction(() => {
+    const button = [...document.querySelectorAll(".creator-publish-status-dialog button")].find(
+      (button) => button.textContent === "Publish Project",
+    );
+    return button && !button.disabled;
+  });
+  assert.equal(
+    await publishing.getByRole("button", { name: "Publish Project", exact: true }).isEnabled(),
+    true,
+    "The approved saved project is ready to publish",
+  );
+  const publicationResponse = fresh.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/v1/projects/${project}/publications`) &&
+      response.request().method() === "POST",
+  );
+  await publishing.getByRole("button", { name: "Publish Project", exact: true }).click();
+  const committed = await publicationResponse;
+  assert.equal(committed.status(), 201);
+  const publication = await committed.json();
+  await fresh.waitForURL(`${origin}/home?tab=published`);
+  const visitorContext = await browser.newContext({ ignoreHTTPSErrors: true });
+  const visitor = await visitorContext.newPage();
+  visitor.setDefaultTimeout(20000);
+  const shared = new URL(publication.visitorUrl);
+  await visitor.goto(origin + shared.pathname + shared.search + shared.hash);
+  await visitor.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
+  await visitor.getByRole("button", { name: "Enable audio", exact: true }).click();
+  await visitor.locator("canvas").waitFor();
+  assert.equal(
+    (
+      await visitorContext.request.get(`${origin}/api/v1/publications/${publication.publicationId}`)
+    ).status(),
+    200,
+  );
+  await visitorContext.close();
+  console.log(
+    "Full role handoff passed: create, assign, edit, reopen, submit, feedback, approve, publish and anonymous shared link; each action clicked once.",
   );
   await Promise.all([
     teacher.close(),
@@ -246,4 +300,20 @@ try {
 } finally {
   await browser?.close();
   await server.close();
+}
+
+// Resolve the real class label for the custom field without assuming a seeded display name
+async function chooseProjectClass(page) {
+  const control = page.getByRole("combobox", { name: /^Class/ });
+  if (await control.evaluate((element) => element.tagName === "SELECT")) {
+    await control.selectOption(process.env.SPATIA_TEST_CLASS);
+    return;
+  }
+  const response = await page.request.get(`${origin}/api/v1/classes?limit=20`);
+  assert.equal(response.status(), 200);
+  const classes = await response.json();
+  const selected = classes.items.find((item) => item.id === process.env.SPATIA_TEST_CLASS);
+  assert.ok(selected, "The seeded class must be available");
+  await control.click();
+  await page.getByRole("option", { name: selected.name, exact: true }).click();
 }

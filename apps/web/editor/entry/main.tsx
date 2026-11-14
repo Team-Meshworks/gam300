@@ -11,7 +11,8 @@ import { HomePage } from "../home/HomePage";
 config.autoAddCss = false;
 const root = document.getElementById("root");
 if (!root) throw new Error("The entry page root is missing");
-const login = /^\/login\/?$/.test(location.pathname);
+const siteRoot = location.pathname === "/" || location.pathname === "/index.html";
+const login = siteRoot || /^\/login\/?$/.test(location.pathname);
 const home = /^\/home\/?$/.test(location.pathname);
 document.title = home
   ? "Projects · Spatia"
@@ -20,5 +21,7 @@ document.title = home
     : "Spatia · Interactive learning";
 if (login) preloadUiSounds("goingBack");
 createRoot(root).render(
-  <StrictMode>{home ? <HomePage /> : login ? <LoginPage /> : <LandingPage />}</StrictMode>,
+  <StrictMode>
+    {home ? <HomePage /> : login ? <LoginPage siteRoot={siteRoot} /> : <LandingPage />}
+  </StrictMode>,
 );

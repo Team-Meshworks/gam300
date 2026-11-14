@@ -65,6 +65,10 @@ const allowedIds = new Set([
   "furniture-modern-bench-1-v1",
   "furniture-modern-bench-2-v1",
 ]);
+for (const id of [...allowedIds]) {
+  if (/^room-(?:space1|doors-[1-4-]+)-v1$/.test(id))
+    allowedIds.add(id.replace(/-v1$/, "-module-v1"));
+}
 type Entry = {
   assetId: string;
   name: string;
@@ -300,14 +304,7 @@ export function assetCataloguePlugin(): Plugin {
             "}",
         )
         .join(",");
-      return (
-        imports +
-        "\nexport const packaged = " +
-        building +
-        ";\nexport const assets = [" +
-        catalogue +
-        "];"
-      );
+      return imports + "\nexport const assets = [" + catalogue + "];";
     },
   };
 }

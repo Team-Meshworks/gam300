@@ -1,3 +1,4 @@
+import { createLoadedStore } from "../tests/project-store-fixture";
 import { describe, expect, it } from "vitest";
 import { createDocumentStore } from "./document-store";
 import { validateRecoveryHistory } from "./recovery-history";
@@ -24,8 +25,7 @@ const assets: CatalogueAsset[] = [
 ];
 const kinds = new Map(assets.map((asset) => [asset.id, asset.kind]));
 function setup() {
-  const store = createDocumentStore(assets);
-  expect(store.createProject("room").ok).toBe(true);
+  const store = createLoadedStore(assets, "room");
   store.addObject("crate", [0, 0, 0]);
   return store;
 }

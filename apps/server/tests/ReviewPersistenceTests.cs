@@ -19,7 +19,7 @@ public sealed class ReviewPersistenceTests
     public async Task ReviewEvidence_UpgradePreservesClassMappingAndStoresPrivateSnapshots()
     {
         await using var fixture = await PostgresAccountFixture.CreateAsync("20261029154342_PreserveProjectOrganizationUpdates");
-        var data = await SeedAsync(fixture);
+        var data = await SeedAsync(fixture, legacyAssignmentSchema: true);
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -143,7 +143,7 @@ public sealed class ReviewPersistenceTests
         await Assert.That((error?.InnerException as PostgresException)?.SqlState).IsEqualTo(sqlState);
     }
 
-    internal static async Task<Seeded> SeedAsync(PostgresAccountFixture fixture)
+    internal static async Task<Seeded> SeedAsync(PostgresAccountFixture fixture, bool legacyAssignmentSchema = false)
     {
         var data = new Seeded(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
@@ -171,6 +171,29 @@ public sealed class ReviewPersistenceTests
             });
         }
         database.Classrooms.Add(new Classroom { Id = data.ClassroomId, OrganizationId = data.OrganizationId, Name = "Class" });
+        if (legacyAssignmentSchema)
+        {
+            await database.SaveChangesAsync();
+            foreach (var project in new[] { Project(data.SourceId, data.OrganizationId, 0), Project(data.ProjectId, data.OrganizationId, 7) })
+            {
+                await database.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO projects (id, organization_id, archived, revision, schema_version, document, updated_at)
+                    VALUES ({project.Id}, {project.OrganizationId}, {false}, {project.Revision}, {project.SchemaVersion},
+                        {project.DocumentJson}::jsonb, {project.UpdatedAt})
+                    """);
+            }
+            await database.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO class_assignments (id, classroom_id, organization_id, created_by_user_id,
+                    source_project_id, source_revision, due_at_unix_seconds, title, description, instructions, request_digest)
+                VALUES ({data.AssignmentId}, {data.ClassroomId}, {data.OrganizationId}, {data.EducatorId},
+                    {data.SourceId}, {0L}, {2_000_000_000L}, {"Assignment"}, {"Description"}, {"Instructions"}, {new byte[32]})
+                """);
+            await database.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO class_assignment_students (assignment_id, student_id, classroom_id, organization_id, role_id, project_id)
+                VALUES ({data.AssignmentId}, {data.StudentId}, {data.ClassroomId}, {data.OrganizationId}, {ApplicationRoles.CreatorId}, {data.ProjectId})
+                """);
+            return data;
+        }
         database.Projects.AddRange(Project(data.SourceId, data.OrganizationId, 0), Project(data.ProjectId, data.OrganizationId, 7));
         database.ClassAssignments.Add(new ClassAssignment
         {

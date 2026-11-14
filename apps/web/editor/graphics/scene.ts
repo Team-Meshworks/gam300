@@ -1,3 +1,4 @@
+import { createSceneAudio } from "./scene-audio";
 import { createModelLoadQueue } from "./model-load-queue";
 import {
   environmentObject,
@@ -34,6 +35,7 @@ import type {
 import { getStartingCamera } from "../../shared/project/starting-view";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { ROOM_GRID_HALF_SIZE } from "../../shared/project/room-bounds";
 import {
   ModelCache,
   ModelRequestError,
@@ -43,7 +45,10 @@ import {
 import {
   isStarterRoomEnvironment,
   isStarterRoomModel,
-  starterRoomCompanion,
+  isRoomModel as isCatalogueRoomModel,
+  isRoomEnvironment,
+  roomCompanion,
+  roomFootprint,
   type CatalogueAsset,
 } from "../../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET_ID } from "../../shared/asset-runtime/hotspot";
@@ -151,7 +156,7 @@ export interface InitSceneHandle {
   ) => boolean;
   pickObjectAt: (clientX: number, clientY: number) => string | undefined;
   getHotspotAnchor: (objectId: string) => Vector3Tuple | undefined;
-  setEditingEnabled: (enabled: boolean) => void;
+  setEditingEnabled: (enabled: boolean, allowInspection?: boolean) => void;
   captureCamera: () => CameraPose;
   showCamera: (pose: CameraPose) => void;
   locateObject: (id: string) => void;
@@ -160,6 +165,7 @@ export interface InitSceneHandle {
   ) => { left: number; right: number; top: number; bottom: number } | null;
   setNavigationTool: (tool: NavigationTool) => void;
   toggleDisplayMedia: (id: string) => void;
+  playSpatialAudio: (id: string) => void;
   mobileControls: FpsMobileControls;
   modeManager: ModeManager;
   dispose: () => void;
@@ -176,10 +182,12 @@ export function initScene(
     onObjectClick: (id: string) => void;
     onUpdate: (deltaSeconds: number) => void;
     selectableAssets?: readonly CatalogueAsset[];
+    onAudioError?: (message: string) => void;
   },
   modelCache: ModelCache = editorModelCache,
 ): InitSceneHandle | undefined {
-  const isRoomModel = (id: string) => isStarterRoomModel(assets, id);
+  const isRoomModel = (id: string) => isCatalogueRoomModel(assets, id);
+  const footprint = (id: string) => roomFootprint(assets, id);
   let renderer: THREE.WebGLRenderer;
   try {
     const canvas = document.createElement("canvas");
@@ -229,7 +237,12 @@ export function initScene(
   const fill = new THREE.DirectionalLight(0xffffff, 0.8);
   fill.position.set(-3, 1, -3);
   scene.add(ambient, sun, fill);
-  const grid = new THREE.GridHelper(40, 40, 0xaeb8aa, 0xcdd4c8);
+  const grid = new THREE.GridHelper(
+    ROOM_GRID_HALF_SIZE * 2,
+    ROOM_GRID_HALF_SIZE * 2,
+    0xaeb8aa,
+    0xcdd4c8,
+  );
   grid.position.y = -0.01;
   scene.add(grid);
 
@@ -271,6 +284,7 @@ export function initScene(
   const hotspotMaterials = new Set<THREE.SpriteMaterial>();
   const ready = true;
   let editingEnabled = true;
+  let inspectionEnabled = false;
   let objects: readonly SceneObject[] = [];
   let selectedId: string | null = null;
   let projectScene: ProjectScene | null = null;
@@ -296,11 +310,14 @@ export function initScene(
       ...(isStarterRoomEnvironment(assets, environmentId) && environment ? [environment] : []),
       ...objects.flatMap((object) => {
         const instance = instances.get(object.id);
-        return isRoomModel(object.assetId) && instance ? [instance] : [];
+        return isStarterRoomModel(assets, object.assetId) && instance ? [instance] : [];
       }),
     ]);
   }
   const displays = createDisplayContent(assets, render, models);
+  const spatialAudio = createSceneAudio(camera, assets, (message) =>
+    callbacks.onAudioError?.(message),
+  );
   const instanceAssets = new Map<string, string>();
   function instanceFor(objectId: string): THREE.Group | undefined {
     if (objectId === projectScene?.id) return environment;
@@ -531,6 +548,7 @@ export function initScene(
     const now = performance.now();
     interactionClock.setActive(now, !document.hidden && modeManager.getState().mode === "visitor");
     lastFrameTime = now;
+    spatialAudio.setVisible(!document.hidden);
     if (document.hidden) displays.pause();
     else displays.resumeEditing();
   };
@@ -578,7 +596,7 @@ export function initScene(
     orbit.dispose();
     orbit = new OrbitControls(camera, renderer.domElement);
     orbit.enableDamping = true;
-    orbit.enabled = editingEnabled && modeManager.usesOrbit();
+    orbit.enabled = (editingEnabled || inspectionEnabled) && modeManager.usesOrbit();
     applyNavigationTool();
     // The constructor looks at its default target, so reinstall the authored pose afterward
     camera.position.fromArray(pose.position);
@@ -663,7 +681,9 @@ export function initScene(
     appliedLoadGeneration = loadGeneration;
 
     const nextEnvironmentId =
-      projectScene?.environmentVisible === false ? undefined : projectScene?.environmentAssetId;
+      projectScene?.environmentVisible === false
+        ? undefined
+        : (projectScene?.environmentAssetId ?? undefined);
     if (
       ready &&
       (environmentId !== nextEnvironmentId ||
@@ -737,6 +757,7 @@ export function initScene(
       }
       syncRoomEntrances();
       displays.sync(objects, instances);
+      spatialAudio.sync(objects, instances);
       syncHotspots();
     }
     const selectedBounds = getSelectionBounds();
@@ -801,13 +822,21 @@ export function initScene(
     return new THREE.Ray(camera.position, point.unproject(camera).sub(camera.position).normalize());
   }
 
-  function bodyFor(id: string, assetId: string, transform: Transform): PlacementBody | undefined {
+  function bodyFor(
+    id: string,
+    assetId: string | null,
+    transform: Transform,
+  ): PlacementBody | undefined {
+    if (assetId === null) return;
     const model = models.get(assetId);
     const asset = assets.find((entry) => entry.id === assetId);
     if (!model || !asset) return;
     let cached = placementShapes.get(assetId);
     if (cached?.model !== model) {
-      cached = { model, shape: placementBody(assetId, ROOM_TRANSFORM, model, asset) };
+      cached = {
+        model,
+        shape: placementBody(assetId, ROOM_TRANSFORM, model, asset, isRoomModel(assetId)),
+      };
       placementShapes.set(assetId, cached);
     }
     return { ...cached.shape, id, transform };
@@ -835,24 +864,53 @@ export function initScene(
     proposed: Transform,
     phase: "drag" | "release" = "release",
   ): Transform | undefined {
-    if (id === projectScene?.id || isStarterRoomModel(assets, findObject(id)?.assetId))
-      return proposed;
     const object = findObject(id);
-    const body = object && bodyFor(id, object.assetId, object.transform);
+    const body =
+      object &&
+      bodyFor(
+        id,
+        id === projectScene?.id ? projectScene.environmentAssetId : object.assetId,
+        object.transform,
+      );
     if (!body) return;
+    if (
+      phase === "release" &&
+      projectScene &&
+      (id === projectScene.id || isRoomModel(object.assetId))
+    ) {
+      const snapped = moveSceneSelection(
+        projectScene as ContentScene,
+        selectedIds,
+        id,
+        proposed,
+        false,
+        isRoomEnvironment(assets, projectScene.environmentAssetId),
+        isRoomModel,
+        footprint,
+      );
+      if (!snapped.ok) return;
+      const final =
+        id === projectScene.id
+          ? snapped.value.environmentTransform
+          : snapped.value.objects.find((entry) => entry.id === id)?.transform;
+      if (!final) return;
+      proposed = final;
+    }
     const previous = lastValidTransforms.get(id);
     if (previous?.before === object.transform) body.previous = previous.after;
     const bodies = collisionBodies();
     const moved =
-      projectScene && selectedIds.length > 1
+      projectScene &&
+      (id === projectScene.id || isRoomModel(object.assetId) || selectedIds.length > 1)
         ? moveSceneSelection(
             projectScene as ContentScene,
             selectedIds,
             id,
             proposed,
             true,
-            isStarterRoomEnvironment(assets, projectScene.environmentAssetId),
+            isRoomEnvironment(assets, projectScene.environmentAssetId),
             isRoomModel,
+            footprint,
           )
         : moveAttachedObjects(
             objects,
@@ -883,15 +941,17 @@ export function initScene(
     const result = resolveObjectPlacement(body, proposed, obstacles, phase);
     if (!result) return;
     const next =
-      projectScene && selectedIds.length > 1
+      projectScene &&
+      (id === projectScene.id || isRoomModel(object.assetId) || selectedIds.length > 1)
         ? moveSceneSelection(
             projectScene as ContentScene,
             selectedIds,
             id,
             result,
             true,
-            isStarterRoomEnvironment(assets, projectScene.environmentAssetId),
+            isRoomEnvironment(assets, projectScene.environmentAssetId),
             isRoomModel,
+            footprint,
           )
         : moveAttachedObjects(
             objects,
@@ -1011,7 +1071,11 @@ export function initScene(
       point === null ||
       !point
         .toArray()
-        .every((value) => Number.isFinite(value) && Math.abs(value) <= (outsideGrid ? 10_000 : 20))
+        .every(
+          (value) =>
+            Number.isFinite(value) &&
+            Math.abs(value) <= (outsideGrid ? 10_000 : ROOM_GRID_HALF_SIZE),
+        )
     ) {
       return;
     }
@@ -1041,7 +1105,7 @@ export function initScene(
     const sceneSelection =
       projectScene &&
       (id === projectScene.id ||
-        isStarterRoomModel(assets, findObject(id)?.assetId) ||
+        (!!findObject(id) && isRoomModel(findObject(id)!.assetId)) ||
         selectedIds.length > 1)
         ? moveSceneSelection(
             projectScene as ContentScene,
@@ -1049,8 +1113,9 @@ export function initScene(
             id,
             transform,
             !final,
-            isStarterRoomEnvironment(assets, projectScene.environmentAssetId),
+            isRoomEnvironment(assets, projectScene.environmentAssetId),
             isRoomModel,
+            footprint,
           )
         : null;
     if (sceneSelection && !sceneSelection.ok) {
@@ -1630,6 +1695,16 @@ export function initScene(
   }
 
   function wheel(event: WheelEvent) {
+    // Open libraries and popups own scrolling; the camera behind them must stay put
+    if (
+      document.querySelector(
+        'dialog[open], [role="dialog"], .asset-picker, .tool-popup, .dock-menu, details[open] > .draft-menu-panel',
+      )
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     if (drag?.currentMode === "carry" && event.deltaY !== 0) {
       event.preventDefault();
       event.stopPropagation();
@@ -1731,6 +1806,7 @@ export function initScene(
       previousMode = mode;
     }
     displays.setPreview(mode === "visitor");
+    spatialAudio.setPreview(mode === "visitor");
     visitorClick = undefined;
     // Esc or Alt let go of the mouse, which also puts back whatever was being carried or turned
     if (!captured && drag !== undefined && dragLocked) cancelDrag();
@@ -1741,7 +1817,7 @@ export function initScene(
     cancelTouchGesture();
     cancelWheelEdit();
     // Cancellation must not re-enable orbit controls while visiting or walking
-    orbit.enabled = modeManager.usesOrbit() && editingEnabled;
+    orbit.enabled = modeManager.usesOrbit() && (editingEnabled || inspectionEnabled);
     applyNavigationTool();
     selection.visible = mode === "editor" && getSelectionBounds() !== undefined;
     // Markers are authoring aids; visitors interact with the objects themselves.
@@ -1953,15 +2029,18 @@ export function initScene(
     showPlacementPreview(id, position, ownerId) {
       // Whole layouts replace the environment at its current frame, not at the drop cursor.
       const layout =
+        !projectScene?.environmentAssetId &&
         assets.some((asset) => asset.id === id && asset.kind === "environment") &&
         !isStarterRoomEnvironment(assets, id);
       if (layout && position) position = projectScene?.environmentTransform?.position ?? [0, 0, 0];
       if (
-        projectScene &&
-        isStarterRoomEnvironment(assets, id) &&
-        isStarterRoomEnvironment(assets, projectScene.environmentAssetId)
+        projectScene?.environmentAssetId &&
+        assets.some((asset) => asset.id === id && asset.kind === "environment")
       ) {
-        const companion = starterRoomCompanion(callbacks.selectableAssets ?? assets);
+        const companion = roomCompanion(
+          callbacks.selectableAssets ?? assets,
+          assets.find((asset) => asset.id === id),
+        );
         if (!companion) {
           placementPreview.show(undefined, undefined);
           render();
@@ -1973,25 +2052,27 @@ export function initScene(
         void prepareAsset(id);
         return false;
       }
-      const room = isStarterRoomEnvironment(assets, id) || isStarterRoomModel(assets, id);
+      const room = isStarterRoomEnvironment(assets, id) || (!!id && isRoomModel(id));
       const rotation =
         id && isRoomModel(id)
           ? roomLayoutTransform(objects, projectScene, isRoomModel)?.rotation
           : layout
             ? projectScene?.environmentTransform?.rotation
             : undefined;
-      const requestedFits = position !== undefined && (!room || roomFitsGrid(position, rotation));
+      const requestedFits =
+        position !== undefined && (!room || roomFitsGrid(position, rotation, footprint(id!)));
       if (id && isRoomModel(id) && position && requestedFits)
         position =
           snapRoomPlacement(
             position,
             objects,
-            projectScene?.environmentVisible !== false &&
-              isStarterRoomEnvironment(assets, projectScene?.environmentAssetId)
-              ? "test-room-v1"
+            projectScene?.environmentVisible !== false
+              ? projectScene?.environmentAssetId
               : undefined,
             roomLayoutTransform(objects, projectScene, isRoomModel),
             isRoomModel,
+            footprint,
+            id,
           ) ?? undefined;
       let scale = 1;
       if (id === HOTSPOT_ASSET_ID && position !== undefined) {
@@ -2011,23 +2092,36 @@ export function initScene(
       if (id && position && !room && id !== HOTSPOT_ASSET_ID) {
         position = resolvePlacement(id, position)?.position;
       }
+      if (id && position && room && projectScene) {
+        const transform: Transform = {
+          position,
+          rotation: rotation ?? [0, 0, 0, 1],
+          scale: [1, 1, 1],
+        };
+        const body = bodyFor("new-placement", id, transform);
+        if (!body || !resolveObjectPlacement(body, transform, collisionBodies(), "release"))
+          position = undefined;
+      }
       const valid =
-        position !== undefined && (!room || (requestedFits && roomFitsGrid(position, rotation)));
+        position !== undefined &&
+        (!room || (requestedFits && roomFitsGrid(position, rotation, footprint(id!))));
       placementPreview.show(id, position, scale, rotation, valid);
       render();
       return valid;
     },
     pickObjectAt,
     getHotspotAnchor,
-    setEditingEnabled(enabled) {
+    setEditingEnabled(enabled, allowInspection = false) {
       editingEnabled = enabled;
+      inspectionEnabled = allowInspection;
       if (!enabled) {
         cancelDrag();
         cancelTouchGesture();
         cancelWheelEdit();
         showDropPosition(undefined);
       }
-      orbit.enabled = enabled && modeManager.usesOrbit() && touchGesture === undefined;
+      orbit.enabled =
+        (enabled || allowInspection) && modeManager.usesOrbit() && touchGesture === undefined;
     },
     captureCamera: () => ({
       position: camera.position.toArray() as [number, number, number],
@@ -2085,6 +2179,7 @@ export function initScene(
       applyNavigationTool();
     },
     toggleDisplayMedia: (id) => displays.toggle(id),
+    playSpatialAudio: spatialAudio.play,
     mobileControls: fpsControls.mobileControls,
     modeManager,
     dispose() {
@@ -2103,6 +2198,7 @@ export function initScene(
       appearanceRenderer.dispose();
       disposed = true;
       displays.dispose();
+      spatialAudio.dispose();
       controller.abort();
       observer.disconnect();
       fpsMeter.dispose();

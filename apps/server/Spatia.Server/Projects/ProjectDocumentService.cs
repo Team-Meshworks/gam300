@@ -15,6 +15,7 @@ public sealed class ProjectDocumentService
 {
     private readonly IReadOnlyDictionary<string, string> _assets;
     private readonly HashSet<string> _retired = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _removed = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Reads approved asset identities for this request and adds packaged samples only in development
@@ -23,12 +24,13 @@ public sealed class ProjectDocumentService
     {
         // Read one request-scoped catalogue view; retirement prevents new references but preserves stored ones
         var approved = database?.AssetCandidates.AsNoTracking().Where(asset => asset.Status == "approved")
-            .Select(asset => new { asset.Id, asset.Kind, asset.Hidden, asset.Deleted }).ToArray();
+            .Select(asset => new { asset.Id, asset.Kind, asset.Hidden, asset.Deleted, asset.RemovedFromProjects }).ToArray();
         var retained = approved?.ToDictionary(asset => asset.Id.ToString(), asset => asset.Kind, StringComparer.Ordinal)
             ?? new Dictionary<string, string>(StringComparer.Ordinal);
         if (approved is not null)
         {
             foreach (var asset in approved.Where(asset => asset.Hidden || asset.Deleted)) { _retired.Add(asset.Id.ToString()); }
+            foreach (var asset in approved.Where(asset => asset.RemovedFromProjects)) { _removed.Add(asset.Id.ToString()); }
         }
         // Retired approved identities remain valid for stored documents and serialization
         if (!environment.IsDevelopment())
@@ -57,6 +59,9 @@ public sealed class ProjectDocumentService
                 or "room-doors-2-3-v1" or "room-doors-2-4-v1" or "room-doors-3-4-v1"
                 or "room-doors-1-2-3-v1" or "room-doors-1-2-4-v1" or "room-doors-1-3-4-v1"
                 or "room-doors-2-3-4-v1" or "room-doors-1-2-3-4-v1"
+                or "room-space1-module-v1" or "room-doors-1-module-v1" or "room-doors-2-module-v1" or "room-doors-3-module-v1" or "room-doors-4-module-v1"
+                or "room-doors-1-2-module-v1" or "room-doors-1-3-module-v1" or "room-doors-1-4-module-v1" or "room-doors-2-3-module-v1" or "room-doors-2-4-module-v1" or "room-doors-3-4-module-v1"
+                or "room-doors-1-2-3-module-v1" or "room-doors-1-2-4-module-v1" or "room-doors-1-3-4-module-v1" or "room-doors-2-3-4-module-v1" or "room-doors-1-2-3-4-module-v1"
                 or "display-rectangle-panel-v1" or "display-square-stand-v1" or "display-square-panel-v1" or "sample-landscape-image-v1" or "sample-coast-image-v1" or "sample-coast-video-v1"
                 or "sample-dunes-image-v1" or "sample-forest-image-v1" or "sample-sunset-image-v1" or "sample-valley-image-v1" or "sample-dunes-video-v1" or "sample-forest-video-v1" or "sample-sunset-video-v1"
                 or "audio-ethereal-calm-v1"
@@ -88,7 +93,7 @@ public sealed class ProjectDocumentService
                 throw new InvalidOperationException("Invalid packaged development asset catalogue.");
             }
         }
-        if (assets.Count != 54)
+        if (assets.Count != 70)
         {
             throw new InvalidOperationException("The packaged development asset catalogue is incomplete.");
         }
@@ -105,7 +110,7 @@ public sealed class ProjectDocumentService
         if (!parsed.Ok) { return parsed; }
         // Permit a retired version only when the confirmed saved document already references it
         var existing = existingJson is null ? new HashSet<string>() : AssetDocumentReferences.Read(existingJson);
-        return AssetDocumentReferences.Read(json).Any(id => _retired.Contains(id) && !existing.Contains(id))
+        return AssetDocumentReferences.Read(json).Any(id => _removed.Contains(id) || (_retired.Contains(id) && !existing.Contains(id)))
             ? new(null, new("project", "Retired assets cannot be added to a project")) : parsed;
     }
 
@@ -140,7 +145,13 @@ public sealed class ProjectDocumentService
     /// <summary>
     /// Produces the bounded normalized representation used for storage and export
     /// </summary>
-    public FormatResult<string> Serialize(IAuthoredProject document) => Format.Serialize(document, _assets);
+    public FormatResult<string> Serialize(IAuthoredProject document)
+    {
+        var serialized = Format.Serialize(document, _assets);
+        // Stored history remains inspectable, but no new draft or copy may revive a globally removed asset
+        return serialized.Ok && _removed.Count != 0 && AssetDocumentReferences.Read(serialized.Value!).Any(_removed.Contains)
+            ? new(null, new("project", "Removed assets cannot be saved or copied")) : serialized;
+    }
 
     private static FormatResult<IAuthoredProject> Bind(Guid projectId, FormatResult<IAuthoredProject> result) =>
         result.Ok && Guid.Parse(result.Value!.ProjectId) != projectId

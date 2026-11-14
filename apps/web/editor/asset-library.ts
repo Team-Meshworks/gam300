@@ -1,6 +1,6 @@
 import {
   assetCategories,
-  isStarterRoomModel,
+  isRoomModel,
   searchAssets,
   type CatalogueAsset,
 } from "../shared/asset-runtime/catalogue";
@@ -167,7 +167,7 @@ export function createAssetLibrary(
       const result = store.addObject(
         snapshot.assetId,
         position,
-        isStarterRoomModel(assets, snapshot.assetId) ? null : parentId,
+        isRoomModel(assets, snapshot.assetId) ? null : parentId,
       );
       if (result.ok) {
         cancel();

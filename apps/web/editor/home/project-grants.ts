@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/network/abort-signals";
 import { createAccountClient } from "../accounts/account-client";
 import { createDirectoryClient, type ManagedAccount } from "../directory/directory-client";
 import { createWorkspaceClient, isId, isRecord } from "./workspace-api";
@@ -117,7 +118,7 @@ export async function readProjectGrantEditor(
       ...init,
       headers,
       redirect: "error",
-      signal: AbortSignal.any([signal, ...(init?.signal ? [init.signal] : [])]),
+      signal: combineAbortSignals([signal, ...(init?.signal ? [init.signal] : [])]),
     });
   };
   const api = createWorkspaceClient(bound);

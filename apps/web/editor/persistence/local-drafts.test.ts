@@ -8,12 +8,9 @@ import {
   applySaveRecoverySession,
   clearConfirmedServerRecovery,
   getRecoverySession,
-  getOlderRecoveryFiles,
   type RecoverySession,
 } from "./recovery-session";
-import { applySaveToLocalDraft, getLatestLocalDraft, getLocalDraft } from "./local-drafts";
 import type { IDraftDatabase } from "./draft-db";
-import type { ValidationResult } from "../../shared/project/validation-helpers";
 import { createDocumentStore } from "../document-store";
 import { connectServerProjectSession } from "./server-project-session";
 import { validateServerSaveRecovery } from "./server-save-recovery";
@@ -24,16 +21,9 @@ afterEach(() => vi.useRealTimers());
 // Small IndexedDB stand-in for revision checks and account separation
 // Real browser transaction behaviour is checked separately in the browser recovery flow
 class FakeDraftDatabase implements IDraftDatabase {
-  readonly projectIds: string[] = [];
   readonly records = new Map<string, unknown>();
-  private readonly result: ValidationResult<unknown> | undefined;
-
-  constructor(result?: ValidationResult<unknown>) {
-    this.result = result;
-  }
 
   async getIndexedDB(): Promise<IDBDatabase> {
-    if (this.result && !this.result.ok) throw new Error(this.result.error.message);
     const database = {
       transaction: (storeNames: string | string[], mode: IDBTransactionMode) => {
         const names = Array.isArray(storeNames) ? storeNames : [storeNames];
@@ -65,14 +55,7 @@ class FakeDraftDatabase implements IDraftDatabase {
             };
             return {
               get: (lookup: IDBValidKey) => {
-                if (name === "drafts" && Array.isArray(lookup)) {
-                  this.projectIds.push(String(lookup[1]));
-                }
-                const resultRequest = request(
-                  name === "drafts" && this.result?.ok
-                    ? this.result.value
-                    : this.records.get(key(lookup)),
-                );
+                const resultRequest = request(this.records.get(key(lookup)));
 
                 // Aborted writes cannot also report a successful transaction completion
                 queueMicrotask(() => {
@@ -82,17 +65,11 @@ class FakeDraftDatabase implements IDraftDatabase {
                 });
                 return resultRequest;
               },
-              put: (value: unknown, lookup?: IDBValidKey) => {
+              put: (value: unknown, lookup: IDBValidKey) => {
                 if (mode !== "readwrite") {
                   throw new Error("Read-only transaction");
                 }
-                const record = value as Record<string, unknown>;
-                const lookupKey: IDBValidKey =
-                  lookup ??
-                  (name === "session"
-                    ? "active"
-                    : [record.principalKey as string, record.projectId as string]);
-                this.records.set(key(lookupKey), value);
+                this.records.set(key(lookup), value);
                 const resultRequest = request(undefined);
                 queueMicrotask(() => {
                   if (!aborted) {
@@ -107,46 +84,6 @@ class FakeDraftDatabase implements IDraftDatabase {
                 }
                 this.records.delete(key(lookup));
                 return request(undefined);
-              },
-              openCursor: () => {
-                const entries = [...this.records.entries()]
-                  .filter(([entryKey]) => entryKey.startsWith(`${name}:`))
-                  .map(([entryKey, value]) => ({
-                    key: JSON.parse(entryKey.slice(name.length + 1)),
-                    value,
-                  }));
-                const cursorRequest = {
-                  result: null as {
-                    primaryKey: unknown;
-                    value: unknown;
-                    continue: () => void;
-                  } | null,
-                  onsuccess: null as ((event: Event) => void) | null,
-                };
-                let index = 0;
-                const emit = () => {
-                  const entry = entries[index];
-                  cursorRequest.result = entry
-                    ? {
-                        primaryKey: entry.key,
-                        value: entry.value,
-                        continue: () => {
-                          index += 1;
-                          queueMicrotask(emit);
-                        },
-                      }
-                    : null;
-                  if (!entry) {
-                    queueMicrotask(() => {
-                      if (!aborted) {
-                        transaction.oncomplete?.(new Event("complete"));
-                      }
-                    });
-                  }
-                  cursorRequest.onsuccess?.(new Event("success"));
-                };
-                queueMicrotask(emit);
-                return cursorRequest;
               },
             };
           },
@@ -165,19 +102,6 @@ const assets = new Map([
 ]);
 const projectId = fixture.projectId;
 
-function storedDraft(document: string) {
-  return {
-    projectId,
-    principalKey: "local",
-    document,
-    localStorageRevision: 1,
-    localEditSequence: 2,
-    baseServerRevision: null,
-    pendingMutation: null,
-    savedAt: "2026-09-30T00:00:00.000Z",
-  };
-}
-
 function serializedFixture(project = fixture) {
   const serialized = serializeProject(project, assets);
   expect(serialized.ok).toBe(true);
@@ -187,327 +111,72 @@ function serializedFixture(project = fixture) {
   return serialized.value;
 }
 
-function storedDraftKey(id: string) {
-  return `drafts:${JSON.stringify(["local", id])}`;
+function recoverySession(): Omit<RecoverySession, "revision" | "historyWarning"> {
+  return { document: fixture as unknown as ProjectDocument };
 }
-
-function recoverySession(): Omit<RecoverySession, "revision" | "historyWarning"> & {
-  document: ProjectDocument;
-} {
-  return {
-    document: fixture as unknown as ProjectDocument,
-    fileName: "scene.json",
-    savedJson: null,
-    pristine: false,
-  };
-}
-
-describe("getLocalDraft", () => {
-  it("rejects an invalid project ID without reading the database", async () => {
-    const database = new FakeDraftDatabase({ ok: true, value: null });
-
-    const result = await getLocalDraft("not-a-uuid", assets, database);
-
-    expect(result).toMatchObject({
-      ok: false,
-      error: { path: "storage.projectId", message: "Expected a project UUID" },
-    });
-    expect(database.projectIds).toEqual([]);
-  });
-
-  it("normalizes the project ID before querying the database", async () => {
-    const database = new FakeDraftDatabase({ ok: true, value: undefined });
-
-    const result = await getLocalDraft(projectId.toUpperCase(), assets, database);
-
-    expect(result).toEqual({ ok: true, value: null });
-    expect(database.projectIds).toEqual([projectId]);
-  });
-
-  it("forwards a database failure without validating a draft", async () => {
-    const failure = {
-      ok: false as const,
-      error: { path: "storage", message: "Local draft could not be read; try again" },
-    };
-    const database = new FakeDraftDatabase(failure);
-
-    await expect(getLocalDraft(projectId, assets, database)).resolves.toEqual(failure);
-  });
-
-  it("returns null when the database has no draft", async () => {
-    const database = new FakeDraftDatabase({ ok: true, value: undefined });
-
-    await expect(getLocalDraft(projectId, assets, database)).resolves.toEqual({
-      ok: true,
-      value: null,
-    });
-  });
-
-  it("validates and returns a stored draft", async () => {
-    const database = new FakeDraftDatabase({
-      ok: true,
-      value: storedDraft(serializedFixture()),
-    });
-
-    const result = await getLocalDraft(projectId, assets, database);
-
-    expect(result).toMatchObject({
-      ok: true,
-      value: {
-        projectId,
-        localStorageRevision: 1,
-        localEditSequence: 2,
-        savedAt: "2026-09-30T00:00:00.000Z",
-        document: fixture,
-      },
-    });
-  });
-});
-
-describe("getLatestLocalDraft", () => {
-  it("returns the newest readable local draft", async () => {
-    const olderId = "11111111-1111-4111-8111-111111111111";
-    const database = new FakeDraftDatabase();
-    database.records.set(storedDraftKey(projectId), {
-      ...storedDraft(serializedFixture()),
-      savedAt: "2026-09-30T00:00:00.000Z",
-    });
-    database.records.set(storedDraftKey(olderId), {
-      ...storedDraft(serializedFixture({ ...fixture, projectId: olderId })),
-      projectId: olderId,
-      savedAt: "2026-09-29T00:00:00.000Z",
-    });
-
-    const result = await getLatestLocalDraft(assets, database);
-
-    expect(result).toMatchObject({ ok: true, value: { projectId } });
-  });
-});
-
-describe("applySaveToLocalDraft", () => {
-  it("saves a new draft and rejects a stale revision", async () => {
-    const database = new FakeDraftDatabase();
-    const request = {
-      project: fixture,
-      expectedStorageRevision: 0,
-      localEditSequence: 1,
-    };
-
-    const saved = await applySaveToLocalDraft(request, assets, database);
-    const stale = await applySaveToLocalDraft(request, assets, database);
-
-    expect(saved).toMatchObject({
-      ok: true,
-      value: { projectId, localStorageRevision: 1, localEditSequence: 1 },
-    });
-    expect(stale).toMatchObject({
-      ok: false,
-      error: { message: "The local draft changed in another tab; reopen it before saving again" },
-    });
-  });
-});
-
-describe("getRecoverySession", () => {
-  it("offers old scenes for explicit conversion and archives their original recovery before replacement", async () => {
-    const database = new FakeDraftDatabase();
-    const older = {
-      ...fixture,
-      scenes: fixture.scenes.map((scene) => ({
-        ...scene,
-        hotspots: undefined,
-        interactions: undefined,
-        viewpoints: [],
-      })),
-    };
-    const original = {
-      ...recoverySession(),
-      revision: 4,
-      document: JSON.stringify(older),
-      history: { old: "retained" },
-    };
-    database.records.set('session:"active"', original);
-    const recovered = await getRecoverySession(assets, database);
-    expect(recovered).toMatchObject({
-      ok: true,
-      value: { revision: 4, document: null, olderSceneFile: { text: original.document } },
-    });
-    expect(database.records.get('session:"active"')).toEqual(original);
-    expect((await applySaveRecoverySession(recoverySession(), 3, assets, database)).ok).toBe(false);
-    expect(database.records.has('session:"older-scene-backup:4"')).toBe(false);
-    expect((await applySaveRecoverySession(recoverySession(), 4, assets, database)).ok).toBe(true);
-    expect(database.records.get('session:"older-scene-backup:4"')).toEqual(original);
-    expect(await getOlderRecoveryFiles(assets, database)).toEqual([
-      { text: original.document, name: original.fileName || "older-scene.json" },
-    ]);
-    expect(await getRecoverySession(assets, database)).toMatchObject({
-      ok: true,
-      value: { revision: 5, document: fixture },
-    });
-    database.records.set('session:"older-scene-backup:8"', {
-      ...original,
-      fileName: "another.json",
-    });
-    database.records.set('session:"older-scene-backup:9"', { document: "damaged" });
-    const before = [...database.records.entries()];
-    expect(await getOlderRecoveryFiles(assets, database)).toEqual([
-      { text: original.document, name: original.fileName || "older-scene.json" },
-      { text: original.document, name: "another.json" },
-    ]);
-    expect([...database.records.entries()]).toEqual(before);
-  });
-  it("preserves a richer document as authored work even when its first scene is empty", async () => {
-    const database = new FakeDraftDatabase();
-    const document = structuredClone(contentFixture);
-    // Leave the second scene intact so an empty first scene cannot be mistaken for a disposable new room
-    document.scenes[0]!.objects = [];
-    document.scenes[0]!.rules = [];
-    document.scenes[0]!.groups = [];
-    const kinds = new Map(Object.entries(contentCases.assets));
-    database.records.set('session:"active"', {
-      ...recoverySession(),
-      revision: 1,
-      document: JSON.stringify(document),
-      savedJson: null,
-      pristine: true,
-    });
-    const result = await getRecoverySession(kinds, database);
-    expect(result).toMatchObject({ ok: true, value: { pristine: false } });
-    if (!result.ok) {
-      throw new Error(result.error.message);
-    }
-    expect(result.value?.document?.scenes).toHaveLength(2);
-  });
-  it("reads and validates the active recovery session", async () => {
-    const database = new FakeDraftDatabase();
-    database.records.set('session:"active"', {
-      ...recoverySession(),
-      revision: 3,
-      document: serializedFixture(),
-    });
-
-    const result = await getRecoverySession(assets, database);
-
-    expect(result).toMatchObject({
-      ok: true,
-      value: { revision: 3, fileName: "scene.json", document: fixture },
-    });
-  });
-});
-
-describe("applySaveRecoverySession", () => {
-  it("keeps New empty after reload and rejects a stale tab's next write", async () => {
-    const database = new FakeDraftDatabase();
-    await applySaveRecoverySession(recoverySession(), 0, assets, database);
-    const empty = { document: null, fileName: "", savedJson: null, pristine: true };
-    expect(await applySaveRecoverySession(empty, 1, assets, database)).toEqual({
-      ok: true,
-      value: 2,
-    });
-    expect(await getRecoverySession(assets, database)).toMatchObject({
-      ok: true,
-      value: { revision: 2, document: null },
-    });
-    expect(await applySaveRecoverySession(recoverySession(), 1, assets, database)).toMatchObject({
-      ok: false,
-    });
-    expect(await getRecoverySession(assets, database)).toMatchObject({
-      ok: true,
-      value: { revision: 2, document: null },
-    });
-  });
-
-  it("rejects an empty session carrying a previous project's save baseline", async () => {
-    const database = new FakeDraftDatabase();
-    expect(
-      await applySaveRecoverySession({ ...recoverySession(), document: null }, 0, assets, database),
-    ).toMatchObject({ ok: false });
-    expect(database.records.has('session:"active"')).toBe(false);
-  });
-
-  it("saves a new recovery session and increments its revision", async () => {
-    const database = new FakeDraftDatabase();
-
-    const result = await applySaveRecoverySession(recoverySession(), 0, assets, database);
-
-    expect(result).toEqual({ ok: true, value: 1 });
-    expect(database.records.get('session:"active"')).toMatchObject({
-      revision: 1,
-      fileName: "scene.json",
-      document: serializedFixture(),
-    });
-  });
-});
 
 describe("account-scoped recovery", () => {
   // Same project ID under two accounts catches accidental project-only lookups
   const alice = { accountId: "alice", projectId: fixture.projectId };
   const bob = { accountId: "bob", projectId: fixture.projectId };
 
+  it("rejects an unscoped recovery read and leaves the former active draft intact", async () => {
+    const database = new FakeDraftDatabase();
+    const original = {
+      fileName: "local.json",
+      savedJson: null,
+      pristine: false,
+      revision: 1,
+      document: serializedFixture(),
+    };
+    database.records.set('session:"active"', original);
+    // A stale caller can still omit the scope at runtime.
+    expect(await Reflect.apply(getRecoverySession, undefined, [assets, database])).toMatchObject({
+      ok: false,
+    });
+    expect(database.records.get('session:"active"')).toEqual(original);
+  });
+
   it("keeps each account's copy separate from the local-only session", async () => {
     const database = new FakeDraftDatabase();
-    await applySaveRecoverySession(recoverySession(), 0, assets, database);
-    // A local draft and two signed-in accounts must keep three independent copies
-    const aliceSession = { ...recoverySession(), fileName: "alice.json" };
-    const bobSession = { ...recoverySession(), fileName: "bob.json" };
-    expect(
-      await applySaveRecoverySession(aliceSession, 0, assets, database, { scope: alice }),
-    ).toEqual({ ok: true, value: 1 });
-    expect(await applySaveRecoverySession(bobSession, 0, assets, database, { scope: bob })).toEqual(
-      { ok: true, value: 1 },
-    );
+    const legacy = {
+      fileName: "legacy.json",
+      document: serializedFixture(),
+      revision: 1,
+      savedJson: null,
+      pristine: false,
+    };
+    database.records.set('session:"active"', legacy);
+    const aliceSession = { document: { ...recoverySession().document, title: "Alice project" } };
+    const bobSession = { document: { ...recoverySession().document, title: "Bob project" } };
+    expect(await applySaveRecoverySession(aliceSession, 0, assets, database, alice)).toEqual({
+      ok: true,
+      value: 1,
+    });
+    expect(await applySaveRecoverySession(bobSession, 0, assets, database, bob)).toEqual({
+      ok: true,
+      value: 1,
+    });
     expect(await getRecoverySession(assets, database, alice)).toMatchObject({
       ok: true,
-      value: { fileName: "alice.json" },
+      value: { document: { title: "Alice project" } },
     });
     expect(await getRecoverySession(assets, database, bob)).toMatchObject({
       ok: true,
-      value: { fileName: "bob.json" },
+      value: { document: { title: "Bob project" } },
     });
-    expect(await getRecoverySession(assets, database)).toMatchObject({
-      ok: true,
-      value: { fileName: "scene.json" },
-    });
+    expect(database.records.get('session:"active"')).toEqual(legacy);
   });
 
   it("never falls back to another account or the local session when a scoped backup is missing", async () => {
     const database = new FakeDraftDatabase();
-    await applySaveRecoverySession(recoverySession(), 0, assets, database);
-    await applySaveRecoverySession(recoverySession(), 0, assets, database, { scope: alice });
+    database.records.set('session:"active"', { document: serializedFixture() });
+    await applySaveRecoverySession(recoverySession(), 0, assets, database, alice);
     // A missing scoped key stays empty even when other accounts have saved drafts
     expect(await getRecoverySession(assets, database, bob)).toEqual({ ok: true, value: null });
     expect(
       await getRecoverySession(assets, database, { ...alice, projectId: crypto.randomUUID() }),
     ).toEqual({ ok: true, value: null });
-  });
-
-  it("keeps local older-format conversion separate from authenticated recovery", async () => {
-    const database = new FakeDraftDatabase();
-    const older = {
-      ...fixture,
-      scenes: fixture.scenes.map((scene) => ({
-        ...scene,
-        hotspots: undefined,
-        interactions: undefined,
-        viewpoints: [],
-      })),
-    };
-    const original = { ...recoverySession(), revision: 4, document: JSON.stringify(older) };
-    database.records.set('session:"active"', original);
-
-    // Writing an account backup must leave the older local record and its conversion decision untouched
-    expect(
-      await applySaveRecoverySession(recoverySession(), 0, assets, database, { scope: alice }),
-    ).toEqual({ ok: true, value: 1 });
-    expect(database.records.get('session:"active"')).toEqual(original);
-    expect(await getOlderRecoveryFiles(assets, database)).toEqual([]);
-    expect(await getRecoverySession(assets, database)).toMatchObject({
-      ok: true,
-      value: { document: null, olderSceneFile: { text: original.document } },
-    });
-    expect(await getRecoverySession(assets, database, alice)).toMatchObject({
-      ok: true,
-      value: { document: fixture },
-    });
   });
 
   it("preserves an invalid scoped older-format record without offering local conversion", async () => {
@@ -521,25 +190,29 @@ describe("account-scoped recovery", () => {
         viewpoints: [],
       })),
     };
-    const original = { ...recoverySession(), revision: 4, document: JSON.stringify(older) };
+    const original = {
+      fileName: "",
+      savedJson: null,
+      pristine: false,
+      revision: 4,
+      document: JSON.stringify(older),
+    };
     const key = `session:${JSON.stringify(["account", alice.accountId, alice.projectId.toLowerCase()])}`;
     database.records.set(key, original);
 
     // A malformed authenticated backup never becomes an unscoped import offer for another account
     expect(await getRecoverySession(assets, database, alice)).toMatchObject({ ok: false });
     expect(await getRecoverySession(assets, database, bob)).toEqual({ ok: true, value: null });
-    expect(await getRecoverySession(assets, database)).toEqual({ ok: true, value: null });
-    expect(await getOlderRecoveryFiles(assets, database)).toEqual([]);
     expect(database.records.get(key)).toEqual(original);
   });
 
   it("rejects stale writes within the same account and project", async () => {
     const database = new FakeDraftDatabase();
-    await applySaveRecoverySession(recoverySession(), 0, assets, database, { scope: alice });
+    await applySaveRecoverySession(recoverySession(), 0, assets, database, alice);
     // Another tab still thinks this record is at revision zero
     // Its write must leave the committed revision-one copy intact
     expect(
-      await applySaveRecoverySession(recoverySession(), 0, assets, database, { scope: alice }),
+      await applySaveRecoverySession(recoverySession(), 0, assets, database, alice),
     ).toMatchObject({ ok: false });
     expect(await getRecoverySession(assets, database, alice)).toMatchObject({
       ok: true,
@@ -551,13 +224,15 @@ describe("account-scoped recovery", () => {
     const database = new FakeDraftDatabase();
     const other = { ...alice, projectId: crypto.randomUUID() };
     expect(
-      await applySaveRecoverySession(recoverySession(), 0, assets, database, { scope: other }),
+      await applySaveRecoverySession(recoverySession(), 0, assets, database, other),
     ).toMatchObject({ ok: false });
     // A corrupted record under the right key still needs its document identity checked
     database.records.set(
       `session:${JSON.stringify(["account", other.accountId, other.projectId])}`,
       {
-        ...recoverySession(),
+        fileName: "",
+        savedJson: null,
+        pristine: false,
         revision: 1,
         document: serializedFixture(),
       },
@@ -571,7 +246,7 @@ describe("account-scoped recovery", () => {
     const scope = { ...alice, accountId: "" };
     expect(await getRecoverySession(assets, database, scope)).toMatchObject({ ok: false });
     expect(
-      await applySaveRecoverySession(recoverySession(), 0, assets, database, { scope }),
+      await applySaveRecoverySession(recoverySession(), 0, assets, database, scope),
     ).toMatchObject({ ok: false });
     expect(database.records.size).toBe(0);
   });
@@ -590,7 +265,7 @@ describe("persisted server save identity", () => {
     const database = new FakeDraftDatabase();
     // Keep the exact pending request with its document before a retry can occur
     const session = { ...recoverySession(), serverSave };
-    expect(await applySaveRecoverySession(session, 0, assets, database, { scope })).toEqual({
+    expect(await applySaveRecoverySession(session, 0, assets, database, scope)).toEqual({
       ok: true,
       value: 1,
     });
@@ -598,7 +273,9 @@ describe("persisted server save identity", () => {
       ok: true,
       value: { serverSave },
     });
-    expect(await applySaveRecoverySession(session, 0, assets, database)).toMatchObject({
+    expect(
+      await Reflect.apply(applySaveRecoverySession, undefined, [session, 0, assets, database]),
+    ).toMatchObject({
       ok: false,
     });
   });
@@ -614,9 +291,13 @@ describe("persisted server save identity", () => {
   ])("rejects damaged server metadata without replacing the existing backup", async (damaged) => {
     // Invalid retry metadata must not overwrite the previous valid recovery copy
     const database = new FakeDraftDatabase();
-    await applySaveRecoverySession({ ...recoverySession(), serverSave }, 0, assets, database, {
+    await applySaveRecoverySession(
+      { ...recoverySession(), serverSave },
+      0,
+      assets,
+      database,
       scope,
-    });
+    );
     expect(validateServerSaveRecovery(damaged, projectId, assets).ok).toBe(false);
     expect(
       await applySaveRecoverySession(
@@ -624,7 +305,7 @@ describe("persisted server save identity", () => {
         1,
         assets,
         database,
-        { scope },
+        scope,
       ),
     ).toMatchObject({ ok: false });
     expect(await getRecoverySession(assets, database, scope)).toMatchObject({
@@ -637,9 +318,13 @@ describe("persisted server save identity", () => {
     const database = new FakeDraftDatabase();
     const serverSave = { revision: 7, confirmedJson: serializedFixture(), pending: null };
     expect(
-      await applySaveRecoverySession({ ...recoverySession(), serverSave }, 0, assets, database, {
+      await applySaveRecoverySession(
+        { ...recoverySession(), serverSave },
+        0,
+        assets,
+        database,
         scope,
-      }),
+      ),
     ).toEqual({ ok: true, value: 1 });
     await clearConfirmedServerRecovery(scope, database);
     const reopened = await getRecoverySession(assets, database, scope);
@@ -655,7 +340,7 @@ describe("persisted server save identity", () => {
           reopened.value?.revision ?? 0,
           assets,
           database,
-          { scope },
+          scope,
         )
       ).ok,
     ).toBe(true);
@@ -668,7 +353,7 @@ describe("persisted server save identity", () => {
       1,
       assets,
       database,
-      { scope },
+      scope,
     );
     expect(stale.ok).toBe(false);
     expect(await getRecoverySession(assets, database, scope)).toMatchObject({
@@ -687,7 +372,7 @@ describe("persisted server save identity", () => {
       0,
       assets,
       database,
-      { scope },
+      scope,
     );
     expect(await clearConfirmedServerRecovery(scope, database)).toEqual({ ok: true, value: true });
     expect(await getRecoverySession(assets, database, scope)).toMatchObject({
@@ -695,9 +380,13 @@ describe("persisted server save identity", () => {
       value: { revision: 1, document: null },
     });
     expect([...database.records.values()]).toEqual([{ revision: 1, cleared: true }]);
-    await applySaveRecoverySession({ ...recoverySession(), serverSave }, 1, assets, database, {
+    await applySaveRecoverySession(
+      { ...recoverySession(), serverSave },
+      1,
+      assets,
+      database,
       scope,
-    });
+    );
     expect(await clearConfirmedServerRecovery(scope, database)).toEqual({ ok: true, value: false });
     await applySaveRecoverySession(
       {
@@ -708,7 +397,7 @@ describe("persisted server save identity", () => {
       2,
       assets,
       database,
-      { scope },
+      scope,
     );
     expect(await clearConfirmedServerRecovery(scope, database)).toEqual({ ok: true, value: false });
     expect(await getRecoverySession(assets, database, scope)).toMatchObject({
@@ -818,7 +507,10 @@ describe("server project session lifecycle", () => {
     const { store, session, database, write } = setup();
     vi.spyOn(database, "getIndexedDB").mockRejectedValue(new Error("Quota exceeded"));
     store.loadProject(serializedFixture({ ...fixture, title: "Unstored work" }), assets);
-    expect(await session.prepareToLeave("recovery")).toMatchObject({ ok: false });
+    expect(await session.prepareToLeave("recovery")).toMatchObject({
+      ok: false,
+      error: { message: "Recovery backup failed; keep this tab open and export your project" },
+    });
     expect(await session.prepareToLeave("save")).toMatchObject({ ok: false });
     expect(write).not.toHaveBeenCalled();
     // A real completed export remains an escape path when browser storage is unavailable
@@ -934,7 +626,7 @@ describe("server project session lifecycle", () => {
       originalObjects.length - 2,
     ]);
     const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
-    if (!recovered.ok || !recovered.value) throw new Error("Missing queued recovery");
+    if (!recovered.ok || !recovered.value?.document) throw new Error("Missing queued recovery");
     const reopened = createDocumentStore([]);
     expect(
       reopened.loadProject(
@@ -967,7 +659,7 @@ describe("server project session lifecycle", () => {
     );
     const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
     expect(recovered.ok).toBe(true);
-    if (!recovered.ok || !recovered.value) throw new Error("Missing recovery");
+    if (!recovered.ok || !recovered.value?.document) throw new Error("Missing recovery");
     expect(recovered.value.history).toBeDefined();
     const reopened = createDocumentStore([]);
     // Restore into another store so the check cannot reuse history still held in memory
@@ -996,7 +688,8 @@ describe("server project session lifecycle", () => {
     expect(write).not.toHaveBeenCalled();
     await session.dispose();
     const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
-    if (!recovered.ok || !recovered.value) throw new Error("Missing previous project backup");
+    if (!recovered.ok || !recovered.value?.document)
+      throw new Error("Missing previous project backup");
     const reopened = createDocumentStore([]);
     expect(
       reopened.loadProject(
@@ -1029,10 +722,8 @@ describe("server project session lifecycle", () => {
   it("clears the closed session's confirmed cache without touching another account", async () => {
     const { database, session } = setup();
     await applySaveRecoverySession(recoverySession(), 0, assets, database, {
-      scope: {
-        accountId: "bob",
-        projectId,
-      },
+      accountId: "bob",
+      projectId,
     });
     expect(await session.dispose()).toMatchObject({ ok: true, value: true });
     expect(
@@ -1047,14 +738,13 @@ describe("server project session lifecycle", () => {
   });
 });
 
-// Blank local projects remain valid, but cannot masquerade as authenticated recovery
 it("rejects blank account-scoped recovery without replacing the previous backup", async () => {
   const database = new FakeDraftDatabase();
   const scope = { accountId: "student-a", projectId: fixture.projectId };
   const empty = { document: null, fileName: "", savedJson: null, pristine: true };
-  expect(await applySaveRecoverySession(empty, 0, assets, database, { scope })).toMatchObject({
-    ok: false,
-  });
+  expect(
+    await Reflect.apply(applySaveRecoverySession, undefined, [empty, 0, assets, database, scope]),
+  ).toMatchObject({ ok: false });
   expect(database.records.size).toBe(0);
 
   // Stored data is untrusted too; reject an invalid scoped blank record on read
@@ -1104,13 +794,14 @@ it.each([1, 2])(
             },
       ),
     } as ProjectDocument;
-    const session = { ...recoverySession(), document: draft };
+    const scope = { accountId: "alice", projectId: draft.projectId };
+    const session = { document: draft };
     expect(serializeProject(draft, kinds).ok).toBe(false);
-    expect(await applySaveRecoverySession(session, 0, kinds, database)).toEqual({
+    expect(await applySaveRecoverySession(session, 0, kinds, database, scope)).toEqual({
       ok: true,
       value: 1,
     });
-    const restored = await getRecoverySession(kinds, database);
+    const restored = await getRecoverySession(kinds, database, scope);
     expect(restored.ok).toBe(true);
     if (!restored.ok || !restored.value?.document) throw new Error("Missing draft");
     expect(restored.value.document.scenes[0]!.interactions).toEqual(draft.scenes[0]!.interactions);
@@ -1133,10 +824,16 @@ it.each([1, 2])(
     } as ProjectDocument;
     expect(serializeProject(corrected, kinds).ok).toBe(true);
     expect(
-      await applySaveRecoverySession({ ...session, document: corrected }, 1, kinds, database),
+      await applySaveRecoverySession(
+        { ...session, document: corrected },
+        1,
+        kinds,
+        database,
+        scope,
+      ),
     ).toEqual({ ok: true, value: 2 });
-    expect((await applySaveRecoverySession(session, 1, kinds, database)).ok).toBe(false);
-    const final = await getRecoverySession(kinds, database);
+    expect((await applySaveRecoverySession(session, 1, kinds, database, scope)).ok).toBe(false);
+    const final = await getRecoverySession(kinds, database, scope);
     expect(final.ok && final.value?.document?.title).toBe("Continued editing");
   },
 );

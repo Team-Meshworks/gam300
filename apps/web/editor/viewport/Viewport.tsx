@@ -2,7 +2,7 @@ import type { ContentComponent } from "../../shared/project/project-content";
 import { useEffect, useRef, type DragEvent, type ReactNode } from "react";
 import {
   assetDragType,
-  isStarterRoomModel,
+  isRoomModel,
   type CatalogueAsset,
 } from "../../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET_ID } from "../../shared/asset-runtime/hotspot";
@@ -37,6 +37,7 @@ export type ViewpointCamera = {
   show: (pose: CameraPose) => void;
   locate: (id: string) => void;
   toggleDisplayMedia: (id: string) => void;
+  playSpatialAudio?: (id: string) => void;
   hotspotAnchor: (id: string) => Vector3Tuple | undefined;
   bounds: (id: string) => { left: number; right: number; top: number; bottom: number } | null;
 };
@@ -57,11 +58,13 @@ type ViewportProps = {
     | undefined;
   onTextPlace?: (placement: Transform) => void;
   editingEnabled: boolean;
+  allowInspection?: boolean;
   navigationTool: NavigationTool;
   view: CameraView;
   status: ViewportStatus;
   attempt: number;
   onStatus: (status: ViewportStatus) => void;
+  onAudioError?: (message: string) => void;
   onThumbnail: (id: string, url: string) => void;
   onSelect: (id: string | null) => void;
   onTransform: (id: string, transform: Transform) => void;
@@ -95,11 +98,13 @@ export function Viewport({
   textPlacement,
   onTextPlace,
   editingEnabled,
+  allowInspection = false,
   navigationTool,
   view,
   status,
   attempt,
   onStatus,
+  onAudioError,
   onThumbnail,
   onSelect,
   onTransform,
@@ -122,6 +127,7 @@ export function Viewport({
     projectScene,
     loadGeneration,
     editingEnabled,
+    allowInspection,
     navigationTool,
     view,
   });
@@ -144,6 +150,7 @@ export function Viewport({
           onObjectClick,
           onUpdate: onSceneUpdate,
           selectableAssets,
+          ...(onAudioError ? { onAudioError } : {}),
         });
         sceneRef.current = scene;
         const current = snapshotRef.current;
@@ -158,7 +165,7 @@ export function Viewport({
           current.loadGeneration,
           current.selectedIds,
         );
-        scene?.setEditingEnabled(current.editingEnabled);
+        scene?.setEditingEnabled(current.editingEnabled, current.allowInspection);
         scene?.setNavigationTool(current.navigationTool);
         if (scene !== undefined) {
           onManager(scene.modeManager);
@@ -173,6 +180,7 @@ export function Viewport({
             show: scene.showCamera,
             locate: scene.locateObject,
             toggleDisplayMedia: scene.toggleDisplayMedia,
+            playSpatialAudio: scene.playSpatialAudio,
             hotspotAnchor: scene.getHotspotAnchor,
             bounds: scene.getObjectScreenBounds,
           });
@@ -196,6 +204,7 @@ export function Viewport({
     selectableAssets,
     attempt,
     onStatus,
+    onAudioError,
     onThumbnail,
     onSelect,
     onTransform,
@@ -214,11 +223,12 @@ export function Viewport({
       projectScene,
       loadGeneration,
       editingEnabled,
+      allowInspection,
       navigationTool,
       view,
     };
     sceneRef.current?.update(objects, selectedId, projectScene, loadGeneration, selectedIds);
-    sceneRef.current?.setEditingEnabled(editingEnabled);
+    sceneRef.current?.setEditingEnabled(editingEnabled, allowInspection);
     sceneRef.current?.setNavigationTool(navigationTool);
     sceneRef.current?.modeManager.setView(view);
   }, [
@@ -228,6 +238,7 @@ export function Viewport({
     projectScene,
     loadGeneration,
     editingEnabled,
+    allowInspection,
     navigationTool,
     view,
     assets,
@@ -265,7 +276,7 @@ export function Viewport({
 
   function isRoom(id: string | null | undefined) {
     return (
-      isStarterRoomModel(assets, id ?? undefined) ||
+      isRoomModel(assets, id ?? undefined) ||
       assets.some((asset) => asset.id === id && asset.kind === "environment")
     );
   }
@@ -440,7 +451,7 @@ export function Viewport({
       <div className={status === "ready" ? "sr-only" : "viewport-feedback"}>
         <p role="status">{statusMessages[status]}</p>
         {status === "authentication-required" && (
-          <a href="/login?returnTo=%2F" target="_blank" rel="noopener noreferrer">
+          <a href="/login" target="_blank" rel="noopener noreferrer">
             Sign in in another tab
           </a>
         )}

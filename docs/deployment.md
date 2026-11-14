@@ -2,8 +2,13 @@
 
 | Branch | GitHub environment | VM URL                     | Private application port |
 | ------ | ------------------ | -------------------------- | ------------------------ |
-| `dev`  | `development`      | https://51.79.242.181:8443 | `127.0.0.1:8082`         |
-| `main` | `production`       | https://51.79.242.181      | `127.0.0.1:8081`         |
+| `dev`  | `development`      | https://team32.dp-ext8.com:8443 | `127.0.0.1:8082`         |
+| `main` | `production`       | https://team32.dp-ext8.com      | `127.0.0.1:8081`         |
+
+On 10 November 2026 the domain gateway was activated. Production remained on the older
+web-only release `4f5fa8c98e2556419d23b38f334b017280429feb`; development remained on
+full-stack release `a5fb998dca0b7ff8fffd8c9dd985a64819a8d0c3`. No application image
+or database was promoted, and existing publication and QR records were not rewritten.
 
 Integrate feature work into `dev`. Release through a `dev` to `main` pull request.
 CI runs automatically only after pushes to `dev` or `main`, including merge commits.
@@ -18,7 +23,7 @@ This is a manual safeguard, not an equivalent automated enforcement mechanism.
 The GitHub environments allow only their matching branches.
 
 CI builds `dev` with `NODE_ENV=development` and Vite's `development` mode, including
-**Open sample project** and framework development diagnostics. `main` uses
+framework development diagnostics. `main` uses
 `NODE_ENV=production` and `production` mode. Manual runs use the selected supported
 branch's mode. Both images contain built static files served by Caddy, with the same
 health checks. Account access is handled by Spatia's login and API session checks.
@@ -64,9 +69,9 @@ build runs lint, formatting, browser-policy and unit tests, TypeScript and build
 checks before the web service starts. Real browser proof runs separately on a
 non-root sandbox-capable host. CI sets `RUN_BUILD_CHECKS=false` after its source
 checks pass, then tests the final Caddy image from that host. Host Node/npm and
-Chrome are unnecessary just to start the container. This launcher starts the editor
-only; use the API Compose configuration
-below to include PostgreSQL and the API.
+Chrome are unnecessary just to start the container. This launcher starts the web service
+only; use the API Compose configuration below to include PostgreSQL and the API required
+for authoring.
 Only delivery assets enter the build; editable source files and local secrets are excluded.
 The existing asset validator runs with `--delivery-only` inside the build: it checks
 GLB contents and manifest hashes without needing Blender sources. A remaining LFS
@@ -118,8 +123,7 @@ BUILD_MODE=development node tests/editor-build.check.mjs http://127.0.0.1:8081/
 
 In PowerShell, set `$env:BUILD_MODE = "development"` before the second command.
 For production, select `production` in both the image build and test environment.
-The deployment check exercises place/move/undo, JSON Save/Open, reload and recovered
-undo through the packaged UI. From the repository root, `node tools/check-browser.mjs`
+The deployment check exercises packaged editor and recovery flows. From the repository root, `node tools/check-browser.mjs`
 checks the four source-level authoring suites against Vite and the built preview.
 CI runs both source fixtures and packaged-application checks on its non-root host.
 Do not add `--no-sandbox`, privileged containers, or weakened host security settings.
@@ -216,19 +220,21 @@ see the [server setup](../apps/server/README.md).
 
 The check job has no package-write permission. After a successful push or manual run on
 `dev` or `main`, and after the web, native compatibility and server jobs pass, a separate
-publishing job pushes the exact tested image to the private GHCR package
+publishing job pushes the exact tested images to the private GHCR package
 `ghcr.io/team-meshworks/gam300`. Each release records its immutable digest, source commit,
 branch and CI run ID. The short-lived image-transfer artifact is retained for two days;
 test/web artifacts for 14 days and the small release bundle for 90 days. Retain registry
 images and release bundles needed for reviewed recovery; old images may become unavailable.
-Feature branches do not run these checks in Actions; run the relevant checks locally
-before requesting review.
+Feature branches can run validation through manual dispatch; run the relevant checks
+locally before requesting review.
 
 Superseded CI runs are cancelled. Deployments are serialized per environment, and a VM
 file lock also prevents concurrent changes to the same deployment.
 
 The web check also starts the editor/API/PostgreSQL stack and verifies HTTPS,
 CSRF bootstrap, anonymous access denial, migrations and the restricted database role.
+The migration image runs a framework-dependent EF bundle on the pinned ASP.NET runtime;
+the check reruns it against the same database and verifies migration history is unchanged.
 Failure logs are retained; disposable CI volumes are removed after the check.
 Releases include the tested editor, API and migration images, both Compose
 configurations and the gateway configuration. `release.json` records the image
@@ -315,6 +321,16 @@ CI also checks the real image's separate roots and an anonymous GLB request agai
 API stack. These access controls do not approve redistribution: SCRUM-73 still requires
 redistribution-ready replacements before the development catalogue is publication-ready.
 
+The in-progress development publication integration captures referenced built-in delivery
+bytes in private, immutable, content-addressed PostgreSQL blobs after verifying their manifest
+hash. Each asset is linked to its publication and served only after normal publication access
+and membership checks; an unlisted link permits anonymous recipients to read its assets.
+Approved database assets continue through their existing path. Production does not resolve
+or serve built-in development publication assets. Apply the
+`20261109000000_AddDevelopmentPublicationAssets` migration before running this integration,
+and include retained blobs in database backups and restore checks. Sample redistribution
+terms remain unconfirmed; this integration is not rights approval or evidence of deployment.
+
 ## VM setup
 
 The VM uses Ubuntu 24.04 x86-64, Docker Engine and the Compose plugin. Runtime applications
@@ -327,6 +343,21 @@ profile. Caddy renews it automatically; its certificate volume must remain persi
 Port 80 must remain reachable for ACME validation. This works without a purchased domain.
 See [Let's Encrypt IP certificates](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability)
 and [Caddy TLS configuration](https://caddyserver.com/docs/caddyfile/directives/tls).
+
+The live gateway serves the domain using a standard Let's Encrypt certificate and retains
+IP routes and wiki routing. Its certificate volume must persist for automatic renewal.
+The observed domain certificate has Let's Encrypt YE1 issuer, the domain as CN and SAN,
+and expires 7 February 2027. The production outer Basic gate was removed; Spatia's session
+and API authorization remain in force. Development's `PUBLICATION_ORIGIN` is the domain
+URL on port 8443 and its allowed hosts include the IP and domain.
+
+Both GitHub environment `APP_URL` variables were updated to the domain URLs and read back.
+Server deployment derives `PUBLICATION_ORIGIN` from `APP_URL`; maintain those values when
+deploying. Before future gateway changes, back up its files and validate the candidate
+Caddy configuration before recreation (its admin API is disabled). Preserve the
+certificate volume and wiki routing, then verify HTTPS, both app routes and authorization.
+The 10 November gateway backup is `/home/vthere-runner/vthere/gateway/domain-backup.PtGFGK`
+(root-owned, mode 700). The local SSH key path is `C:/Users/dalto/.ssh/gam300-deploy`.
 
 Create a private gateway directory on the VM and copy `deploy/gateway.compose.yaml`,
 `deploy/gateway.Caddyfile` and `deploy/.env.example` there. Rename the example to `.env`,
@@ -350,12 +381,16 @@ must succeed through the gate, while a request without a Spatia session must sti
 return 401. Private loopback API probes receive no Basic credentials.
 
 These secrets must be configured before attempting a gated deployment. Store them as
-environment secrets, not variables. Development currently requires both names above.
+environment secrets, not variables. Check the live gateway before deciding whether an
+environment still requires them.
 A missing or incorrect pair fails the probes; it does not disable either login layer.
 
-Built editors (including the development build) check the Spatia session before opening
-the local-file editor at `/`. Sign-in returns to that editor without clearing browser
-recovery. Session and CSRF cookie names include the environment because browser cookies
+The root `/` shows sign-in for signed-out users and routes signed-in creators and
+educators to `/home` and administrators to `/admin/dashboard`. Selected server projects
+open at `/?projectId=<id>` after the account and edit permission are verified. Browser
+recovery remains scoped to the account and project. Existing unscoped browser drafts are
+not automatically attached to a project; retain their browser data until a recovery path
+is provided. Session and CSRF cookie names include the environment because browser cookies
 are shared across ports on the VM IP. Upgrading these cookie names requires one fresh
 application sign-in. Models load when referenced by the active scene or selected for
 placement; failed requests retain the scene and expose Retry, with a separate sign-in
