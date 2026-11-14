@@ -178,6 +178,18 @@ Review and publication have separate ledgers and separate mutable access policy.
 | Protected write committed | Authority changes before its representation is returned | Committed, representation withheld | An empty 204 with `X-Spatia-Write-Outcome: committed` confirms the commit; reauthenticate and use the relevant receipt or read. |
 | [Directory](../apps/web/editor/directory/AccountDirectoryPage.tsx) browsing | Select account/org, edit or confirm destructive operation | Loading/confirming → pending → result | Bind the request to the current account, use authoritative records to refresh and require exact-name confirmation for organization deletion. |
 
+### Receipt table rollback
+
+The bulk-import and asset-removal migrations add empty operation logs to PostgreSQL. The application writes a receipt when it processes a request or records a cancellation. Existing accounts, projects and assets keep their identities. [Bulk-import migration](../apps/server/Spatia.Server/Persistence/Migrations/20261114085737_AddBulkImportReceipts.cs), [asset-removal migration](../apps/server/Spatia.Server/Persistence/Migrations/20261114115659_AddAssetRemovalReceipts.cs).
+
+| Starting state | Event | Next state | Invariant |
+| --- | --- | --- | --- |
+| Receipt table is empty | Downgrade obtains an exclusive table lock and checks for rows | Table dropped | An upgrade recreates the empty table. |
+| A receipt writer holds the table | A downgrade starts before the writer finishes | Downgrade waits | After the writer finishes, the downgrade checks the committed contents while it still holds the lock. |
+| Receipt table contains any row | Downgrade attempts to drop the table | Downgrade refused | The row and migration history survive. Retrying a canceled bulk import or a removal recorded as `notApplied` still returns 409. |
+
+Previously, removing and reapplying either migration erased the evidence needed to reject a delayed request. The PostgreSQL regressions cover an empty downgrade and upgrade, a recorded cancellation, and a downgrade racing a committing writer for both tables. [Rollback regressions](../apps/server/tests/ReceiptMigrationRollbackTests.cs).
+
 ## Assets, retirement and supporting UI
 
 | Starting state | Event and preconditions | Next state | Observable effect |
