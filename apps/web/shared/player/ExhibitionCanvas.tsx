@@ -12,6 +12,12 @@ import { createExhibitAppearance } from "../asset-runtime/exhibit-appearance";
 import { containDisplay } from "../asset-runtime/display-layout";
 import { createDisplayText } from "../asset-runtime/display-text";
 import { createRoomEntrances } from "../asset-runtime/room-entrances";
+import {
+  attachHotspotSprite,
+  disposeHotspotSprite,
+  loadHotspotSprite,
+} from "../asset-runtime/hotspot-sprite";
+import { fitRoomFog, lightExhibitionScene } from "../asset-runtime/scene-lighting";
 import type { PlayerSnapshot } from "./player-snapshot";
 import { createVisitorPlayback } from "./playback";
 import { fetchPlayerAsset } from "./player-asset";
@@ -124,11 +130,7 @@ export function ExhibitionCanvas({
     };
     reset.current = start;
     start();
-    scene.background = new THREE.Color("#e9e5db");
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x788493, 2));
-    const sun = new THREE.DirectionalLight(0xffffff, 2);
-    sun.position.set(5, 12, 8);
-    scene.add(sun);
+    const { fog } = lightExhibitionScene(scene);
     const size = new ResizeObserver(() => {
       const width = host.clientWidth,
         height = host.clientHeight;
@@ -259,7 +261,17 @@ export function ExhibitionCanvas({
     const entrances = createRoomEntrances();
     const appearances = createExhibitAppearance();
     const rooms: THREE.Group[] = [];
+    const hotspots = "hotspots" in source ? source.hotspots : [];
+    let hotspotTemplate: THREE.Sprite | undefined;
     void (async () => {
+      if (hotspots.length) {
+        const sprite = await loadHotspotSprite();
+        if (controller.signal.aborted) {
+          disposeHotspotSprite(sprite);
+          return;
+        }
+        hotspotTemplate = sprite;
+      }
       for (const object of objects) {
         const asset = exhibition.assets.find((row) => row.id === object.assetId);
         if (!asset) throw new Error("An exhibition asset is missing.");
@@ -298,6 +310,8 @@ export function ExhibitionCanvas({
           root.quaternion.fromArray(object.transform.rotation);
           root.scale.fromArray(object.transform.scale);
         }
+        if (object.id === source.id && root.visible)
+          fitRoomFog(fog, new THREE.Box3().setFromObject(root));
         const authored =
           "rules" in source ? source.objects.find((item) => item.id === object.id) : undefined;
         if (authored && "appearance" in authored) appearances.apply(root, authored.appearance);
@@ -368,15 +382,9 @@ export function ExhibitionCanvas({
         scene.add(root);
         roots.set(object.id, root);
         // Markers attach in object-local coordinates and follow the saved model transform
-        for (const hotspot of ("hotspots" in source ? source.hotspots : []).filter(
-          (item) => item.objectId.toLowerCase() === object.id.toLowerCase(),
-        )) {
-          const marker = new THREE.Mesh(
-            new THREE.SphereGeometry(0.08, 12, 8),
-            new THREE.MeshBasicMaterial({ color: "#b45b34" }),
-          );
-          marker.position.fromArray(hotspot.position);
-          root.add(marker);
+        for (const hotspot of hotspots) {
+          if (hotspotTemplate && hotspot.objectId.toLowerCase() === object.id.toLowerCase())
+            attachHotspotSprite(hotspotTemplate.clone(), root, hotspot.position);
         }
         if (root.visible && digest === STARTER_ROOM_SHA256) {
           rooms.push(root);
@@ -460,6 +468,7 @@ export function ExhibitionCanvas({
       size.disconnect();
       renderer.setAnimationLoop(null);
       fps.dispose();
+      if (hotspotTemplate) disposeHotspotSprite(hotspotTemplate);
       entrances.dispose();
       appearances.dispose();
       disposeModels(scene);

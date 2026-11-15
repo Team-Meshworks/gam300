@@ -38,6 +38,13 @@ const media = [
 const first = structuredClone(fixture.scenes[0]);
 const second = structuredClone(fixture.scenes[1]);
 first.name = "First gallery";
+first.hotspots = [
+  {
+    id: "99999999-9999-4999-8999-999999999999",
+    objectId: first.objects[0].id,
+    position: [-0.5, 0.7, 0.5],
+  },
+];
 second.name = "Second gallery";
 for (const scene of [first, second]) {
   scene.environmentAssetId = ids[0];
@@ -118,6 +125,7 @@ try {
     page.addInitScript(() => {
       window.__THREE_DEVTOOLS__ = new EventTarget();
       window.parityScenes = [];
+      window.parityViews = new WeakMap();
       const fillText = CanvasRenderingContext2D.prototype.fillText;
       window.paintedText = new WeakMap();
       CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
@@ -125,7 +133,13 @@ try {
         return fillText.call(this, text, ...args);
       };
       window.__THREE_DEVTOOLS__.addEventListener("observe", (event) => {
-        if (event.detail.isScene) window.parityScenes.push(event.detail);
+        const scene = event.detail;
+        if (!scene.isScene) return;
+        window.parityScenes.push(scene);
+        scene.onAfterRender = function (renderer, scene, camera) {
+          window.parityViews.set(scene, { renderer, camera });
+          delete this.onAfterRender;
+        };
       });
     });
   await observeScenes(editor);
@@ -152,6 +166,60 @@ try {
   });
   await editor.goto(saved.url);
   await editor.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  // Compare actual wall pixels from inside the Starter room, with the same eye position
+  // in all three modes. A direction facing away from the player's old sun rendered black.
+  const readRoom = (page) =>
+    page.evaluate(() => {
+      const scene = window.parityScenes.findLast(
+        (item) =>
+          item.getObjectByName("Wall_Right") &&
+          item.children.some((node) => node.isLight) &&
+          item.background,
+      );
+      const view = window.parityViews.get(scene);
+      const { renderer } = view;
+      const camera = view.camera.clone();
+      camera.position.set(0, 1.5, 0);
+      const gl = renderer.getContext();
+      const walls = [];
+      for (const [x, z] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        camera.lookAt(x, 1.5, z);
+        renderer.render(scene, camera);
+        const pixel = new Uint8Array(4);
+        gl.readPixels(
+          gl.drawingBufferWidth >> 1,
+          gl.drawingBufferHeight >> 1,
+          1,
+          1,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          pixel,
+        );
+        walls.push([...pixel].slice(0, 3));
+      }
+      let marker;
+      scene.traverseVisible((node) => {
+        if (node.isSprite && node.material.map?.image) {
+          marker = {
+            image: node.material.map.image.currentSrc,
+            position: node.position.toArray(),
+            scale: node.scale.toArray(),
+          };
+        }
+      });
+      return { walls, marker };
+    });
+  const authoredRoom = await readRoom(editor);
+  assert.ok(authoredRoom.marker, "The editor renders the attached icon");
+  assert.ok(
+    authoredRoom.walls.every((rgb) => Math.min(...rgb) > 20),
+    JSON.stringify(authoredRoom.walls),
+  );
   await editor.getByRole("button", { name: "Preview", exact: true }).click();
   const visitor = await browser.newPage();
   await observeScenes(visitor);
@@ -194,6 +262,13 @@ try {
   );
   const rendered = [];
   for (const page of [editor, visitor]) {
+    const room = await readRoom(page);
+    assert.deepEqual(room.walls, authoredRoom.walls, "All four interior walls match the editor");
+    assert.deepEqual(
+      room.marker,
+      authoredRoom.marker,
+      "The attached hotspot uses the editor icon, anchor and round scale",
+    );
     assert.equal(await page.locator("canvas[aria-label='Exhibition view']").count(), 1);
     const renderedObject = await page.evaluate((id) => {
       const root = window.parityScenes

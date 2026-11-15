@@ -1,12 +1,7 @@
 import { Box3, Vector3, type Object3D, type PerspectiveCamera } from "three";
 import type { Vector3Tuple } from "../../shared/project/scene-object";
 
-export const HOTSPOT_SIZE = 0.6;
-
-export function hotspotWorldSize(owner: Object3D): number {
-  const scale = owner.getWorldScale(new Vector3());
-  return HOTSPOT_SIZE * Math.min(Math.abs(scale.x), Math.abs(scale.y));
-}
+import { HOTSPOT_SIZE, hotspotWorldSize } from "../../shared/asset-runtime/hotspot-sprite";
 
 /** Attach just outside the visible upper-left corner, then preserve that local point.
  * The immutable catalogue bounds exclude captions and previously attached markers.
@@ -47,7 +42,7 @@ export function hotspotAnchor(
     .unproject(camera)
     .applyMatrix4(camera.matrixWorldInverse);
   const gap = Math.max(bottomRight.x - topLeft.x, topLeft.y - bottomRight.y) * 0.04;
-  const markerSize = hotspotWorldSize(owner);
+  const markerSize = hotspotWorldSize(owner.getWorldScale(new Vector3()));
   topLeft.x -= gap + markerSize / 2;
   topLeft.y += gap + markerSize / 2;
   const local = owner.worldToLocal(topLeft.applyMatrix4(camera.matrixWorld));

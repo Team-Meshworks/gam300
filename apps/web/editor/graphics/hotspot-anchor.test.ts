@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Box3, BoxGeometry, Group, Mesh, PerspectiveCamera, Vector3, Euler } from "three";
-import { HOTSPOT_SIZE, hotspotAnchor } from "./hotspot-anchor";
+import { hotspotAnchor } from "./hotspot-anchor";
+import { HOTSPOT_SIZE } from "../../shared/asset-runtime/hotspot-sprite";
 
 function cameraAt(position = [0, 0, 50], target = [0, 0, 0]) {
   const camera = new PerspectiveCamera(40, 1.4, 0.1, 1000);
