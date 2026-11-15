@@ -1,0 +1,27 @@
+@spatiaDevelopmentCreate {
+	method POST
+	path_regexp (?i)^/api/v1/(projects(/[^/]+/duplicate)?|classes)/?$
+	file {
+		root /config
+		try_files /spatia-dev-creates-paused
+	}
+}
+handle @spatiaDevelopmentCreate {
+	header Cache-Control no-store
+	header Retry-After 120
+	respond "Development creates are temporarily paused." 503
+}
+@spatiaDevelopmentResolution {
+	method PUT
+	path_regexp (?i)^/api/v1/(projects(/[^/]+/duplicate)?|classes)/legacy-resolution/?$
+	header Cookie *
+	file {
+		root /config
+		try_files /spatia-dev-creates-paused
+	}
+}
+handle @spatiaDevelopmentResolution {
+	header Cache-Control no-store
+	header Retry-After 120
+	respond "Development creates are temporarily paused." 503
+}

@@ -171,6 +171,8 @@ try {
   const hostGateway = await readFile(new URL("./gateway.Caddyfile", import.meta.url), "utf8");
   const hostRoutes = hostGateway.match(/^\(application\) \{[\s\S]*?^\}/m)?.[0];
   assert.ok(hostRoutes, "Expected the host gateway's application routes");
+  const devGate = (await readFile(new URL("./dev-creates.caddy", import.meta.url), "utf8"))
+    .replaceAll("root /config", `root ${quotePath(temporary)}`);
   const server = (
     await readFile(new URL("./server.Caddyfile", import.meta.url), "utf8")
   )
@@ -189,6 +191,7 @@ https://localhost:${outerTls} {
   import host_application 127.0.0.1:${inner}
 }
 http://127.0.0.1:${outer} {
+  ${devGate}
   reverse_proxy 127.0.0.1:${inner} {
     header_up X-Forwarded-Proto https
   }
@@ -211,6 +214,26 @@ http://127.0.0.1:${outer} {
     await new Promise((done) => setTimeout(done, 100));
   }
   assert.ok(ready, "Caddy must start with the deployment configuration");
+  const pauseFile = join(temporary, "spatia-dev-creates-paused");
+  await writeFile(pauseFile, "");
+  for (const [method, path] of [
+    ["POST", "/api/v1/projects"],
+    ["POST", "/API/V1/classes/"],
+    ["POST", `/api/v1/projects/${selectedProject}/duplicate`],
+    ["PUT", resolutionPath],
+  ]) {
+    const response = await fetch(origin + path, { method, headers: sessionHeaders });
+    assert.equal(response.status, 503, path);
+    assert.equal(response.headers.get("retry-after"), "120");
+  }
+  assert.equal(
+    (await fetch(`${origin}/api/v1/projects/legacy-resolution`, { method: "PUT" })).status,
+    401,
+  );
+  assert.equal((await fetch(`${origin}/healthz`)).status, 200);
+  await rm(pauseFile);
+  assert.equal((await fetch(`${origin}/api/v1/projects`, { method: "POST" })).status, 401);
+  console.log("PASS: development creates return 503 during the pause and reach the API after reopening.");
   const confirmation = JSON.stringify({ confirmationName: "Synthetic école" });
   const ca = await readFile(join(storage, "pki/authorities/local/root.crt"));
   for (const [method, path, body] of [
