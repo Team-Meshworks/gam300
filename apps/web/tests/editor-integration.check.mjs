@@ -71,11 +71,11 @@ try {
   await addAsset(page, "Sample crate");
   const position = await page.getByLabel("Selected position").textContent();
   assert.equal(
-    await page.getByRole("button", { name: "Test visitor", exact: true }).isEnabled(),
+    await page.getByRole("button", { name: "Preview", exact: true }).isEnabled(),
     true,
     "Preview remains available during backup",
   );
-  await page.getByRole("button", { name: "Test visitor", exact: true }).click();
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
   for (const key of [
     "Control+d",
     "Control+s",

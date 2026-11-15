@@ -74,6 +74,7 @@ export const modules = {
       "shared/asset-runtime/display-text.ts",
       "shared/asset-runtime/display-layout.ts",
       "shared/asset-runtime/display-surface.ts",
+      "shared/asset-runtime/stand-video.ts",
     ],
     uses: ["catalogue", "network", "project"],
     packages: ["three"],
@@ -87,6 +88,7 @@ export const modules = {
       "shared/asset-runtime/display-text.ts",
       "shared/asset-runtime/display-layout.ts",
       "shared/asset-runtime/display-surface.ts",
+      "shared/asset-runtime/stand-video.ts",
     ],
   },
   preview: {

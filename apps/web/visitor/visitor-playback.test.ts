@@ -60,7 +60,7 @@ function fixture(
   const owners = Array.from({ length: count }, (_, index) => ({
     dataset: { ownerId: `owner-${index}` },
     hidden: false,
-    querySelectorAll: () => [nodes[index]!],
+    querySelectorAll: (selector: string) => (selector === "audio,video" ? [nodes[index]!] : []),
   }));
   const nodes = Array.from({ length: count }, (_, index) => ({
     readyState: 4,

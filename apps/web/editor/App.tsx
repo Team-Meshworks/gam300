@@ -226,10 +226,8 @@ export function App({
   }, [feedback.sequence]);
   const [viewCamera, setViewCamera] = useState<ViewpointCamera | null>(null);
   const viewCameraRef = useRef<ViewpointCamera | null>(null);
-  const [preview, setPreview] = useState(false);
-  const [visitorTest, setVisitorTest] = useState<PlayerSnapshot | null>(null);
+  const [previewSnapshot, setPreviewSnapshot] = useState<PlayerSnapshot | null>(null);
   const restoreCamera = useRef<CameraPose | null>(null);
-  const previousView = useRef<CameraView>("first");
   const receiveCamera = useCallback((camera: ViewpointCamera | null) => {
     viewCameraRef.current = camera;
     setViewCamera(camera);
@@ -272,7 +270,7 @@ export function App({
   const selectedObject = roomSelected
     ? environmentObject(projectScene)
     : objects.find((object) => object.id === selection);
-  const visitor = visitorTest !== null || readOnlyPreview || modeState?.mode === "visitor";
+  const visitor = previewSnapshot !== null || readOnlyPreview || modeState?.mode === "visitor";
   const mobileDevice = isMobileTouchDevice();
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
   // Start inside the scene, the overview button switch to the orbit camera
@@ -680,13 +678,13 @@ export function App({
     [viewCamera, selection],
   );
 
-  if (visitorTest) {
+  if (previewSnapshot) {
     return (
       <StudentPreview
-        snapshot={visitorTest}
+        snapshot={previewSnapshot}
         onExit={() => {
           setStatus("loading");
-          setVisitorTest(null);
+          setPreviewSnapshot(null);
           playUiSound("goingBack");
         }}
       />
@@ -704,19 +702,12 @@ export function App({
         session={server}
         ready={status === "ready"}
         visitor={visitor}
-        preview={preview}
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={store.undo}
         onRedo={store.redo}
         canPreview={!pendingText && status === "ready" && manager !== null && !departing}
         onPreview={() => {
-          previousView.current = view;
-          setView("first");
-          setPreview(true);
-          playUiSound("enterPreview");
-        }}
-        onTestVisitor={() => {
           const current = store.getSnapshot().project;
           if (!current) return;
           const issue = playbackIssue(current);
@@ -725,16 +716,13 @@ export function App({
             return;
           }
           restoreCamera.current = viewCamera?.capture() ?? null;
-          setVisitorTest(structuredClone({ document: current, assets: editorAssets }));
+          setPreviewSnapshot(structuredClone({ document: current, assets: editorAssets }));
           playUiSound("enterPreview");
         }}
         onExitPreview={() => {
           if (readOnlyPreview) {
             manager?.setMode("editor");
             navigation.end();
-          } else {
-            setPreview(false);
-            setView(previousView.current);
           }
           playUiSound("goingBack");
         }}

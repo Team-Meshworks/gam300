@@ -16,14 +16,12 @@ export function TopBar({
   session,
   ready,
   visitor,
-  preview,
   canUndo,
   canRedo,
   onUndo,
   onRedo,
   canPreview,
   onPreview,
-  onTestVisitor,
   onExitPreview,
   view,
   onToggleView,
@@ -33,14 +31,12 @@ export function TopBar({
   session: ServerEditorSession;
   ready: boolean;
   visitor: boolean;
-  preview: boolean;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
   canPreview: boolean;
   onPreview: () => void;
-  onTestVisitor: () => void;
   onExitPreview: () => void;
   view: CameraView;
   onToggleView: () => void;
@@ -238,7 +234,7 @@ export function TopBar({
             {settingsPanel}
           </div>
         )}
-        {visitor || preview ? (
+        {visitor ? (
           <button className="ui-button pill-button" type="button" onClick={onExitPreview}>
             Exit preview
           </button>
@@ -247,20 +243,10 @@ export function TopBar({
             className="ui-button pill-button"
             type="button"
             disabled={!canPreview}
-            title="Walk through and edit the scene"
+            title="Preview this draft as a visitor"
             onClick={onPreview}
           >
             Preview
-          </button>
-        )}
-        {!visitor && (
-          <button
-            className="ui-button pill-button"
-            type="button"
-            disabled={!canPreview}
-            onClick={onTestVisitor}
-          >
-            Test visitor
           </button>
         )}
         {!visitor && session.publish && (

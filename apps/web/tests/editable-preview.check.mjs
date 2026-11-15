@@ -18,24 +18,21 @@ try {
   await page.goto(project.url);
   await openSavedProject(page);
   await page.getByRole("button", { name: "Third person", exact: true }).click();
+  const before = structuredClone(project.document());
+  assert.equal(await page.getByRole("button", { name: "Test visitor", exact: true }).count(), 0);
   await page.getByRole("button", { name: "Preview", exact: true }).click();
-  assert.equal(await page.locator(".editor-shell.is-walking").count(), 1);
-  await page.getByRole("button", { name: "Scenes", exact: true }).click();
-  await page.getByLabel("Scene name", { exact: true }).fill("Edited in preview");
-  await page.getByRole("button", { name: "Rename scene", exact: true }).click();
+  await page.getByRole("region", { name: "Exhibition", exact: true }).waitFor();
+  assert.equal(await page.locator(".editor-shell").count(), 0);
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
-  await page.getByRole("button", { name: "1. Edited in preview", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Preview", exact: true }).waitFor();
   assert.equal(
     await page
       .getByRole("button", { name: "Third person", exact: true })
       .getAttribute("aria-pressed"),
     "true",
   );
-  await page.waitForFunction(
-    () => document.querySelector(".save-state")?.getAttribute("data-state") === "saved",
-  );
-  assert.equal(project.document().scenes[0].name, "Edited in preview");
-  console.log("PASS preview edits the saved draft in first person");
+  assert.deepEqual(project.document(), before);
+  console.log("PASS Preview opens the visitor player and returns to the draft");
 } finally {
   await browser?.close();
   await server.close();

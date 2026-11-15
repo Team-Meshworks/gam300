@@ -990,10 +990,10 @@ try {
   );
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
 
-  // Preview keeps the authoring workspace available while walking.
+  // Preview opens the visitor player for the current draft.
   await page.getByRole("button", { name: "Preview", exact: true }).click();
-  await page.getByRole("button", { name: "Scene tree", exact: true }).waitFor();
-  assert.equal(await page.locator(".editor-shell.is-walking").count(), 1);
+  await page.getByRole("region", { name: "Exhibition", exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Test visitor", exact: true }).count(), 0);
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
 
   const hotspotStage = await stage.boundingBox();

@@ -333,11 +333,6 @@ export function ExhibitionCanvas({
               const video =
                 element instanceof HTMLVideoElement && element.readyState >= 2 ? element : null;
               if (!image && !video) return false;
-              if (video && root.visible) {
-                video.muted = true;
-                if (document.hidden) video.dataset.wasPlaying = "true";
-                else void video.play().catch(() => {});
-              }
               const map = video ? new THREE.VideoTexture(video) : new THREE.Texture(image);
               map.colorSpace = THREE.SRGBColorSpace;
               map.needsUpdate = true;

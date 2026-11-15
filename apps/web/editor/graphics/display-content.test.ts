@@ -55,6 +55,8 @@ let video: {
   removeAttribute: ReturnType<typeof vi.fn>;
   paused: boolean;
   muted?: boolean;
+  autoplay?: boolean;
+  loop?: boolean;
   src?: string;
   onloadeddata?: (() => void) | null;
   onerror?: (() => void) | null;
@@ -73,34 +75,54 @@ beforeEach(() => {
     fillText: vi.fn(),
     measureText: (text: string) => ({ width: text.length * 10 }),
   };
-  vi.stubGlobal("document", {
-    hidden: false,
-    createElement: (tag: string) =>
-      tag === "video" ? video : { width: 0, height: 0, getContext: () => context },
-  });
+  vi.stubGlobal(
+    "document",
+    Object.assign(new EventTarget(), {
+      hidden: false,
+      createElement: (tag: string) =>
+        tag === "video" ? video : { width: 0, height: 0, getContext: () => context },
+    }),
+  );
 });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("display resources", () => {
-  it("autoplays muted in editing and preview, and allows playback with sound", () => {
+  it("autoplays with sound and loops in editing and preview", () => {
     const display = createDisplayContent(assets, vi.fn());
     display.sync([object], new Map([[object.id, new THREE.Group()]]));
     display.toggle(object.id);
     expect(video.play).not.toHaveBeenCalled();
     video.onloadeddata?.();
-    expect(video.muted).toBe(true);
+    expect(video.autoplay).toBe(true);
+    expect(video.loop).toBe(true);
+    expect(video.muted).toBe(false);
     expect(video.play).toHaveBeenCalledTimes(1);
     display.setPreview(true);
-    expect(video.muted).toBe(true);
+    expect(video.muted).toBe(false);
     expect(video.pause).toHaveBeenCalled();
     expect(video.play).toHaveBeenCalledTimes(2);
     display.toggle(object.id);
     expect(video.muted).toBe(false);
     expect(video.play).toHaveBeenCalledTimes(3);
     display.setPreview(false);
-    expect(video.muted).toBe(true);
+    expect(video.muted).toBe(false);
     expect(video.play).toHaveBeenCalledTimes(4);
     expect(video.pause).toHaveBeenCalled();
+    display.dispose();
+  });
+  it("keeps a stand playing when sound is blocked and unmutes on the first click", async () => {
+    const display = createDisplayContent(assets, vi.fn());
+    display.sync([object], new Map([[object.id, new THREE.Group()]]));
+    video.play.mockRejectedValueOnce(new DOMException("Gesture required", "NotAllowedError"));
+    video.onloadeddata?.();
+    await Promise.resolve();
+    expect(video.muted).toBe(true);
+    expect(video.play).toHaveBeenCalledTimes(2);
+    document.dispatchEvent(new Event("click"));
+    await Promise.resolve();
+    expect(video.muted).toBe(false);
+    document.dispatchEvent(new Event("click"));
+    expect(video.play).toHaveBeenCalledTimes(3);
     display.dispose();
   });
   it("resumes videos after visibility returns in both modes", () => {
@@ -127,7 +149,7 @@ describe("display resources", () => {
     display.setPreview(true);
     display.sync([object], new Map([[object.id, new THREE.Group()]]));
     video.onloadeddata?.();
-    expect(video.muted).toBe(true);
+    expect(video.muted).toBe(false);
     expect(video.play).toHaveBeenCalledTimes(1);
     video.paused = false;
     display.toggle(object.id);
