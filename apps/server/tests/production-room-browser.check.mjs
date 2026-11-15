@@ -287,7 +287,7 @@ try {
   const audioBytes = page.waitForResponse(
     (response) => response.url().includes(authoring.audioId) && response.url().endsWith("/bytes"),
   );
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page.getByRole("button", { name: "Test visitor", exact: true }).click();
   const playing = await audioBytes;
   assert.equal(playing.status(), 200);
   assert.equal(playing.headers()["content-type"], "audio/mp4");
