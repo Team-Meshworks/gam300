@@ -45,6 +45,7 @@ https://{$SITE_HOST}:443 {
 }
 
 https://{$SITE_HOST}:8443 {
+	import /config/spatia-dev-creates*.caddy
 	import domain-site 127.0.0.1:8082
 }
 
@@ -57,6 +58,7 @@ https://{$SITE_IP}:443 {
 }
 
 https://{$SITE_IP}:8443 {
+	import /config/spatia-dev-creates*.caddy
 	import site 127.0.0.1:8082
 }
 
