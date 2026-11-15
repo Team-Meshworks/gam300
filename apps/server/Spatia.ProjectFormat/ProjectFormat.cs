@@ -34,19 +34,18 @@ public static partial class ProjectFormat
         {
             foreach (var property in info.Properties)
             {
-                if (property.Name == "appearance") { property.ShouldSerialize = (_, value) => value is not null; }
+                if (property.Name == "appearance")
+                    property.ShouldSerialize = (_, value) => value is not null;
             }
         }
+
         if (info.Type != typeof(LegacyScene) && info.Type != typeof(ContentScene))
-        {
             return;
-        }
+
         foreach (var property in info.Properties)
         {
             if (property.Name is "hotspots" or "interactions")
-            {
                 property.ShouldSerialize = (_, value) => value is not Array { Length: 0 };
-            }
         }
     }
 
@@ -57,21 +56,18 @@ public static partial class ProjectFormat
     }
 
     private static void Fail(string path, string message) => throw new InvalidFormat(path, message);
+
     private static FormatResult<T> Rejected<T>(string path, string message) => new(default, new(path, message));
 
     // Return a separate checked document; callers replace drafts only after Ok
     public static FormatResult<IAuthoredProject> Deserialize(string? text, IReadOnlyDictionary<string, string> assets)
     {
         if (text is null)
-        {
             return Rejected<IAuthoredProject>("project", "Expected project JSON text");
-        }
 
         // Reject oversized input before allocating a JSON tree; Unicode can use several bytes per character
         if (text.Length > MaxProjectBytes || Encoding.UTF8.GetByteCount(text) > MaxProjectBytes)
-        {
             return Rejected<IAuthoredProject>("project", "Project JSON exceeds the 5 MiB file limit");
-        }
 
         try
         {
@@ -110,23 +106,21 @@ public static partial class ProjectFormat
         try
         {
             // Reject duplicate names before property lookup can hide an earlier value
-            try { DuplicateFields(root); }
-            catch (InvalidOperationException) { Fail("project", "Project JSON contains invalid Unicode"); }
-            if (root.ValueKind != JsonValueKind.Object)
+            try
             {
-                Fail("project", "Project must be an object");
+                DuplicateFields(root);
             }
+            catch (InvalidOperationException) { Fail("project", "Project JSON contains invalid Unicode"); }
+
+            if (root.ValueKind != JsonValueKind.Object)
+                Fail("project", "Project must be an object");
 
             // Choose the released contract before reading version-specific collections
             if (!root.TryGetProperty("schemaVersion", out var versionValue))
-            {
                 Fail("project.schemaVersion", "Required field is missing");
-            }
 
             if (versionValue.ValueKind != JsonValueKind.Number || !versionValue.TryGetDouble(out var version) || (version != 1 && version != 2))
-            {
                 Fail("project.schemaVersion", "Unsupported project format");
-            }
 
             var content = versionValue.GetDouble() == 2;
             // Validate every field shape before the reference pass relies on typed property access
@@ -165,11 +159,11 @@ public static partial class ProjectFormat
             };
 
             // Stored rotations already passed the writer; normalizing again can change values and exceed the byte limit.
-            if (normalize) { Normalize(value); }
+            if (normalize)
+                Normalize(value);
+
             if (Encoding.UTF8.GetByteCount(Encode(value)) > MaxProjectBytes)
-            {
                 Fail("project", "Project exceeds the 5 MiB document limit");
-            }
 
             return new(value, null);
         }
@@ -192,9 +186,7 @@ public static partial class ProjectFormat
     {
         // Typed records can still contain invalid values; save through the same import checks
         if (value is null)
-        {
             return Rejected<string>("project", "Expected a project");
-        }
 
         try
         {
@@ -217,8 +209,11 @@ public static partial class ProjectFormat
     }
 
     private static string Encode(IAuthoredProject value) => JsonSerializer.Serialize(value, value.GetType(), JsonOptions);
+
     private static JsonElement Get(JsonElement value, string key) => value.GetProperty(key);
+
     private static string String(JsonElement value, string key) => Get(value, key).GetString()!;
+
     private static void Normalize(IAuthoredProject project)
     {
         // Work only on the newly constructed records so normalization never mutates caller data
@@ -226,12 +221,13 @@ public static partial class ProjectFormat
         void Rotation(double[] rotation)
         {
             var length = QuaternionLength(rotation);
+
             // Preserve already-unit roundoff across browser and server save/read cycles.
-            if (Math.Abs(length - 1) <= 4 * (Math.BitIncrement(1.0) - 1.0)) { return; }
+            if (Math.Abs(length - 1) <= 4 * (Math.BitIncrement(1.0) - 1.0))
+                return;
+
             for (var i = 0; i < 4; i++)
-            {
                 rotation[i] /= length;
-            }
         }
 
         // V1 owns rotations on its start camera and placed objects only
@@ -240,10 +236,9 @@ public static partial class ProjectFormat
             foreach (var scene in legacy.Scenes)
             {
                 Rotation(scene.StartCamera.Rotation);
+
                 foreach (var item in scene.Objects)
-                {
                     Rotation(item.Transform.Rotation);
-                }
             }
         }
         // V2 also stores zone and viewpoint rotations; visit each owner without reordering collections
@@ -252,24 +247,23 @@ public static partial class ProjectFormat
             foreach (var scene in content.Scenes)
             {
                 Rotation(scene.StartCamera.Rotation);
+
                 foreach (var item in scene.Objects)
                 {
                     Rotation(item.Transform.Rotation);
+
                     foreach (var text in item.Components.OfType<TextComponent>())
                     {
-                        if (text.Placement is not null) { Rotation(text.Placement.Rotation); }
+                        if (text.Placement is not null)
+                            Rotation(text.Placement.Rotation);
                     }
                 }
 
                 foreach (var zone in scene.Zones)
-                {
                     Rotation(zone.Transform.Rotation);
-                }
 
                 foreach (var viewpoint in scene.Viewpoints)
-                {
                     Rotation(viewpoint.Camera.Rotation);
-                }
             }
         }
     }

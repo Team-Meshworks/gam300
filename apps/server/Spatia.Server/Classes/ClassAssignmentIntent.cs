@@ -27,9 +27,8 @@ internal static class ClassAssignmentIntent
     internal static byte[] Digest(ClassAssignmentRequest request, Guid classroomId, Guid actorId)
     {
         if (!IsValid(request) || classroomId == Guid.Empty || actorId == Guid.Empty)
-        {
             throw new ArgumentException("A validated assignment request and current class and actor are required.");
-        }
+
         return SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
         {
             version = 1,
@@ -48,15 +47,22 @@ internal static class ClassAssignmentIntent
 
     private static bool ValidText(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value) || value.Contains('\0')) { return false; }
+        if (string.IsNullOrWhiteSpace(value) || value.Contains('\0'))
+            return false;
+
         for (var index = 0; index < value.Length; index++)
         {
             if (char.IsHighSurrogate(value[index]))
             {
-                if (++index >= value.Length || !char.IsLowSurrogate(value[index])) { return false; }
+                if (++index >= value.Length || !char.IsLowSurrogate(value[index]))
+                    return false;
             }
-            else if (char.IsLowSurrogate(value[index])) { return false; }
+            else if (char.IsLowSurrogate(value[index]))
+            {
+                return false;
+            }
         }
+
         return true;
     }
 }

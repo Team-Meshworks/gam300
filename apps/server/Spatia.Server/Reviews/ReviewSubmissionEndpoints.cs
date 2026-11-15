@@ -43,43 +43,67 @@ public static class ReviewSubmissionEndpoints
         {
             return ApiProblems.Create(context, 400, "invalid_submission_input", "Confirm completion and supply a valid saved revision.");
         }
+
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
         var authorization = await access.LockAsync(context, id, ProjectLockPurpose.EditDraft, cancellationToken);
-        if (authorization.Failure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
+
+        if (authorization.Failure is { } failure)
+            return ProjectHttpResults.FromAccessFailure(context, failure);
+
         var project = authorization.Snapshot!;
         var account = await access.ResolveCurrentAccountAsync(context, cancellationToken);
-        if (account is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+
+        if (account is null)
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired);
+
         if (account.Role != ApplicationRoles.Creator)
-        {
             return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden);
-        }
+
         var mapping = await (from student in database.ClassAssignmentStudents.AsNoTracking()
                              join assignment in database.ClassAssignments.AsNoTracking() on student.AssignmentId equals assignment.Id
                              where student.ProjectId == id && student.StudentId == account.UserId
-                             select new { student.StudentId, assignment.DueAtUnixSeconds }).SingleOrDefaultAsync(cancellationToken);
-        if (mapping is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound); }
+                             select new
+                             {
+                                 student.StudentId,
+                                 assignment.DueAtUnixSeconds
+                             }).SingleOrDefaultAsync(cancellationToken);
+
+        if (mapping is null)
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound);
+
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(
             $"spatia-review-submit-v1\n{id:D}\n{account.UserId:D}\n{request.ExpectedRevision.Value.ToString(CultureInfo.InvariantCulture)}\ntrue"));
         var existing = await database.ReviewSubmissions.AsNoTracking().SingleOrDefaultAsync(row => row.Id == submissionId, cancellationToken);
+
         if (existing is not null)
         {
             if (existing.ProjectId != id || existing.StudentId != account.UserId
-                || !CryptographicOperations.FixedTimeEquals(existing.RequestDigest, digest)) { return Conflict(context); }
+                || !CryptographicOperations.FixedTimeEquals(existing.RequestDigest, digest))
+            {
+                return Conflict(context);
+            }
+
             return await ClassroomEndpoints.CompleteAsync(context, transaction, Results.Ok(Acknowledgement(existing)), cancellationToken);
         }
+
         if (request.ExpectedRevision != project.Revision)
-        {
             return ProjectHttpResults.FromSave(context, ProjectSaveResult.Rejected(ProjectSaveDecision.Conflict, project.Revision));
-        }
+
         var document = documents.ReadStored(id, project.SchemaVersion, project.UnvalidatedDocumentJson);
-        if (!document.Ok) { return ApiProblems.Create(context, 503, "project_unavailable", "The project is unavailable."); }
+
+        if (!document.Ok)
+            return ApiProblems.Create(context, 503, "project_unavailable", "The project is unavailable.");
+
         var required = ReviewAssetManifest.Required(document.Value!).ToFrozenSet(StringComparer.Ordinal);
         var references = await assets.ResolveAsync(database, project, required, cancellationToken);
         // A submission can proceed without approved assets; never invent hashes for unresolved files
         var manifest = ReviewAssetManifest.Serialize(required, references) ?? "[]";
         var previous = await database.ReviewSubmissions.Where(row => row.ProjectId == id)
             .Select(row => (long?)row.Sequence).MaxAsync(cancellationToken) ?? 0;
-        if (previous == long.MaxValue) { return Conflict(context); }
+
+        if (previous == long.MaxValue)
+            return Conflict(context);
+
         var submission = new ReviewSubmission
         {
             Id = submissionId,
@@ -95,20 +119,30 @@ public static class ReviewSubmissionEndpoints
             RequestDigest = digest,
         };
         database.ReviewSubmissions.Add(submission);
-        try { await database.SaveChangesAsync(cancellationToken); }
+
+        try
+        {
+            await database.SaveChangesAsync(cancellationToken);
+        }
         catch (DbUpdateException error) when (error.InnerException is PostgresException
         { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "PK_review_submissions" })
         {
             return Conflict(context);
         }
+
         var current = await access.LockAsync(context, id, ProjectLockPurpose.EditDraft, cancellationToken);
-        if (current.Failure is { } currentFailure) { return ProjectHttpResults.FromAccessFailure(context, currentFailure); }
+
+        if (current.Failure is { } currentFailure)
+            return ProjectHttpResults.FromAccessFailure(context, currentFailure);
+
         var currentAccount = await access.ResolveCurrentAccountAsync(context, cancellationToken);
-        if (currentAccount is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+
+        if (currentAccount is null)
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired);
+
         if (currentAccount.Role != ApplicationRoles.Creator)
-        {
             return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden);
-        }
+
         return await ClassroomEndpoints.CompleteAsync(context, transaction,
             Results.Json(Acknowledgement(submission), statusCode: 201), cancellationToken);
     }

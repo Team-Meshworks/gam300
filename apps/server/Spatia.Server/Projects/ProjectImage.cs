@@ -3,10 +3,22 @@ namespace Spatia.Server.Projects;
 /// <summary>Retains private immutable cover bytes shared by a source and its independent draft copies</summary>
 public sealed class ProjectImage
 {
-    public Guid Id { get; set; }
-    public required string Type { get; set; }
-    public required string ContentType { get; set; }
-    public required byte[] Data { get; set; }
+    public Guid Id
+    {
+        get; set;
+    }
+    public required string Type
+    {
+        get; set;
+    }
+    public required string ContentType
+    {
+        get; set;
+    }
+    public required byte[] Data
+    {
+        get; set;
+    }
 }
 
 /// <summary>Accepts a bounded image inside the existing atomic project creation request</summary>

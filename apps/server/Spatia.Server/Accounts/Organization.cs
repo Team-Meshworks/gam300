@@ -8,13 +8,17 @@ public sealed class Organization
     /// <summary>
     /// Gets or sets the organization's persistent identifier
     /// </summary>
-    public Guid Id { get; set; }
-
+    public Guid Id
+    {
+        get; set;
+    }
     /// <summary>
     /// Gets or sets the organization's display name
     /// </summary>
-    public required string Name { get; set; }
-
+    public required string Name
+    {
+        get; set;
+    }
     /// <summary>
     /// Gets or sets whether the organization can support active member sessions and new memberships
     /// </summary>

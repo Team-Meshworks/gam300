@@ -28,9 +28,7 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         CancellationToken cancellationToken = default)
     {
         if (request is null)
-        {
             return Failure("InvalidInput");
-        }
 
         var provision = new ProvisionAccountRequest
         {
@@ -39,26 +37,24 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
             Role = ApplicationRoles.Administrator,
             OrgId = null,
         };
+
         if (!IsValidAccount(provision))
-        {
             return Failure("InvalidInput");
-        }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+
         try
         {
             await database.Database.ExecuteSqlRawAsync(
                 "LOCK TABLE \"AspNetUserRoles\" IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
+
             if (await database.UserRoles.AnyAsync(role => role.RoleId == ApplicationRoles.AdministratorId, cancellationToken))
-            {
                 return Failure("BootstrapAlreadyExists");
-            }
 
             var outcome = await ProvisionCoreAsync(provision, cancellationToken);
+
             if (!outcome.Result.Succeeded)
-            {
                 return outcome.Result;
-            }
 
             cancellationToken.ThrowIfCancellationRequested();
             await transaction.CommitAsync(cancellationToken);
@@ -83,9 +79,7 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         CancellationToken cancellationToken = default)
     {
         if (!IsValidAccount(request))
-        {
             return (Failure("InvalidInput"), null);
-        }
 
         try
         {
@@ -111,18 +105,18 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         CancellationToken cancellationToken = default)
     {
         if (request is null || !IsValidPassword(request.NewTemporaryPassword))
-        {
             return Failure("InvalidInput");
-        }
 
         cancellationToken.ThrowIfCancellationRequested();
         var user = await users.FindByIdAsync(userId.ToString("D"));
+
         if (user is null)
-        {
             return Failure("UserNotFound");
-        }
+
         await database.Entry(user).ReloadAsync(cancellationToken);
-        if (user.IsDeleted) { return Failure("UserNotFound"); }
+
+        if (user.IsDeleted)
+            return Failure("UserNotFound");
 
         cancellationToken.ThrowIfCancellationRequested();
         user.MustChangePassword = true;
@@ -139,17 +133,25 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         ProvisionAccountRequest[] requests, CancellationToken cancellationToken)
     {
         var accounts = new List<ProvisionedAccount>();
+
         foreach (var request in requests.DistinctBy(request => users.NormalizeName(request.UserName)))
         {
-            if (await users.FindByNameAsync(request.UserName) is not null) { continue; }
+            if (await users.FindByNameAsync(request.UserName) is not null)
+                continue;
+
             var outcome = await ProvisionCoreAsync(request, cancellationToken);
+
             if (!outcome.Result.Succeeded)
             {
-                if (outcome.Result.Errors.Any(error => error.Code == "DuplicateUserName")) { continue; }
+                if (outcome.Result.Errors.Any(error => error.Code == "DuplicateUserName"))
+                    continue;
+
                 return (outcome.Result, null);
             }
+
             accounts.Add(outcome.Account!);
         }
+
         return (IdentityResult.Success, accounts);
     }
 
@@ -164,6 +166,7 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
             _ => ApplicationRoles.CreatorId,
         };
         var normalizedRole = users.NormalizeName(request.Role);
+
         if (!await database.Roles.AnyAsync(role => role.Id == roleId && role.Name == request.Role
             && role.NormalizedName == normalizedRole, cancellationToken))
         {
@@ -180,17 +183,15 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
         cancellationToken.ThrowIfCancellationRequested();
         var user = new ApplicationUser { UserName = request.UserName, DisplayName = request.DisplayName?.Trim() ?? request.UserName };
         var created = await users.CreateAsync(user, request.InitialPassword);
+
         if (!created.Succeeded)
-        {
             return (created, null);
-        }
 
         cancellationToken.ThrowIfCancellationRequested();
         var assigned = await users.AddToRoleAsync(user, request.Role);
+
         if (!assigned.Succeeded)
-        {
             return (assigned, null);
-        }
 
         if (request.OrgId is { } orgId)
         {

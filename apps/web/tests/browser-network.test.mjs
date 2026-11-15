@@ -5,9 +5,33 @@ import { once } from "node:events";
 import test from "node:test";
 import {
   createLoopbackProxy,
+  createLoopbackBridge,
   normalizeLoopbackOrigin,
   validateLoopbackURL,
 } from "./browser-network.mjs";
+
+test("bridge cancels upstream work when the browser disconnects", { timeout: 2000 }, async (t) => {
+  let received;
+  const upstream = new Promise((resolve) => (received = resolve));
+  const originServer = http.createServer((_req, res) => received(res));
+  const origin = await listen(originServer);
+  const bridge = createLoopbackBridge(origin);
+  const address = await listen(bridge);
+  t.after(async () => {
+    bridge.closeAllConnections();
+    originServer.closeAllConnections();
+    await Promise.all([
+      new Promise((resolve) => bridge.close(resolve)),
+      new Promise((resolve) => originServer.close(resolve)),
+    ]);
+  });
+  const client = http.get(address);
+  client.on("error", () => {});
+  const response = await upstream;
+  const canceled = once(response, "close", { signal: AbortSignal.timeout(1000) });
+  client.destroy();
+  await canceled;
+});
 
 async function listen(server) {
   server.listen(0, "127.0.0.1");

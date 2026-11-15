@@ -20,17 +20,29 @@ internal static class ClassAssignmentEditor
     {
         var validation = new ClassAssignmentRequest(request.MutationId, Guid.NewGuid(), 0, request.DueAtUnixSeconds,
             request.Title, request.Description, request.Instructions, request.StudentIds);
+
         if (assignmentId == Guid.Empty || request.ExpectedRevision is not (>= 0 and < Project.MaxRevision)
             || !ClassAssignmentIntent.IsValid(validation))
-        { return ApiProblems.Create(context, 400, "invalid_assignment_input", "Check the project details and selected students."); }
+        {
+            return ApiProblems.Create(context, 400, "invalid_assignment_input", "Check the project details and selected students.");
+        }
 
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
         var (classroom, failure) = await ClassroomEndpoints.FindAsync(id, context, database, access, true, true, cancellationToken);
-        if (failure is not null) { return failure; }
+
+        if (failure is not null)
+            return failure;
+
         var account = await access.ResolveCurrentAccountAsync(context, cancellationToken);
-        if (account is null || account.MustChangePassword) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+
+        if (account is null || account.MustChangePassword)
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired);
+
         var assignment = await database.ClassAssignments.SingleOrDefaultAsync(row => row.Id == assignmentId && row.ClassroomId == id, cancellationToken);
-        if (assignment is null) { return Unavailable(context); }
+
+        if (assignment is null)
+            return Unavailable(context);
+
         var requestedStudents = request.StudentIds!.Order().ToArray();
         var digest = SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
         {
@@ -50,23 +62,39 @@ internal static class ClassAssignmentEditor
         var mappedProjectIds = mappings.Select(row => row.ProjectId).ToArray();
         var visible = await access.VisibleProjects(account).Where(project => mappedProjectIds.Contains(project.Id))
             .Select(project => project.Id).ToArrayAsync(cancellationToken);
-        if (mappings.Any(row => row.IsActive && !visible.Contains(row.ProjectId))) { return Unavailable(context); }
+
+        if (mappings.Any(row => row.IsActive && !visible.Contains(row.ProjectId)))
+            return Unavailable(context);
+
         if (assignment.LastEditId == request.MutationId)
         {
             if (assignment.LastEditActorId != account.UserId || assignment.LastEditDigest is null
-                || !CryptographicOperations.FixedTimeEquals(assignment.LastEditDigest, digest)) { return Conflict(context); }
+                || !CryptographicOperations.FixedTimeEquals(assignment.LastEditDigest, digest))
+            {
+                return Conflict(context);
+            }
+
             return await ClassroomEndpoints.CompleteAsync(context, transaction,
-                Results.Ok(new { assignmentId, revision = assignment.Revision }), cancellationToken);
+                Results.Ok(new
+                {
+                    assignmentId,
+                    revision = assignment.Revision
+                }), cancellationToken);
         }
-        if (assignment.Revision != request.ExpectedRevision) { return Conflict(context); }
+
+        if (assignment.Revision != request.ExpectedRevision)
+            return Conflict(context);
+
         var eligible = await (from member in database.ClassroomMembers
                               join user in database.Users on member.UserId equals user.Id
                               join role in database.Roles on member.RoleId equals role.Id
                               where member.ClassroomId == id && member.IsActive && requestedStudents.Contains(member.UserId)
                                   && member.RoleId == ApplicationRoles.CreatorId && role.Name == ApplicationRoles.Creator && user.IsActive
                               select member.UserId).CountAsync(cancellationToken);
+
         if (eligible != requestedStudents.Length)
-        { return ApiProblems.Create(context, 422, "invalid_class_members", "Choose active students enrolled in this class."); }
+            return ApiProblems.Create(context, 422, "invalid_class_members", "Choose active students enrolled in this class.");
+
         var newStudents = requestedStudents.Except(mappings.Select(row => row.StudentId)).ToArray();
         var sourceImageId = await database.Projects.Where(project => project.Id == assignment.SourceProjectId)
             .Select(project => project.ImageId).SingleAsync(cancellationToken);
@@ -74,31 +102,55 @@ internal static class ClassAssignmentEditor
             .Select(row => row.ProjectId).Concat(newStudents.Length > 0 ? [assignment.SourceProjectId] : Array.Empty<Guid>())
             .Distinct().Order().ToArray();
         var snapshots = new Dictionary<Guid, ProjectAccessSnapshot>();
+
         foreach (var projectId in projectIds)
         {
             var locked = await access.LockAsync(context, projectId, ProjectLockPurpose.ManageAssignments, cancellationToken);
-            if (locked.Failure is { } denied) { return ProjectHttpResults.FromAccessFailure(context, denied); }
+
+            if (locked.Failure is { } denied)
+                return ProjectHttpResults.FromAccessFailure(context, denied);
+
             snapshots.Add(projectId, locked.Snapshot!);
         }
+
         if (newStudents.Length > 0 && snapshots[assignment.SourceProjectId].Revision != assignment.SourceRevision)
-        { return ApiProblems.Create(context, 409, "assignment_source_changed", "The original project changed. New student drafts cannot be created from it."); }
+        {
+            return ApiProblems.Create(context, 409, "assignment_source_changed", "The original project changed. New student drafts cannot be created from it.");
+        }
+
         var metadataChanged = assignment.Title != request.Title || assignment.Description != request.Description
             || assignment.Instructions != request.Instructions || assignment.DueAtUnixSeconds != request.DueAtUnixSeconds;
+
         foreach (var mapping in mappings)
         {
             var active = requestedStudents.Contains(mapping.StudentId);
-            if (!mapping.IsActive && !active) { continue; }
-            if (!metadataChanged && active == mapping.IsActive) { continue; }
+
+            if (!mapping.IsActive && !active)
+                continue;
+
+            if (!metadataChanged && active == mapping.IsActive)
+                continue;
+
             var project = await database.Projects.SingleAsync(row => row.Id == mapping.ProjectId, cancellationToken);
-            if (project.Revision >= Project.MaxRevision) { return Conflict(context); }
+
+            if (project.Revision >= Project.MaxRevision)
+                return Conflict(context);
+
             if (assignment.Title != request.Title || (!mapping.IsActive && active))
             {
                 var original = documents.ReadStored(project.Id, project.SchemaVersion, project.DocumentJson);
-                if (!original.Ok) { return Unavailable(context); }
+
+                if (!original.Ok)
+                    return Unavailable(context);
+
                 var renamed = documents.Serialize(ProjectLifecycleEndpoints.Copy(original.Value!, project.Id, request.Title!));
-                if (!renamed.Ok) { return Unavailable(context); }
+
+                if (!renamed.Ok)
+                    return Unavailable(context);
+
                 project.DocumentJson = renamed.Value!;
             }
+
             project.Revision++;
             project.UpdatedAt = DateTimeOffset.UtcNow;
             project.LastMutationActorId = null;
@@ -106,18 +158,25 @@ internal static class ClassAssignmentEditor
             project.LastMutationDigest = null;
             mapping.IsActive = active;
         }
+
         if (newStudents.Length > 0)
         {
             var source = snapshots[assignment.SourceProjectId];
             var sourceDocument = documents.ReadStored(source.ProjectId, source.SchemaVersion, source.UnvalidatedDocumentJson);
-            if (!sourceDocument.Ok) { return Unavailable(context); }
+
+            if (!sourceDocument.Ok)
+                return Unavailable(context);
+
             var managers = await (from member in database.ClassroomMembers
                                   join user in database.Users on member.UserId equals user.Id
                                   join role in database.Roles on member.RoleId equals role.Id
                                   where member.ClassroomId == id && member.IsActive && member.RoleId == ApplicationRoles.EducatorId
                                       && role.Name == ApplicationRoles.Educator && user.IsActive
                                   select member.UserId).ToArrayAsync(cancellationToken);
-            if (managers.Length > 100) { return Conflict(context); }
+
+            if (managers.Length > 100)
+                return Conflict(context);
+
             foreach (var student in newStudents)
             {
                 var projectId = Guid.NewGuid();
@@ -130,8 +189,13 @@ internal static class ClassAssignmentEditor
                     CanPublish = true
                 })
                     .Append(new ProjectAssignment { ProjectId = projectId, UserId = student, CanEdit = true, CanPublish = true }).ToArray();
+
                 if (ProjectLifecycleEndpoints.StageDraft(database, documents, classroom!.OrganizationId,
-                    ProjectLifecycleEndpoints.Copy(sourceDocument.Value!, projectId, request.Title!), grants, sourceImageId) is null) { return Unavailable(context); }
+                    ProjectLifecycleEndpoints.Copy(sourceDocument.Value!, projectId, request.Title!), grants, sourceImageId) is null)
+                {
+                    return Unavailable(context);
+                }
+
                 database.ClassAssignmentStudents.Add(new ClassAssignmentStudent
                 {
                     AssignmentId = assignmentId,
@@ -151,6 +215,7 @@ internal static class ClassAssignmentEditor
                 });
             }
         }
+
         assignment.Title = request.Title!;
         assignment.Description = request.Description!;
         assignment.Instructions = request.Instructions!;
@@ -161,15 +226,26 @@ internal static class ClassAssignmentEditor
         assignment.LastEditDigest = digest;
         await database.SaveChangesAsync(cancellationToken);
         var (_, recheck) = await ClassroomEndpoints.FindAsync(id, context, database, access, true, false, cancellationToken);
-        if (recheck is not null) { return recheck; }
+
+        if (recheck is not null)
+            return recheck;
+
         var current = await access.ResolveCurrentAccountAsync(context, cancellationToken);
-        if (current is null || current.UserId != account.UserId || current.MustChangePassword) { return Unavailable(context); }
+
+        if (current is null || current.UserId != account.UserId || current.MustChangePassword)
+            return Unavailable(context);
+
         return await ClassroomEndpoints.CompleteAsync(context, transaction,
-            Results.Ok(new { assignmentId, revision = assignment.Revision }), cancellationToken);
+            Results.Ok(new
+            {
+                assignmentId,
+                revision = assignment.Revision
+            }), cancellationToken);
     }
 
     private static IResult Conflict(HttpContext context) =>
         ApiProblems.Create(context, 409, "assignment_conflict", "The assignment changed. Reload before editing.");
+
     private static IResult Unavailable(HttpContext context) =>
         ApiProblems.Create(context, 404, "class_assignment_not_found", "The assignment is unavailable.");
 }

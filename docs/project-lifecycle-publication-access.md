@@ -42,7 +42,7 @@ SCRUM-69 acceptance remains open.
   available; SCRUM-69 does not implement their UI.
 
 The current [project model](../apps/server/Spatia.Server/Projects/Project.cs) and
-[access snapshot](../apps/server/Spatia.Server/Projects/ProjectAccessSnapshot.cs)
+[access snapshot](../apps/server/Spatia.Server/Projects/Access/ProjectAccessSnapshot.cs)
 contain project/organization IDs, archive state, revision and effective permissions.
 They do **not** contain class-assignment provenance, submissions, approval or
 publication state. The separate [class mapping](../apps/server/Spatia.Server/Classes/ClassAssignmentStudent.cs)
@@ -183,9 +183,9 @@ separate publication-access and retention decisions are unaffected.
    work or offers recovery/export without moving it to another account or
    project. Those issues own the client workflow, not this handoff.
 
-The existing [lifecycle tests](../apps/server/tests/ProjectLifecycleTests.cs)
+The existing [lifecycle tests](../apps/server/tests/Projects/ProjectLifecycleTests.cs)
 cover reassignment and both save/metadata lock orders; the
-[read tests](../apps/server/tests/ProjectReadEndpointTests.cs) compare inaccessible and
+[read tests](../apps/server/tests/Projects/ProjectReadEndpointTests.cs) compare inaccessible and
 missing project responses. Reuse that evidence rather than duplicating it.
 No reassignment-specific response is required by the confirmed recovery choice.
 
@@ -293,7 +293,7 @@ These decisions supersede the unresolved D1, D3 and publication-access portions 
 
 ## Shared transaction and class-review integration
 
-The existing [ProjectAccessService](../apps/server/Spatia.Server/Projects/ProjectAccessService.cs)
+The existing [ProjectAccessService](../apps/server/Spatia.Server/Projects/Access/ProjectAccessService.cs)
 requires a caller-owned `ReadCommitted` transaction for `LockAsync`, locks the project
 row with `FOR UPDATE`, then re-resolves session/account, assignment and archive state
 after any wait. The caller retains the transaction through the authorized write and
@@ -368,10 +368,10 @@ local restart artifact was not independently opened during this handoff review.
 
 | SCRUM-69 acceptance criterion | Existing evidence | Remaining acceptance |
 | --- | --- | --- |
-| 1. Two students; direct IDs/lifecycle cannot bypass authority | [ProjectReadEndpointTests](../apps/server/tests/ProjectReadEndpointTests.cs): `ProjectReads_TwoStudentsSeeOnlyTheirAssignmentsDespiteForgedClaimsAndCrossOrganizationAssignment`; [ProjectLifecycleTests](../apps/server/tests/ProjectLifecycleTests.cs): `ProjectLifecycle_InvalidAssignmentsAndUnauthorizedIdsCannotChangeOrRevealProjects`; [class tests](../apps/server/tests/ClassAssignmentCoordinatorTests.cs) cover original ownership and grant/roster removal and restoration. | Verify the integrated class/review/publication path, including lifecycle races and the review gate. |
+| 1. Two students; direct IDs/lifecycle cannot bypass authority | [ProjectReadEndpointTests](../apps/server/tests/Projects/ProjectReadEndpointTests.cs): `ProjectReads_TwoStudentsSeeOnlyTheirAssignmentsDespiteForgedClaimsAndCrossOrganizationAssignment`; [ProjectLifecycleTests](../apps/server/tests/Projects/ProjectLifecycleTests.cs): `ProjectLifecycle_InvalidAssignmentsAndUnauthorizedIdsCannotChangeOrRevealProjects`; [class tests](../apps/server/tests/Classes/ClassAssignmentCoordinatorTests.cs) cover original ownership and grant/roster removal and restoration. | Verify the integrated class/review/publication path, including lifecycle races and the review gate. |
 | 2. Admin provisions and assigns/reassigns | `ProjectLifecycle_AdministratorProvisionsAndReassignsStudentsWithoutExposingOtherWork` uses real account and project routes | Link the SCRUM-126 home/admin workflow evidence. |
 | 3. Independent copy, correct internal references | `ProjectLifecycle_ImportAndDuplicatePreserveReferencesButNeverCopyAuthorityOrMutableDrafts`, for both supported document versions | Copy/import origin handling remains deferred to SCRUM-173/175 under D6. |
-| 4. Archive/reopen and concurrent reassignment/save | `ProjectLifecycle_ArchiveReopenAndAssignmentsPreserveSavedContentAndHistoricalRetry`; `ProjectLifecycle_SaveAndMetadataRacesUseOneLockAndPreserveTheWinner`, both commit orders for assignment and archive; `ProjectLifecycle_ClassMetadataChangesInvalidateApprovalWithoutRewritingEvidence` exercises real archive/reopen and grant removal/restoration against an approved class draft; [ProjectAccessTests](../apps/server/tests/ProjectAccessTests.cs) recheck authority after lock waits | Joint publication-effects decisions and actual publisher/lifecycle race evidence. The class-review case uses fixture asset identities and does not publish an edition. |
+| 4. Archive/reopen and concurrent reassignment/save | `ProjectLifecycle_ArchiveReopenAndAssignmentsPreserveSavedContentAndHistoricalRetry`; `ProjectLifecycle_SaveAndMetadataRacesUseOneLockAndPreserveTheWinner`, both commit orders for assignment and archive; `ProjectLifecycle_ClassMetadataChangesInvalidateApprovalWithoutRewritingEvidence` exercises real archive/reopen and grant removal/restoration against an approved class draft; [ProjectAccessTests](../apps/server/tests/Projects/ProjectAccessTests.cs) recheck authority after lock waits | Joint publication-effects decisions and actual publisher/lifecycle race evidence. The class-review case uses fixture asset identities and does not publish an edition. |
 | 5. Safe errors, no unauthorized changes, unsaved-work preservation | Lifecycle rollback/expiry/CSRF tests; [ProjectHttpResults](../apps/server/Spatia.Server/Projects/ProjectHttpResults.cs); `Browser_ProjectListOpenAndAccountSwitchUseCurrentSession` | SCRUM-67/126 browser evidence with an actual unsaved editor, including save/export/cancel and late responses. API-only browser checks do not establish this guarantee. |
 
 Before closing the story, attach these integration results to the relevant issues

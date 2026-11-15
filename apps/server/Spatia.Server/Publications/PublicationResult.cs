@@ -30,17 +30,38 @@ internal sealed class PublicationResult
         CurrentRevision = currentRevision;
     }
 
-    public PublicationAcknowledgement? Acknowledgement { get; }
-    public bool IsReplay { get; }
-    public ProjectAccessFailure? AccessFailure { get; }
-    public PublicationRejection? Rejection { get; }
-    public long? CurrentRevision { get; }
-    internal bool RepresentationWithheld { get; private init; }
+    public PublicationAcknowledgement? Acknowledgement
+    {
+        get;
+    }
+    public bool IsReplay
+    {
+        get;
+    }
+    public ProjectAccessFailure? AccessFailure
+    {
+        get;
+    }
+    public PublicationRejection? Rejection
+    {
+        get;
+    }
+    public long? CurrentRevision
+    {
+        get;
+    }
+    internal bool RepresentationWithheld
+    {
+        get; private init;
+    }
 
     internal static PublicationResult Withheld() => new() { RepresentationWithheld = true };
+
     internal static PublicationResult Denied(ProjectAccessFailure failure) => new(accessFailure: failure);
+
     internal static PublicationResult Rejected(PublicationRejection rejection, long? currentRevision = null) =>
         new(rejection: rejection, currentRevision: currentRevision);
+
     internal static PublicationResult Committed(Publication row, bool replay) =>
         new(new(row.Id, row.ProjectId, row.SourceRevision, row.CreatedAt), replay);
 }

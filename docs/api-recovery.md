@@ -48,7 +48,7 @@ The workspace can list accessible active and archived projects with their IDs so
 
 For an import retry, reselect the same file. In the browser, a successful project, copy, import or class creation leaves its receipt available across profiles. Review and accept the receipt in the workspace before starting a separate creation for the same purpose. A session recheck clears the previous review and requires a fresh choice. When choosing a recovered assignment source, the browser rechecks manage access and saves the selected source locally before acknowledging the server receipt. If local preservation fails or another source record has replaced the observed one, acknowledgement is not sent. A reload can restore the selected source and recheck it before assignment.
 
-[Creation receipt tests](../apps/server/tests/CreationReceiptTests.cs) cover concurrent replay, actor and kind conflicts, and canonical locations.
+[Creation receipt tests](../apps/server/tests/Hosting/CreationReceiptTests.cs) cover concurrent replay, actor and kind conflicts, and canonical locations.
 
 ## Bulk account imports
 
@@ -74,7 +74,7 @@ Asset intake identifies a retry by the bytes' SHA-256, filename label without ex
 
 In `compose.server.yaml`, set `SPATIA_ASSET_MAX_RETAINED_ASSETS` and `SPATIA_ASSET_MAX_RETAINED_BYTES` to override those defaults. Retired and invalid candidates retain bytes and count against capacity. The administrator list and selectable catalogue are bounded at 100,000 entries independently of the configured intake quota. A historical catalogue above that bound is not truncated in storage, but its list snapshot is bounded. See [asset intake](../apps/server/Spatia.Server/Assets/AssetAdministrationService.cs) and [catalogue delivery](../apps/server/Spatia.Server/Assets/AssetDeliveryEndpoints.cs).
 
-The administrator snapshot orders candidates newest first. The selectable catalogue orders IDs ascending. [Asset contract tests](../apps/server/tests/AssetContractTests.cs) cover configured limits and retained bytes.
+The administrator snapshot orders candidates newest first. The selectable catalogue orders IDs ascending. [Asset contract tests](../apps/server/tests/Assets/AssetContractTests.cs) cover configured limits and retained bytes.
 
 The administrator catalogue list has a separate per-account fixed-window limit of 60 per minute. Account writes use 20 per minute. Both fall back to IP when no account is resolved. Asset intake and byte delivery each have separate global concurrency limits of two, in addition to the global limit. Rejected requests are not queued.
 
@@ -82,7 +82,7 @@ For removal, `PUT /api/v1/admin/assets/{assetId}/removals/{operationId}` accepts
 
 The legacy availability remove action uses the asset ID as its operation ID. To reconcile it, use the same reconcile route with `{operationId}` equal to `{assetId}`. Historical removals predating receipts cannot always be attributed. Reconciliation can return 409 `asset_removal_history_unavailable` when the server cannot establish the outcome. A repeated legacy removal can return 409. Read and reconcile before starting another operation.
 
-New operation bindings reserve asset IDs for their own legacy paths. Using another existing asset's ID returns 409 `asset_removal_conflict`. Existing actor-scoped receipts keep their original target even if the operation ID matches another asset. An applied receipt replays or reconciles as removed. A not-applied receipt retains its fence and reconciles as not applied. Cross-target use returns 409. The ID must be nonzero. Receipt history is retained with the actor and asset. See [removal endpoint](../apps/server/Spatia.Server/Assets/AssetRemovalEndpoints.cs) and [receipt tests](../apps/server/tests/AssetRemovalReceiptTests.cs).
+New operation bindings reserve asset IDs for their own legacy paths. Using another existing asset's ID returns 409 `asset_removal_conflict`. Existing actor-scoped receipts keep their original target even if the operation ID matches another asset. An applied receipt replays or reconciles as removed. A not-applied receipt retains its fence and reconciles as not applied. Cross-target use returns 409. The ID must be nonzero. Receipt history is retained with the actor and asset. See [removal endpoint](../apps/server/Spatia.Server/Assets/AssetRemovalEndpoints.cs) and [receipt tests](../apps/server/tests/Assets/AssetRemovalReceiptTests.cs).
 
 ## Deployment
 

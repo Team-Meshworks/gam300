@@ -2,19 +2,19 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Spatia.Server.Accounts;
 using Spatia.Server.Assets;
-using Spatia.Server.Publications;
 using Spatia.Server.Persistence;
 using Spatia.Server.Projects;
+using Spatia.Server.Publications;
 using Spatia.Server.Reviews;
 using Spatia.Server.Security;
 
@@ -42,9 +42,11 @@ public static class SpatiaApplication
         _ = AssetIntakePolicy.MaxRetainedAssets(builder.Configuration);
         _ = AssetIntakePolicy.MaxRetainedBytes(builder.Configuration);
         var connectionString = RequireSetting(builder.Configuration, "ConnectionStrings:Spatia");
+
         try
         {
             var connection = new NpgsqlConnectionStringBuilder(connectionString);
+
             if (string.IsNullOrWhiteSpace(connection.Host)
                 || string.IsNullOrWhiteSpace(connection.Database)
                 || string.IsNullOrWhiteSpace(connection.Username))
@@ -58,13 +60,13 @@ public static class SpatiaApplication
         }
 
         var keyDirectory = RequireSetting(builder.Configuration, "DataProtection:KeyDirectory");
+
         if (!Path.IsPathFullyQualified(keyDirectory) || !Directory.Exists(keyDirectory))
-        {
             throw new InvalidOperationException("DataProtection:KeyDirectory must be an absolute existing protected directory.");
-        }
 
         var allowedHosts = RequireSetting(builder.Configuration, "AllowedHosts")
             .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
         if (allowedHosts.Length == 0 || allowedHosts.Any(host => host.Contains('*')
             || Uri.CheckHostName(host) == UriHostNameType.Unknown
             || (IPAddress.TryParse(host.Trim('[', ']'), out var address)
@@ -74,6 +76,7 @@ public static class SpatiaApplication
         }
 
         var automaticForwarding = builder.Configuration["ForwardedHeaders_Enabled"];
+
         if (!string.IsNullOrWhiteSpace(automaticForwarding)
             && (!bool.TryParse(automaticForwarding, out var enabled) || enabled))
         {
@@ -88,12 +91,11 @@ public static class SpatiaApplication
         };
         forwardedHeaders.KnownProxies.Clear();
         forwardedHeaders.KnownIPNetworks.Clear();
+
         foreach (var proxy in builder.Configuration.GetSection("TrustedProxies").GetChildren())
         {
             if (!IPAddress.TryParse(proxy.Value, out var address))
-            {
                 throw new InvalidOperationException("TrustedProxies must contain explicit IP addresses.");
-            }
 
             forwardedHeaders.KnownProxies.Add(address);
         }
@@ -101,6 +103,7 @@ public static class SpatiaApplication
         builder.Services.PostConfigure<LoggerFilterOptions>(options =>
         {
             string[] privateCategories = ["Microsoft.AspNetCore", "Microsoft.EntityFrameworkCore", "Npgsql"];
+
             for (var index = 0; index < options.Rules.Count; index++)
             {
                 var rule = options.Rules[index];
@@ -111,9 +114,7 @@ public static class SpatiaApplication
             }
 
             foreach (var category in privateCategories)
-            {
                 options.Rules.Add(new LoggerFilterRule(null, category, LogLevel.None, null));
-            }
         });
         builder.Services.Configure<HostFilteringOptions>(options =>
         {
@@ -154,6 +155,7 @@ public static class SpatiaApplication
         {
             var startedAt = Stopwatch.GetTimestamp();
             context.Response.Headers.CacheControl = "no-store";
+
             try
             {
                 await next(context);
@@ -175,10 +177,9 @@ public static class SpatiaApplication
             }
         });
         app.UseExceptionHandler(new ExceptionHandlerOptions { SuppressDiagnosticsCallback = _ => true });
+
         if (forwardedHeaders.KnownProxies.Count != 0)
-        {
             app.UseForwardedHeaders(forwardedHeaders);
-        }
 
         app.UseStatusCodePages(async statusContext =>
         {
@@ -202,6 +203,7 @@ public static class SpatiaApplication
         {
             // Routing applies endpoint limits to Kestrel before any request body is read
             var limit = context.Features.Get<IHttpMaxRequestBodySizeFeature>()?.MaxRequestBodySize ?? MaxRequestBodyBytes;
+
             if (context.Request.ContentLength > limit)
             {
                 await ApiProblems.Create(context, 413, "request_too_large", "The request is too large").ExecuteAsync(context);
@@ -234,6 +236,7 @@ public static class SpatiaApplication
                 await ApiProblems.Create(context, 403, "account_changed", "The signed-in account changed").ExecuteAsync(context);
                 return;
             }
+
             await next(context);
         });
         app.UseSpatiaAntiforgery();
@@ -244,10 +247,9 @@ public static class SpatiaApplication
     private static string RequireSetting(IConfiguration configuration, string key)
     {
         var value = configuration[key];
+
         if (string.IsNullOrWhiteSpace(value))
-        {
             throw new InvalidOperationException($"Required configuration {key} is missing.");
-        }
 
         return value;
     }

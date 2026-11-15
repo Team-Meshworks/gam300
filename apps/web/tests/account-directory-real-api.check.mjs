@@ -1,33 +1,19 @@
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
-import { createServer as createBridge } from "node:http";
-import { request } from "node:https";
+import { createLoopbackBridge } from "./browser-network.mjs";
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 
 assert.ok(process.env.SPATIA_API_ORIGIN && process.env.SPATIA_TEST_ADMIN);
+const started = performance.now();
+const stage = (name) => console.log(`${Math.round(performance.now() - started)}ms: ${name}`);
+stage("starting browser fixture");
 const server = await createServer({ server: { port: 0 }, logLevel: "silent" });
 await server.listen();
 const upstream = `https://127.0.0.1:${server.httpServer.address().port}`;
-const bridge = createBridge((incoming, outgoing) => {
-  const forwarded = request(
-    upstream + incoming.url,
-    {
-      ca: readFileSync(process.env.SPATIA_DEV_TLS_CERT),
-      method: incoming.method,
-      headers: { ...incoming.headers, host: new URL(upstream).host },
-    },
-    (response) => {
-      outgoing.writeHead(response.statusCode, response.headers);
-      response.pipe(outgoing);
-    },
-  );
-  forwarded.on("error", () => {
-    if (!outgoing.headersSent) outgoing.writeHead(502);
-    outgoing.end();
-  });
-  incoming.pipe(forwarded);
+const bridge = createLoopbackBridge(upstream, {
+  ca: readFileSync(process.env.SPATIA_DEV_TLS_CERT),
 });
 await new Promise((resolve) => bridge.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${bridge.address().port}`;
@@ -49,6 +35,7 @@ try {
     await page.getByRole("button", { name: "Change password", exact: true }).click();
   }
   await page.waitForURL(origin + "/admin/dashboard");
+  stage("administrator signed in");
   await page.getByRole("heading", { name: /Welcome Back,/ }).waitFor();
   assert.equal(
     await page.getByRole("button", { name: /View Details for Dashboard browser project/i }).count(),
@@ -114,6 +101,7 @@ try {
     0,
   );
   let imported = 0;
+  stage("directory CRUD and failed-load recovery complete");
   let operationId = "";
   let importOrganizationId = "";
   const bulkPath = /\/api\/v1\/admin\/organizations\/[\da-f-]+\/bulk-imports\/[\da-f-]+$/;
@@ -149,6 +137,7 @@ try {
   importer = page.getByRole("dialog", { name: "Account Creation", exact: true });
   await importer.getByRole("button", { name: "Check import receipt", exact: true }).click();
   await importer.getByText("Receipt Student", { exact: true }).waitFor();
+  stage("lost import response recovered");
   let legacyOperationId = "";
   await page.route(/\/api\/v1\/admin\/users\/bulk$/, async (route) => {
     const response = await route.fetch();
@@ -180,6 +169,7 @@ try {
     }
   }, importOrganizationId);
   assert.equal(legacyReply, "lost");
+  stage("legacy import committed with lost response");
   const freshProfile = await browser.newContext();
   const handoffPage = await freshProfile.newPage();
   handoffPage.on("request", (request) => {
@@ -261,6 +251,7 @@ try {
   await importer.waitFor({ state: "detached" });
   assert.equal(imported, 1);
   await freshProfile.close();
+  stage("fresh-profile credential handoffs complete");
   const learnerContext = await browser.newContext();
   const learnerPage = await learnerContext.newPage();
   await learnerPage.goto(origin + "/login");
@@ -285,7 +276,11 @@ try {
     "Real API browser test passed: admin login, dashboard, organisation creation, accounts, overrides and failed-load recovery.",
   );
 } finally {
+  stage("closing browser");
   await browser.close();
+  stage("closing HTTP bridge");
   await new Promise((resolve) => bridge.close(resolve));
+  stage("closing Vite");
   await server.close();
+  stage("fixture closed");
 }
