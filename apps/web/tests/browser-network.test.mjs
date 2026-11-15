@@ -10,6 +10,27 @@ import {
   validateLoopbackURL,
 } from "./browser-network.mjs";
 
+test("bridge forwards OPTIONS * to the configured origin", { timeout: 2000 }, async (t) => {
+  let received;
+  const upstream = http.createServer((req, res) => {
+    received = [req.method, req.url, req.headers.host];
+    res.writeHead(204).end();
+  });
+  const origin = (await listen(upstream)).replace("127.0.0.1", "localhost");
+  t.after(() => new Promise((resolve) => upstream.close(resolve)));
+  const bridge = createLoopbackBridge(origin);
+  const address = await listen(bridge);
+  t.after(() => new Promise((resolve) => bridge.close(resolve)));
+
+  const client = http.request(address, { method: "OPTIONS", path: "*" });
+  const reply = once(client, "response");
+  client.end();
+  const [response] = await reply;
+  response.resume();
+  assert.equal(response.statusCode, 204);
+  assert.deepEqual(received, ["OPTIONS", "*", new URL(origin).host]);
+});
+
 test("bridge cancels upstream work when the browser disconnects", { timeout: 2000 }, async (t) => {
   let received;
   const upstream = new Promise((resolve) => (received = resolve));

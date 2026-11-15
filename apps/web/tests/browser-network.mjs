@@ -7,9 +7,12 @@ export function createLoopbackBridge(origin, { ca } = {}) {
   const transport = target.protocol === "https:" ? https : http;
   return http.createServer((incoming, outgoing) => {
     const forwarded = transport.request(
-      target.origin + incoming.url,
+      target,
       {
         ca,
+        lookup: lookupLoopback,
+        autoSelectFamily: true,
+        path: incoming.url,
         method: incoming.method,
         headers: { ...incoming.headers, host: target.host },
       },
