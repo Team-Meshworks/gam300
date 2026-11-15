@@ -184,7 +184,12 @@ try {
     "Preview never flies above a saved view",
   );
   const canvas = await page.locator(".visitor-viewer canvas").elementHandle();
+  // Scene readiness and its scene-start interaction complete asynchronously.
+  const destinationAlert = page.waitForEvent("dialog", {
+    predicate: (dialog) => dialog.type() === "alert",
+  });
   await targets.getByRole("button", { name: "Activate Next room", exact: true }).click();
+  await destinationAlert;
   await targets.getByRole("button", { name: "Activate Back to first", exact: true }).waitFor();
   await page.waitForFunction(
     () => window.navigationCamera?.position[0] === 20 && window.navigationCamera?.fov === 70,
