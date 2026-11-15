@@ -159,6 +159,7 @@ jobs:
               browser
               integration
               first-person-sandbox
+              player-parity
           - name: graphics
             checks: |
               furniture-tools

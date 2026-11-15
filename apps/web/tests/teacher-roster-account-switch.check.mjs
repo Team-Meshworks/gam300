@@ -68,6 +68,9 @@ try {
   });
   await page.goto(origin + "/new-project");
   await page.getByRole("combobox", { name: "Class *", exact: true }).click();
+  await page.getByRole("listbox", { name: "Class *", exact: true }).waitFor();
+  // A queued scroll from bringing the class field into view must leave History selectable.
+  await page.evaluate(() => document.dispatchEvent(new Event("scroll")));
   await page.getByRole("option", { name: "History", exact: true }).click();
   await requested;
   actor = teacherB;

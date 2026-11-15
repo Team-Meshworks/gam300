@@ -213,7 +213,7 @@ export function createVisitorPlayback(
           );
           if (article) {
             article.hidden = !action.visible;
-            if (action.visible && !document.hidden)
+            if (action.visible)
               article
                 .querySelectorAll<HTMLVideoElement>("video[data-stand-video]")
                 .forEach(playStandVideo);
@@ -356,10 +356,12 @@ export function createVisitorPlayback(
         if (node.dataset.standVideo) cancelStandPlaybackAttempt(node as HTMLVideoElement);
         node.dataset.wasPlaying = String(!node.paused);
         node.pause();
-      } else if (node.dataset.standVideo && !node.closest("[hidden]")) {
-        playStandVideo(node as HTMLVideoElement);
       } else if (node.dataset.wasPlaying === "true" && !node.closest("[hidden]")) {
         node.dataset.wasPlaying = "false";
+        if (node.dataset.standVideo) {
+          playStandVideo(node as HTMLVideoElement);
+          return;
+        }
         void node.play().catch(() => {
           /* Native controls remain available if automatic resume is denied */
         });

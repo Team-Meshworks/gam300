@@ -8,7 +8,6 @@ export function cancelStandPlaybackAttempt(video: HTMLVideoElement) {
 
 export function playStandVideo(video: HTMLVideoElement) {
   cancelStandPlaybackAttempt(video);
-  if (document.hidden) return;
   const attempt = new AbortController();
   attempts.set(video, attempt);
   const { signal } = attempt;
@@ -29,5 +28,12 @@ export function playStandVideo(video: HTMLVideoElement) {
       },
     );
   }
-  tryWithSound();
+  if (document.hidden) {
+    const startWhenVisible = () => {
+      if (document.hidden) return;
+      document.removeEventListener("visibilitychange", startWhenVisible);
+      tryWithSound();
+    };
+    document.addEventListener("visibilitychange", startWhenVisible, { signal });
+  } else tryWithSound();
 }

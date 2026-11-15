@@ -10,11 +10,13 @@ function Media({
   assets,
   ownerId,
   standVideo,
+  visit,
 }: {
   component: Extract<ContentComponent, { type: "image" | "audio" | "video" }>;
   assets: readonly CatalogueAsset[];
   ownerId?: string;
   standVideo: boolean;
+  visit: number;
 }) {
   // Each media component owns a verified object URL and releases it when its scene leaves
   const [url, setUrl] = useState("");
@@ -61,7 +63,7 @@ function Media({
     if (!standVideo || !url || !(node instanceof HTMLVideoElement)) return;
     if (!node.closest("[hidden]")) playStandVideo(node);
     return () => cancelStandPlaybackAttempt(node);
-  }, [standVideo, url]);
+  }, [standVideo, url, visit]);
   if (error) return <p role="alert">{error}</p>;
   if (component.type === "image")
     return url ? <img src={url} alt={component.alt} /> : <p role="status">Loading image…</p>;
@@ -98,6 +100,10 @@ function Media({
       loop={standVideo || component.loop}
       preload={standVideo ? "auto" : undefined}
       data-stand-video={standVideo || undefined}
+      onPause={(event) => {
+        if (standVideo && event.currentTarget.paused && !document.hidden)
+          cancelStandPlaybackAttempt(event.currentTarget);
+      }}
       aria-label={component.caption || "Exhibition video"}
       playsInline
     />
@@ -105,11 +111,13 @@ function Media({
 }
 
 export function ExhibitionContent({
+  visit,
   scene,
   assets,
   navigate,
   playbackReady,
 }: {
+  visit: number;
   scene: VisitorScene;
   assets: readonly CatalogueAsset[];
   navigate: (sceneId: string, viewpointId: string) => void;
@@ -200,6 +208,7 @@ export function ExhibitionContent({
             key={item.assetId}
             component={item}
             standVideo={standVideo}
+            visit={standVideo ? visit : 0}
             assets={assets}
             {...(ownerId ? { ownerId } : {})}
           />

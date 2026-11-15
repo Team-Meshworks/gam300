@@ -1366,8 +1366,7 @@
       "byteSize": 93690356,
       "sha256": "11c4fa8b06299c1fc4ce26a25594556d7a3e48ee67aa6d68f986742468f871bf",
       "category": "Architecture",
-      "thumbnail": null,
-      "thumbnailMode": "generated",
+      "thumbnail": "delivery/thumbnails/library-untitled-v1.png",
       "placement": "bottom-center",
       "access": "development-only",
       "license": {
