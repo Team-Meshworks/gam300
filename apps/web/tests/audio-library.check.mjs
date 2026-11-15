@@ -240,7 +240,7 @@ try {
   );
   await page.reload();
   await openSavedProject(page);
-  await button("Preview").click();
+  await button("Test visitor").click();
   await page.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
   await button("Enable audio").click();
   await page.waitForFunction(

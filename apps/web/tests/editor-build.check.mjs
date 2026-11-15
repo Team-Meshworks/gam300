@@ -153,7 +153,7 @@ try {
   await contentPage.goto(contentProject.url);
   await contentPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await contentPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
-  await contentPage.getByRole("button", { name: "Preview", exact: true }).click();
+  await contentPage.getByRole("button", { name: "Test visitor", exact: true }).click();
   await contentPage.getByRole("region", { name: "Exhibition", exact: true }).waitFor();
   await contentPage.getByText("Exhibit information", { exact: true }).click();
   const targets = contentPage.getByRole("region", { name: "Exhibit information" });
@@ -188,7 +188,7 @@ try {
   const richProject = await serveProject(richPage, url, rich);
   await richPage.goto(richProject.url);
   await richPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await richPage.getByRole("button", { name: "Preview", exact: true }).click();
+  await richPage.getByRole("button", { name: "Test visitor", exact: true }).click();
   await richPage.getByRole("region", { name: "Exhibition", exact: true }).waitFor();
   const hiddenExhibit = richPage.locator('[data-owner-id="' + rich.scenes[0].objects[0].id + '"]');
   await hiddenExhibit.waitFor({ state: "attached" });

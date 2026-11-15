@@ -730,6 +730,7 @@ export function initScene(
         let instance = instances.get(object.id);
         if (instance === undefined) {
           instance = new THREE.Group();
+          instance.name = object.id;
           // Clone nodes for independent transforms; cache leases own geometry/materials/textures
           instance.add(model.clone(true));
           instances.set(object.id, instance);

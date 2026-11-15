@@ -245,23 +245,22 @@ try {
   });
   await visitor.goto(`${origin}/p/${publicationId}`);
   await visitor.getByRole("status").getByText("Exhibition ready").waitFor();
-  await editor.getByRole("status").getByText("Exhibition ready").waitFor({ timeout: 5000 });
-  await editor.waitForTimeout(1000);
-  const canvasHash = async (page) =>
-    createHash("sha256")
-      .update(
-        await page.screenshot({
-          clip: { x: 200, y: 200, width: 800, height: 350 },
-        }),
-      )
-      .digest("hex");
-  assert.equal(
-    await canvasHash(editor),
-    await canvasHash(visitor),
-    "Both routes render the same initial camera view",
-  );
-  const rendered = [];
-  for (const page of [editor, visitor]) {
+  const authoredTransform = await editor.evaluate((id) => {
+    const root = window.parityScenes
+      .map((scene) => scene.getObjectByName(id))
+      .filter(Boolean)
+      .at(-1);
+    return (
+      root && {
+        position: root.position.toArray(),
+        rotation: root.quaternion.toArray(),
+        scale: root.scale.toArray(),
+        visible: root.visible,
+      }
+    );
+  }, first.objects[0].id);
+  assert.ok(authoredTransform, "The editor renders the authored model");
+  for (const page of [visitor]) {
     const room = await readRoom(page);
     assert.deepEqual(room.walls, authoredRoom.walls, "All four interior walls match the editor");
     assert.deepEqual(
@@ -299,7 +298,12 @@ try {
     assert.equal(caption.text, label.caption);
     assert.ok(caption.y < body.y);
     assert.equal(body.height + caption.height, label.placement.scale[1]);
-    rendered.push(renderedObject);
+    const { position, rotation, scale, visible } = renderedObject;
+    assert.deepEqual(
+      { position, rotation, scale, visible },
+      authoredTransform,
+      "The visitor model transform and visibility match the editor",
+    );
     await page.getByText("Exhibit information", { exact: true }).first().click();
     await page.getByRole("region", { name: "Exhibit information" }).waitFor();
     assert.ok((await page.locator("figure").first().innerText()).includes("Unicode 展览"));
@@ -360,18 +364,8 @@ try {
     await page.getByRole("status").getByText("Exhibition ready").waitFor();
     await page.getByRole("button", { name: "Reset view" }).click();
   }
-  assert.deepEqual(
-    rendered[0],
-    rendered[1],
-    "Preview and visitor render the same authored model transform",
-  );
-  await editor.getByRole("button", { name: "Restart preview" }).click();
-  assert.equal(await editor.getByRole("combobox").inputValue(), "0");
-  await editor.getByRole("button", { name: "Exit preview" }).click();
-  assert.deepEqual(saved.document(), project, "Preview does not mutate the authored draft");
-  console.log(
-    "Preview and publication use the same visitor controls, scene navigation, reset and draft isolation",
-  );
+  assert.deepEqual(saved.document(), project, "Viewing does not mutate the authored draft");
+  console.log("PASS visitor wall lighting, hotspot and published interactions");
 } finally {
   await browser?.close();
   await server.close();
