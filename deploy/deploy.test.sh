@@ -9,19 +9,39 @@ cp "$source_directory/deploy.sh" "$temporary/bundle/"
 cp "$source_directory/../compose.yaml" "$temporary/bundle/"
 cp "$source_directory/../compose.server.yaml" "$temporary/bundle/"
 cp "$source_directory/server.Caddyfile" "$temporary/bundle/deploy/"
+cp "$source_directory"/{dev-cutover.sh,dev-creates.caddy,dev-create-guard.sql} "$temporary/bundle/deploy/"
 export DEPLOY_ROOT="$temporary/deployments" FAKE_STATE="$temporary/state"
 export PATH="$temporary/bin:$PATH"
-unset APP_URL DEPLOY_BASIC_AUTH_USERNAME DEPLOY_BASIC_AUTH_PASSWORD
+unset APP_URL DEPLOY_BASIC_AUTH_USERNAME DEPLOY_BASIC_AUTH_PASSWORD DEPLOY_SMOKE_USERNAME DEPLOY_SMOKE_PASSWORD
 
 cat > "$temporary/bin/docker" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "$FAKE_STATE/calls"
+case "$1" in
+  ps) echo aaaa; exit ;;
+  inspect) echo 'exited 0 false'; exit ;;
+  kill) exit 0 ;;
+  wait) echo 0; exit ;;
+  exec)
+    case "$*" in
+      *' printenv SITE_IP') echo 127.0.0.2 ;;
+      *' touch /config/spatia-dev-creates-paused') touch "$FAKE_STATE/creates-paused" ;;
+      *' rm /config/spatia-dev-creates-paused') rm "$FAKE_STATE/creates-paused" ;;
+      *' cmp -s '*) cmp -s "$FAKE_STATE/dev-creates.caddy" - ;;
+      *' mv /config/dev-creates.pending /config/spatia-dev-creates.caddy') mv "$FAKE_STATE/pending" "$FAKE_STATE/dev-creates.caddy" ;;
+      *' caddy validate '*) cat > /dev/null ;;
+      *' sh -ec '*) cat > "$FAKE_STATE/pending" ;;
+      *) exit 1 ;;
+    esac
+    exit ;;
+esac
+command_line="$*"
 service=${!#}
 while (($#)); do
   case "$1" in
     --env-file) configuration=$2; shift 2 ;;
-    pull|up|down|logs|stop|exec) operation=$1; shift ;;
+    pull|up|down|logs|stop|exec|ps) operation=$1; shift ;;
     *) shift ;;
   esac
 done
@@ -32,6 +52,10 @@ case "$operation" in
     if [[ "$service" == postgres ]]; then
       [[ "${FAKE_FAIL_DATABASE:-0}" == 0 ]]
       exit
+    fi
+    if [[ "$service" == database-access ]]; then exit 0; fi
+    if [[ "$command_line" == *'--no-deps'* ]]; then
+      [[ -f "$FAKE_STATE/inserts-paused" && -f "$FAKE_STATE/creates-paused" ]] || exit 1
     fi
     printf '%s' "$REVISION" > "$FAKE_STATE/$APP_PORT"
     if [[ -n "${API_IMAGE:-}" ]]; then touch "$FAKE_STATE/$APP_PORT-api"; fi
@@ -44,9 +68,16 @@ case "$operation" in
     rm -f -- "$FAKE_STATE/$APP_PORT-api"
     ;;
   exec)
-    [[ "${FAKE_FAIL_BACKUP:-0}" == 0 ]]
-    echo 'Simulated database backup'
+    case "$command_line" in
+      *' pg_dump '*) [[ "${FAKE_FAIL_BACKUP:-0}" == 0 ]]; echo 'Simulated database backup' ;;
+      *' pg_restore '*) grep -qx 'Simulated database backup' ;;
+      *'to_regnamespace'*) if [[ -f "$FAKE_STATE/inserts-paused" ]]; then echo t; else echo f; fi ;;
+      *' pause=on') cat >/dev/null; touch "$FAKE_STATE/inserts-paused" ;;
+      *' pause=off') cat >/dev/null; rm "$FAKE_STATE/inserts-paused" ;;
+      *) exit 1 ;;
+    esac
     ;;
+  ps) echo bbbb ;;
 esac
 MOCK
 cat > "$temporary/bin/curl" <<'MOCK'
@@ -65,10 +96,34 @@ port=${url#*://}
 port=${port#*:}
 port=${port%%/*}
 case "$url" in
+  */api/v1/projects|*/api/v1/classes|*/duplicate)
+    if [[ -e "$FAKE_STATE/creates-paused" ]]; then
+      printf 503
+      if [[ "$*" == *'%header{retry-after}'* ]]; then printf ' 120'; fi
+    else
+      printf 401
+      if [[ "$*" == *'%header{www-authenticate}'* ]]; then
+        printf ' SpatiaSession realm="Spatia", login_uri="/api/v1/auth/login"'
+      fi
+    fi
+    ;;
+  */api/v1/auth/login)
+    for part in "$@"; do
+      if [[ "$part" == @/dev/fd/* ]]; then grep -q '"password": "smoke-test-only"' "${part#@}"; fi
+    done
+    printf '%s' "${FAKE_SMOKE_STATUS:-204}" ;;
   */login) true ;;
-  */api/v1/auth/csrf) [[ "${FAKE_FAIL_API:-0}" == 0 ]] ;;
-  */api/v1/auth/session) printf '%s' "${FAKE_SESSION_STATUS:-401}" ;;
+  */api/v1/auth/csrf)
+    if [[ "$port" == 8082 ]]; then
+      [[ -e "$FAKE_STATE/creates-paused" && -e "$FAKE_STATE/inserts-paused" ]] || { echo 'Development reopened during the health check' >&2; exit 1; }
+    fi
+    [[ "${FAKE_FAIL_API:-0}" == 0 ]]
+    if [[ "$*" == *'--cookie-jar '* ]]; then printf '{"requestToken":"fake"}'; fi ;;
+  */api/v1/auth/session)
+    if [[ "$*" == *'--cookie '* ]]; then printf '{"userId":"test","mustChangePassword":false}'; else printf '%s' "${FAKE_SESSION_STATUS:-401}"; fi ;;
+  *'/projects?limit=1') printf 200 ;;
   */api/v1/creation-operations/project|*/api/v1/projects/legacy-resolution)
+    if [[ "$url" == */legacy-resolution && "$*" == *'Cookie: spatia_cutover_probe=1'* && -e "$FAKE_STATE/creates-paused" ]]; then printf '503 120'; exit; fi
     status=${FAKE_INNER_CREATION_STATUS:-401}
     if [[ "$url" == https://* ]]; then status=${FAKE_PUBLIC_CREATION_STATUS:-401}; fi
     if [[ "$url" == */legacy-resolution ]]; then
@@ -124,31 +179,47 @@ if "${deploy[@]}" dev "$image" "$first" "$api" 'untrusted:latest'; then exit 1; 
 if "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 
 export APP_URL=https://127.0.0.1:8082
+mkdir -p "$DEPLOY_ROOT/gateway"
+sed '/import \/config\/spatia-dev-creates/d' "$source_directory/gateway.Caddyfile" > "$DEPLOY_ROOT/gateway/gateway.Caddyfile"
 # Invalid credential configuration must fail before any Docker operation.
 call_count=$(wc -l < "$FAKE_STATE/calls")
 if DEPLOY_BASIC_AUTH_USERNAME=probe "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 if DEPLOY_BASIC_AUTH_PASSWORD=secret "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 if DEPLOY_BASIC_AUTH_USERNAME='bad:user' DEPLOY_BASIC_AUTH_PASSWORD=secret "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 if DEPLOY_BASIC_AUTH_USERNAME=probe DEPLOY_BASIC_AUTH_PASSWORD=$'bad\npassword' "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
+if DEPLOY_SMOKE_USERNAME=probe "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 [[ "$(wc -l < "$FAKE_STATE/calls")" == "$call_count" ]]
 # Failed server rollout preserves the release record but never starts older binaries
 if FAKE_FAIL_API=1 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 grep -qx "REVISION=$third" "$DEPLOY_ROOT/development/current/.env"
 [[ ! -e "$FAKE_STATE/8082-api" ]]
+create_status() {
+  curl --silent --output /dev/null --write-out '%{http_code}' --request POST "$APP_URL/api/v1/projects"
+}
+[[ "$(create_status)" == 503 ]] || { echo 'A failed dev health check must keep creates paused' >&2; exit 1; }
+[[ -f "$FAKE_STATE/inserts-paused" ]]
+if FAKE_FAIL_PULL=1 "${deploy[@]}" dev "$image" "$third" "$api" "$migration"; then exit 1; fi
+[[ "$(create_status)" == 503 && -f "$FAKE_STATE/inserts-paused" ]]
+if DEPLOY_SMOKE_USERNAME=probe DEPLOY_SMOKE_PASSWORD=smoke-test-only FAKE_SMOKE_STATUS=401 "${deploy[@]}" dev "$image" "$third" "$api" "$migration"; then exit 1; fi
+[[ "$(create_status)" == 503 && -f "$FAKE_STATE/inserts-paused" ]]
 
 # A corrected release can replace a failed attempt without recovery inputs
 printf '%s\n' "$first" "$image" "$api" "$migration" > "$DEPLOY_ROOT/development/server-recovery-required"
 call_count=$(wc -l < "$FAKE_STATE/calls")
-FAKE_BASIC_GATE=1 DEPLOY_BASIC_AUTH_USERNAME=probe DEPLOY_BASIC_AUTH_PASSWORD=correct-password "${deploy[@]}" dev "$image" "$third" "$api" "$migration"
+DEPLOY_SMOKE_USERNAME=probe DEPLOY_SMOKE_PASSWORD=smoke-test-only \
+  FAKE_BASIC_GATE=1 DEPLOY_BASIC_AUTH_USERNAME=probe DEPLOY_BASIC_AUTH_PASSWORD=correct-password "${deploy[@]}" dev "$image" "$third" "$api" "$migration"
 grep -qx "REVISION=$third" "$DEPLOY_ROOT/development/current/.env"
 [[ ! -e "$DEPLOY_ROOT/development/server-recovery-required" ]]
 tail -n "+$((call_count + 1))" "$FAKE_STATE/calls" | grep -q 'exec -T postgres pg_dump'
 [[ -e "$FAKE_STATE/8082-api" ]]
+[[ "$(create_status)" == 401 && ! -e "$FAKE_STATE/inserts-paused" ]]
+[[ "$(grep -c -F 'import /config/spatia-dev-creates*.caddy' "$DEPLOY_ROOT/gateway/gateway.Caddyfile")" == 2 ]]
+echo 'PASS: dev creates stay paused after a failed health check and reopen on successful retry'
 
 # A Basic gate rejects absent or incorrect credentials; neither is a healthy release.
 if FAKE_BASIC_GATE=1 "${deploy[@]}" dev "$image" "$first" "$api" "$migration" > "$temporary/auth-failure.log" 2>&1; then exit 1; fi
-grep -q 'Public deployment probe failed: https://127.0.0.1:8082/version.txt' "$temporary/auth-failure.log"
-[[ ! -e "$FAKE_STATE/8082-api" ]]
+grep -q 'Public deployment probe failed: https://127.0.0.1:8082/api/v1/projects' "$temporary/auth-failure.log"
+[[ "$(create_status)" == 503 ]]
 if FAKE_BASIC_GATE=1 DEPLOY_BASIC_AUTH_USERNAME=probe DEPLOY_BASIC_AUTH_PASSWORD=wrong "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 if FAKE_BASIC_GATE=1 DEPLOY_BASIC_AUTH_USERNAME=probe DEPLOY_BASIC_AUTH_PASSWORD=correct-password FAKE_SESSION_STATUS=200 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
 if FAKE_PUBLIC_CREATION_STATUS=404 "${deploy[@]}" dev "$image" "$first" "$api" "$migration"; then exit 1; fi
@@ -201,8 +272,7 @@ if FAKE_FAIL_DATABASE=1 "${deploy[@]}" dev "$image" "$second" "$api" "$migration
 if FAKE_FAIL_REVISION="$second" "${deploy[@]}" dev "$image" "$second" "$api" "$migration"; then exit 1; fi
 [[ ! -e "$FAKE_STATE/8082-api" ]]
 grep -qx "REVISION=$first" "$configuration/.env"
-! grep -q -- '--no-deps' "$FAKE_STATE/calls"
-grep -q 'stop api gateway' "$FAKE_STATE/calls"
+grep -q 'stop --timeout -1 gateway' "$FAKE_STATE/calls"
 grep -q 'Simulated database backup' "$DEPLOY_ROOT"/development/backups/*.dump
 
 "${deploy[@]}" dev "$image" "$second" "$api" "$migration"
