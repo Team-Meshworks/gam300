@@ -272,7 +272,7 @@ export function App({
   const selectedObject = roomSelected
     ? environmentObject(projectScene)
     : objects.find((object) => object.id === selection);
-  const visitor = readOnlyPreview || modeState?.mode === "visitor";
+  const visitor = visitorTest !== null || readOnlyPreview || modeState?.mode === "visitor";
   const mobileDevice = isMobileTouchDevice();
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
   // Start inside the scene, the overview button switch to the orbit camera
