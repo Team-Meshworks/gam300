@@ -295,7 +295,7 @@ try {
   await page.getByLabel("Interaction 1 after", { exact: true }).selectOption("2");
   const started = Date.now();
   const fired = page.waitForEvent("dialog", { timeout: 3500 });
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page.getByRole("button", { name: "Test visitor", exact: true }).click();
   const dialog = await fired;
   const elapsed = Date.now() - started;
   assert.equal(dialog.message(), "hi");
@@ -307,7 +307,7 @@ try {
     hiddenAlerts.push(Date.now());
     await dialog.accept();
   });
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page.getByRole("button", { name: "Test visitor", exact: true }).click();
   await new Promise((resolve) => setTimeout(resolve, 400));
   await page.evaluate(() => {
     Object.defineProperty(document, "hidden", { configurable: true, get: () => true });

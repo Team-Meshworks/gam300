@@ -215,7 +215,7 @@ try {
       (video) => video.src.length > 0 && !video.paused && video.muted && video.currentTime > 0.15,
     ),
   );
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page.getByRole("button", { name: "Test visitor", exact: true }).click();
   const toggleVideo = page.getByRole("button", { name: /^Play \/ pause / });
   await toggleVideo.waitFor();
   await page.waitForFunction(() =>

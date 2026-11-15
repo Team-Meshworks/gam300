@@ -149,7 +149,7 @@ try {
     }
     assert.equal(restored.fov, editingCamera.fov, "Restore the editing field of view");
   };
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page.getByRole("button", { name: "Test visitor", exact: true }).click();
   await page.getByText("Exhibit information", { exact: true }).click();
   const targets = page.getByRole("region", { name: "Exhibit information" });
   await targets.getByRole("button", { name: "Activate Detail view", exact: true }).click();
@@ -184,7 +184,12 @@ try {
     "Preview never flies above a saved view",
   );
   const canvas = await page.locator(".visitor-viewer canvas").elementHandle();
+  // Scene readiness and its scene-start interaction complete asynchronously.
+  const destinationAlert = page.waitForEvent("dialog", {
+    predicate: (dialog) => dialog.type() === "alert",
+  });
   await targets.getByRole("button", { name: "Activate Next room", exact: true }).click();
+  await destinationAlert;
   await targets.getByRole("button", { name: "Activate Back to first", exact: true }).waitFor();
   await page.waitForFunction(
     () => window.navigationCamera?.position[0] === 20 && window.navigationCamera?.fov === 70,
@@ -207,7 +212,7 @@ try {
   assert.equal(await page.getByRole("region", { name: "Exhibition", exact: true }).count(), 0);
   await assertEditingCamera();
   // A second preview that stays in A also retains the editing camera.
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page.getByRole("button", { name: "Test visitor", exact: true }).click();
   await page.getByText("Exhibit information", { exact: true }).click();
   await targets.getByRole("button", { name: "Activate Detail view", exact: true }).click();
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
@@ -243,7 +248,7 @@ try {
     const chainServer = await serveProject(chainPage, url, chain);
     await chainPage.goto(chainServer.url);
     await chainPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-    await chainPage.getByRole("button", { name: "Preview", exact: true }).click();
+    await chainPage.getByRole("button", { name: "Test visitor", exact: true }).click();
     await chainPage
       .getByRole("status")
       .filter({ hasText: "Automatic scene navigation stopped at a repeated scene." })

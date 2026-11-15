@@ -66,6 +66,8 @@ export const modules = {
   "asset-loading": {
     paths: [
       "shared/asset-runtime/ModelCache.ts",
+      "shared/asset-runtime/scene-lighting.ts",
+      "shared/asset-runtime/hotspot-sprite.ts",
       "shared/asset-runtime/room-entrances.ts",
       "shared/asset-runtime/exhibit-appearance.ts",
       "shared/asset-runtime/text-texture.ts",
@@ -77,6 +79,8 @@ export const modules = {
     packages: ["three"],
     public: [
       "shared/asset-runtime/ModelCache.ts",
+      "shared/asset-runtime/scene-lighting.ts",
+      "shared/asset-runtime/hotspot-sprite.ts",
       "shared/asset-runtime/room-entrances.ts",
       "shared/asset-runtime/exhibit-appearance.ts",
       "shared/asset-runtime/text-texture.ts",
