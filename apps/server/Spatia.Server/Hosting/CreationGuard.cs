@@ -4,7 +4,13 @@ namespace Spatia.Server.Hosting;
 public sealed record CreationGuard
 {
     /// <summary>Gets the creation purpose used to discover and acknowledge operations.</summary>
-    public required string Purpose { get; init; }
+    public required string Purpose
+    {
+        get; init;
+    }
     /// <summary>Gets the ready generation's operation ID, or null before the first creation.</summary>
-    public required Guid? PreviousOperationId { get; init; }
+    public required Guid? PreviousOperationId
+    {
+        get; init;
+    }
 }

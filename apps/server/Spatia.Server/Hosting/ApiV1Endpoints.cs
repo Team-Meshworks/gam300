@@ -18,7 +18,10 @@ public static class ApiV1Endpoints
         endpoints.MapGet("/auth/csrf", (HttpContext context, IAntiforgery antiforgery) =>
         {
             var tokens = antiforgery.GetAndStoreTokens(context);
-            return Results.Ok(new { requestToken = tokens.RequestToken });
+            return Results.Ok(new
+            {
+                requestToken = tokens.RequestToken
+            });
         }).AllowAnonymous();
         endpoints.MapAssetAdministration();
         endpoints.MapAssetDelivery();

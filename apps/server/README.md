@@ -120,18 +120,18 @@ the receipt, revision and document commit together.
 
 The review compared head `6efd9f0c1804f6f34ea4465493eec2e3bf023a85` with
 `29e81ff763243a048fc73dd340a2cb7dbd1d34ce` and found **no confirmed actionable
-defect** in this backend slice. The [bounded endpoint](Spatia.Server/Projects/ProjectSaveEndpoints.cs)
-passes the parsed request to the [save service](Spatia.Server/Projects/ProjectSaveService.cs),
-which locks and reauthorizes before looking up a receipt. The [policy](Spatia.Server/Projects/ProjectSavePolicy.cs)
-compares actor, expected revision and request digest; the [writer](Spatia.Server/Projects/ProjectSaveWriter.cs)
+defect** in this backend slice. The [bounded endpoint](Spatia.Server/Projects/Saving/ProjectSaveEndpoints.cs)
+passes the parsed request to the [save service](Spatia.Server/Projects/Saving/ProjectSaveService.cs),
+which locks and reauthorizes before looking up a receipt. The [policy](Spatia.Server/Projects/Saving/ProjectSavePolicy.cs)
+compares actor, expected revision and request digest; the [writer](Spatia.Server/Projects/Saving/ProjectSaveWriter.cs)
 stages the document and receipt in the caller's transaction. The
 [migration](Spatia.Server/Persistence/Migrations/20261029122111_AddProjectSaveReceipts.cs),
 model constraints, lifecycle callers and rollback paths were also reviewed.
 
 [CI run 76](https://github.com/Team-Meshworks/gam300/actions/runs/40886048672)
 passed its server job on PostgreSQL 18.6 with 557 tests, none failed or skipped.
-The [endpoint tests](tests/ProjectSaveEndpointTests.cs) cover historical retries,
-access denial, concurrent saves and receipt/commit failures. The [persistence tests](tests/ProjectPersistenceTests.cs)
+The [endpoint tests](tests/Projects/ProjectSaveEndpointTests.cs) cover historical retries,
+access denial, concurrent saves and receipt/commit failures. The [persistence tests](tests/Projects/ProjectPersistenceTests.cs)
 verify fresh migration, backfilled fields and invalid legacy-row rollback. They do
 not establish a single old-server save → migration → HTTP retry run. The cold restart
 and fresh-browser API result above is a separate earlier local record; no tests were

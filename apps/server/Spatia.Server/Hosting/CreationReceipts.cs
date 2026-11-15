@@ -20,14 +20,21 @@ internal static class CreationReceipts
     internal static IResult? BindOperationId(HttpContext context, Guid? supplied, out Guid operationId)
     {
         operationId = supplied ?? Guid.Empty;
-        if (supplied == Guid.Empty) { return InvalidOperationId(context); }
+
+        if (supplied == Guid.Empty)
+            return InvalidOperationId(context);
+
         if (context.Request.Headers.TryGetValue("Idempotency-Key", out var values))
         {
             if (values.Count != 1 || values[0] is not { Length: 36 } raw || !Guid.TryParseExact(raw, "D", out var headerId)
                 || headerId == Guid.Empty || (supplied is { } bodyId && bodyId != headerId))
-            { return InvalidOperationId(context); }
+            {
+                return InvalidOperationId(context);
+            }
+
             operationId = headerId;
         }
+
         return operationId != Guid.Empty ? null : ApiProblems.Create(context, 400, "creation_operation_id_required",
             "Supply a stable operationId UUID in JSON or the Idempotency-Key header, and reuse it for retries.");
     }
@@ -55,7 +62,9 @@ internal static class CreationReceipts
     internal static async Task<IResult?> CheckGuardAsync(HttpContext context, ApplicationDbContext database, Guid actorId,
         string purpose, CreationGuard? guard, CancellationToken cancellationToken)
     {
-        if (guard is null) { return null; }
+        if (guard is null)
+            return null;
+
         var receipts = database.Set<CreationReceipt>().Where(row => row.ActorId == actorId && row.Purpose == purpose);
         var latest = await receipts.OrderByDescending(row => row.Sequence).Select(row => (Guid?)row.OperationId).FirstOrDefaultAsync(cancellationToken);
         return latest == guard.PreviousOperationId && !await receipts.AnyAsync(row => !row.Acknowledged, cancellationToken) ? null
@@ -79,8 +88,13 @@ internal static class CreationReceipts
         CurrentAccount original, CancellationToken cancellationToken)
     {
         var current = await access.ResolveCurrentAccountAsync(context, cancellationToken);
-        if (current is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
-        if (current.MustChangePassword) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired); }
+
+        if (current is null)
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired);
+
+        if (current.MustChangePassword)
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired);
+
         return current.Role == original.Role && current.OrganizationId == original.OrganizationId ? null
             : ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden);
     }
@@ -89,19 +103,30 @@ internal static class CreationReceipts
         ProjectAccessService access, CreationReceipt receipt, CancellationToken cancellationToken, bool requireSource = false)
     {
         var account = await access.ResolveCurrentAccountAsync(context, cancellationToken);
-        if (account is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
-        if (account.MustChangePassword) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired); }
+
+        if (account is null)
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired);
+
+        if (account.MustChangePassword)
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired);
+
         if (requireSource && receipt.Kind == "duplicate")
         {
-            if (receipt.SourceProjectId is not { } source) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound); }
+            if (receipt.SourceProjectId is not { } source)
+                return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound);
+
             var authorization = await access.LockAsync(context, source, ProjectLockPurpose.EditDraft, cancellationToken);
-            if (authorization.Failure is { } failure) { return ProjectHttpResults.FromAccessFailure(context, failure); }
+
+            if (authorization.Failure is { } failure)
+                return ProjectHttpResults.FromAccessFailure(context, failure);
         }
+
         if (receipt.Kind != "class")
         {
             return await access.VisibleProjects(account).AnyAsync(row => row.Id == receipt.ResourceId, cancellationToken)
                 ? null : ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound);
         }
+
         return await database.Classrooms.AnyAsync(row => row.Id == receipt.ResourceId
             && (account.Role == ApplicationRoles.Administrator || (row.OrganizationId == account.OrganizationId
                 && account.Role == ApplicationRoles.Educator && database.ClassroomMembers.Any(member => member.ClassroomId == row.Id
@@ -128,10 +153,15 @@ internal static class CreationReceipts
     internal static async Task<IResult> CompleteReplayAsync(HttpContext context, IDbContextTransaction transaction,
         CreationReceipt receipt, CancellationToken cancellationToken)
     {
-        if (Expired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        if (Expired(context))
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired);
+
         await transaction.CommitAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        if (Expired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+
+        if (Expired(context))
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired);
+
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers.Location = Location(receipt.Kind, receipt.ResourceId);
         return Results.Content(receipt.ResponseJson, "application/json", statusCode: 200);

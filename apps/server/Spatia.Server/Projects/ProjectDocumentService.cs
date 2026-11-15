@@ -1,10 +1,10 @@
 using System.Collections.Frozen;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Spatia.Server.Assets;
-using Spatia.Server.Persistence;
 using Spatia.ProjectFormat;
 using Format = Spatia.ProjectFormat.ProjectFormat;
+using Spatia.Server.Assets;
+using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Projects;
 
@@ -27,11 +27,16 @@ public sealed class ProjectDocumentService
             .Select(asset => new { asset.Id, asset.Kind, asset.Hidden, asset.Deleted, asset.RemovedFromProjects }).ToArray();
         var retained = approved?.ToDictionary(asset => asset.Id.ToString(), asset => asset.Kind, StringComparer.Ordinal)
             ?? new Dictionary<string, string>(StringComparer.Ordinal);
+
         if (approved is not null)
         {
-            foreach (var asset in approved.Where(asset => asset.Hidden || asset.Deleted)) { _retired.Add(asset.Id.ToString()); }
-            foreach (var asset in approved.Where(asset => asset.RemovedFromProjects)) { _removed.Add(asset.Id.ToString()); }
+            foreach (var asset in approved.Where(asset => asset.Hidden || asset.Deleted))
+                _retired.Add(asset.Id.ToString());
+
+            foreach (var asset in approved.Where(asset => asset.RemovedFromProjects))
+                _removed.Add(asset.Id.ToString());
         }
+
         // Retired approved identities remain valid for stored documents and serialization
         if (!environment.IsDevelopment())
         {
@@ -42,13 +47,14 @@ public sealed class ProjectDocumentService
         using var stream = typeof(ProjectDocumentService).Assembly.GetManifestResourceStream("Spatia.Assets.Manifest")!;
         using var manifest = JsonDocument.Parse(stream);
         var assets = new Dictionary<string, string>(StringComparer.Ordinal);
+
         if (manifest.RootElement.GetProperty("schemaVersion").GetInt32() != 1)
-        {
             throw new InvalidOperationException("Unsupported packaged asset catalogue.");
-        }
+
         foreach (var entry in manifest.RootElement.GetProperty("assets").EnumerateArray())
         {
             var id = entry.GetProperty("assetId").GetString()!;
+
             // Repeated rooms reuse the room bytes as model instances; keep their manifest identity saveable
             if (id is not ("test-room-v1" or "test-room-module-v1" or "test-crate-v1" or "sample-snowglobe-v1"
                 or "display-cube-v1" or "display-full-glass-case-v1" or "display-half-glass-case-v1"
@@ -80,6 +86,7 @@ public sealed class ProjectDocumentService
             {
                 continue;
             }
+
             var kind = entry.GetProperty("kind").GetString()!;
             var expectedKind = id is "audio-ethereal-calm-v1" or "audio-mystic-harp-v1" or "audio-calm-piano-v1" or "audio-mysterious-piano-v1" or "audio-reflective-piano-v1" or "audio-classical-piano-v1" or "audio-octave-piano-loop-v1" or "audio-museum-hall-v1" or "audio-museum-hall-conversation-v1" or "audio-washroom-room-tone-v1" or "audio-wooden-cabin-at-night-v1" or "audio-outdoor-restaurant-v1" or "audio-quiet-crowd-v1" ? "audio"
                 : id is "sample-landscape-image-v1" or "sample-coast-image-v1" or "sample-dunes-image-v1" or "sample-forest-image-v1" or "sample-sunset-image-v1" or "sample-valley-image-v1" ? "image"
@@ -87,17 +94,20 @@ public sealed class ProjectDocumentService
                 : id is "test-room-v1" or "room-space1-v1" or "room-doors-1-v1" or "room-doors-2-v1" or "room-doors-3-v1" or "room-doors-4-v1"
                     or "room-doors-1-2-v1" or "room-doors-1-3-v1" or "room-doors-1-4-v1" or "room-doors-2-3-v1" or "room-doors-2-4-v1" or "room-doors-3-4-v1"
                     or "room-doors-1-2-3-v1" or "room-doors-1-2-4-v1" or "room-doors-1-3-4-v1" or "room-doors-2-3-4-v1" or "room-doors-1-2-3-4-v1" ? "environment" : "model";
+
             if (entry.GetProperty("access").GetString() != "development-only"
                 || kind != expectedKind || !assets.TryAdd(id, kind))
             {
                 throw new InvalidOperationException("Invalid packaged development asset catalogue.");
             }
         }
+
         if (assets.Count != 70)
-        {
             throw new InvalidOperationException("The packaged development asset catalogue is incomplete.");
-        }
-        foreach (var asset in retained) { assets.Add(asset.Key, asset.Value); }
+
+        foreach (var asset in retained)
+            assets.Add(asset.Key, asset.Value);
+
         _assets = assets.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
@@ -107,7 +117,10 @@ public sealed class ProjectDocumentService
     public FormatResult<IAuthoredProject> Read(Guid projectId, string json, string? existingJson = null)
     {
         var parsed = Bind(projectId, Format.Deserialize(json, _assets));
-        if (!parsed.Ok) { return parsed; }
+
+        if (!parsed.Ok)
+            return parsed;
+
         // Permit a retired version only when the confirmed saved document already references it
         var existing = existingJson is null ? new HashSet<string>() : AssetDocumentReferences.Read(existingJson);
         return AssetDocumentReferences.Read(json).Any(id => _removed.Contains(id) || (_retired.Contains(id) && !existing.Contains(id)))
@@ -157,11 +170,16 @@ public sealed class ProjectDocumentService
         CancellationToken cancellationToken)
     {
         var ids = new List<Guid>();
+
         foreach (var reference in AssetDocumentReferences.Read(json))
         {
-            if (Guid.TryParseExact(reference, "D", out var id)) { ids.Add(id); }
+            if (Guid.TryParseExact(reference, "D", out var id))
+                ids.Add(id);
         }
-        if (ids.Count == 0) { return true; }
+
+        if (ids.Count == 0)
+            return true;
+
         var keys = ids.ToArray();
         // Match the global removal's project-before-asset order. A new project has no row to lock yet.
         await database.Database.ExecuteSqlRawAsync("LOCK TABLE projects IN ROW EXCLUSIVE MODE", cancellationToken);

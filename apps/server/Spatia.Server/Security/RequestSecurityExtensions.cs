@@ -161,9 +161,7 @@ public static class RequestSecurityExtensions
     private static bool IsForcedSessionRoute(HttpContext? context)
     {
         if (context is null)
-        {
             return false;
-        }
 
         context.Request.Path.StartsWithSegments(ApiV1Endpoints.Prefix, out var remaining);
         var path = remaining.Value?.TrimEnd('/');

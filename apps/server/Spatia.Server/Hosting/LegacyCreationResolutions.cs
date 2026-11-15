@@ -14,6 +14,7 @@ internal static class LegacyCreationResolutions
     {
         operationId = Guid.Empty;
         resolution = null;
+
         if (!HttpMethods.IsPut(context.Request.Method))
         {
             if (supplied is null && guard is null && !context.Request.Headers.ContainsKey("Idempotency-Key"))
@@ -21,19 +22,39 @@ internal static class LegacyCreationResolutions
                 resolution = new(false, null, null);
                 return null;
             }
+
             return CreationReceipts.BindOperationId(context, supplied, out operationId);
         }
+
         var query = context.Request.Query;
+
         if (supplied is not null || guard is not null || context.Request.Headers.ContainsKey("Idempotency-Key")
             || query.Count != 1 || query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("useExisting" or "createAfter")))
-        { return Invalid(context); }
+        {
+            return Invalid(context);
+        }
+
         if (query.TryGetValue("useExisting", out var existing) && ParseId(existing[0], out var existingId))
-        { resolution = new(true, existingId, null); return null; }
+        {
+            resolution = new(true, existingId, null);
+            return null;
+        }
+
         if (query.TryGetValue("createAfter", out var previous))
         {
-            if (previous[0] == "initial") { resolution = new(true, null, null); return null; }
-            if (ParseId(previous[0], out var previousId)) { resolution = new(true, null, previousId); return null; }
+            if (previous[0] == "initial")
+            {
+                resolution = new(true, null, null);
+                return null;
+            }
+
+            if (ParseId(previous[0], out var previousId))
+            {
+                resolution = new(true, null, previousId);
+                return null;
+            }
         }
+
         return Invalid(context);
     }
 
@@ -50,22 +71,45 @@ internal static class LegacyCreationResolutions
             orgId = request.OrgId,
             environmentAssetId = request.EnvironmentAssetId,
             document = request.Document,
-            image = request.Image is { } image ? new { type = image.Type, contentType = image.ContentType, data = image.Data } : null,
+            image = request.Image is { } image ? new
+            {
+                type = image.Type,
+                contentType = image.ContentType,
+                data = image.Data
+            } : null,
         });
 
     internal static byte[] DuplicateDigest(Guid sourceProjectId, DuplicateProjectRequest request) => Digest("duplicate", "duplicate", sourceProjectId,
-        new { expectedRevision = request.ExpectedRevision, title = request.Title });
+        new
+        {
+            expectedRevision = request.ExpectedRevision,
+            title = request.Title
+        });
 
     internal static byte[] ClassDigest(string? name, Guid? orgId, Guid[]? managers) => Digest("class", "class", null,
-        new { name, orgId, managedByUserIds = managers });
+        new
+        {
+            name,
+            orgId,
+            managedByUserIds = managers
+        });
 
     private static byte[] Digest<T>(string kind, string purpose, Guid? sourceProjectId, T body) =>
-        CreationReceipts.Digest(new { domain = "spatia.legacy-creation.v1", kind, purpose, sourceProjectId, body });
+        CreationReceipts.Digest(new
+        {
+            domain = "spatia.legacy-creation.v1",
+            kind,
+            purpose,
+            sourceProjectId,
+            body
+        });
 
     internal static async Task<(LegacyCreationBinding? Binding, IResult? Failure)> LookupAsync(HttpContext context,
         ApplicationDbContext database, Guid actorId, byte[]? digest, LegacyCreationResolution? resolution, CancellationToken cancellationToken)
     {
-        if (digest is null) { return (null, null); }
+        if (digest is null)
+            return (null, null);
+
         var binding = await database.Set<LegacyCreationBinding>().AsNoTracking()
             .SingleOrDefaultAsync(row => row.ActorId == actorId && row.IntentDigest == digest, cancellationToken);
         return (binding, binding is null && !resolution!.IsDecision ? Required(context) : null);
@@ -114,9 +158,16 @@ internal static class LegacyCreationResolutions
             return binding.Kind == "class" ? ApiProblems.Create(context, 404, "class_not_found", "The class is unavailable.")
                 : ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.NotFound);
         }
-        if (await CreationReceipts.AccessFailureAsync(context, database, access, receipt, cancellationToken) is { } failure) { return failure; }
-        if (!resolution.Matches(binding)) { return Conflict(context); }
-        if (await CreationReceipts.RevalidateAsync(context, access, account, cancellationToken) is { } changed) { return changed; }
+
+        if (await CreationReceipts.AccessFailureAsync(context, database, access, receipt, cancellationToken) is { } failure)
+            return failure;
+
+        if (!resolution.Matches(binding))
+            return Conflict(context);
+
+        if (await CreationReceipts.RevalidateAsync(context, access, account, cancellationToken) is { } changed)
+            return changed;
+
         return await CompleteAsync(context, transaction, Results.Content(receipt.ResponseJson, "application/json", statusCode: 200),
             "created", CreationReceipts.Location(binding.Kind, binding.ResourceId), false, cancellationToken);
     }
@@ -124,14 +175,18 @@ internal static class LegacyCreationResolutions
     internal static async Task<IResult> CompleteAsync(HttpContext context, IDbContextTransaction transaction, IResult result,
         string resolution, string location, bool written, CancellationToken cancellationToken)
     {
-        if (Expired(context)) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
+        if (Expired(context))
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired);
+
         await transaction.CommitAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
+
         if (Expired(context))
         {
             return written ? CommittedWrite.WithoutRepresentation(context)
                 : ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired);
         }
+
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers.Location = location;
         context.Response.Headers["X-Spatia-Creation-Resolution"] = resolution;

@@ -12,16 +12,25 @@ public static partial class AccountDirectoryEndpoints
 {
     private sealed class DeleteOrganizationRequest
     {
-        public required string ConfirmationName { get; init; }
+        public required string ConfirmationName
+        {
+            get; init;
+        }
     }
 
     private static async Task<IResult> GetOrganizationDeletionAsync(Guid id, HttpContext context,
         ApplicationDbContext database, CurrentAccountResolver accounts, CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
-        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure)
+            return failure;
+
         var organization = await database.Organizations.AsNoTracking().SingleOrDefaultAsync(row => row.Id == id, cancellationToken);
-        if (organization is null) { return OrganizationNotFound(context); }
+
+        if (organization is null)
+            return OrganizationNotFound(context);
+
         var projects = database.Projects.Where(row => row.OrganizationId == id).Select(row => row.Id);
         var submissions = database.ReviewSubmissions.Where(row => projects.Contains(row.ProjectId)).Select(row => row.Id);
         var summary = new
@@ -46,19 +55,27 @@ public static partial class AccountDirectoryEndpoints
         {
             return ApiProblems.Create(context, 400, "organization_confirmation_required", "Enter the organisation name to confirm deletion.");
         }
+
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+
         try
         {
             // Match provisioning/role-change lock order, then block new children of this organisation.
             await database.Database.ExecuteSqlRawAsync("LOCK TABLE \"AspNetUserRoles\" IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
             var organization = await database.Organizations.FromSqlInterpolated(
                 $"SELECT * FROM organizations WHERE id = {id} FOR UPDATE").SingleOrDefaultAsync(cancellationToken);
-            if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
-            if (organization is null) { return OrganizationNotFound(context); }
+
+            if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure)
+                return failure;
+
+            if (organization is null)
+                return OrganizationNotFound(context);
+
             if (!string.Equals(request.ConfirmationName, organization.Name, StringComparison.Ordinal))
             {
                 return ApiProblems.Create(context, 400, "organization_confirmation_required", "The confirmation must match the organisation name exactly.");
             }
+
             var memberIds = await database.OrganizationMemberships.Where(row => row.OrganizationId == id)
                 .Select(row => row.UserId).ToArrayAsync(cancellationToken);
             // Project writers also lock these rows. Never delete a snapshot while its writer is active.
@@ -106,7 +123,10 @@ public static partial class AccountDirectoryEndpoints
             // Identity's child rows cascade; platform administrators do not belong to organisations.
             await database.Users.Where(row => memberIds.Contains(row.Id)).ExecuteDeleteAsync(cancellationToken);
             await database.Organizations.Where(row => row.Id == id).ExecuteDeleteAsync(cancellationToken);
-            if (await AuthorizeAsync(context, accounts, cancellationToken) is { } revoked) { return revoked; }
+
+            if (await AuthorizeAsync(context, accounts, cancellationToken) is { } revoked)
+                return revoked;
+
             return await CompleteAsync(context, transaction, Results.NoContent(), cancellationToken);
         }
         catch (PostgresException exception) when (exception.SqlState is PostgresErrorCodes.ForeignKeyViolation or PostgresErrorCodes.RestrictViolation

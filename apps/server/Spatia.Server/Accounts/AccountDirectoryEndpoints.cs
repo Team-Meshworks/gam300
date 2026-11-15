@@ -43,20 +43,22 @@ public static partial class AccountDirectoryEndpoints
         ApplicationDbContext database, CurrentAccountResolver accounts, CancellationToken cancellationToken)
     {
         if (request.Name is not { Length: > 0 and <= 256 } || string.IsNullOrWhiteSpace(request.Name) || request.Name.Contains('\0'))
-        {
             return ApiProblems.Create(context, 400, "invalid_account_input", "Check the supplied organization name.");
-        }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         // There may already be duplicate names. Serialize discovery with inserts and lifecycle changes without rewriting old IDs.
         await database.Database.ExecuteSqlRawAsync("LOCK TABLE organizations IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
-        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure)
+            return failure;
+
         var matches = await database.Organizations.FromSqlInterpolated($"""
             SELECT * FROM organizations
             WHERE lower(regexp_replace(name, '^[[:space:]]+|[[:space:]]+$', '', 'g'))
                 = lower(regexp_replace({request.Name}, '^[[:space:]]+|[[:space:]]+$', '', 'g'))
             LIMIT 2
             """).AsNoTracking().ToArrayAsync(cancellationToken);
+
         if (matches.Length > 1 || matches is [{ IsActive: false }])
         {
             return ApiProblems.Create(context, 409, "organization_name_in_use", "Check the organization directory before using this name.");
@@ -64,6 +66,7 @@ public static partial class AccountDirectoryEndpoints
 
         var organization = matches.SingleOrDefault();
         var status = StatusCodes.Status200OK;
+
         if (organization is null)
         {
             organization = new Organization { Name = request.Name };
@@ -71,6 +74,7 @@ public static partial class AccountDirectoryEndpoints
             await database.SaveChangesAsync(cancellationToken);
             status = StatusCodes.Status201Created;
         }
+
         var result = new OrganizationResponse(organization.Id, organization.Name, organization.IsActive);
         return await CompleteAsync(context, transaction, status == StatusCodes.Status201Created
             ? Results.Created($"{ApiV1Endpoints.Prefix}/admin/organizations/{organization.Id:D}", result)
@@ -84,16 +88,19 @@ public static partial class AccountDirectoryEndpoints
         var organization = await database.Organizations
             .FromSqlInterpolated($"SELECT * FROM organizations WHERE id = {id} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
-        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure)
+            return failure;
+
         if (organization is null)
-        {
             return ApiProblems.Create(context, 404, "organization_not_found", "The organization was not found.");
-        }
+
         if (organization.IsActive != request.IsActive)
         {
             organization.IsActive = request.IsActive;
             await database.SaveChangesAsync(cancellationToken);
         }
+
         return await CompleteAsync(context, transaction, Results.NoContent(), cancellationToken);
     }
 
@@ -104,12 +111,21 @@ public static partial class AccountDirectoryEndpoints
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         // Share bootstrap's lock so the last-administrator check also serializes with provisioning
         await database.Database.ExecuteSqlRawAsync("LOCK TABLE \"AspNetUserRoles\" IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
-        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure)
+            return failure;
+
         var user = await users.FindByIdAsync(id.ToString("D"));
-        if (user is null) { return ApiProblems.Create(context, 404, "account_not_found", "The account was not found."); }
+
+        if (user is null)
+            return ApiProblems.Create(context, 404, "account_not_found", "The account was not found.");
+
         // Cookie renewal may already have tracked this user before waiting for the lifecycle lock
         await database.Entry(user).ReloadAsync(cancellationToken);
-        if (user.IsDeleted) { return ApiProblems.Create(context, 404, "account_not_found", "The account was not found."); }
+
+        if (user.IsDeleted)
+            return ApiProblems.Create(context, 404, "account_not_found", "The account was not found.");
+
         if (user.IsActive != request.IsActive)
         {
             if (!request.IsActive)
@@ -118,14 +134,15 @@ public static partial class AccountDirectoryEndpoints
                     && database.UserRoles.Any(role => role.UserId == row.Id && role.RoleId == ApplicationRoles.AdministratorId)
                     && !database.OrganizationMemberships.Any(member => member.UserId == row.Id))
                     .Select(row => row.Id).Take(2).ToListAsync(cancellationToken);
+
                 if (administrators.Count == 1 && administrators[0] == id)
-                {
                     return ApiProblems.Create(context, 409, "last_administrator", "Keep at least one active administrator.");
-                }
             }
+
             user.IsActive = request.IsActive;
             cancellationToken.ThrowIfCancellationRequested();
             var result = request.IsActive ? await users.UpdateAsync(user) : await users.UpdateSecurityStampAsync(user);
+
             if (!result.Succeeded)
             {
                 return result.Errors.Any(error => error.Code == "ConcurrencyFailure")
@@ -133,6 +150,7 @@ public static partial class AccountDirectoryEndpoints
                     : ApiProblems.Create(context, 400, "invalid_account_input", "The account state could not be changed.");
             }
         }
+
         return await CompleteAsync(context, transaction, Results.NoContent(), cancellationToken);
     }
 
@@ -140,42 +158,71 @@ public static partial class AccountDirectoryEndpoints
         CurrentAccountResolver accounts, CancellationToken cancellationToken)
     {
         var page = ReadQuery(context.Request.Query, users: true);
-        if (page is null) { return InvalidQuery(context); }
+
+        if (page is null)
+            return InvalidQuery(context);
+
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
-        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure)
+            return failure;
+
         var query = database.Users.AsNoTracking().Where(row => !row.IsDeleted);
-        if (page.Cursor is { } cursor) { query = query.Where(row => row.Id.CompareTo(cursor) > 0); }
-        if (page.IsActive is { } active) { query = query.Where(row => row.IsActive == active); }
+
+        if (page.Cursor is { } cursor)
+            query = query.Where(row => row.Id.CompareTo(cursor) > 0);
+
+        if (page.IsActive is { } active)
+            query = query.Where(row => row.IsActive == active);
+
         if (page.OrgId is { } orgId)
         {
             query = query.Where(row => database.OrganizationMemberships.Any(member => member.UserId == row.Id && member.OrganizationId == orgId));
         }
+
         if (page.Role is { } role)
         {
             query = query.Where(row => database.UserRoles.Any(assignment => assignment.UserId == row.Id
                 && database.Roles.Any(assignedRole => assignedRole.Id == assignment.RoleId && assignedRole.Name == role)));
         }
+
         if (page.SearchPattern is { } pattern)
         {
             query = query.Where(row => EF.Functions.ILike(row.UserName!, pattern, "\\")
                 || EF.Functions.ILike(row.DisplayName ?? row.UserName!, pattern, "\\"));
         }
+
         var rows = await Users(database, query.OrderBy(row => row.Id).Take(page.Limit + 1)).ToListAsync(cancellationToken);
         var nextCursor = rows.Count > page.Limit ? rows[page.Limit - 1].UserId : (Guid?)null;
         return await CompleteAsync(context, transaction,
-            Results.Ok(new { items = rows.Take(page.Limit).ToArray(), nextCursor }), cancellationToken);
+            Results.Ok(new
+            {
+                items = rows.Take(page.Limit).ToArray(),
+                nextCursor
+            }), cancellationToken);
     }
 
     private static async Task<IResult> ListOrganizationsAsync(HttpContext context, ApplicationDbContext database,
         CurrentAccountResolver accounts, CancellationToken cancellationToken)
     {
         var page = ReadQuery(context.Request.Query, users: false);
-        if (page is null) { return InvalidQuery(context); }
+
+        if (page is null)
+            return InvalidQuery(context);
+
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
-        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure)
+            return failure;
+
         var query = database.Organizations.AsNoTracking();
-        if (page.Cursor is { } cursor) { query = query.Where(row => row.Id.CompareTo(cursor) > 0); }
-        if (page.IsActive is { } active) { query = query.Where(row => row.IsActive == active); }
+
+        if (page.Cursor is { } cursor)
+            query = query.Where(row => row.Id.CompareTo(cursor) > 0);
+
+        if (page.IsActive is { } active)
+            query = query.Where(row => row.IsActive == active);
+
         if (page.SearchPattern is { } pattern)
         {
             // A member's account name or display name can lead back to the owning organisation
@@ -205,14 +252,21 @@ public static partial class AccountDirectoryEndpoints
             }).ToListAsync(cancellationToken);
         var nextCursor = rows.Count > page.Limit ? rows[page.Limit - 1].Id : (Guid?)null;
         return await CompleteAsync(context, transaction,
-            Results.Ok(new { items = rows.Take(page.Limit).ToArray(), nextCursor }), cancellationToken);
+            Results.Ok(new
+            {
+                items = rows.Take(page.Limit).ToArray(),
+                nextCursor
+            }), cancellationToken);
     }
 
     private static async Task<IResult> GetUserAsync(Guid id, HttpContext context, ApplicationDbContext database,
         CurrentAccountResolver accounts, CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
-        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure)
+            return failure;
+
         var row = await Users(database, database.Users.AsNoTracking().Where(user => user.Id == id && !user.IsDeleted)).SingleOrDefaultAsync(cancellationToken);
         return await CompleteAsync(context, transaction, row is null
             ? ApiProblems.Create(context, 404, "account_not_found", "The account was not found.") : Results.Ok(row), cancellationToken);
@@ -222,7 +276,10 @@ public static partial class AccountDirectoryEndpoints
         CurrentAccountResolver accounts, CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
-        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure)
+            return failure;
+
         var row = await database.Organizations.AsNoTracking().Where(organization => organization.Id == id)
             .Select(organization => new OrganizationResponse(organization.Id, organization.Name, organization.IsActive))
             .SingleOrDefaultAsync(cancellationToken);
@@ -245,6 +302,7 @@ public static partial class AccountDirectoryEndpoints
         var limit = 20;
         Guid? cursor = null;
         Guid? orgId = null;
+
         if (query.Any(pair => pair.Value.Count != 1 || (pair.Key is not ("limit" or "cursor" or "q" or "isActive")
                 && (!users || pair.Key is not ("role" or "orgId"))))
             || (query.TryGetValue("limit", out var rawLimit)
@@ -253,20 +311,33 @@ public static partial class AccountDirectoryEndpoints
         {
             return null;
         }
+
         if (query.TryGetValue("cursor", out var rawCursor))
         {
-            if (rawCursor[0]?.Length != 36 || !Guid.TryParseExact(rawCursor[0], "D", out var id) || id == Guid.Empty) { return null; }
+            if (rawCursor[0]?.Length != 36 || !Guid.TryParseExact(rawCursor[0], "D", out var id) || id == Guid.Empty)
+                return null;
+
             cursor = id;
         }
+
         if (query.TryGetValue("orgId", out var rawOrg))
         {
-            if (rawOrg[0]?.Length != 36 || !Guid.TryParseExact(rawOrg[0], "D", out var id) || id == Guid.Empty) { return null; }
+            if (rawOrg[0]?.Length != 36 || !Guid.TryParseExact(rawOrg[0], "D", out var id) || id == Guid.Empty)
+                return null;
+
             orgId = id;
         }
+
         var role = query.TryGetValue("role", out var rawRole) ? rawRole[0] : null;
-        if (role is not (null or ApplicationRoles.Administrator or ApplicationRoles.Educator or ApplicationRoles.Creator)) { return null; }
+
+        if (role is not (null or ApplicationRoles.Administrator or ApplicationRoles.Educator or ApplicationRoles.Creator))
+            return null;
+
         var search = query.TryGetValue("q", out var rawSearch) ? rawSearch[0] : null;
-        if (search is { Length: > 256 } || search?.Contains('\0') == true) { return null; }
+
+        if (search is { Length: > 256 } || search?.Contains('\0') == true)
+            return null;
+
         var pattern = search is null ? null : "%" + search.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal) + "%";
         return new DirectoryQuery(limit, cursor, pattern, query.ContainsKey("isActive") ? query["isActive"] == "true" : null, role, orgId);
@@ -275,10 +346,15 @@ public static partial class AccountDirectoryEndpoints
     internal static async Task<IResult?> AuthorizeAsync(HttpContext context, CurrentAccountResolver accounts,
         CancellationToken cancellationToken)
     {
-        if (HasExpired(context) || context.User.Identity?.IsAuthenticated != true) { return AuthenticationRequired(context); }
+        if (HasExpired(context) || context.User.Identity?.IsAuthenticated != true)
+            return AuthenticationRequired(context);
+
         var session = context.Features.Get<ValidatedAccountSession>()!;
         var account = await accounts.ResolveAsync(session.UserId, session.SecurityStamp, cancellationToken);
-        if (account is null || HasExpired(context)) { return AuthenticationRequired(context); }
+
+        if (account is null || HasExpired(context))
+            return AuthenticationRequired(context);
+
         return account is { Role: ApplicationRoles.Administrator, MustChangePassword: false } ? null
             : ApiProblems.Create(context, 403, "forbidden", "Administrator access is required.");
     }
@@ -286,13 +362,17 @@ public static partial class AccountDirectoryEndpoints
     internal static async Task<IResult> CompleteAsync(HttpContext context, IDbContextTransaction transaction, IResult result,
         CancellationToken cancellationToken, bool readOnly = false)
     {
-        if (HasExpired(context)) { return AuthenticationRequired(context); }
+        if (HasExpired(context))
+            return AuthenticationRequired(context);
+
         await transaction.CommitAsync(cancellationToken);
+
         if (HasExpired(context))
         {
             return readOnly || HttpMethods.IsGet(context.Request.Method)
                 ? AuthenticationRequired(context) : CommittedWrite.WithoutRepresentation(context);
         }
+
         return result;
     }
 

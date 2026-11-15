@@ -36,7 +36,6 @@ internal sealed record PublicationReadPolicy(
         var sameOrganization = account is not null && account.OrganizationId == organizationId
             && organizationId != Guid.Empty;
         var fullAccount = account is { MustChangePassword: false } && account.UserId != Guid.Empty;
-
         // Managers must currently manage this project; a directory role alone is insufficient
         var manager = fullAccount && canManage &&
             (account!.Role == ApplicationRoles.Administrator && account.OrganizationId is null
@@ -48,7 +47,6 @@ internal sealed record PublicationReadPolicy(
 
         // A named viewer may be outside the project roster but must belong to its organization
         var named = fullAccount && sameOrganization && namedViewer;
-
 
         // Any active restriction blocks visitor access, even for a manager or named viewer
         return new(audience, archived || hidden || revoked || deleted, manager || publisher || named);

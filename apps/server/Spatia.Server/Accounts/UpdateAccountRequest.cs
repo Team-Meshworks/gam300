@@ -4,11 +4,23 @@ namespace Spatia.Server.Accounts;
 public sealed class UpdateAccountRequest
 {
     /// <summary>Gets the replacement person's name.</summary>
-    public string? DisplayName { get; init; }
+    public string? DisplayName
+    {
+        get; init;
+    }
     /// <summary>Gets the replacement sign-in username.</summary>
-    public string? UserName { get; init; }
+    public string? UserName
+    {
+        get; init;
+    }
     /// <summary>Gets the replacement Creator or Educator role.</summary>
-    public string? Role { get; init; }
+    public string? Role
+    {
+        get; init;
+    }
     /// <summary>Gets a replacement temporary password, never returned by the server.</summary>
-    public string? NewTemporaryPassword { get; init; }
+    public string? NewTemporaryPassword
+    {
+        get; init;
+    }
 }
