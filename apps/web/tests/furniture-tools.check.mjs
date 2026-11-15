@@ -20,13 +20,19 @@ try {
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
   const library = page.locator(".asset-picker");
-  async function checkFilterCenter() {
-    const bar = await library.locator(".asset-search").boundingBox();
-    const filter = await library.getByRole("combobox").boundingBox();
-    assert.ok(Math.abs(bar.x + bar.width / 2 - filter.x - filter.width / 2) < 1);
-    assert.ok(Math.abs(bar.y + bar.height / 2 - filter.y - filter.height / 2) < 1);
+  async function checkFilterPosition() {
+    const { right, vertical } = await library.locator(".asset-search").evaluate((search) => {
+      const bar = search.getBoundingClientRect();
+      const filter = search.querySelector('[role="combobox"]').getBoundingClientRect();
+      return {
+        right: bar.right - filter.right - parseFloat(getComputedStyle(search).paddingRight),
+        vertical: bar.y + bar.height / 2 - filter.y - filter.height / 2,
+      };
+    });
+    assert.ok(Math.abs(right) < 1, `Right edge offset: ${right}px`);
+    assert.ok(Math.abs(vertical) < 1, `Vertical center offset: ${vertical}px`);
   }
-  await checkFilterCenter();
+  await checkFilterPosition();
   for (const name of ["Modern bench 1", "Modern bench 2"])
     assert.equal(await library.getByRole("button", { name, exact: true }).count(), 0);
   await library.getByRole("button", { name: "Close asset library", exact: true }).click();
@@ -47,7 +53,7 @@ try {
     if (index === 0) {
       const filter = library.getByRole("combobox", { name: "Filter furniture" });
       assert.equal(await filter.textContent(), "All furniture");
-      await checkFilterCenter();
+      await checkFilterPosition();
       await library.getByRole("searchbox", { name: "Search furniture" }).fill("bench 2");
       assert.equal(await option.count(), 0);
       await library.getByRole("button", { name: "Reset furniture filters" }).click();
