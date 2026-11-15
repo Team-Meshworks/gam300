@@ -782,8 +782,7 @@
       "byteSize": 9184792,
       "sha256": "2f198863038c4aa0a60ebd5bf3bb091f13f77ad99ec9ee5fbdaaacb4c4fce1ea",
       "category": "Furniture",
-      "thumbnail": null,
-      "thumbnailMode": "generated",
+      "thumbnail": "delivery/thumbnails/modern-bench-1.png",
       "placement": "bottom-center",
       "access": "development-only",
       "license": {
@@ -819,8 +818,7 @@
       "byteSize": 6621360,
       "sha256": "66b2c7a9480686520888770f9d8f6076eee29d5375f0e10d676a953316ff7240",
       "category": "Furniture",
-      "thumbnail": null,
-      "thumbnailMode": "generated",
+      "thumbnail": "delivery/thumbnails/modern-bench-2.png",
       "placement": "bottom-center",
       "access": "development-only",
       "license": {

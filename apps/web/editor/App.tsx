@@ -39,6 +39,7 @@ import { createInteractionHandler, type Interaction } from "./interaction/intera
 import { DisplayEditor } from "./ui/DisplayEditor";
 import { Button } from "../shared/ui/Button";
 import { BottomBar } from "./ui/BottomBar";
+import { belongsInAssetPicker, type AssetPickerMode } from "./ui/asset-selection";
 import { ContentEditor, type ContentKind, type ExhibitFields } from "./ui/ContentEditor";
 import { PreviewTargets } from "./ui/PreviewTargets";
 import { SettingsPanel } from "./ui/SettingsPanel";
@@ -153,24 +154,22 @@ export function App({
       ? { objectId: pendingText.objectId, component }
       : undefined;
   }, [pendingText]);
-  const [previewPicker, setPreviewPicker] = useState<"rooms" | "assets" | null>(null);
+  const [previewPicker, setPreviewPicker] = useState<AssetPickerMode | null>(null);
   const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
   const onThumbnail = useCallback((id: string, url: string) => {
     setGeneratedThumbnails((previous) => ({ ...previous, [id]: url }));
   }, []);
   useEffect(() => {
     if (!previewPicker) return;
+    const missing = editorAssets.filter(
+      (asset) => !asset.thumbnail && belongsInAssetPicker(asset, previewPicker, editorAssets),
+    );
+    if (!missing.length) return;
     let disposed = false;
     let cleanup: (() => void) | undefined;
     void import("./graphics/library-previews")
       .then(({ generateLibraryPreviews }) => {
-        if (!disposed)
-          cleanup = generateLibraryPreviews(
-            editorAssets.filter((asset) =>
-              previewPicker === "rooms" ? asset.kind === "environment" : asset.kind === "model",
-            ),
-            onThumbnail,
-          );
+        if (!disposed) cleanup = generateLibraryPreviews(missing, onThumbnail);
       })
       .catch(() => {
         // Catalogue thumbnails remain available when generated previews cannot load.

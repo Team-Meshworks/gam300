@@ -19,10 +19,10 @@ it("keeps every room companion out of the general asset library", () => {
   const namedRoom = asset("room-doors-1-module-v1", "model", "b".repeat(64));
   const vase = asset("vase", "model", "c".repeat(64));
   const catalogue = [environment, companion, namedRoom, vase];
-  expect(catalogue.filter((entry) => belongsInAssetPicker(entry, true, catalogue))).toEqual([
+  expect(catalogue.filter((entry) => belongsInAssetPicker(entry, "rooms", catalogue))).toEqual([
     environment,
   ]);
-  expect(catalogue.filter((entry) => belongsInAssetPicker(entry, false, catalogue))).toEqual([
+  expect(catalogue.filter((entry) => belongsInAssetPicker(entry, "assets", catalogue))).toEqual([
     vase,
   ]);
 });
