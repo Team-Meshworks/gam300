@@ -3,7 +3,6 @@ import { deserializeProject } from "../../shared/project/project-deserialization
 import { MAX_PROJECT_BYTES } from "../../shared/project/project-limits";
 import { invalid, isRecord, type ValidationResult } from "../../shared/project/validation-helpers";
 import type { ProjectDocument } from "../../shared/project/project-types";
-export { readServerAssets } from "./server-assets";
 
 export type OpenedServerProject = Readonly<{
   accountId: string;

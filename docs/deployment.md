@@ -280,12 +280,60 @@ PostgreSQL only and takes a fresh private backup of the actual retained database
 `backups/` before candidate startup. Every attempt, including a retry, takes a new
 backup. Database volumes are preserved after failures.
 
+**Development cutover.** The same manual **Deploy** button handles the create pause.
+After pulling all three images, the runner pauses project creation, duplication and
+class creation on both development HTTPS addresses. These routes return 503 with
+`Retry-After: 120`. Authenticated legacy-resolution PUTs are also paused. The
+runner backs up the outer Caddyfile before installing the development imports on an
+existing VM. The pause marker lives in the outer gateway's persistent configuration
+volume, so the block also applies while the application gateway is stopped.
+
+The runner drains the application gateway before stopping the API. It keeps a private
+`before-<commit>-clean.*.dump` before installing the insert guards on `projects`
+and `classrooms`. Every attempt then takes a `before-<commit>-guarded.*.dump`
+under those guards and reads the archive with `pg_restore`. A retry keeps the
+guards from the failed attempt in place. The guarded dump contains the triggers.
+Use these labels and the recovery procedure below when selecting a backup.
+
+The API starts after migrations, grants and insert-guard installation complete.
+Once the public and internal checks pass, Deploy verifies zero-row inserts as
+the API role, removes the gateway pause and checks the create routes. The canonical
+domain must return the Spatia session challenge to an anonymous create. An IP
+alias excluded by the API host allowlist may return 400 after the pause is lifted.
+If a health check fails, leave the pause in place and retry **Deploy** with the
+successful CI run for the current `dev` head.
+
+For a signed-in development smoke check, configure both `DEPLOY_SMOKE_USERNAME`
+and `DEPLOY_SMOKE_PASSWORD` as secrets in the GitHub `development` environment
+for a dedicated low-privilege creator account. Deploy signs in, reads the current
+session and verifies access to the project list before reopening. A partial pair
+fails preflight. With both absent, Deploy records the signed-in check as skipped.
+
 A failed backup, startup or health check leaves the API and application gateway stopped;
 the deployment does not restart an older API against the retained database. A subsequent
 successful CI release for the current branch head can be deployed normally. A successful
 rollout removes an obsolete `server-recovery-required` marker; existing recovery records
 and backups are retained. Editor-only releases retain their runtime rollback. An interrupted
 process may leave candidate services running; inspect their state before recovery.
+
+Deploy the receipt and generation migrations with the API before serving clients that use
+server-backed creation recovery. The deployment checks the anonymous creation-operation
+route and a bodyless legacy-resolution PUT through both the public and inner gateways. Both
+must return 401 with the `SpatiaSession` challenge, distinguishing the application response
+from an outer Basic challenge. The checks use no application credentials and make no writes.
+After migrations and grants, the database setup selects receipt fields and all nine
+`public.legacy_creation_bindings` columns with `LIMIT 0` as the API role. Missing columns or
+insufficient read permission stop startup. Apply `20261114170716_AddLegacyCreationBindings`
+with the receipt and generation migrations. The legacy-binding migration does not backfill
+historical creates. Downgrades are blocked when the respective history exists.
+
+Stop and drain old hosts and unkeyed writers during rollout, before enabling the release or
+header-only keys. Old hosts could ignore the header or accept an unkeyed request without a
+resolution. After the upgraded fleet is serving, unchanged integrations may resume and use
+the explicit resolution flow. Clients can prepare body keys where supported. A new key cannot
+identify an earlier unkeyed commit. Older server binaries cannot safely replace the upgraded
+server after the migrations. Review backup and forward recovery before rollout, and follow the
+[creation recovery contract](api-recovery.md#project-and-class-creation) for pre-upgrade work.
 
 Do not blindly restore a backup: migrations are not reversed and restoring a backup can
 discard later writes. Database restoration requires a reviewed procedure during downtime.
@@ -316,7 +364,9 @@ only public UI files and cannot serve the catalogue; use `compose.server.yaml` f
 asset access. Vite's local development/preview server is not the deployment access boundary.
 Run `node apps/web/tests/restricted-catalogue.check.mjs` to check both build modes, and after
 an editor build run `CADDY_BINARY=/path/to/caddy node deploy/restricted-assets.check.mjs` to
-verify direct byte denial and authenticated delivery with the pinned Caddy version.
+verify direct byte denial, authenticated delivery, both organization deletion methods and a
+legacy-resolution PUT through the pinned Caddy gateways. The browser uses POST for deletion;
+versioned DELETE remains compatible.
 CI also checks the real image's separate roots and an anonymous GLB request against the
 API stack. These access controls do not approve redistribution: SCRUM-73 still requires
 redistribution-ready replacements before the development catalogue is publication-ready.
@@ -349,7 +399,7 @@ IP routes and wiki routing. Its certificate volume must persist for automatic re
 The observed domain certificate has Let's Encrypt YE1 issuer, the domain as CN and SAN,
 and expires 7 February 2027. The production outer Basic gate was removed; Spatia's session
 and API authorization remain in force. Development's `PUBLICATION_ORIGIN` is the domain
-URL on port 8443 and its allowed hosts include the IP and domain.
+URL on port 8443. The deployment script sets the API host allowlist from that URL.
 
 Both GitHub environment `APP_URL` variables were updated to the domain URLs and read back.
 Server deployment derives `PUBLICATION_ORIGIN` from `APP_URL`; maintain those values when
@@ -371,7 +421,8 @@ docker compose -f gateway.compose.yaml up -d
 ```
 
 Existing outer gateways may retain HTTP Basic authentication in addition to Spatia's
-application login. Ordinary app deployment does not change that separate gateway.
+application login. Development cutover installs its create rule in the development
+sites of that gateway and preserves the configured login and TLS settings.
 For a gated environment, set GitHub environment secrets `DEPLOY_BASIC_AUTH_USERNAME`
 and `DEPLOY_BASIC_AUTH_PASSWORD` to its existing Basic username and plaintext password
 (not the Caddy password hash). Leave both unset for an ungated environment.

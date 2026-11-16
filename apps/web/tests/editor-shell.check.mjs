@@ -990,27 +990,11 @@ try {
   );
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
 
-  // Preview offers each click target as a keyboard control that runs the same rule
-  const alerts = [];
-  const recordAlert = (dialog) => alerts.push(dialog.message());
-  page.on("dialog", recordAlert);
+  // Preview opens the visitor player for the current draft.
   await page.getByRole("button", { name: "Preview", exact: true }).click();
-  await page.getByText("Exhibit information", { exact: true }).click();
-  const previewTargets = page.getByRole("region", { name: "Exhibit information" });
-  const crateTarget = previewTargets.getByRole("button", {
-    name: "Activate Sample crate",
-    exact: true,
-  });
-  await crateTarget.waitFor();
-  await crateTarget.focus();
-  await page.keyboard.press("Enter");
-  for (let attempt = 0; attempt < 40 && alerts.length === 0; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  assert.deepEqual(alerts, ["hi"], "Keyboard activation runs the click interaction");
+  await page.getByRole("region", { name: "Exhibition", exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Test visitor", exact: true }).count(), 0);
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
-  assert.equal(await previewTargets.count(), 0, "Editing hides the preview targets");
-  page.off("dialog", recordAlert);
 
   const hotspotStage = await stage.boundingBox();
   const hotspotDock = await page.locator(".bottom-dock").boundingBox();

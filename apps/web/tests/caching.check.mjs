@@ -13,30 +13,15 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   // Check real GLB revalidation before Playwright routing disables the HTTP cache.
   await page.goto(new URL("/", url).href);
-  const modelUrl = await page.evaluate(async () => {
-    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-    return new URL(assets.find((asset) => asset.id === "test-crate-v1").url, location.href).href;
-  });
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Network.enable");
-  const modelRequests = new Set();
-  let httpCacheHit = false;
-  cdp.on("Network.requestWillBeSent", ({ requestId, request }) => {
-    if (request.url === modelUrl) modelRequests.add(requestId);
-  });
-  cdp.on("Network.responseReceivedExtraInfo", ({ requestId, statusCode }) => {
-    if (modelRequests.has(requestId) && statusCode === 304) httpCacheHit = true;
-  });
-  cdp.on("Network.responseReceived", ({ response }) => {
-    if (response.url === modelUrl && response.fromDiskCache) httpCacheHit = true;
-  });
-  await page.evaluate(async () => {
+  const transfers = await page.evaluate(async () => {
     const source = await (await fetch("/graphics/scene.ts")).text();
     const cachePath = source.match(/from "([^"]*ModelCache[^\"]*)"/)[1];
     const { ModelCache } = await import(cachePath);
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const asset = assets.find((asset) => asset.id === "test-crate-v1");
     const cache = new ModelCache();
+    const url = new URL(asset.url, location.href).href;
+    performance.clearResourceTimings();
     for (let request = 0; request < 2; request++) {
       const lease = await cache.acquire(asset, new AbortController().signal);
       try {
@@ -47,9 +32,25 @@ try {
         cache.invalidate();
       }
     }
+    return performance
+      .getEntriesByName(url, "resource")
+      .map(({ transferSize, encodedBodySize }) => ({
+        transferSize,
+        encodedBodySize,
+      }));
   });
-  assert.equal(httpCacheHit, true, "Reloading an invalidated model must reuse cached GLB bytes");
-  await cdp.detach();
+  assert.equal(transfers.length, 2, "Invalidating the parsed model must fetch its URL twice");
+  const [first, reload] = transfers;
+  assert.ok(
+    first.encodedBodySize > 300 && first.transferSize >= first.encodedBodySize,
+    "The cold load must transfer the GLB body",
+  );
+  assert.equal(reload.encodedBodySize, first.encodedBodySize);
+  // A local hit transfers zero bytes; HTTP 304 transfers just the response headers.
+  assert.ok(
+    reload.transferSize <= 300,
+    `Reloading an invalidated model must reuse cached GLB bytes: ${JSON.stringify(transfers)}`,
+  );
   await page.route("**/caching-harness.html", (route) =>
     route.fulfill({
       contentType: "text/html",

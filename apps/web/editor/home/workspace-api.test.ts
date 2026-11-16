@@ -112,6 +112,36 @@ it("does not turn post-send failures or expired sessions into a safe retry", asy
     },
   );
 });
+it("keeps a committed write pending until its protected receipt can be recovered", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json(session))
+    .mockResolvedValueOnce(json({ requestToken: "token" }))
+    .mockResolvedValueOnce(json(session))
+    .mockResolvedValueOnce(
+      new Response(null, {
+        status: 204,
+        headers: { "X-Spatia-Write-Outcome": "committed" },
+      }),
+    );
+  expect(await createWorkspaceClient(request).write(actor, "/api/v1/projects", "POST", {})).toEqual(
+    { kind: "unknown" },
+  );
+  expect(request).toHaveBeenCalledTimes(4);
+});
+it("preserves a creation identity conflict for callers with no custom error message", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json(session))
+    .mockResolvedValueOnce(json({ requestToken: "token" }))
+    .mockResolvedValueOnce(json(session))
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ code: "operation_conflict" }), { status: 409 }),
+    );
+  expect(
+    await createWorkspaceClient(request).write(actor, "/api/v1/projects", "POST", {}),
+  ).toMatchObject({ kind: "rejected", code: "operation_conflict" });
+});
 it("checks receipts against the requested project, revision and archive state", () => {
   const receipt = { projectId: id, revision: 4, archived: true, updatedAt: row.updatedAt };
   expect(projectReceipt(receipt, row, true)).toBe(true);

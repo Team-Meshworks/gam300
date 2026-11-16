@@ -17,23 +17,22 @@ public static class AssetDocumentReferences
 
     private static void Visit(JsonElement node, HashSet<string> ids)
     {
-
         // Walk ordered scene, object and component collections without changing their authored values
         if (node.ValueKind == JsonValueKind.Array)
         {
-            foreach (var item in node.EnumerateArray()) { Visit(item, ids); }
+            foreach (var item in node.EnumerateArray())
+                Visit(item, ids);
         }
+
         if (node.ValueKind == JsonValueKind.Object)
         {
             foreach (var property in node.EnumerateObject())
             {
-
                 // Match only the shared format's asset-reference fields; unrelated text is never a retained ID
                 if (property.Name is "assetId" or "environmentAssetId" && property.Value.ValueKind == JsonValueKind.String)
-                {
                     ids.Add(property.Value.GetString()!);
-                }
-                else { Visit(property.Value, ids); }
+                else
+                    Visit(property.Value, ids);
             }
         }
     }

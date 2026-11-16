@@ -88,12 +88,15 @@ export class FpsControls {
     setMove: (x, z) => {
       this.mobileMoveX = THREE.MathUtils.clamp(x, -1, 1);
       this.mobileMoveZ = THREE.MathUtils.clamp(z, -1, 1);
+      if (this.engaged && (x || z)) this.onNavigationInput?.();
     },
     setLook: (x, y) => {
+      if (this.engaged && (x || y)) this.onNavigationInput?.();
       this.mobileLookX += x;
       this.mobileLookY += y;
     },
     jump: () => {
+      if (this.engaged) this.onNavigationInput?.();
       const now = performance.now();
       if (this.flightAllowed && now - this.lastMobileJump < DOUBLE_TAP_MS) {
         this.flying = !this.flying;
@@ -105,6 +108,7 @@ export class FpsControls {
       }
     },
   };
+  onNavigationInput?: () => void;
   onCaptureChange: () => void = () => {};
 
   constructor(camera: THREE.Camera, domElement: HTMLElement) {
@@ -389,6 +393,7 @@ export class FpsControls {
       return;
     const movementX = event.movementX;
     const movementY = event.movementY;
+    if (movementX || movementY) this.onNavigationInput?.();
     this.yaw -= movementX * LOOK_SPEED;
     this.pitch -= movementY * LOOK_SPEED;
     this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
@@ -442,6 +447,7 @@ export class FpsControls {
       }
     }
     this.keys.add(event.code);
+    if (event.code === "Space" || this.hasMovementInput()) this.onNavigationInput?.();
   };
 
   private readonly onKeyUp = (event: KeyboardEvent) => {

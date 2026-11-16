@@ -61,7 +61,7 @@
     "test:publication": "node tests/publication.check.mjs",
     "test:publication-access": "node tests/publication-access.check.mjs",
     "test:publication-readiness": "node tests/publication-readiness.check.mjs",
-    "test:player-parity": "node --test tests/shared-player-boundary.test.mjs && node tests/preview-visitor-parity.check.mjs && node tests/player-walking.check.mjs",
+    "test:player-parity": "node --test tests/shared-player-boundary.test.mjs && node tests/editable-preview.check.mjs && node tests/preview-visitor-parity.check.mjs && node tests/player-walking.check.mjs",
     "test:visitor": "node tests/visitor.check.mjs",
     "test:workspace-assignments": "node tests/workspace-assignments.check.mjs",
     "test:entry-config": "node tests/account-dev-server.check.mjs",

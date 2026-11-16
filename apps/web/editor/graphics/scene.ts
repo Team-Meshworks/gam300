@@ -26,7 +26,7 @@ import { createDisplayContent } from "./display-content";
 import { createExhibitAppearance } from "./exhibit-appearance";
 import { createPlacementPreview } from "./placement-preview";
 import { createActiveClock } from "../../shared/preview/active-clock";
-import { HOTSPOT_SIZE, hotspotAnchor, hotspotWorldSize } from "./hotspot-anchor";
+import { hotspotAnchor } from "./hotspot-anchor";
 import { moveAttachedObjects } from "../../shared/project/attached-transforms";
 import type {
   ContentComponent,
@@ -53,6 +53,14 @@ import {
   type CatalogueAsset,
 } from "../../shared/asset-runtime/catalogue";
 import { HOTSPOT_ASSET_ID } from "../../shared/asset-runtime/hotspot";
+import {
+  HOTSPOT_SIZE,
+  attachHotspotSprite,
+  disposeHotspotSprite,
+  hotspotWorldSize,
+  loadHotspotSprite,
+} from "../../shared/asset-runtime/hotspot-sprite";
+import { lightExhibitionScene, fitRoomFog } from "../../shared/asset-runtime/scene-lighting";
 import type { SceneObject, Vector3Tuple } from "../../shared/project/scene-object";
 import type {
   CameraPose,
@@ -204,9 +212,7 @@ export function initScene(
   }
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xe9ece7);
-  const fog = new THREE.Fog(0xe9ece7, 35, 70);
-  scene.fog = fog;
+  const { fog, ambient, sun, fill } = lightExhibitionScene(scene);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
   camera.position.set(12, 16, 18);
   camera.lookAt(0, 0, 0);
@@ -232,12 +238,6 @@ export function initScene(
   const modeManager = new ModeManager(camera, orbit, fpsControls);
   const fpsMeter = createFpsMeter(host);
 
-  const ambient = new THREE.AmbientLight(0xffffff, 1.4);
-  const sun = new THREE.DirectionalLight(0xffffff, 2.5);
-  sun.position.set(3, 5, 4);
-  const fill = new THREE.DirectionalLight(0xffffff, 0.8);
-  fill.position.set(-3, 1, -3);
-  scene.add(ambient, sun, fill);
   const grid = new THREE.GridHelper(
     ROOM_GRID_HALF_SIZE * 2,
     ROOM_GRID_HALF_SIZE * 2,
@@ -282,7 +282,7 @@ export function initScene(
   const appearanceRenderer = createExhibitAppearance();
   const models = new Map<string, THREE.Group>();
   const leases: ModelLease[] = [];
-  const hotspotMaterials = new Set<THREE.SpriteMaterial>();
+  let hotspotTemplate: THREE.Sprite | undefined;
   const ready = true;
   let editingEnabled = true;
   let inspectionEnabled = false;
@@ -540,13 +540,7 @@ export function initScene(
         sprite = source.clone();
         hotspotSprites.set(hotspot.id, sprite);
       }
-      if (sprite.parent !== owner) owner.add(sprite);
-      const [x, y, z] = hotspot.position;
-      sprite.position.set(x, y + HOTSPOT_SIZE / 2, z);
-      // Billboards inherit position, but stay round under nonuniform owner scale.
-      const ownerScale = owner.getWorldScale(new THREE.Vector3());
-      const markerSize = hotspotWorldSize(owner);
-      sprite.scale.set(markerSize / Math.abs(ownerScale.x), markerSize / Math.abs(ownerScale.y), 1);
+      attachHotspotSprite(sprite, owner, hotspot.position);
       sprite.visible = editorMode;
     }
     for (const [id, sprite] of hotspotSprites) {
@@ -565,7 +559,7 @@ export function initScene(
     lastFrameTime = now;
     spatialAudio.setVisible(!document.hidden);
     if (document.hidden) displays.pause();
-    else displays.resumeEditing();
+    else displays.resume();
   };
   document.addEventListener("visibilitychange", visibilityChanged);
   const animate = (now: number) => {
@@ -722,10 +716,7 @@ export function initScene(
       environmentBounds.copy(visibleModelBounds(environment));
     }
     // Full-size layouts need the same visible depth as the Starter room's overview.
-    const roomSize = environmentBounds.getSize(new THREE.Vector3());
-    const viewScale = Math.max(1, roomSize.x / 10, roomSize.z / 10);
-    fog.near = 35 * viewScale;
-    fog.far = 70 * viewScale;
+    const viewScale = fitRoomFog(fog, environmentBounds);
     const far = 100 * viewScale;
     if (camera.far !== far) {
       camera.far = far;
@@ -754,6 +745,7 @@ export function initScene(
         let instance = instances.get(object.id);
         if (instance === undefined) {
           instance = new THREE.Group();
+          instance.name = object.id;
           // Clone nodes for independent transforms; cache leases own geometry/materials/textures
           instance.add(model.clone(true));
           instances.set(object.id, instance);
@@ -1875,24 +1867,12 @@ export function initScene(
   }
   async function loadAsset(asset: CatalogueAsset) {
     if (asset.id === HOTSPOT_ASSET_ID) {
-      const texture = await new THREE.TextureLoader().loadAsync(asset.url);
+      const sprite = await loadHotspotSprite();
       if (disposed || controller.signal.aborted) {
-        texture.dispose();
+        disposeHotspotSprite(sprite);
         return;
       }
-      texture.colorSpace = THREE.SRGBColorSpace;
-      const material = new THREE.SpriteMaterial({
-        map: texture,
-        transparent: true,
-        // Editor annotations stay readable even through the owner's geometry.
-        depthTest: false,
-        depthWrite: false,
-      });
-      hotspotMaterials.add(material);
-      const sprite = new THREE.Sprite(material);
-      sprite.renderOrder = 1000;
-      sprite.scale.setScalar(HOTSPOT_SIZE);
-      sprite.position.y = HOTSPOT_SIZE / 2;
+      hotspotTemplate = sprite;
       const model = new THREE.Group();
       model.add(sprite);
       models.set(asset.id, model);
@@ -2100,7 +2080,7 @@ export function initScene(
           const world = owner.localToWorld(
             new THREE.Vector3(anchor[0], anchor[1] + HOTSPOT_SIZE / 2, anchor[2]),
           );
-          scale = hotspotWorldSize(owner) / HOTSPOT_SIZE;
+          scale = hotspotWorldSize(owner.getWorldScale(new THREE.Vector3())) / HOTSPOT_SIZE;
           world.y -= (HOTSPOT_SIZE / 2) * scale;
           position = world.toArray() as Vector3Tuple;
         }
@@ -2244,11 +2224,7 @@ export function initScene(
       placementShapes.clear();
       lastValidTransforms.clear();
       disposeModels(scene);
-      for (const material of hotspotMaterials) {
-        material.map?.dispose();
-        material.dispose();
-      }
-      hotspotMaterials.clear();
+      if (hotspotTemplate) disposeHotspotSprite(hotspotTemplate);
       for (const lease of leases) {
         lease.release();
       }

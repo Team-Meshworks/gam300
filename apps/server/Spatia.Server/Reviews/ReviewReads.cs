@@ -23,29 +23,44 @@ internal static class ReviewReads
         ApplicationDbContext database, ProjectAccessService access, CancellationToken cancellationToken)
     {
         if (!ClassroomEndpoints.TryPage(context, out var limit, out var cursor))
-        {
             return ApiProblems.Create(context, 400, "invalid_review_query", "Check the review list filters and cursor.");
-        }
+
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
         var account = await access.ResolveCurrentAccountAsync(context, cancellationToken);
-        if (account is null) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired); }
-        if (account.MustChangePassword) { return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired); }
-        if (account.Role is not (ApplicationRoles.Creator or ApplicationRoles.Educator)) { return Unavailable(context); }
+
+        if (account is null)
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.AuthenticationRequired);
+
+        if (account.MustChangePassword)
+            return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired);
+
+        if (account.Role is not (ApplicationRoles.Creator or ApplicationRoles.Educator))
+            return Unavailable(context);
+
         var project = await (from visible in access.VisibleProjects(account)
                              join mapping in database.ClassAssignmentStudents on visible.Id equals mapping.ProjectId
                              where visible.Id == id
-                             select new { visible.Revision, mapping.ClassroomId, mapping.AssignmentId })
+                             select new
+                             {
+                                 visible.Revision,
+                                 mapping.ClassroomId,
+                                 mapping.AssignmentId
+                             })
             .SingleOrDefaultAsync(cancellationToken);
+
         if (project is null)
-        {
             return Unavailable(context);
-        }
+
         var latestSequence = await database.ReviewSubmissions.Where(row => row.ProjectId == id)
             .Select(row => (long?)row.Sequence).MaxAsync(cancellationToken);
+
         if (submissionId is null)
         {
             var query = database.ReviewSubmissions.AsNoTracking().Where(row => row.ProjectId == id);
-            if (cursor is { } after) { query = query.Where(row => row.Id.CompareTo(after) > 0); }
+
+            if (cursor is { } after)
+                query = query.Where(row => row.Id.CompareTo(after) > 0);
+
             var rows = await query.OrderBy(row => row.Id).Take(limit + 1)
                 .Select(row => new { row.Id, row.SourceRevision, row.Sequence, row.SubmittedAt, row.DueAtUnixSeconds })
                 .ToArrayAsync(cancellationToken);
@@ -70,11 +85,18 @@ internal static class ReviewReads
                     nextCursor = rows.Length > limit ? page[^1].Id : (Guid?)null
                 }), cancellationToken);
         }
+
         var submission = await database.ReviewSubmissions.AsNoTracking()
             .SingleOrDefaultAsync(row => row.Id == submissionId && row.ProjectId == id, cancellationToken);
-        if (submission is null) { return Unavailable(context); }
+
+        if (submission is null)
+            return Unavailable(context);
+
         var decisions = database.ReviewDecisions.AsNoTracking().Where(row => row.SubmissionId == submission.Id);
-        if (cursor is { } afterDecision) { decisions = decisions.Where(row => row.Id.CompareTo(afterDecision) > 0); }
+
+        if (cursor is { } afterDecision)
+            decisions = decisions.Where(row => row.Id.CompareTo(afterDecision) > 0);
+
         var decisionRows = await decisions.OrderBy(row => row.Id).Take(limit + 1)
             .Select(row => new { row.Id, row.EducatorId, row.Sequence, row.Outcome, row.Feedback, row.DecidedAt })
             .ToArrayAsync(cancellationToken);

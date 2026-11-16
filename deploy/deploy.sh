@@ -78,6 +78,7 @@ if $server; then
     echo "Server deployment requires an explicit HTTPS APP_URL" >&2; exit 1;
   }
   host=${BASH_REMATCH[1]}
+  url=${url%/}
   cp -- "$bundle/compose.server.yaml" "$candidate/"
   # Keep the bind-mounted configuration after the temporary release directory moves
   configuration="$directory/gateway-$revision"
@@ -91,27 +92,65 @@ if $server; then
   fi
   chmod 600 -- "$directory/server.env"
   cat "$directory/server.env" >> "$candidate/.env"
-  printf 'PUBLICATION_ORIGIN=%s\n' "${url%/}" >> "$candidate/.env"
+  printf 'PUBLICATION_ORIGIN=%s\n' "$url" >> "$candidate/.env"
   printf 'API_IMAGE=%s\nMIGRATION_IMAGE=%s\nSERVER_PORT=%s\nSERVER_NETWORK_PREFIX=%s\nSERVER_ENVIRONMENT=%s\nSERVER_ALLOWED_HOSTS=%s\nSERVER_CADDYFILE=%s\n' \
     "$api_image" "$migration_image" "$server_port" "$network" "${environment^}" "$host" \
     "$configuration/server.Caddyfile" >> "$candidate/.env"
 fi
 
+if $server && [[ "$branch" == dev && ( -n "${DEPLOY_SMOKE_USERNAME:-}" || -n "${DEPLOY_SMOKE_PASSWORD:-}" ) ]]; then
+  [[ -n "${DEPLOY_SMOKE_USERNAME:-}" && -n "${DEPLOY_SMOKE_PASSWORD:-}" ]] || { echo 'Development smoke credentials require a complete pair' >&2; exit 1; }
+fi
 # Pull failure leaves the running release untouched
 if $server; then run_release "$candidate" pull; else run_release "$candidate" pull web; fi
 
+dev_cutover=false
+if $server && [[ "$branch" == dev ]]; then
+  dev_cutover=true
+  source "$bundle/deploy/dev-cutover.sh"
+  mkdir -p -- "$directory/backups"
+  pause_dev_ingress
+fi
+
+backup_database() {
+  backup=$(mktemp "$directory/backups/before-$revision$1.XXXXXX.dump")
+  if ! run_release "$candidate" exec -T postgres pg_dump -U spatia -d spatia -Fc > "$backup"; then
+    rm -f -- "$backup"
+    echo "Database backup failed; API and gateway remain stopped without applying migrations" >&2
+    return 1
+  fi
+  if $dev_cutover; then
+    if ! run_release "$candidate" exec -T postgres pg_restore --file=/dev/null < "$backup"; then
+      mv -- "$backup" "$backup.unverified"
+      echo "Development backup failed verification: $backup.unverified" >&2
+      return 1
+    fi
+    echo "Verified development backup: $backup"
+  fi
+}
+
 # Back up the retained database before every attempt, including failed-rollout retries
 if $server; then
-  run_release "$candidate" stop api gateway || {
+  if $dev_cutover; then
+    drain_dev_service gateway && drain_dev_service api
+  else
+    run_release "$candidate" stop api gateway
+  fi || {
     echo "Could not confirm API/gateway shutdown; deployment stopped." >&2; exit 1;
   }
   run_release "$candidate" up -d --no-build --wait --wait-timeout 120 postgres
   mkdir -p -- "$directory/backups"
-  backup=$(mktemp "$directory/backups/before-$revision.XXXXXX.dump")
-  if ! run_release "$candidate" exec -T postgres pg_dump -U spatia -d spatia -Fc > "$backup"; then
-    rm -f -- "$backup"
-    echo "Database backup failed; API and gateway remain stopped without applying migrations" >&2
-    exit 1
+  if $dev_cutover; then
+    guarded=$(run_release "$candidate" exec -T postgres psql -XAt -v ON_ERROR_STOP=1 -U spatia -d spatia -c "SELECT to_regnamespace('spatia_dev_cutover') IS NOT NULL")
+    case "$guarded" in
+      t) ;;
+      f) backup_database -clean ;;
+      *) echo 'Could not determine development backup state' >&2; exit 1 ;;
+    esac
+    dev_database_guard "$candidate" on
+    backup_database -guarded
+  else
+    backup_database ''
   fi
 fi
 
@@ -126,15 +165,37 @@ healthy() {
     # Check the local application stack; anonymous session requests must remain unauthorized
     curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 -H "Host: $host" -H 'X-Forwarded-Proto: https' --output /dev/null "http://127.0.0.1:$port/api/v1/auth/csrf" || return 1
     [[ "$(curl --silent --show-error --max-time 10 -H "Host: $host" -H 'X-Forwarded-Proto: https' --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:$port/api/v1/auth/session")" == 401 ]] || return 1
+    local expected_challenge='401 SpatiaSession realm="Spatia", login_uri="/api/v1/auth/login"'
+    local probe=(--silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code} %header{www-authenticate}')
+    [[ "$(public_curl "${probe[@]}" "$url/api/v1/creation-operations/project")" == "$expected_challenge" ]] || return 1
+    [[ "$(curl "${probe[@]}" -H "Host: $host" -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$port/api/v1/creation-operations/project")" == "$expected_challenge" ]] || return 1
+    local resolution=/api/v1/projects/legacy-resolution
+    [[ "$(public_curl "${probe[@]}" --request PUT "$url$resolution")" == "$expected_challenge" ]] || return 1
+    [[ "$(curl "${probe[@]}" --request PUT -H "Host: $host" -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$port$resolution")" == "$expected_challenge" ]] || return 1
+  fi
+  if $dev_cutover; then
+    check_dev_creates paused || return 1
+    check_dev_account || return 1
   fi
 }
 
-if run_release "$candidate" up -d --no-build --wait --wait-timeout 120 && healthy; then
+start_release() {
+  if $dev_cutover; then start_dev_release; else run_release "$candidate" up -d --no-build --wait --wait-timeout 120; fi
+}
+
+if start_release && healthy; then
   if [[ -f "$directory/current/.env" ]]; then
     rm -rf -- "$directory/previous"
     mv -- "$directory/current" "$directory/previous"
   fi
   mv -- "$candidate" "$directory/current"
+  if $dev_cutover && ! reopen_dev_creates "$directory/current"; then
+    echo 'Reopen verification failed; pausing development creates again.' >&2
+    docker exec "$outer_gateway" touch /config/spatia-dev-creates-paused || echo 'Could not confirm gateway pause' >&2
+    run_release "$directory/current" stop api gateway || echo 'Could not confirm API/gateway shutdown' >&2
+    dev_database_guard "$directory/current" on
+    exit 1
+  fi
   if $server; then rm -f -- "$directory/server-recovery-required"; fi
   printf 'Deployed %s: %s (%s)\n' "$environment" "$revision" "$image"
 else

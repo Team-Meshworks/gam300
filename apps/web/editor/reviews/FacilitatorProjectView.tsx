@@ -7,11 +7,8 @@ import { createClassroomClient } from "../home/classroom-api";
 import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
-import {
-  readServerAssets,
-  readServerProject,
-  type OpenedServerProject,
-} from "../persistence/server-project-read";
+import { readServerAssets } from "../persistence/server-assets";
+import { readServerProject, type OpenedServerProject } from "../persistence/server-project-read";
 import { readAssignment } from "../projects/assignment-api";
 import {
   adminPublishedReturnUrl,

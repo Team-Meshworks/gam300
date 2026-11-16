@@ -33,8 +33,7 @@ const room = {
   components: [],
 };
 const doorway = scene("Doorway", [room]);
-const solid = { ...scene("Solid wall", []), id: "66666666-6666-4666-8666-666666666666" };
-const project = { ...blankProject, scenes: [doorway, solid] };
+const project = { ...blankProject, scenes: [doorway] };
 const server = await createServer({
   configFile: fileURLToPath(new URL("../vite.config.ts", import.meta.url)),
   server: { host: "127.0.0.1", port: 0 },
@@ -136,26 +135,20 @@ try {
     await page.bringToFront();
     await page.getByRole("status").getByText("Exhibition ready").waitFor();
     await page.waitForFunction(() => !!window.walkCamera);
-    const walk = async () => {
-      await page.locator('canvas[aria-label="Exhibition view"]').click();
-      await page.keyboard.down("w");
-      await page.waitForTimeout(3000);
-      await page.keyboard.up("w");
-      return page.evaluate(() => window.walkCamera.position.toArray());
-    };
-    const through = await walk();
-    const previousCamera = await page.evaluateHandle(() => window.walkCamera);
-    await page.getByRole("combobox").selectOption("1");
-    await page.waitForFunction((previous) => window.walkCamera !== previous, previousCamera);
-    await page.getByRole("status").getByText("Exhibition ready").waitFor();
-    const blocked = await walk();
+    await page.locator('canvas[aria-label="Exhibition view"]').click();
+    await page.keyboard.down("w");
+    await page.waitForTimeout(3000);
+    const through = await page.evaluate(() => window.walkCamera.position.toArray());
+    await page.waitForTimeout(5000);
+    await page.keyboard.up("w");
+    const blocked = await page.evaluate(() => window.walkCamera.position.toArray());
     outcomes.push({ name, through, blocked });
   }
   console.log(JSON.stringify(outcomes));
   for (const { name, through, blocked } of outcomes) {
     assert.ok(through[0] > 5.5, `${name}: should cross the doorway, got ${through}`);
     assert.ok(
-      blocked[0] > 4.4 && blocked[0] < 4.8,
+      blocked[0] > 14.4 && blocked[0] < 14.8,
       `${name}: should reach the wall and stop inside it, got ${blocked}`,
     );
   }

@@ -62,6 +62,7 @@ public sealed class CurrentAccountResolver(ApplicationDbContext database)
         }
 
         string role;
+
         if (current.RoleId == ApplicationRoles.AdministratorId
             && current.RoleName == ApplicationRoles.Administrator && current.OrganizationId is null)
         {

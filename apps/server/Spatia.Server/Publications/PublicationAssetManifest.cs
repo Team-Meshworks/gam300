@@ -11,14 +11,15 @@ public static class PublicationAssetManifest
     {
         ArgumentNullException.ThrowIfNull(references);
         var byId = new SortedDictionary<string, PublicationAssetReference>(StringComparer.Ordinal);
+
         foreach (var reference in references)
         {
             ArgumentNullException.ThrowIfNull(reference);
+
             if (!byId.TryAdd(reference.AssetId, reference))
-            {
                 throw new ArgumentException("Each publication asset ID must occur exactly once.", nameof(references));
-            }
         }
+
         return JsonSerializer.Serialize(byId.Values);
     }
 }

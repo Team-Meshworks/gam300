@@ -6,14 +6,20 @@ import "./player.css";
 
 export function ExhibitionPlayer({
   exhibition,
-  controls,
+  previewControls,
 }: {
   exhibition: PlayerSnapshot;
-  controls?: ReactNode;
+  previewControls?: ReactNode;
 }) {
   const [scene, setScene] = useState(0);
   const [viewpoint, setViewpoint] = useState<Readonly<{ id: string }>>();
 
+  const [readyScene, setReadyScene] = useState<number | null>(null);
+  const [visit, setVisit] = useState(0);
+  const onPlaybackReady = useCallback(
+    (ready: boolean) => setReadyScene(ready ? scene : null),
+    [scene],
+  );
   const [notice, setNotice] = useState("");
   const visited = useRef(new Set([exhibition.document.scenes[0]!.id.toLowerCase()]));
   const beginInput = useCallback(() => {
@@ -21,15 +27,17 @@ export function ExhibitionPlayer({
     setNotice("");
   }, [exhibition, scene]);
   const navigate = useCallback(
-    (sceneId: string, viewpointId: string) => {
+    (sceneId: string, viewpointId: string, deliberate: boolean) => {
       const id = sceneId.toLowerCase();
       const index = exhibition.document.scenes.findIndex((item) => item.id.toLowerCase() === id);
       if (index < 0) return false;
-      if (visited.current.has(id)) {
-        setNotice("Navigation stopped: scene-start interactions form a loop.");
+      if (!deliberate && visited.current.has(id)) {
+        setNotice("Automatic scene navigation stopped at a repeated scene.");
         return false;
       }
       visited.current.add(id);
+      setReadyScene(null);
+      setVisit((previous) => previous + 1);
       setScene(index);
       setViewpoint(viewpointId ? { id: viewpointId } : undefined);
       return true;
@@ -39,49 +47,56 @@ export function ExhibitionPlayer({
   return (
     <section aria-label="Exhibition" className="visitor-preview is-walking">
       <h1 className="sr-only">{exhibition.document.title}</h1>
-      <div className="visitor-scene-picker">
-        <label>
-          Scene
-          <select
-            value={scene}
-            onChange={(event) => {
-              const index = Number(event.target.value);
-              visited.current = new Set([exhibition.document.scenes[index]!.id.toLowerCase()]);
-              setNotice("");
-              setScene(index);
-              setViewpoint(undefined);
-            }}
-          >
-            {exhibition.document.scenes.map((item, index) => (
-              <option key={item.id} value={index}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      {controls && <div className="preview-session-controls">{controls}</div>}
+      {previewControls ? (
+        <div className="preview-session-controls">{previewControls}</div>
+      ) : (
+        <div className="visitor-scene-picker">
+          <label>
+            Scene
+            <select
+              value={scene}
+              onChange={(event) => {
+                const index = Number(event.target.value);
+                visited.current = new Set([exhibition.document.scenes[index]!.id.toLowerCase()]);
+                setNotice("");
+                setScene(index);
+                setViewpoint(undefined);
+              }}
+            >
+              {exhibition.document.scenes.map((item, index) => (
+                <option key={item.id} value={index}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
       {notice && (
         <p role="status" className="visitor-status">
           {notice}
         </p>
       )}
       <ExhibitionCanvas
-        key={scene}
+        key={`${scene}-${visit}`}
         exhibition={exhibition}
-        beginInput={beginInput}
+        isPreview={Boolean(previewControls)}
+        beginNavigationEvent={beginInput}
+        onPlaybackReady={onPlaybackReady}
         sceneIndex={scene}
         viewpoint={viewpoint}
         navigate={navigate}
       />
       <ExhibitionContent
+        visit={visit}
         scene={exhibition.document.scenes[scene]!}
         assets={exhibition.assets}
+        playbackReady={readyScene === scene}
         navigate={(id, target) => {
           beginInput();
           if (id.toLowerCase() === exhibition.document.scenes[scene]!.id.toLowerCase()) {
             setViewpoint({ id: target });
-          } else navigate(id, target);
+          } else navigate(id, target, true);
         }}
       />
     </section>

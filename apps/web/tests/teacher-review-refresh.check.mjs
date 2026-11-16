@@ -301,9 +301,11 @@ try {
     removed: false,
   };
   const moderationWrites = [];
-  await page.route("**/api/v1/projects/publication-moderation?**", (route) =>
-    route.fulfill({ json: { items: [publicationState] } }),
-  );
+  let pendingVisibility;
+  await page.route("**/api/v1/projects/publication-moderation?**", async (route) => {
+    if (pendingVisibility) await pendingVisibility.promise;
+    await route.fulfill({ json: { items: [publicationState] } });
+  });
   await page.route("**/api/v1/auth/csrf", (route) =>
     route.fulfill({ json: { requestToken: "fixture-token" } }),
   );
@@ -432,6 +434,7 @@ try {
     publishingBlocked: false,
     removed: false,
   };
+  pendingVisibility = Promise.withResolvers();
   await page.goto(origin + "/home");
   await page
     .locator("article")
@@ -441,6 +444,10 @@ try {
   const hideDraft = page
     .locator(".sp-teacher-student-actions")
     .getByRole("button", { name: "Hide", exact: true });
+  assert.equal(await hideDraft.isDisabled(), true, "Moderation waits for the current visibility");
+  assert.equal(await hideDraft.getAttribute("title"), "Publication visibility unavailable");
+  pendingVisibility.resolve();
+  await hideDraft.and(page.locator(":enabled")).waitFor();
   assert.equal(
     await hideDraft.getAttribute("title"),
     "Block publishing; the student can keep editing",

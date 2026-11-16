@@ -2,7 +2,15 @@ import { environmentObject } from "../shared/project/selection-transform";
 import { AudioLibrary, type AudioLibraryMode } from "./ui/AudioLibrary";
 import { ExhibitPopups } from "./ui/ExhibitPopups";
 import type { ContentObject } from "../shared/project/project-content";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   isStarterRoomEnvironment,
   isRoomModel,
@@ -31,6 +39,7 @@ import { createInteractionHandler, type Interaction } from "./interaction/intera
 import { DisplayEditor } from "./ui/DisplayEditor";
 import { Button } from "../shared/ui/Button";
 import { BottomBar } from "./ui/BottomBar";
+import { belongsInAssetPicker, type AssetPickerMode } from "./ui/asset-selection";
 import { ContentEditor, type ContentKind, type ExhibitFields } from "./ui/ContentEditor";
 import { PreviewTargets } from "./ui/PreviewTargets";
 import { SettingsPanel } from "./ui/SettingsPanel";
@@ -145,24 +154,22 @@ export function App({
       ? { objectId: pendingText.objectId, component }
       : undefined;
   }, [pendingText]);
-  const [previewPicker, setPreviewPicker] = useState<"rooms" | "assets" | null>(null);
+  const [previewPicker, setPreviewPicker] = useState<AssetPickerMode | null>(null);
   const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
   const onThumbnail = useCallback((id: string, url: string) => {
     setGeneratedThumbnails((previous) => ({ ...previous, [id]: url }));
   }, []);
   useEffect(() => {
     if (!previewPicker) return;
+    const missing = editorAssets.filter(
+      (asset) => !asset.thumbnail && belongsInAssetPicker(asset, previewPicker, editorAssets),
+    );
+    if (!missing.length) return;
     let disposed = false;
     let cleanup: (() => void) | undefined;
     void import("./graphics/library-previews")
       .then(({ generateLibraryPreviews }) => {
-        if (!disposed)
-          cleanup = generateLibraryPreviews(
-            editorAssets.filter((asset) =>
-              previewPicker === "rooms" ? asset.kind === "environment" : asset.kind === "model",
-            ),
-            onThumbnail,
-          );
+        if (!disposed) cleanup = generateLibraryPreviews(missing, onThumbnail);
       })
       .catch(() => {
         // Catalogue thumbnails remain available when generated previews cannot load.
@@ -179,18 +186,23 @@ export function App({
   const [dragging, setDragging] = useState<string | null>(null);
   const [audioLibrary, setAudioLibrary] = useState<AudioLibraryMode | null>(null);
   const [placingAssetId, setPlacingAssetId] = useState<string | null>(null);
+  const placementVersion = useRef(0);
+  const cancelPlacement = useCallback(() => {
+    placementVersion.current++;
+    setPlacingAssetId(null);
+  }, []);
   const [showExhibitTools, setShowExhibitTools] = useState(false);
 
   useEffect(() => {
     function cancel(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setPlacingAssetId(null);
+        cancelPlacement();
         setPendingText(null);
       }
     }
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
-  }, []);
+  }, [cancelPlacement]);
   const [feedback, setFeedback] = useState({ text: "", sequence: 0 });
   const notice = feedback.text;
   const [error, setError] = useState("");
@@ -213,8 +225,8 @@ export function App({
   }, [feedback.sequence]);
   const [viewCamera, setViewCamera] = useState<ViewpointCamera | null>(null);
   const viewCameraRef = useRef<ViewpointCamera | null>(null);
+  const [previewSnapshot, setPreviewSnapshot] = useState<PlayerSnapshot | null>(null);
   const restoreCamera = useRef<CameraPose | null>(null);
-  const [preview, setPreview] = useState<PlayerSnapshot | null>(null);
   const receiveCamera = useCallback((camera: ViewpointCamera | null) => {
     viewCameraRef.current = camera;
     setViewCamera(camera);
@@ -257,7 +269,7 @@ export function App({
   const selectedObject = roomSelected
     ? environmentObject(projectScene)
     : objects.find((object) => object.id === selection);
-  const visitor = preview !== null || readOnlyPreview || modeState?.mode === "visitor";
+  const visitor = previewSnapshot !== null || readOnlyPreview || modeState?.mode === "visitor";
   const mobileDevice = isMobileTouchDevice();
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
   // Start inside the scene, the overview button switch to the orbit camera
@@ -362,6 +374,10 @@ export function App({
   useEffect(() => (manager === null ? undefined : manager.subscribe(setModeState)), [manager]);
 
   const { departing } = server;
+  useLayoutEffect(
+    () => cancelPlacement,
+    [activeSceneId, loadGeneration, visitor, departing, viewCamera, cancelPlacement],
+  );
 
   const deleteSelection = useCallback(() => {
     if (visitor) return;
@@ -661,13 +677,13 @@ export function App({
     [viewCamera, selection],
   );
 
-  if (preview) {
+  if (previewSnapshot) {
     return (
       <StudentPreview
-        snapshot={preview}
+        snapshot={previewSnapshot}
         onExit={() => {
           setStatus("loading");
-          setPreview(null);
+          setPreviewSnapshot(null);
           playUiSound("goingBack");
         }}
       />
@@ -699,12 +715,14 @@ export function App({
             return;
           }
           restoreCamera.current = viewCamera?.capture() ?? null;
-          setPreview(structuredClone({ document: current, assets: editorAssets }));
+          setPreviewSnapshot(structuredClone({ document: current, assets: editorAssets }));
           playUiSound("enterPreview");
         }}
         onExitPreview={() => {
-          manager?.setMode("editor");
-          navigation.end();
+          if (readOnlyPreview) {
+            manager?.setMode("editor");
+            navigation.end();
+          }
           playUiSound("goingBack");
         }}
         view={view}
@@ -858,7 +876,7 @@ export function App({
             setShowExhibitTools(true);
           }}
           placingAssetId={placingAssetId}
-          onPlacementCancel={() => setPlacingAssetId(null)}
+          onPlacementCancel={cancelPlacement}
           editingEnabled={!departing && !readOnlyPreview}
           allowInspection={readOnlyPreview}
           navigationTool={pendingText ? "orbit" : navigationTool}
@@ -873,7 +891,7 @@ export function App({
           onSceneUpdate={onSceneUpdate}
           onPlace={(...args) => {
             place(...args);
-            setPlacingAssetId(null);
+            cancelPlacement();
           }}
           onDragFinish={() => {
             setDragging(null);
@@ -984,10 +1002,12 @@ export function App({
               ready={status === "ready"}
               thumbnailFor={thumbnailFor}
               onAudio={(mode) => {
-                setPlacingAssetId(null);
+                cancelPlacement();
                 setAudioLibrary(mode);
               }}
               onAdd={async (assetId) => {
+                cancelPlacement();
+                const version = placementVersion.current;
                 const before = store.getSnapshot();
                 const adjoiningRoom =
                   projectScene?.environmentAssetId && assetKinds.get(assetId) === "environment";
@@ -1001,7 +1021,11 @@ export function App({
                   setError("An approved room model is required to add an adjoining room.");
                   return;
                 }
-                if (!(await viewCamera?.prepareAsset(modelId)) || store.getSnapshot() !== before)
+                if (
+                  !(await viewCamera?.prepareAsset(modelId)) ||
+                  placementVersion.current !== version ||
+                  store.getSnapshot() !== before
+                )
                   return;
                 setShowExhibitTools(false);
                 // Supplied rooms are complete environment layouts, selected at the scene origin.
@@ -1010,7 +1034,6 @@ export function App({
                   !isStarterRoomEnvironment(assets, assetId) &&
                   !projectScene?.environmentAssetId
                 ) {
-                  setPlacingAssetId(null);
                   place(assetId, [0, 0, 0]);
                   return;
                 }
@@ -1022,6 +1045,7 @@ export function App({
                 setNavigationTool("select");
               }}
               onDragChange={(assetId) => {
+                if (assetId !== null) cancelPlacement();
                 if (
                   assetId &&
                   projectScene?.environmentAssetId &&
@@ -1036,13 +1060,11 @@ export function App({
                   return;
                 }
                 setDragging(assetId);
-                if (assetId !== null) {
-                  setPlacingAssetId(null);
-                  setShowExhibitTools(false);
-                }
+                if (assetId !== null) setShowExhibitTools(false);
               }}
               tool={navigationTool}
               onToolChange={(tool) => {
+                cancelPlacement();
                 setView("third");
                 setNavigationTool(tool);
               }}
@@ -1099,7 +1121,7 @@ export function App({
                 sceneId: activeSceneId,
                 generation: loadGeneration,
               });
-              setPlacingAssetId(null);
+              cancelPlacement();
               setDragging(null);
               setView("third");
               return { ok: true, value: true };

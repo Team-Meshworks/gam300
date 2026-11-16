@@ -38,6 +38,9 @@ try {
     timezoneId: "Asia/Singapore",
   });
   const page = await login(teacher, process.env.SPATIA_TEST_EDUCATOR);
+  const identityResponse = await teacher.request.get(`${origin}/api/v1/auth/session`);
+  assert.equal(identityResponse.status(), 200);
+  const identity = await identityResponse.json();
   const catalogue = await teacher.request.get(`${origin}/api/v1/assets`);
   assert.equal(
     catalogue.status(),
@@ -66,15 +69,25 @@ try {
   const createdResponse = page.waitForResponse(
     (item) => item.url().endsWith("/api/v1/projects") && item.request().method() === "POST",
   );
+  void createdResponse.catch(() => {});
   const initialAssignment = page.waitForResponse(
     (item) => item.url().endsWith("/assignments") && item.request().method() === "POST",
   );
+  void initialAssignment.catch(() => {});
   await page.getByRole("button", { name: "Create project", exact: true }).click();
   const created = await createdResponse;
   assert.equal(created.status(), 201);
-  assert.deepEqual(created.request().postDataJSON(), {
+  const createBody = created.request().postDataJSON();
+  assert.match(
+    createBody.operationId,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+  assert.deepEqual(createBody, {
     title: "Live blank project",
+    operationId: createBody.operationId,
+    creationGuard: { purpose: "assignment-source", previousOperationId: null },
   });
+  assert.equal(created.request().headers()["x-spatia-account"], identity.userId);
   const blank = await created.json();
   const initialReceipt = await initialAssignment;
   assert.equal(initialReceipt.status(), 201);
@@ -262,6 +275,14 @@ try {
     true,
     "The approved saved project is ready to publish",
   );
+  // Capture the real receipt before the app navigates away from its POST response.
+  let publication;
+  await fresh.route(`**/api/v1/projects/${project}/publications`, async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const response = await route.fetch();
+    if (response.status() === 201) publication = await response.json();
+    await route.fulfill({ response });
+  });
   const publicationResponse = fresh.waitForResponse(
     (response) =>
       response.url().endsWith(`/api/v1/projects/${project}/publications`) &&
@@ -270,7 +291,9 @@ try {
   await publishing.getByRole("button", { name: "Publish Project", exact: true }).click();
   const committed = await publicationResponse;
   assert.equal(committed.status(), 201);
-  const publication = await committed.json();
+  const { publicationId } = committed.request().postDataJSON();
+  assert.ok(publicationId);
+  assert.equal(publication.publicationId, publicationId);
   await fresh.waitForURL(`${origin}/home?tab=published`);
   // A teacher inspecting an older edition must still be able to open the student's current review.
   const teacherEdition = new URL("/", origin);
@@ -289,15 +312,19 @@ try {
   const visitorContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const visitor = await visitorContext.newPage();
   visitor.setDefaultTimeout(20000);
+  const preview = fresh
+    .locator(`article[aria-labelledby="title-${project}"]`)
+    .getByRole("link", { name: "Preview", exact: true });
+  await preview.waitFor();
+  assert.equal(await preview.getAttribute("href"), publication.visitorUrl);
   const shared = new URL(publication.visitorUrl);
+  assert.equal(shared.pathname, `/p/${publicationId}`);
   await visitor.goto(origin + shared.pathname + shared.search + shared.hash);
   await visitor.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
   await visitor.getByRole("button", { name: "Enable audio", exact: true }).click();
   await visitor.locator("canvas").waitFor();
   assert.equal(
-    (
-      await visitorContext.request.get(`${origin}/api/v1/publications/${publication.publicationId}`)
-    ).status(),
+    (await visitorContext.request.get(`${origin}/api/v1/publications/${publicationId}`)).status(),
     200,
   );
   await visitorContext.close();

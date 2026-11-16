@@ -6,6 +6,7 @@ import { launchBrowser } from "./browser-security.mjs";
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:5173/";
 const browser = await launchBrowser({ target: baseUrl });
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+page.setDefaultTimeout(15000);
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 await mkdir("test-results/scrum168", { recursive: true });
@@ -62,7 +63,127 @@ async function choose(label, text) {
     .getByRole("option", { name: text, exact: true })
     .click();
 }
+async function waitForVisibleThumbnails() {
+  // Chrome defers lazy images outside the scrollable grid. Only visible cards enter the screenshot.
+  await page.waitForFunction(
+    () => {
+      const region = document.querySelector(".asset-admin-scroll").getBoundingClientRect();
+      return [...document.querySelectorAll(".asset-admin-thumbnail img")].every((image) => {
+        const box = image.getBoundingClientRect();
+        const visible =
+          box.bottom > Math.max(0, region.top) && box.top < Math.min(innerHeight, region.bottom);
+        return !visible || (image.complete && image.naturalWidth > 0);
+      });
+    },
+    undefined,
+    { timeout: 10000 },
+  );
+}
+async function checkUnacknowledgedUpload(failure) {
+  const screen = await browser.newPage();
+  screen.setDefaultTimeout(15000);
+  screen.on("pageerror", (error) => errors.push(error.message));
+  const records = [];
+  let directoryDenied = false;
+  const actor = "00000000-0000-4000-8000-000000000001";
+  await screen.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === "/api/v1/auth/session")
+      return route.fulfill({
+        json: {
+          userId: actor,
+          orgId: null,
+          role: "Administrator",
+          displayName: "Admin",
+          mustChangePassword: false,
+        },
+      });
+    if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "csrf" } });
+    if (path !== "/api/v1/admin/assets") return route.fulfill({ status: 404 });
+    if (request.method() === "GET" && directoryDenied) return route.fulfill({ status: 401 });
+    if (request.method() === "GET")
+      return route.fulfill({
+        json: {
+          assets: records,
+          policy: {
+            extensions: [".glb"],
+            categories: { model: ["Objects"], environment: null },
+            canSubmit: true,
+            canForceRemove: false,
+            maxBytes: 1024,
+          },
+        },
+      });
+    assert.equal(request.method(), "POST");
+    assert.equal(request.headers()["x-csrf-token"], "csrf");
+    const asset = {
+      id: crypto.randomUUID(),
+      name: "Lost receipt",
+      kind: "environment",
+      category: null,
+      status: "approved",
+      hidden: false,
+      deleted: false,
+      removedFromProjects: false,
+      thumbnail: null,
+      validation: [],
+      actions: ["hide", "delete"],
+    };
+    records.push(asset);
+    if (records.length === 1)
+      return failure === "abort" ? route.abort("failed") : route.fulfill({ status: 401 });
+    return route.fulfill({ status: 201, json: asset });
+  });
+  await screen.goto(new URL("/spaces?add=1", baseUrl).href);
+  const dialog = screen.getByRole("dialog");
+  await dialog.getByLabel("Choose asset file").setInputFiles({
+    name: "Lost receipt.glb",
+    mimeType: "model/gltf-binary",
+    buffer: Buffer.from("fixture"),
+  });
+  const save = dialog.getByRole("button", { name: "Save Changes", exact: true });
+  await save.click();
+  await dialog.getByRole("alert").waitFor();
+  await screen.waitForFunction(
+    () => document.querySelector("dialog form")?.getAttribute("aria-busy") === "false",
+  );
+  assert.ok(await save.isDisabled(), "An upload with a lost receipt cannot be resubmitted");
+  assert.equal(
+    records.length,
+    1,
+    "Retrying an upload with a lost receipt must not create a second candidate",
+  );
+  await dialog.getByRole("button", { name: "Check asset list" }).waitFor();
+  if (failure === "401") {
+    directoryDenied = true;
+    await dialog.getByRole("button", { name: "Check asset list" }).click();
+    await screen.getByRole("heading", { name: "Access denied" }).waitFor();
+    assert.equal(
+      await screen.getByRole("button", { name: "+ Add 3D Space", exact: true }).isDisabled(),
+      true,
+    );
+    directoryDenied = false;
+  }
+  await screen.reload();
+  const candidate = screen.getByRole("heading", { name: "Lost receipt", exact: true });
+  await candidate.waitFor({ state: "attached" });
+  assert.equal(
+    await dialog.count(),
+    0,
+    "Reloading the upload shortcut must show the catalogue after an uncertain write",
+  );
+  await screen.getByRole("button", { name: "+ Add 3D Space", exact: true }).click();
+  await dialog.waitFor();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await candidate.waitFor();
+  assert.equal(records.length, 1);
+  await screen.close();
+}
+
 try {
+  await checkUnacknowledgedUpload("abort");
+  await checkUnacknowledgedUpload("401");
   // Exercise the real components with the clearly labelled local adapter
   // No fixture response is evidence of authenticated intake or persisted asset approval
   const fixture = fileURLToPath(
@@ -94,9 +215,7 @@ try {
     .getByRole("button", { name: /View Model/ })
     .first()
     .waitFor();
-  await page
-    .locator(".asset-admin-thumbnail img")
-    .evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
+  await waitForVisibleThumbnails();
   const controlTops = await page
     .locator(".asset-admin-heading")
     .evaluate((row) =>
@@ -562,9 +681,7 @@ try {
   });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.locator(".asset-admin-card").first().waitFor();
-  await page
-    .locator(".asset-admin-thumbnail img")
-    .evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
+  await waitForVisibleThumbnails();
   await page.screenshot({ path: "test-results/scrum168/assets.png", fullPage: true });
 
   // Model dialogs keep their own asset type rather than inheriting the space form

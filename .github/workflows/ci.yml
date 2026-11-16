@@ -159,6 +159,7 @@ jobs:
               browser
               integration
               first-person-sandbox
+              player-parity
           - name: graphics
             checks: |
               furniture-tools
@@ -380,6 +381,9 @@ jobs:
           "${stack[@]}" run --rm --no-deps migrate
           test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc 'SELECT count(*) FROM public."__EFMigrationsHistory"')" = "$migrations"
           test "$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc "SELECT rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = 'spatia_api'")" = 'f|f|f'
+          for pause in on off; do
+            "${stack[@]}" exec -T postgres psql -X -U spatia -d spatia -v "pause=$pause" < ../../deploy/dev-create-guard.sql
+          done
       - name: Capture container diagnostics
         if: always()
         # Collect before uploading so failed deployment checks leave downloadable logs
@@ -409,7 +413,7 @@ jobs:
           cp ../../compose.yaml ../../deploy/deploy.sh ../../ci-artifacts/release/
           cp ../../compose.server.yaml ../../ci-artifacts/release/
           mkdir -p ../../ci-artifacts/release/deploy
-          cp ../../deploy/server.Caddyfile ../../ci-artifacts/release/deploy/
+          cp ../../deploy/{server.Caddyfile,dev-cutover.sh,dev-creates.caddy,dev-create-guard.sql} ../../ci-artifacts/release/deploy/
       - name: Transfer the tested image to the publishing job
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

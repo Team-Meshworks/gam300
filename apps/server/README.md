@@ -18,6 +18,8 @@ compatible during rollback: older clients using unversioned routes will stop wor
 Administrator account and organization directory reads and reversible lifecycle
 operations are described in the [directory API contract](../../docs/account-directory.md),
 including authorization, fields, pagination, safeguards and session effects.
+See [API write recovery](../../docs/api-recovery.md) for authentication challenges,
+creation receipts, committed responses, asset limits and recovery after a lost reply.
 
 This .NET 10 ASP.NET Core host contains a bounded draft-save reader, the Identity/
 PostgreSQL account persistence foundation, project draft schema/access service, request-security boundary and private
@@ -118,18 +120,18 @@ the receipt, revision and document commit together.
 
 The review compared head `6efd9f0c1804f6f34ea4465493eec2e3bf023a85` with
 `29e81ff763243a048fc73dd340a2cb7dbd1d34ce` and found **no confirmed actionable
-defect** in this backend slice. The [bounded endpoint](Spatia.Server/Projects/ProjectSaveEndpoints.cs)
-passes the parsed request to the [save service](Spatia.Server/Projects/ProjectSaveService.cs),
-which locks and reauthorizes before looking up a receipt. The [policy](Spatia.Server/Projects/ProjectSavePolicy.cs)
-compares actor, expected revision and request digest; the [writer](Spatia.Server/Projects/ProjectSaveWriter.cs)
+defect** in this backend slice. The [bounded endpoint](Spatia.Server/Projects/Saving/ProjectSaveEndpoints.cs)
+passes the parsed request to the [save service](Spatia.Server/Projects/Saving/ProjectSaveService.cs),
+which locks and reauthorizes before looking up a receipt. The [policy](Spatia.Server/Projects/Saving/ProjectSavePolicy.cs)
+compares actor, expected revision and request digest; the [writer](Spatia.Server/Projects/Saving/ProjectSaveWriter.cs)
 stages the document and receipt in the caller's transaction. The
 [migration](Spatia.Server/Persistence/Migrations/20261029122111_AddProjectSaveReceipts.cs),
 model constraints, lifecycle callers and rollback paths were also reviewed.
 
 [CI run 76](https://github.com/Team-Meshworks/gam300/actions/runs/40886048672)
 passed its server job on PostgreSQL 18.6 with 557 tests, none failed or skipped.
-The [endpoint tests](tests/ProjectSaveEndpointTests.cs) cover historical retries,
-access denial, concurrent saves and receipt/commit failures. The [persistence tests](tests/ProjectPersistenceTests.cs)
+The [endpoint tests](tests/Projects/ProjectSaveEndpointTests.cs) cover historical retries,
+access denial, concurrent saves and receipt/commit failures. The [persistence tests](tests/Projects/ProjectPersistenceTests.cs)
 verify fresh migration, backfilled fields and invalid legacy-row rollback. They do
 not establish a single old-server save → migration → HTTP retry run. The cold restart
 and fresh-browser API result above is a separate earlier local record; no tests were
@@ -1804,8 +1806,8 @@ Four lifecycle routes share FullAccount, CSRF and AccountWrite protection:
 
 | Route | Request and result |
 | --- | --- |
-| `POST /api/v1/projects` | Required bounded `title`, optional `environmentAssetId` or complete `document` (mutually exclusive), and optional `orgId`; returns 201 metadata. |
-| `POST /api/v1/projects/{id}/duplicate` | Required integer `expectedRevision` and bounded `title`; returns 201 independent-copy metadata. |
+| `POST /api/v1/projects` | Required bounded `title`, optional `environmentAssetId` or complete `document` (mutually exclusive), and optional `orgId`. A keyed creation returns 201 metadata or 200 on exact replay. An unresolved unkeyed request requires explicit resolution. |
+| `POST /api/v1/projects/{id}/duplicate` | Required integer `expectedRevision` and bounded `title`. A keyed creation returns 201 independent-copy metadata or 200 on exact replay. An unresolved unkeyed request requires explicit resolution. |
 | `PATCH /api/v1/projects/{id}/assignments` | Required integer `expectedRevision`, `managedByUserIds`, `assignedCreatorIds`, `canPublishUserIds`; replaces the complete assignment set and returns 200 metadata. |
 | `PATCH /api/v1/projects/{id}/archive` | Required integer `expectedRevision` and boolean `archived`; true archives, false reopens; returns 200 metadata. |
 
@@ -1818,8 +1820,12 @@ the 5 MiB budget; the other lifecycle routes retain 16 KiB. Validation errors ex
 fixed messages, never authored text or account details. Wrapped PostgreSQL insert
 failures now use the existing safe `503 storage_unavailable` mapping.
 
+For keyed creation, supply JSON `operationId` or a single raw 36-character hyphenated UUID
+in `Idempotency-Key`. Both must agree if supplied. An unresolved unkeyed request is rejected
+before any write and supplies a resolution URL. See [API write recovery](../../docs/api-recovery.md#resolving-an-unkeyed-integration).
+
 Create derives organization from current membership; a supplied different organization
-is forbidden. Global Administrators explicitly select an active organization. With neither
+is forbidden. Administrator project creation is forbidden. With neither
 `environmentAssetId` nor `document`, creation produces an empty schema-v2 scene with
 `environmentAssetId: null`. An explicitly selected approved environment produces the
 legacy v1 room/camera structure; imports preserve supported v1/v2 content. The two
@@ -1850,11 +1856,15 @@ Archived projects retain permitted reads/management, but saves, duplication, ass
 changes and publishing permission are blocked. Reopen derives permissions from current
 assignments. Metadata operations never replace or erase the document.
 
-Creation/duplication have no idempotency key; an uncertain response requires inspecting
-the project list before making another copy. Metadata uncertainty requires reopening
-before selecting a new revision. PUT uses the [durable retry contract](#draft-save-retry-contract). Every
-operation checks the original session cutoff before and after commit; a failure after
-commit can be durable without an acknowledgement.
+Current creation clients consult actor-scoped server generations and retry an identified
+request with its original payload. Existing keyed clients can continue without a guard.
+An unresolved unkeyed request writes nothing and returns a resolution URL. The actor can
+explicitly adopt an authorized existing resource or create a separate one. A historical
+unkeyed request cannot be attributed from its name. See [API write recovery](../../docs/api-recovery.md#resolving-an-unkeyed-integration).
+Metadata uncertainty requires reopening before selecting a new revision. PUT uses the
+[durable retry contract](#draft-save-retry-contract). A protected write may commit before
+the session expires, in which case the response can confirm the commit without returning
+its representation.
 
 The SCRUM-66/69 slice did not implement publication storage or delivery. SCRUM-85's
 storage foundation is documented below; publish and visitor routes remain pending.
@@ -1912,11 +1922,12 @@ organization and the member's existing Identity role. Removal marks a membership
 inactive rather than deleting its history.
 
 `POST /api/v1/classes` creates a class with a bounded `name`, optional `orgId` and
-optional `managedByUserIds`. An educator's organization is derived from the current
+optional `managedByUserIds`. For keyed creation, supply JSON `operationId` or one raw hyphenated UUID in
+`Idempotency-Key`. An educator's organization is derived from the current
 account and that educator becomes a manager. An administrator supplies an active
 organization and may select active educators in it. The response contains the new
-class ID, organization ID and name. Class creation is not idempotent; reconcile an
-uncertain response before retrying.
+class ID, organization ID and name. Exact authorized retries with the same ID return the
+original receipt. An unresolved unkeyed request is rejected before creation and offers a resolution URL.
 
 `GET /api/v1/classes` and `GET /api/v1/classes/{id}` expose classes only to current
 managers, active enrolled students or an administrator. Only managers and

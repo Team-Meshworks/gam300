@@ -30,7 +30,13 @@ const first = {
   id: id(1),
   name: "Gallery",
   startCamera: pose(0, 60),
-  objects: [object(10, "Next room"), object(11, "Detail view")],
+  objects: [
+    {
+      ...object(10, "Next room"),
+      components: [{ id: id(33), type: "hotspot", label: "Enter next room" }],
+    },
+    object(11, "Detail view"),
+  ],
   groups: [],
   zones: [],
   rules: [],
@@ -184,7 +190,12 @@ try {
     "Preview never flies above a saved view",
   );
   const canvas = await page.locator(".visitor-viewer canvas").elementHandle();
+  // Scene readiness and its scene-start interaction complete asynchronously.
+  const destinationAlert = page.waitForEvent("dialog", {
+    predicate: (dialog) => dialog.type() === "alert",
+  });
   await targets.getByRole("button", { name: "Activate Next room", exact: true }).click();
+  await destinationAlert;
   await targets.getByRole("button", { name: "Activate Back to first", exact: true }).waitFor();
   await page.waitForFunction(
     () => window.navigationCamera?.position[0] === 20 && window.navigationCamera?.fov === 70,
@@ -196,9 +207,31 @@ try {
     "Scene changes replace the previous scene viewport",
   );
   assert.deepEqual(alerts, ["hi"], "Destination scene-start fires exactly once");
-  await targets.getByRole("button", { name: "Activate Back to first", exact: true }).click();
-  await targets.getByRole("button", { name: "Activate Next room", exact: true }).waitFor();
-  await targets.getByRole("button", { name: "Activate Next room", exact: true }).click();
+  // Hold the returning room's model so both hotspot controls render before playback is ready.
+  const roomModel = /\/test-room\.glb(?:\?|$)/;
+  const gate = Promise.withResolvers();
+  await page.route(
+    roomModel,
+    async (route) => {
+      await gate.promise;
+      await route.continue();
+    },
+    { times: 1 },
+  );
+  const nextRoom = targets.getByRole("button", { name: "Activate Next room", exact: true });
+  const enterRoom = targets.getByRole("button", { name: "Enter next room", exact: true });
+  try {
+    await Promise.all([
+      page.waitForRequest(roomModel, { timeout: 8000 }),
+      targets.getByRole("button", { name: "Activate Back to first", exact: true }).click(),
+    ]);
+    await nextRoom.waitFor();
+    assert.equal(await nextRoom.isDisabled(), true, "Legacy hotspot waits for scene playback");
+    assert.equal(await enterRoom.isDisabled(), true, "Component hotspot waits for scene playback");
+  } finally {
+    gate.resolve();
+  }
+  await nextRoom.click();
   await targets.getByRole("button", { name: "Activate Back to first", exact: true }).waitFor();
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
   if (!(await page.locator(".object-row").filter({ hasText: "Detail view" }).isVisible()))
@@ -246,8 +279,12 @@ try {
     await chainPage.getByRole("button", { name: "Preview", exact: true }).click();
     await chainPage
       .getByRole("status")
-      .filter({ hasText: "Navigation stopped: scene-start interactions form a loop." })
+      .filter({ hasText: "Automatic scene navigation stopped at a repeated scene." })
       .waitFor();
+    assert.equal(
+      await chainPage.locator("[data-exhibition-scene]").getAttribute("data-exhibition-scene"),
+      second.id,
+    );
     assert.equal(
       await chainPage.getByRole("region", { name: "Exhibition", exact: true }).count(),
       1,

@@ -29,44 +29,63 @@ internal static class ReviewAssetManifest
     internal static HashSet<string> Required(IAuthoredProject document)
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
+
         switch (document)
         {
             case LegacyProject { SchemaVersion: 1 } legacy:
                 foreach (var scene in legacy.Scenes)
                 {
                     ids.Add(scene.EnvironmentAssetId);
-                    foreach (var item in scene.Objects) { ids.Add(item.AssetId); }
+
+                    foreach (var item in scene.Objects)
+                        ids.Add(item.AssetId);
                 }
                 break;
             case ContentProject { SchemaVersion: 2 } content:
                 foreach (var scene in content.Scenes)
                 {
-                    if (scene.EnvironmentAssetId is { } environmentId) { ids.Add(environmentId); }
-                    foreach (var audio in (scene.Audio ?? []).OfType<AudioComponent>()) { ids.Add(audio.AssetId); }
+                    if (scene.EnvironmentAssetId is { } environmentId)
+                        ids.Add(environmentId);
+
+                    foreach (var audio in (scene.Audio ?? []).OfType<AudioComponent>())
+                        ids.Add(audio.AssetId);
+
                     foreach (var item in scene.Objects)
                     {
                         ids.Add(item.AssetId);
+
                         foreach (var component in item.Components)
                         {
                             switch (component)
                             {
-                                case ImageComponent image: ids.Add(image.AssetId); break;
-                                case AudioComponent audio: ids.Add(audio.AssetId); break;
-                                case VideoComponent video: ids.Add(video.AssetId); break;
+                                case ImageComponent image:
+                                    ids.Add(image.AssetId);
+                                    break;
+                                case AudioComponent audio:
+                                    ids.Add(audio.AssetId);
+                                    break;
+                                case VideoComponent video:
+                                    ids.Add(video.AssetId);
+                                    break;
                             }
                         }
                     }
                 }
                 break;
-            default: throw new ArgumentException("A validated supported document is required.", nameof(document));
+            default:
+                throw new ArgumentException("A validated supported document is required.", nameof(document));
         }
+
         return ids;
     }
 
     internal static string? Serialize(IReadOnlySet<string> required, IReadOnlyCollection<ReviewAssetReference>? resolved)
     {
-        if (resolved is null || resolved.Count != required.Count) { return null; }
+        if (resolved is null || resolved.Count != required.Count)
+            return null;
+
         var ids = new HashSet<string>(StringComparer.Ordinal);
+
         foreach (var reference in resolved)
         {
             if (reference is null || !required.Contains(reference.AssetId) || !ids.Add(reference.AssetId)
@@ -76,6 +95,7 @@ internal static class ReviewAssetManifest
                 return null;
             }
         }
+
         return JsonSerializer.Serialize(resolved.OrderBy(row => row.AssetId, StringComparer.Ordinal), Options);
     }
 }

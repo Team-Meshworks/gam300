@@ -84,6 +84,8 @@ jobs:
           APP_URL: ${{ vars.APP_URL }}
           DEPLOY_BASIC_AUTH_USERNAME: ${{ secrets.DEPLOY_BASIC_AUTH_USERNAME }}
           DEPLOY_BASIC_AUTH_PASSWORD: ${{ secrets.DEPLOY_BASIC_AUTH_PASSWORD }}
+          DEPLOY_SMOKE_USERNAME: ${{ github.ref_name == 'dev' && secrets.DEPLOY_SMOKE_USERNAME || '' }}
+          DEPLOY_SMOKE_PASSWORD: ${{ github.ref_name == 'dev' && secrets.DEPLOY_SMOKE_PASSWORD || '' }}
           DEPLOY_ENVIRONMENT: ${{ needs.release.outputs.environment }}
         shell: bash
         run: |

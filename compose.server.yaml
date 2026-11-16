@@ -44,6 +44,8 @@ services:
       ASPNETCORE_ENVIRONMENT: ${SERVER_ENVIRONMENT:-Development}
       ConnectionStrings__Spatia: 'Host=postgres;Database=spatia;Username=spatia_api;Password="${SPATIA_API_PASSWORD:?Set a separate hexadecimal API password}"'
       DataProtection__KeyDirectory: /var/lib/spatia/keys
+      AssetIntake__MaxRetainedAssets: ${SPATIA_ASSET_MAX_RETAINED_ASSETS:-1000}
+      AssetIntake__MaxRetainedBytes: ${SPATIA_ASSET_MAX_RETAINED_BYTES:-1073741824}
       AllowedHosts: ${SERVER_ALLOWED_HOSTS:-localhost}
       # Use the externally reachable HTTPS origin; an unset value keeps publishing unavailable
       Publication__Origin: ${PUBLICATION_ORIGIN:-}
@@ -83,6 +85,12 @@ services:
         GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO spatia_api;
         GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO spatia_api;
         REVOKE ALL ON TABLE public."__EFMigrationsHistory" FROM spatia_api;
+        SET ROLE spatia_api;
+        SELECT actor_id, operation_id, purpose, sequence, acknowledged, source_project_id
+        FROM public.creation_receipts LIMIT 0;
+        SELECT actor_id, intent_digest, kind, purpose, organization_id, source_project_id,
+               resource_id, operation_id, previous_operation_id
+        FROM public.legacy_creation_bindings LIMIT 0;
         SQL
     depends_on:
       migrate:

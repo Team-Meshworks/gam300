@@ -2,6 +2,37 @@ import http from "node:http";
 import https from "node:https";
 import net from "node:net";
 
+export function createLoopbackBridge(origin, { ca } = {}) {
+  const target = new URL(normalizeLoopbackOrigin(origin));
+  const transport = target.protocol === "https:" ? https : http;
+  return http.createServer((incoming, outgoing) => {
+    const forwarded = transport.request(
+      target,
+      {
+        ca,
+        lookup: lookupLoopback,
+        autoSelectFamily: true,
+        path: incoming.url,
+        method: incoming.method,
+        headers: { ...incoming.headers, host: target.host },
+      },
+      (response) => {
+        response.on("error", () => outgoing.destroy());
+        outgoing.writeHead(response.statusCode, response.headers);
+        response.pipe(outgoing);
+      },
+    );
+    forwarded.on("error", () => {
+      if (outgoing.destroyed) return;
+      if (!outgoing.headersSent) outgoing.writeHead(502);
+      outgoing.end();
+    });
+    incoming.on("aborted", () => forwarded.destroy());
+    outgoing.on("close", () => forwarded.destroy());
+    incoming.pipe(forwarded);
+  });
+}
+
 // Chromium must be launched with proxy bypass '<-loopback>' so local requests
 // also pass through this allowlist. Do not use routing interception: it disables
 // the browser HTTP cache. This proxy leaves origin cache headers unchanged.

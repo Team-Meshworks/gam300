@@ -11,8 +11,14 @@ import { isRoomModel, knownRoomGeometry, STARTER_ROOM_SHA256 } from "../asset-ru
 import { disposeModels } from "../asset-runtime/ModelCache";
 import { createExhibitAppearance } from "../asset-runtime/exhibit-appearance";
 import { containDisplay } from "../asset-runtime/display-layout";
-import { createTextTexture } from "../asset-runtime/text-texture";
+import { createDisplayText } from "../asset-runtime/display-text";
 import { createRoomEntrances } from "../asset-runtime/room-entrances";
+import {
+  attachHotspotSprite,
+  disposeHotspotSprite,
+  loadHotspotSprite,
+} from "../asset-runtime/hotspot-sprite";
+import { fitRoomFog, lightExhibitionScene } from "../asset-runtime/scene-lighting";
 import type { PlayerSnapshot } from "./player-snapshot";
 import { createVisitorPlayback } from "./playback";
 import { fetchPlayerAsset } from "./player-asset";
@@ -20,14 +26,18 @@ import { fetchPlayerAsset } from "./player-asset";
 export function ExhibitionCanvas({
   exhibition,
   sceneIndex,
+  isPreview,
   viewpoint,
   navigate,
-  beginInput,
+  beginNavigationEvent,
+  onPlaybackReady,
 }: {
   exhibition: PlayerSnapshot;
   sceneIndex: number;
-  navigate: (sceneId: string, viewpointId: string) => boolean;
-  beginInput: () => void;
+  isPreview: boolean;
+  navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean;
+  beginNavigationEvent(): void;
+  onPlaybackReady(ready: boolean): void;
   viewpoint?: Readonly<{ id: string }> | undefined;
 }) {
   const mount = useRef<HTMLDivElement>(null);
@@ -92,8 +102,12 @@ export function ExhibitionCanvas({
     const camera = new THREE.PerspectiveCamera(starting.fovDegrees, 1, 0.01, 2000);
     const fps = new FpsControls(camera, renderer.domElement);
     fps.setFlightAllowed(false);
+    fps.onNavigationInput = beginNavigationEvent;
     fps.onCaptureChange = () => setCaptured(fps.isCaptured());
-    const controls = { target: new THREE.Vector3(), update: () => fps.syncFromCamera() };
+    const controls = {
+      target: new THREE.Vector3(),
+      update: () => fps.syncFromCamera(),
+    };
     queueMicrotask(() => {
       if (!controller.signal.aborted) setMobile(fps.mobileControls);
     });
@@ -119,11 +133,7 @@ export function ExhibitionCanvas({
     };
     reset.current = start;
     start();
-    scene.background = new THREE.Color("#e9e5db");
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x788493, 2));
-    const sun = new THREE.DirectionalLight(0xffffff, 2);
-    sun.position.set(5, 12, 8);
-    scene.add(sun);
+    const { fog } = lightExhibitionScene(scene);
     const size = new ResizeObserver(() => {
       const width = host.clientWidth,
         height = host.clientHeight;
@@ -162,7 +172,11 @@ export function ExhibitionCanvas({
     const down = (event: PointerEvent) => {
       cancelPress();
       // Pointerdown precedes the FPS mousedown which requests capture; that gesture only enters look mode
-      if (event.button !== 0 || !event.isPrimary || fps.wantsCapture(event)) return;
+      if (event.button !== 0 || !event.isPrimary) return;
+      if (fps.wantsCapture(event)) {
+        if (isPreview) playback?.start();
+        return;
+      }
       press = {
         id: event.pointerId,
         x: event.clientX,
@@ -261,7 +275,17 @@ export function ExhibitionCanvas({
         visible.length ? createWalkSpace(visible.map(([, room]) => room.model)) : undefined,
       );
     }
+    const hotspots = "hotspots" in source ? source.hotspots : [];
+    let hotspotTemplate: THREE.Sprite | undefined;
     void (async () => {
+      if (hotspots.length) {
+        const sprite = await loadHotspotSprite();
+        if (controller.signal.aborted) {
+          disposeHotspotSprite(sprite);
+          return;
+        }
+        hotspotTemplate = sprite;
+      }
       for (const object of objects) {
         const asset = exhibition.assets.find((row) => row.id === object.assetId);
         if (!asset) throw new Error("An exhibition asset is missing.");
@@ -300,6 +324,8 @@ export function ExhibitionCanvas({
           root.quaternion.fromArray(object.transform.rotation);
           root.scale.fromArray(object.transform.scale);
         }
+        if (object.id === source.id && root.visible)
+          fitRoomFog(fog, new THREE.Box3().setFromObject(root));
         const authored =
           "rules" in source ? source.objects.find((item) => item.id === object.id) : undefined;
         if (authored && "appearance" in authored) appearances.apply(root, authored.appearance);
@@ -332,7 +358,11 @@ export function ExhibitionCanvas({
               );
               const mesh = new THREE.Mesh(
                 new THREE.PlaneGeometry(fit.width, fit.height),
-                new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide, toneMapped: false }),
+                new THREE.MeshBasicMaterial({
+                  map,
+                  side: THREE.DoubleSide,
+                  toneMapped: false,
+                }),
               );
               mesh.position.fromArray(surface.position);
               mesh.quaternion.fromArray(surface.rotation);
@@ -348,43 +378,22 @@ export function ExhibitionCanvas({
             if (component.type !== "text") continue;
             const face = displaySurface(asset, component, localSurface);
             if (!face) continue;
-            const texture = createTextTexture(
-              "",
-              face.width,
-              face.height,
-              component.runs,
-              (component.fontSize ?? 24) * 4,
-              component.background === "transparent",
-              component.color ?? "#292522",
-              component.background ?? "#fffaf0",
+            root.add(
+              createDisplayText(
+                face,
+                component,
+                asset.displayRole === "physical",
+                authored.appearance,
+              ),
             );
-            const panel = new THREE.Mesh(
-              new THREE.PlaneGeometry(face.width, face.height),
-              new THREE.MeshBasicMaterial({
-                map: texture,
-                side: THREE.DoubleSide,
-                toneMapped: false,
-                transparent: component.background === "transparent",
-              }),
-            );
-            panel.position.fromArray(face.position);
-            panel.quaternion.fromArray(face.rotation);
-            panel.translateZ(0.004);
-            root.add(panel);
           }
         }
         scene.add(root);
         roots.set(object.id, root);
         // Markers attach in object-local coordinates and follow the saved model transform
-        for (const hotspot of ("hotspots" in source ? source.hotspots : []).filter(
-          (item) => item.objectId.toLowerCase() === object.id.toLowerCase(),
-        )) {
-          const marker = new THREE.Mesh(
-            new THREE.SphereGeometry(0.08, 12, 8),
-            new THREE.MeshBasicMaterial({ color: "#b45b34" }),
-          );
-          marker.position.fromArray(hotspot.position);
-          root.add(marker);
+        for (const hotspot of hotspots) {
+          if (hotspotTemplate && hotspot.objectId.toLowerCase() === object.id.toLowerCase())
+            attachHotspotSprite(hotspotTemplate.clone(), root, hotspot.position);
         }
         if (
           asset.kind === "environment" ||
@@ -409,15 +418,23 @@ export function ExhibitionCanvas({
             navigate,
             (message) => {
               if (!controller.signal.aborted)
-                setResult({ exhibition, sceneIndex, attempt, message, failed: false });
+                setResult({
+                  exhibition,
+                  sceneIndex,
+                  attempt,
+                  message,
+                  failed: false,
+                });
             },
-            beginInput,
+            beginNavigationEvent,
+            isPreview ? "Click or tap the scene to enable audio" : undefined,
             (root) => {
               if (rooms.has(root)) syncRooms();
             },
           );
           play.current = playback.start;
           playback.begin();
+          onPlaybackReady(true);
         }
         fps.engage();
         setResult({
@@ -453,6 +470,7 @@ export function ExhibitionCanvas({
     return () => {
       controller.abort();
       document.removeEventListener("visibilitychange", visibilityChanged);
+      onPlaybackReady(false);
       playback?.dispose();
       renderer.domElement.removeEventListener("pointerdown", down);
       renderer.domElement.removeEventListener("pointerup", click);
@@ -467,6 +485,7 @@ export function ExhibitionCanvas({
       size.disconnect();
       renderer.setAnimationLoop(null);
       fps.dispose();
+      if (hotspotTemplate) disposeHotspotSprite(hotspotTemplate);
       entrances.dispose();
       appearances.dispose();
       disposeModels(scene);
@@ -475,7 +494,16 @@ export function ExhibitionCanvas({
       reset.current = () => {};
       selectView.current = () => {};
     };
-  }, [exhibition, sceneIndex, entryView, attempt, navigate, beginInput]);
+  }, [
+    exhibition,
+    sceneIndex,
+    entryView,
+    attempt,
+    navigate,
+    beginNavigationEvent,
+    onPlaybackReady,
+    isPreview,
+  ]);
   useEffect(() => {
     if (viewpoint && viewpoint !== entryView) selectView.current(viewpoint.id);
   }, [viewpoint, entryView]);
@@ -492,15 +520,30 @@ export function ExhibitionCanvas({
           Retry loading exhibition
         </button>
       )}
-      <div className="visitor-controls">
-        <button onClick={() => play.current()}>Enable audio</button>
-        <button onClick={() => reset.current()}>Reset view</button>
-        {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
-          <button key={view.id} onClick={() => selectView.current(view.id)}>
-            {view.name}
+      {!isPreview && (
+        <div className="visitor-controls">
+          <button onClick={() => play.current()}>Enable audio</button>
+          <button
+            onClick={() => {
+              beginNavigationEvent();
+              reset.current();
+            }}
+          >
+            Reset view
           </button>
-        ))}
-      </div>
+          {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
+            <button
+              key={view.id}
+              onClick={() => {
+                beginNavigationEvent();
+                selectView.current(view.id);
+              }}
+            >
+              {view.name}
+            </button>
+          ))}
+        </div>
+      )}
       {current && !current.failed && (
         <>
           {captured && <span className="crosshair" aria-hidden="true" />}
@@ -520,7 +563,9 @@ export function ExhibitionCanvas({
       <div
         className="visitor-canvas"
         ref={mount}
-        style={{ visibility: current && !current.failed ? "visible" : "hidden" }}
+        style={{
+          visibility: current && !current.failed ? "visible" : "hidden",
+        }}
       />
     </section>
   );

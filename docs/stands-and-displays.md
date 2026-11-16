@@ -8,7 +8,7 @@ The editor now reuses v2 content components and attached-object transforms for d
 2. Select the placed display and choose **Edit display content** beside the scene tools. The contextual action follows the dock and stays outside the header.
 3. For physical displays, choose a model to place at its measured support height. The model is attached to the display and follows its transforms. The existing single-slot replacement/removal commands and undo history are reused.
 4. For digital displays, choose Text, Image or Video. Text supports whole-panel bold, italic and underline, with an optional plain-text caption. Add, Save or Remove content is one undoable document change. Close or Escape leaves the document untouched. Arrow keys, Home and End switch tabs; text and media choices survive tab changes. Unchanged mixed text runs and existing media playback options are preserved.
-5. Preview renders the digital surface. Video playback requires a click on its display or its Play / pause button; leaving Preview, hiding the page or removing the object pauses playback.
+5. Preview renders the digital surface. Stand videos loop and start with sound at their saved volume. If the browser blocks sound, the video plays muted until a click or keypress enables audio. Hiding the page pauses playback until it becomes visible again, and removing the object stops playback.
 
 ## Boundaries
 

@@ -1,3 +1,4 @@
+import { cancelStandPlaybackAttempt, playStandVideo } from "../asset-runtime/stand-video";
 import { useEffect, useRef, useState } from "react";
 import type { ContentComponent } from "../project/project-content";
 import type { VisitorScene } from "./playback";
@@ -8,10 +9,14 @@ function Media({
   component,
   assets,
   ownerId,
+  standVideo,
+  visit,
 }: {
   component: Extract<ContentComponent, { type: "image" | "audio" | "video" }>;
   assets: readonly CatalogueAsset[];
   ownerId?: string;
+  standVideo: boolean;
+  visit: number;
 }) {
   // Each media component owns a verified object URL and releases it when its scene leaves
   const [url, setUrl] = useState("");
@@ -53,13 +58,25 @@ function Media({
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
   }, [assets, component.assetId, component.type]);
+  useEffect(() => {
+    const node = media.current;
+    if (!standVideo || !url || !(node instanceof HTMLVideoElement)) return;
+    if (!node.closest("[hidden]")) playStandVideo(node);
+    return () => cancelStandPlaybackAttempt(node);
+  }, [standVideo, url, visit]);
   if (error) return <p role="alert">{error}</p>;
   if (component.type === "image")
     return url ? <img src={url} alt={component.alt} /> : <p role="status">Loading image…</p>;
   // Native Play also unlocks the scene's spatial graph before the media becomes audible
   const common = {
-    onPlay: (event: React.SyntheticEvent<HTMLMediaElement>) =>
-      event.currentTarget.dispatchEvent(new CustomEvent("exhibit-start", { bubbles: true })),
+    onPlay: (event: React.SyntheticEvent<HTMLMediaElement>) => {
+      const node = event.currentTarget;
+      if (
+        !(node instanceof HTMLVideoElement && node.muted) &&
+        (!standVideo || navigator.userActivation?.isActive)
+      )
+        node.dispatchEvent(new CustomEvent("exhibit-start", { bubbles: true }));
+    },
     src: url || undefined,
     controls: true,
     loop: component.loop,
@@ -80,6 +97,13 @@ function Media({
     <video
       {...common}
       ref={media as React.RefObject<HTMLVideoElement>}
+      loop={standVideo || component.loop}
+      preload={standVideo ? "auto" : undefined}
+      data-stand-video={standVideo || undefined}
+      onPause={(event) => {
+        if (standVideo && event.currentTarget.paused && !document.hidden)
+          cancelStandPlaybackAttempt(event.currentTarget);
+      }}
       aria-label={component.caption || "Exhibition video"}
       playsInline
     />
@@ -87,13 +111,17 @@ function Media({
 }
 
 export function ExhibitionContent({
+  visit,
   scene,
   assets,
   navigate,
+  playbackReady,
 }: {
+  visit: number;
   scene: VisitorScene;
   assets: readonly CatalogueAsset[];
   navigate: (sceneId: string, viewpointId: string) => void;
+  playbackReady: boolean;
 }) {
   const hotspots = "hotspots" in scene ? scene.hotspots : [];
   const components = (object: VisitorScene["objects"][number]): readonly ContentComponent[] =>
@@ -128,16 +156,30 @@ export function ExhibitionContent({
     section.current?.dispatchEvent(new CustomEvent("exhibit-activate", { detail: id }));
   // Keep literal text and native media controls accessible beside the 3D view
   // Panel events stay scoped to this scene so old timers cannot operate on new content
-  function component(item: ContentComponent, ownerId?: string) {
+  function component(item: ContentComponent, ownerId?: string, standVideo = false) {
     if (item.type === "hotspot")
       return (
-        <button key={item.id} onClick={() => ownerId && activate(ownerId)}>
+        <button
+          key={item.id}
+          disabled={!playbackReady}
+          onClick={() => ownerId && activate(ownerId)}
+        >
           {item.label || "Activate exhibit"}
         </button>
       );
     if (item.type === "navigationPoint")
       return (
-        <button key={item.id} onClick={() => navigate(item.sceneId, item.viewpointId)}>
+        <button
+          key={item.id}
+          disabled={!playbackReady}
+          onClick={() => {
+            const action = new CustomEvent("exhibit-navigation-point", {
+              detail: item.id,
+              cancelable: true,
+            });
+            if (section.current?.dispatchEvent(action)) navigate(item.sceneId, item.viewpointId);
+          }}
+        >
           {item.label}
         </button>
       );
@@ -169,6 +211,8 @@ export function ExhibitionContent({
           <Media
             key={item.assetId}
             component={item}
+            standVideo={standVideo}
+            visit={standVideo ? visit : 0}
             assets={assets}
             {...(ownerId ? { ownerId } : {})}
           />
@@ -212,8 +256,19 @@ export function ExhibitionContent({
               <h2>{object.name}</h2>
               {hotspots.some(
                 (hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase(),
-              ) && <button onClick={() => activate(object.id)}>Activate {object.name}</button>}
-              {components(object).map((item) => component(item, object.id))}
+              ) && (
+                <button disabled={!playbackReady} onClick={() => activate(object.id)}>
+                  Activate {object.name}
+                </button>
+              )}
+              {components(object).map((item) =>
+                component(
+                  item,
+                  object.id,
+                  item.type === "video" &&
+                    assets.some((asset) => asset.id === object.assetId && !!asset.displaySurface),
+                ),
+              )}
             </article>
           ))}
       </section>

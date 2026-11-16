@@ -3,6 +3,62 @@ import type { CameraPose, ProjectDocument } from "../../shared/project/project-t
 import { createPreviewNavigation } from "./preview-navigation";
 import { createActionRunner } from "./actionHandler";
 import { createInteractionHandler } from "./interactionHandler";
+import fixture from "../../shared/project/fixtures/m2-project.json";
+import { deserializeProject } from "../../shared/project/project-deserialization";
+
+it("stops delayed scene cycles while allowing a deliberate return", () => {
+  const loaded = deserializeProject(
+    JSON.stringify(fixture),
+    new Map([
+      ["test-room-v1", "environment"],
+      ["test-crate-v1", "model"],
+      ["demo-image-v1", "image"],
+      ["demo-audio-v1", "audio"],
+      ["demo-video-v1", "video"],
+    ]),
+  );
+  if (!loaded.ok) throw new Error(loaded.error.message);
+  const project = loaded.value;
+  const [first, second] = project.scenes;
+  if (!first || !second) throw new Error("Two scenes are required");
+  let activeSceneId = first.id;
+  const notice = vi.fn();
+  const navigation = createPreviewNavigation({
+    snapshot: () => ({ project, activeSceneId }),
+    switchScene(id) {
+      activeSceneId = id;
+      return { ok: true };
+    },
+    showCamera: vi.fn(),
+    notice,
+  });
+  const enter = (destination: string) =>
+    createInteractionHandler(
+      [
+        {
+          when: { type: "time-elapsed", seconds: 1 },
+          do: { type: "navigate-scene", sceneId: destination },
+        },
+        {
+          when: { type: "visitor-clicks-hotspot", targetHotspotId: "return" },
+          do: { type: "navigate-scene", sceneId: destination },
+        },
+      ],
+      [{ id: "return", objectId: "door", position: [0, 0, 0] }],
+      createActionRunner(navigation),
+      navigation.beginEvent,
+    );
+  navigation.start();
+  enter(second.id).update(1);
+  expect(activeSceneId).toBe(second.id);
+  const secondVisit = enter(first.id);
+  secondVisit.update(1);
+  expect(activeSceneId).toBe(second.id);
+  expect(notice).toHaveBeenCalledOnce();
+  secondVisit.objectClicked("door");
+  expect(activeSceneId).toBe(first.id);
+  navigation.end();
+});
 
 it("navigates by stable IDs, resolves local viewpoints, stops scene-start loops and restores the author scene", () => {
   const camera: CameraPose = { position: [2, 3, 4], rotation: [0, 0, 0, 1], fovDegrees: 45 };

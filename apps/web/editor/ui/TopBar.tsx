@@ -243,7 +243,7 @@ export function TopBar({
             className="ui-button pill-button"
             type="button"
             disabled={!canPreview}
-            title="Walk through the scene as a visitor"
+            title="Preview this draft as a visitor"
             onClick={onPreview}
           >
             Preview

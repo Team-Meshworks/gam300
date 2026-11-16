@@ -11,9 +11,8 @@ internal sealed class PublicationReadFilter : IEndpointFilter
     internal PublicationReadFilter(PublicationReadKind kind)
     {
         if (!Enum.IsDefined(kind))
-        {
             throw new ArgumentOutOfRangeException(nameof(kind));
-        }
+
         _kind = kind;
     }
 
@@ -49,10 +48,9 @@ internal sealed class PublicationReadFilter : IEndpointFilter
         var assetId = _kind == PublicationReadKind.Asset
             ? context.Request.RouteValues["assetId"] as string
             : null;
+
         if (_kind == PublicationReadKind.Asset && string.IsNullOrWhiteSpace(assetId))
-        {
             return Unavailable(context);
-        }
 
         // Resolve the current session before looking up access and immutable asset membership
         // Anonymous visitors still reach the lookup for public and unlisted editions
@@ -71,10 +69,9 @@ internal sealed class PublicationReadFilter : IEndpointFilter
             PublicationAudience.Authenticated => stillAuthenticated && policy.IsAudienceMember,
             _ => false,
         });
+
         if (!allowed)
-        {
             return Unavailable(context);
-        }
 
         // Read protected content only after the access decision succeeds
         return await next(invocation);

@@ -1,4 +1,5 @@
 import { launchBrowser } from "./browser-security.mjs";
+import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -24,6 +25,7 @@ const writes = [],
 const api = async (route) => {
   const request = route.request(),
     path = new URL(request.url()).pathname;
+  if (await recovery.handle(route, account)) return;
   const json = (status, body) => route.fulfill({ status, json: body });
   if (path === "/api/v1/auth/session")
     return account
@@ -68,6 +70,7 @@ const api = async (route) => {
         releaseSave = resolve;
       });
     if (mode === "failed") return json(503, {});
+    if (mode === "invalid") return json(422, { code: "invalid_document" });
     if (mode === "conflict" || body.expectedRevision !== revision) return json(409, {});
     assert.equal(request.headers()["x-csrf-token"], "test-token");
     document = body.document;
@@ -80,8 +83,18 @@ const api = async (route) => {
   }
   return json(404, {});
 };
+const recovery = creationRecoveryFixture();
 await context.route("**/api/v1/**", api);
 const page = await context.newPage();
+await page.addInitScript(() => {
+  window.editorCues = [];
+  const play = HTMLMediaElement.prototype.play;
+  HTMLMediaElement.prototype.play = function () {
+    const cue = new URL(this.src, location.href).pathname.match(/\/(save|warning)\.wav$/)?.[1];
+    if (cue) window.editorCues.push(cue);
+    return play.call(this);
+  };
+});
 page.on("pageerror", (error) => errors.push(error.message));
 page.on("dialog", (dialog) => dialog.accept());
 const url = `${base}/?projectId=${fixture.projectId}`;
@@ -341,18 +354,24 @@ async function importScenario() {
       new URL(route.request().url()).pathname === "/api/v1/projects" &&
       route.request().method() === "POST"
     ) {
+      assert.equal(route.request().headers()["x-spatia-account"], alice);
       imports.push(route.request().postDataJSON());
+      assert.match(imports.at(-1).operationId, /^[0-9a-f-]{36}$/);
+      assert.deepEqual(imports.at(-1).creationGuard, {
+        purpose: "import",
+        previousOperationId: null,
+      });
       return route.fulfill(
         lostReceipt
           ? { status: 503, json: {} }
           : {
-              status: 201,
-              json: {
+              status: 200,
+              json: recovery.commit(route.request(), {
                 projectId: importedId,
                 revision: 0,
                 archived: false,
                 updatedAt: new Date().toISOString(),
-              },
+              }),
             },
       );
     }
@@ -383,23 +402,42 @@ async function importScenario() {
     await upload(JSON.stringify(incoming));
     await editor.getByRole("alert").filter({ hasText: "Import could not be confirmed" }).waitFor();
     assert.equal(imports.length, 1);
-    await upload(JSON.stringify(incoming));
-    await editor
-      .getByRole("alert")
-      .filter({ hasText: "earlier creation may have completed" })
-      .waitFor();
-    assert.equal(imports.length, 1, "Uncertain imports do not create duplicates on retry");
-    // The existing All Projects reconciliation clears this same guard after checking creation
-    await editor.evaluate(
-      (key) => sessionStorage.removeItem(key),
-      `spatia:uncertain-project-creation:${alice}`,
+    const operationKey = "spatia.create:" + alice + ":import";
+    const pending = await editor.evaluate(
+      (key) => JSON.parse(localStorage.getItem(key)),
+      operationKey,
     );
+    assert.equal(pending.body.operationId, imports[0].operationId);
+    assert.match(pending.payloadDigest, /^[a-f0-9]{64}$/);
+    assert.equal(pending.body.document, undefined);
+    await upload(JSON.stringify(incoming));
+    await editor.getByRole("alert").filter({ hasText: "Import could not be confirmed" }).waitFor();
+    assert.equal(imports.length, 2);
+    assert.deepEqual(
+      imports[1],
+      imports[0],
+      "An uncertain import replays the original operation and input",
+    );
+    await upload(JSON.stringify({ ...incoming, title: "Different import" }));
+    await editor.getByRole("alert").filter({ hasText: "Retry the earlier creation" }).waitFor();
+    assert.equal(imports.length, 2, "Changed input cannot reuse the pending import operation");
+    await editor.reload();
+    const savedVersion = editor.getByRole("button", { name: "Use saved version", exact: true });
+    await editor.locator('.save-state[data-state="saved"]').or(savedVersion).first().waitFor();
+    if (await savedVersion.isVisible()) await savedVersion.click();
+    await editor.locator('.save-state[data-state="saved"]').waitFor();
     lostReceipt = false;
     await upload(JSON.stringify(incoming));
-    await editor.waitForURL(`**/?projectId=${importedId}`);
-    assert.equal(imports[1].title, incoming.title);
-    assert.equal(imports[1].document.projectId, incoming.projectId);
-    assert.equal(imports[1].orgId, bob);
+    await editor.waitForURL("**/?projectId=" + importedId);
+    assert.equal(imports.length, 3);
+    assert.deepEqual(
+      imports[2],
+      imports[0],
+      "Reload recovery keeps the import's original operation ID",
+    );
+    assert.equal(imports[2].title, incoming.title);
+    assert.equal(imports[2].document.projectId, incoming.projectId);
+    assert.equal(imports[2].orgId, bob);
     assert.equal(
       JSON.stringify(document),
       original,
@@ -411,6 +449,157 @@ async function importScenario() {
 }
 
 try {
+  // Real IndexedDB must not reuse a cleared revision while another tab holds it.
+  const recoveryContext = await browser.newContext();
+  try {
+    const recoveryPage = await recoveryContext.newPage();
+    await recoveryPage.goto(base);
+    const result = await recoveryPage.evaluate(
+      async ({ project, accountId }) => {
+        const { applySaveRecoverySession, clearConfirmedServerRecovery, getRecoverySession } =
+          await import("/persistence/recovery-session.ts");
+        const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
+        const database = new IndexedDBDraftDatabase();
+        const assets = new Map([
+          ["test-room-v1", "environment"],
+          ["test-crate-v1", "model"],
+        ]);
+        const scope = { accountId, projectId: project.projectId };
+        const backup = { document: project };
+        const first = await applySaveRecoverySession(backup, 0, assets, database, scope);
+        const connection = await database.getIndexedDB();
+        const encoded = await new Promise((resolve, reject) => {
+          const tx = connection.transaction("session", "readonly");
+          const read = tx.objectStore("session").get(["account", accountId, project.projectId]);
+          tx.oncomplete = () => {
+            connection.close();
+            resolve(read.result.document);
+          };
+          tx.onabort = () => {
+            connection.close();
+            reject(tx.error);
+          };
+        });
+        const confirmed = {
+          ...backup,
+          serverSave: { revision: 7, confirmedJson: encoded, pending: null },
+        };
+        const second = await applySaveRecoverySession(confirmed, 1, assets, database, scope);
+        const cleared = await clearConfirmedServerRecovery(scope);
+        const reopened = await getRecoverySession(assets, database, scope);
+        if (!reopened.ok || !reopened.value) throw new Error("Cleared revision was not retained");
+        const newer = { ...confirmed, document: { ...project, title: "New tab's offline work" } };
+        const next = await applySaveRecoverySession(
+          newer,
+          reopened.value.revision,
+          assets,
+          database,
+          scope,
+        );
+        const stale = await applySaveRecoverySession(
+          { ...confirmed, document: { ...project, title: "Stale tab" } },
+          2,
+          assets,
+          database,
+          scope,
+        );
+        const retained = await getRecoverySession(assets, database, scope);
+        return { first, second, cleared, reopened, next, stale, retained };
+      },
+      {
+        project: fixture,
+        accountId: alice,
+      },
+    );
+    assert.deepEqual(result.first, { ok: true, value: 1 });
+    assert.deepEqual(result.second, { ok: true, value: 2 });
+    assert.deepEqual(result.cleared, { ok: true, value: true });
+    assert.equal(result.reopened.value.revision, 2);
+    assert.equal(result.reopened.value.document, null);
+    assert.deepEqual(result.next, { ok: true, value: 3 });
+    assert.equal(result.stale.ok, false);
+    assert.equal(result.retained.value.document.title, "New tab's offline work");
+  } finally {
+    await recoveryContext.close();
+  }
+  // A second editor must not commit while the first file writer is open.
+  const fileContext = await browser.newContext();
+  try {
+    const filePage = await fileContext.newPage();
+    await filePage.goto(base);
+    const overlap = await filePage.evaluate(async () => {
+      const { writeProjectFile } = await import("/persistence/project-files.ts");
+      const handle = await (
+        await navigator.storage.getDirectory()
+      ).getFileHandle("overlap.json", { create: true });
+      const initial = await handle.createWritable();
+      await initial.write("original");
+      await initial.close();
+      let release;
+      let created;
+      const held = new Promise((resolve) => {
+        release = resolve;
+      });
+      const opened = new Promise((resolve) => {
+        created = resolve;
+      });
+      let writerMode;
+      const delayed = {
+        kind: handle.kind,
+        name: handle.name,
+        getFile: () => handle.getFile(),
+        createWritable: async (...args) => {
+          const stream = await handle.createWritable(...args);
+          writerMode = stream.mode ?? null;
+          created();
+          return {
+            write: (text) => stream.write(text),
+            close: async () => {
+              await held;
+              await stream.close();
+            },
+            abort: () => stream.abort(),
+          };
+        },
+      };
+      const first = writeProjectFile(delayed, "first", "original");
+      await opened;
+      let secondSucceeded = true;
+      try {
+        await writeProjectFile(handle, "second", "original");
+      } catch {
+        secondSucceeded = false;
+      } finally {
+        release();
+      }
+      await first;
+      const afterFirst = await (await handle.getFile()).text();
+      let staleSucceeded = true;
+      try {
+        await writeProjectFile(handle, "stale", "original");
+      } catch {
+        staleSucceeded = false;
+      }
+      await writeProjectFile(handle, "follow-up", "first");
+      return {
+        secondSucceeded,
+        staleSucceeded,
+        afterFirst,
+        finalText: await (await handle.getFile()).text(),
+        writerMode,
+      };
+    });
+    assert.equal(
+      overlap.secondSucceeded,
+      false,
+      `The overlapping writer must be rejected: ${JSON.stringify(overlap)}`,
+    );
+    assert.equal(overlap.afterFirst, "first");
+    assert.equal(overlap.staleSucceeded, false);
+    assert.equal(overlap.finalText, "follow-up");
+  } finally {
+    await fileContext.close();
+  }
   await catalogueScenario(false, false, "approved");
   for (const capability of [false, undefined, true]) await catalogueScenario(capability);
   await catalogueScenario(false, false, "retained");
@@ -432,15 +621,54 @@ try {
   await ready();
   await page.screenshot({ path: ".artifacts/scrum67-editor.png" });
   await edit("Autosaved in the real editor");
+  await page.keyboard.press("Control+s");
   await saved();
+  const manualSaveCues = await page.evaluate(() => window.editorCues);
   assert.equal(document.scenes[0].name, "Autosaved in the real editor");
   assert.equal(writes.length, 1);
+  // A definite validation rejection survives reload without replaying stale bytes.
+  mode = "invalid";
+  const beforeInvalid = writes.length;
+  await edit("Rejected draft retained for correction");
+  await page
+    .getByRole("alert")
+    .filter({
+      hasText:
+        "Save needs changes. Check your document and assets, then try again. Your edits are still here.",
+    })
+    .waitFor();
+  const rejected = writes.at(-1);
+  assert.equal(rejected.document.scenes[0].name, "Rejected draft retained for correction");
+  assert.notEqual(document.scenes[0].name, rejected.document.scenes[0].name);
+  await page.reload();
+  await page.getByRole("dialog", { name: "Recover your changes?" }).waitFor();
+  await page.getByRole("button", { name: "Recover changes", exact: true }).click();
+  await ready();
+  assert.equal(
+    await page.getByLabel("Scene name", { exact: true }).inputValue(),
+    "Rejected draft retained for correction",
+  );
+  mode = "saved";
+  await edit("Corrected draft retained after rejection");
+  await saved();
+  assert.equal(writes.length, beforeInvalid + 2);
+  const corrected = writes.at(-1);
+  assert.notEqual(corrected.clientMutationId, rejected.clientMutationId);
+  assert.equal(corrected.expectedRevision, rejected.expectedRevision);
+  assert.equal(corrected.document.scenes[0].name, "Corrected draft retained after rejection");
+  assert.equal(document.scenes[0].name, "Corrected draft retained after rejection");
   // Leaving keeps changed work behind the same preservation choices
   mode = "failed";
   await edit("Draft before publishing");
   await page.locator('.save-state[data-state="failed"]').waitFor();
   await page.getByRole("alert").filter({ hasText: "Save failed" }).waitFor();
   await page.getByRole("button", { name: "Leave editor", exact: true }).click();
+  await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).waitFor();
+  assert.deepEqual(
+    { manualSaveCues, dirtyDepartureCues: await page.evaluate(() => window.editorCues) },
+    { manualSaveCues: ["save"], dirtyDepartureCues: ["warning"] },
+    "Confirm a user-requested save and warn when departure opens over a dirty project",
+  );
   await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).click();
   assert.equal(
     await page.getByLabel("Scene name", { exact: true }).inputValue(),

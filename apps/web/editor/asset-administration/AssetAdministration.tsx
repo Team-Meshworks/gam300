@@ -14,6 +14,7 @@ import { assetPreviewKey, assetPreviewSource } from "./asset-previews";
 import type {
   AssetAdministrationData,
   AssetAdministrationService,
+  AssetAdministrationResult,
   AssetCandidate,
 } from "./asset-administration";
 import "./asset-administration.css";
@@ -26,7 +27,7 @@ type Props = {
   initialUpload?: boolean;
   onClose: () => void;
 };
-type Notice = { kind: "denied" | "unavailable" | "invalid"; message: string };
+type Notice = Pick<Extract<AssetAdministrationResult<never>, { ok: false }>, "kind" | "message">;
 type Selection = { kind: "upload" } | { kind: "detail"; id: string } | null;
 
 // Mount after resolving the current account in the admin shell
@@ -63,6 +64,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   });
   useEffect(() => {
     const url = new URL(location.href);
+    url.searchParams.delete("add");
     if (selection?.kind === "detail") url.searchParams.set("assetId", selection.id);
     else url.searchParams.delete("assetId");
     history.replaceState(history.state, "", url);
@@ -74,6 +76,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const [category, setCategory] = useState("");
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState("");
+  const [unknownWrite, setUnknownWrite] = useState(false);
   const [confirmation, setConfirmation] = useState(false);
   const [review, setReview] = useState({ source: "", license: "", reviewNotes: "" });
   const dialog = useModal(selection !== null);
@@ -120,8 +123,9 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         if (controller.signal.aborted) {
           return;
         }
+        setData(result.ok ? result.value : null);
         if (result.ok) {
-          setData(result.value);
+          setUnknownWrite(false);
           if (initialUpload) setCategory(result.value.policy.categories[kind]?.[0] ?? "");
           setNotice(null);
         } else {
@@ -131,6 +135,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       })
       .catch(() => {
         if (!controller.signal.aborted) {
+          setData(null);
           setNotice({
             kind: "unavailable",
             message: "Assets could not be loaded. Please try again.",
@@ -227,6 +232,13 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     if (busy) {
       return;
     }
+    if (unknownWrite) {
+      setSelection(null);
+      setConfirmation(false);
+      setLoading(true);
+      setReload((n) => n + 1);
+      return;
+    }
     // Cancel the destructive step first so the same asset details remain open
     if (confirmation) {
       setConfirmation(false);
@@ -285,6 +297,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   async function mutate(
     send: (signal: AbortSignal) => ReturnType<AssetAdministrationService["changeAvailability"]>,
   ) {
+    if (unknownWrite || operation.current) return;
     // Bind this request to the mounted screen; account changes abort it before a stale result can apply
     const controller = new AbortController();
     operation.current = controller;
@@ -298,6 +311,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       }
       if (!result.ok) {
         setNotice(result);
+        setUnknownWrite(result.kind === "unknown");
         return;
       }
       // Replace only the confirmed record; failed mutations leave the list and form unchanged
@@ -331,12 +345,14 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       );
     } catch {
       if (!controller.signal.aborted) {
+        setUnknownWrite(true);
         setNotice({
-          kind: "unavailable",
-          message: "The change could not be confirmed. Please try again.",
+          kind: "unknown",
+          message: "The change may have been applied. Check the asset list before trying again.",
         });
       }
     } finally {
+      if (operation.current === controller) operation.current = null;
       // Only the active screen clears its pending state after a completed or failed request
       if (!controller.signal.aborted) {
         setBusy(false);
@@ -345,7 +361,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   }
 
   async function downloadSelected() {
-    if (!selected || busy) {
+    if (!selected || operation.current) {
       return;
     }
     const asset = selected;
@@ -377,6 +393,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         setNotice({ kind: "unavailable", message: "Download failed. Please try again" });
       }
     } finally {
+      if (operation.current === controller) operation.current = null;
       if (!controller.signal.aborted) {
         setBusy(false);
       }
@@ -456,7 +473,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         </div>
         <button
           className="asset-admin-primary"
-          disabled={!canOpenUpload || loading || notice?.kind === "denied"}
+          disabled={!canOpenUpload || loading || unknownWrite || notice?.kind === "denied"}
           onClick={openUpload}
         >
           + Add {kind === "environment" ? "3D Space" : "Assets"}
@@ -894,17 +911,18 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
               </a>
             )}
             <button type="button" disabled={busy} onClick={closeDialog}>
-              Cancel
+              {unknownWrite ? "Check asset list" : "Cancel"}
             </button>
             {selection?.kind === "upload" ? (
               <button
                 className="asset-admin-primary"
-                disabled={busy || !file || !canSubmit}
+                disabled={busy || unknownWrite || !file || !canSubmit}
                 type="submit"
               >
                 {busy ? "Submitting…" : "Save Changes"}
               </button>
             ) : (
+              !unknownWrite &&
               selected?.actions
                 .filter(
                   (action) =>

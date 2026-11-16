@@ -11,6 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { createServer } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,7 +25,31 @@ let browserSession = false;
 const sessionHeaders = { Cookie: "spatia-test=session" };
 let authStatus = 204;
 let authReads = 0;
-const api = createServer((request, response) => {
+const sessionChallenge = 'SpatiaSession realm="Spatia", login_uri="/api/v1/auth/login"';
+const organizationPath = "/api/v1/admin/organizations/22222222-2222-4222-8222-222222222222";
+const selectedProject = "33333333-3333-4333-8333-333333333333";
+const resolutionPath = `/api/v1/projects/legacy-resolution?useExisting=${selectedProject}`;
+let receivedWrite;
+const api = createServer(async (request, response) => {
+  if ([organizationPath, organizationPath + "/deletion", resolutionPath].includes(request.url)) {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    receivedWrite = {
+      method: request.method,
+      path: request.url,
+      headers: request.headers,
+      body: Buffer.concat(chunks).toString("utf8"),
+    };
+    if (request.url === resolutionPath) {
+      response.writeHead(200, {
+        "X-Spatia-Creation-Resolution": "existing",
+        Location: `/api/v1/projects/${selectedProject}`,
+      }).end();
+    } else {
+      response.writeHead(204).end();
+    }
+    return;
+  }
   if (request.url === "/api/v1/auth/session" && browserSession) {
     response.writeHead(200, {
       "Content-Type": "application/json",
@@ -47,8 +72,10 @@ const api = createServer((request, response) => {
     assert.equal(request.headers["x-forwarded-proto"], "https");
     const authorized =
       browserSession || request.headers.cookie === sessionHeaders.Cookie;
-    response.writeHead(authorized ? authStatus : 401, {
+    const status = authorized ? authStatus : 401;
+    response.writeHead(status, {
       "Cache-Control": "no-store",
+      ...(status === 401 ? { "WWW-Authenticate": sessionChallenge } : {}),
     });
   } else response.writeHead(401);
   response.end();
@@ -130,6 +157,7 @@ try {
   const inner = await freePort();
   const tls = await freePort();
   const outer = await freePort();
+  const outerTls = await freePort();
   const apiPort = await listen(api);
   const web = (
     await readFile(new URL("./app.Caddyfile", import.meta.url), "utf8")
@@ -139,10 +167,16 @@ try {
     .replace(":8080 {", `http://127.0.0.1:${publicPort} {`)
     .replace(":8081 {", `http://127.0.0.1:${privatePort} {`);
   const checkWeb = await start("web", web);
+  const storage = join(temporary, "gateway-storage");
+  const hostGateway = await readFile(new URL("./gateway.Caddyfile", import.meta.url), "utf8");
+  const hostRoutes = hostGateway.match(/^\(application\) \{[\s\S]*?^\}/m)?.[0];
+  assert.ok(hostRoutes, "Expected the host gateway's application routes");
+  const devGate = (await readFile(new URL("./dev-creates.caddy", import.meta.url), "utf8"))
+    .replaceAll("root /config", `root ${quotePath(temporary)}`);
   const server = (
     await readFile(new URL("./server.Caddyfile", import.meta.url), "utf8")
   )
-    .replace("admin off", "admin off\n\tskip_install_trust")
+    .replace("admin off", `admin off\n\tskip_install_trust\n\tstorage file_system {\n\t\troot ${quotePath(storage)}\n\t}`)
     .replaceAll("api:8080", `127.0.0.1:${apiPort}`)
     .replaceAll("web:8080", `127.0.0.1:${publicPort}`)
     .replaceAll("web:8081", `127.0.0.1:${privatePort}`)
@@ -151,7 +185,13 @@ try {
   const checkServer = await start(
     "gateway",
     `${server}
+${hostRoutes.replace("(application)", "(host_application)")}
+https://localhost:${outerTls} {
+  tls internal
+  import host_application 127.0.0.1:${inner}
+}
 http://127.0.0.1:${outer} {
+  ${devGate}
   reverse_proxy 127.0.0.1:${inner} {
     header_up X-Forwarded-Proto https
   }
@@ -174,6 +214,75 @@ http://127.0.0.1:${outer} {
     await new Promise((done) => setTimeout(done, 100));
   }
   assert.ok(ready, "Caddy must start with the deployment configuration");
+  const pauseFile = join(temporary, "spatia-dev-creates-paused");
+  await writeFile(pauseFile, "");
+  for (const [method, path] of [
+    ["POST", "/api/v1/projects"],
+    ["POST", "/API/V1/classes/"],
+    ["POST", `/api/v1/projects/${selectedProject}/duplicate`],
+    ["PUT", resolutionPath],
+  ]) {
+    const response = await fetch(origin + path, { method, headers: sessionHeaders });
+    assert.equal(response.status, 503, path);
+    assert.equal(response.headers.get("retry-after"), "120");
+  }
+  assert.equal(
+    (await fetch(`${origin}/api/v1/projects/legacy-resolution`, { method: "PUT" })).status,
+    401,
+  );
+  assert.equal((await fetch(`${origin}/healthz`)).status, 200);
+  await rm(pauseFile);
+  assert.equal((await fetch(`${origin}/api/v1/projects`, { method: "POST" })).status, 401);
+  console.log("PASS: development creates return 503 during the pause and reach the API after reopening.");
+  const confirmation = JSON.stringify({ confirmationName: "Synthetic école" });
+  const ca = await readFile(join(storage, "pki/authorities/local/root.crt"));
+  for (const [method, path, body] of [
+    ["POST", organizationPath + "/deletion", confirmation],
+    ["DELETE", organizationPath, confirmation],
+    ["PUT", resolutionPath, JSON.stringify({ title: "Galerie de l'école" })],
+  ]) {
+    receivedWrite = undefined;
+    const reply = await new Promise((resolveReply, reject) => {
+      const request = httpsRequest(
+        `https://localhost:${outerTls}${path}`,
+        {
+          ca,
+          family: 4,
+          method,
+          headers: {
+            ...sessionHeaders,
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(body),
+            "X-CSRF-TOKEN": "synthetic-token",
+            "X-Spatia-Account": "11111111-1111-4111-8111-111111111111",
+          },
+        },
+        (response) => {
+          response.resume();
+          resolveReply(response);
+        },
+      );
+      request.on("error", reject);
+      request.end(body);
+    });
+    if (path === resolutionPath) {
+      assert.equal(reply.statusCode, 200);
+      assert.equal(reply.headers["x-spatia-creation-resolution"], "existing");
+      assert.equal(reply.headers.location, `/api/v1/projects/${selectedProject}`);
+    } else {
+      assert.equal(reply.statusCode, 204);
+    }
+    assert.equal(receivedWrite?.method, method);
+    assert.equal(receivedWrite.path, path);
+    assert.equal(receivedWrite.body, body);
+    assert.equal(receivedWrite.headers.cookie, sessionHeaders.Cookie);
+    assert.equal(receivedWrite.headers["x-csrf-token"], "synthetic-token");
+    assert.equal(
+      receivedWrite.headers["x-spatia-account"],
+      "11111111-1111-4111-8111-111111111111",
+    );
+    assert.equal(receivedWrite.headers["x-forwarded-proto"], "https");
+  }
   assert.equal((await fetch(`${origin}/login`)).status, 200);
   for (const file of files) {
     const path = `/restricted-assets/${file}`;
@@ -181,7 +290,7 @@ http://127.0.0.1:${outer} {
     assert.equal(denied.status, 401, file);
     assert.equal((await denied.arrayBuffer()).byteLength, 0);
     assert.match(denied.headers.get("cache-control"), /no-store/);
-    assert.equal(denied.headers.get("www-authenticate"), null);
+    assert.equal(denied.headers.get("www-authenticate"), sessionChallenge);
     assert.equal(
       (await fetch(`http://127.0.0.1:${publicPort}${path}`)).status,
       404,

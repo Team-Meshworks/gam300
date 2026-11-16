@@ -14,6 +14,34 @@ import {
 } from "./asset-filters";
 import { Icon } from "./Icon";
 import { AssetFilterSelect } from "./AssetFilterSelect";
+import type { AssetPickerMode } from "./asset-selection";
+
+const pickerLabels = {
+  assets: {
+    title: "Assets",
+    library: "Asset library",
+    icon: "library",
+    placeholder: "Search for something…",
+    search: "Search assets",
+    close: "Close asset library",
+  },
+  rooms: {
+    title: "Rooms",
+    library: "Rooms",
+    icon: "door",
+    placeholder: "Search room layouts…",
+    search: "Search rooms",
+    close: "Close rooms",
+  },
+  furniture: {
+    title: "Furniture",
+    library: "Furniture library",
+    icon: "bench",
+    placeholder: "Search furniture…",
+    search: "Search furniture",
+    close: "Close furniture library",
+  },
+} as const;
 
 // Pick a card then press Add. Dragging a card straight into the scene still works too
 export function AssetPicker({
@@ -31,9 +59,11 @@ export function AssetPicker({
   onAdd: (assetId: string) => void;
   onDragChange: (assetId: string | null) => void;
   onClose: () => void;
-  mode?: "assets" | "rooms";
+  mode?: AssetPickerMode;
 }) {
   const rooms = mode === "rooms";
+  const furniture = mode === "furniture";
+  const labels = pickerLabels[mode];
   const setDragImage = useDragImage();
   const [chosen, setChosen] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -55,32 +85,52 @@ export function AssetPicker({
   return (
     <section
       className={`asset-picker has-library-rail${rooms ? " room-picker" : ""}`}
+      data-picker-mode={mode}
       id="asset-panel"
       role={rooms ? "group" : undefined}
       aria-label={rooms ? "Rooms options" : undefined}
       aria-labelledby={rooms ? undefined : "assets-heading"}
     >
-      <LibraryRail icon={rooms ? "door" : "library"} label={rooms ? "Rooms" : "Asset library"} />
+      <LibraryRail icon={labels.icon} label={labels.library} />
       <div className="asset-picker-head">
         <h2 id="assets-heading" className="asset-picker-title">
-          <Icon name="info" title="Choose an asset to place in your scene" />
-          {rooms ? "Rooms" : "Assets"}
+          <Icon
+            name="info"
+            title={
+              furniture
+                ? "Choose furniture to place in your scene"
+                : "Choose an asset to place in your scene"
+            }
+          />
+          {labels.title}
         </h2>
         <div className="asset-search">
           <Icon name="search" />
           <input
             type="search"
-            placeholder={rooms ? "Search room layouts…" : "Search for something…"}
-            aria-label={rooms ? "Search rooms" : "Search assets"}
+            placeholder={labels.placeholder}
+            aria-label={labels.search}
             value={query}
             onChange={(event) => setQuery(event.currentTarget.value)}
           />
-          <AssetFilterSelect value={filter} options={filterOptions(assets)} onChange={setFilter} />
+          <AssetFilterSelect
+            value={filter}
+            label={furniture ? "Filter furniture" : "Filter assets"}
+            options={
+              furniture
+                ? [
+                    { value: "all", label: "All furniture" },
+                    { value: "favourites", label: "Favourites" },
+                  ]
+                : filterOptions(assets)
+            }
+            onChange={setFilter}
+          />
         </div>
         <button
           className="ui-button asset-picker-reset"
           type="button"
-          aria-label="Reset asset filters"
+          aria-label={furniture ? "Reset furniture filters" : "Reset asset filters"}
           disabled={query === "" && filter === "all"}
           onClick={() => {
             // Clear browsing restrictions without losing the selected card or changing the scene
@@ -93,7 +143,7 @@ export function AssetPicker({
         <button
           className="ui-button asset-picker-close"
           type="button"
-          aria-label={rooms ? "Close rooms" : "Close asset library"}
+          aria-label={labels.close}
           title="Close"
           onClick={onClose}
         >
@@ -111,10 +161,16 @@ export function AssetPicker({
       {shown.length === 0 ? (
         <p className="panel-empty asset-picker-empty">
           {query.trim()
-            ? "No assets match this search and filter."
+            ? furniture
+              ? "No furniture matches your search."
+              : "No assets match this search and filter."
             : filter === "favourites"
-              ? "No favourites yet. Tap the heart on an asset to keep it here."
-              : "Nothing in this category yet."}
+              ? furniture
+                ? "Tap the heart on a piece of furniture to save it here."
+                : "No favourites yet. Tap the heart on an asset to keep it here."
+              : furniture
+                ? "No furniture is available."
+                : "Nothing in this category yet."}
         </p>
       ) : (
         // Keep the scrolling viewport separate so masonry columns grow down instead of sideways

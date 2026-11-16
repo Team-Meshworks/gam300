@@ -26,6 +26,7 @@ public sealed class CsrfGuardMiddleware(RequestDelegate next)
         }
 
         var header = context.Request.Headers["X-CSRF-TOKEN"];
+
         if (header.Count != 1 || string.IsNullOrWhiteSpace(header[0]))
         {
             await ApiProblems.Create(context, 400, "csrf_invalid", "A valid request token is required.")

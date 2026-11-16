@@ -9,14 +9,10 @@ Transient 429/503 asset responses retry within a five-minute per-asset budget,
 respecting Retry-After. After a load failure, visitors can retry the exhibition
 without reloading the page; assets remain hidden until the scene verifies.
 
-The visitor and student preview host the shared `ExhibitionPlayer`, including
-its renderer, media, hash handling, interactions and navigation. Preview uses an
-isolated draft snapshot and supports exit and restart. The player supports legacy
-V1 projects and reads older files. The publication loader retains access checks;
-the API controls publication and asset access.
+Preview opens the shared `ExhibitionPlayer` on a snapshot of the creator's current draft.
+Published links use the same player with the published snapshot and its protected asset URLs.
 
-Run `npm run test:player-parity` for the shared-player boundary and browser parity
-checks. The browser check uses a two-scene mocked API fixture to exercise both
-entry points, including model transforms, decoded image, rule-started video,
-panel and navigation behavior, saved-draft isolation, and a central scene visual
-comparison. Full visitor acceptance requires verification beyond this fixture.
+Run `npm run test:player-parity` for the visitor boundary and draft preview
+browser checks, including a fixture comparing the editor and visitor walls,
+hotspot marker and model transform. Run `npm run test:visitor` against a running visitor server to
+check publication loading and navigation.
