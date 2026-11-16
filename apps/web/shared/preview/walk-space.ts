@@ -173,7 +173,8 @@ export function createWalkSpace(rooms: readonly Object3D[]) {
   const candidate = new Vector3();
   const center = new Vector3();
   const nearest = new Vector3();
-  function place(eye: Vector3) {
+  // Unsupported geometry leaves the authored view intact and disables walking, not rendering
+  function place(eye: Vector3): number | undefined {
     let best = Infinity;
     const consider = (x: number, z: number, near: number) => {
       const surface = standingFloor(x, z, near);
@@ -216,8 +217,7 @@ export function createWalkSpace(rooms: readonly Object3D[]) {
         consider(center.x, center.z, floor.y);
       }
     }
-    if (!Number.isFinite(best))
-      throw new Error("This room has no walkable floor with enough clearance.");
+    if (!Number.isFinite(best)) return undefined;
     eye.copy(nearest);
     return currentFloor;
   }

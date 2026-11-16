@@ -56,6 +56,7 @@ export class FpsControls {
   private minimumHeight = EYE_HEIGHT;
   private standingHeight = EYE_HEIGHT;
   private walkSpace?: ReturnType<typeof createWalkSpace> | undefined;
+  private walkingUnavailable = false;
   private dragging = false;
   private engaged = false;
   private flying = false;
@@ -138,7 +139,9 @@ export class FpsControls {
   // Pick up from wherever the camera is now. Starting in the air means flying, so nothing drops.
   // Preview cant fly, so a raised camera is held there instead
   sync(): void {
-    this.standingHeight = EYE_HEIGHT + (this.walkSpace?.place(this.camera.position) ?? 0);
+    const floor = this.walkSpace?.place(this.camera.position);
+    this.walkingUnavailable = this.walkSpace !== undefined && floor === undefined;
+    this.standingHeight = EYE_HEIGHT + (floor ?? 0);
     this.stopMotion();
     const raised = this.camera.position.y > this.standingHeight + 1e-4;
     this.flying = raised && this.flightAllowed;
@@ -210,6 +213,7 @@ export class FpsControls {
     this.flightAllowed = allowed;
     if (allowed) {
       this.walkSpace = undefined;
+      this.walkingUnavailable = false;
       this.perched = false;
     } else if (this.flying) {
       this.flying = false;
@@ -273,6 +277,8 @@ export class FpsControls {
   }
 
   private step(delta: number): void {
+    // Keep look and viewpoint navigation available without walking through unsupported rooms
+    if (this.walkingUnavailable) return;
     const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
     const space = this.keys.has("Space") || this.mobileJump;
     const maxSpeed = sprint ? SPRINT_SPEED : WALK_SPEED;
