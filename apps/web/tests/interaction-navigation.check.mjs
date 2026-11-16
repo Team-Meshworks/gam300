@@ -282,8 +282,8 @@ try {
       .filter({ hasText: "Automatic scene navigation stopped at a repeated scene." })
       .waitFor();
     assert.equal(
-      await chainPage.getByRole("combobox", { name: "Scene", exact: true }).inputValue(),
-      "1",
+      await chainPage.locator("[data-exhibition-scene]").getAttribute("data-exhibition-scene"),
+      second.id,
     );
     assert.equal(
       await chainPage.getByRole("region", { name: "Exhibition", exact: true }).count(),

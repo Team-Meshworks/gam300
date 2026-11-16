@@ -22,6 +22,7 @@ export function createVisitorPlayback(
   navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean | void,
   report: (message: string) => void,
   beginNavigationEvent: () => void = () => {},
+  audioPermissionHint = "Select Enable audio to allow playback",
 ) {
   // Keep timing, zone entry and camera movement scoped to this visit rather than the saved rules
   let started = false,
@@ -39,7 +40,7 @@ export function createVisitorPlayback(
     if (disposed || departing) return;
     if (contextBlocked || blockedMedia.size > 0) {
       permissionReported = true;
-      report("Select Enable audio to allow playback");
+      report(audioPermissionHint);
     } else if (permissionReported) {
       permissionReported = false;
       report("Exhibition ready");

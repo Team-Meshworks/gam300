@@ -18,16 +18,11 @@
 }
 .preview-session-controls {
   position: absolute;
-  bottom: max(1rem, env(safe-area-inset-bottom));
-  right: 1rem;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
   z-index: 5;
   display: flex;
   gap: 0.5rem;
-}
-@media (pointer: coarse) {
-  .preview-session-controls {
-    bottom: 11rem;
-  }
 }
 .visitor-preview,
 .visitor-viewer,

@@ -358,7 +358,10 @@ try {
     await page.waitForFunction((canvas) => !canvas.isConnected, oldCanvas);
     await page.getByRole("status").getByText("Exhibition ready").waitFor();
     await waitForStand(page, true);
-    assert.equal(await page.getByRole("combobox").inputValue(), "0");
+    assert.equal(
+      await page.locator("[data-exhibition-scene]").getAttribute("data-exhibition-scene"),
+      first.id,
+    );
     if (await page.locator(".visitor-information").evaluate((details) => details.open))
       await page.locator(".visitor-information > summary").click();
   }

@@ -25,6 +25,7 @@ import { fetchPlayerAsset } from "./player-asset";
 export function ExhibitionCanvas({
   exhibition,
   sceneIndex,
+  isPreview,
   viewpoint,
   navigate,
   beginNavigationEvent,
@@ -32,6 +33,7 @@ export function ExhibitionCanvas({
 }: {
   exhibition: PlayerSnapshot;
   sceneIndex: number;
+  isPreview: boolean;
   navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean;
   beginNavigationEvent(): void;
   onPlaybackReady(ready: boolean): void;
@@ -169,7 +171,11 @@ export function ExhibitionCanvas({
     const down = (event: PointerEvent) => {
       cancelPress();
       // Pointerdown precedes the FPS mousedown which requests capture; that gesture only enters look mode
-      if (event.button !== 0 || !event.isPrimary || fps.wantsCapture(event)) return;
+      if (event.button !== 0 || !event.isPrimary) return;
+      if (fps.wantsCapture(event)) {
+        if (isPreview) playback?.start();
+        return;
+      }
       press = {
         id: event.pointerId,
         x: event.clientX,
@@ -409,6 +415,7 @@ export function ExhibitionCanvas({
                 });
             },
             beginNavigationEvent,
+            isPreview ? "Click or tap the scene to enable audio" : undefined,
           );
           play.current = playback.start;
           playback.begin();
@@ -472,7 +479,16 @@ export function ExhibitionCanvas({
       reset.current = () => {};
       selectView.current = () => {};
     };
-  }, [exhibition, sceneIndex, entryView, attempt, navigate, beginNavigationEvent, onPlaybackReady]);
+  }, [
+    exhibition,
+    sceneIndex,
+    entryView,
+    attempt,
+    navigate,
+    beginNavigationEvent,
+    onPlaybackReady,
+    isPreview,
+  ]);
   useEffect(() => {
     if (viewpoint && viewpoint !== entryView) selectView.current(viewpoint.id);
   }, [viewpoint, entryView]);
@@ -489,28 +505,30 @@ export function ExhibitionCanvas({
           Retry loading exhibition
         </button>
       )}
-      <div className="visitor-controls">
-        <button onClick={() => play.current()}>Enable audio</button>
-        <button
-          onClick={() => {
-            beginNavigationEvent();
-            reset.current();
-          }}
-        >
-          Reset view
-        </button>
-        {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
+      {!isPreview && (
+        <div className="visitor-controls">
+          <button onClick={() => play.current()}>Enable audio</button>
           <button
-            key={view.id}
             onClick={() => {
               beginNavigationEvent();
-              selectView.current(view.id);
+              reset.current();
             }}
           >
-            {view.name}
+            Reset view
           </button>
-        ))}
-      </div>
+          {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
+            <button
+              key={view.id}
+              onClick={() => {
+                beginNavigationEvent();
+                selectView.current(view.id);
+              }}
+            >
+              {view.name}
+            </button>
+          ))}
+        </div>
+      )}
       {current && !current.failed && (
         <>
           {captured && <span className="crosshair" aria-hidden="true" />}
