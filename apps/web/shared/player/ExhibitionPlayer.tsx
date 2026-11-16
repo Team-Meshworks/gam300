@@ -84,6 +84,7 @@ export function ExhibitionPlayer({
         navigate={navigate}
       />
       <ExhibitionContent
+        visit={visit}
         scene={exhibition.document.scenes[scene]!}
         assets={exhibition.assets}
         playbackReady={readyScene === scene}

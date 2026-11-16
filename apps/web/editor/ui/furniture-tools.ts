@@ -1,6 +1,6 @@
 import type { IconName } from "./Icon";
 
-// Furniture models use the compact toolbar picker, separate from the asset library
+// Built-in furniture remains identifiable when a catalogue record omits its category.
 export const furnitureTools = [
   {
     label: "Modern bench 1",

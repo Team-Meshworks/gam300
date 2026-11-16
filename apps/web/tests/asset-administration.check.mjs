@@ -6,6 +6,7 @@ import { launchBrowser } from "./browser-security.mjs";
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:5173/";
 const browser = await launchBrowser({ target: baseUrl });
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+page.setDefaultTimeout(15000);
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 await mkdir("test-results/scrum168", { recursive: true });
@@ -62,11 +63,28 @@ async function choose(label, text) {
     .getByRole("option", { name: text, exact: true })
     .click();
 }
+async function waitForVisibleThumbnails() {
+  // Chrome defers lazy images outside the scrollable grid. Only visible cards enter the screenshot.
+  await page.waitForFunction(
+    () => {
+      const region = document.querySelector(".asset-admin-scroll").getBoundingClientRect();
+      return [...document.querySelectorAll(".asset-admin-thumbnail img")].every((image) => {
+        const box = image.getBoundingClientRect();
+        const visible =
+          box.bottom > Math.max(0, region.top) && box.top < Math.min(innerHeight, region.bottom);
+        return !visible || (image.complete && image.naturalWidth > 0);
+      });
+    },
+    undefined,
+    { timeout: 10000 },
+  );
+}
 async function checkUnacknowledgedUpload(failure) {
   const screen = await browser.newPage();
+  screen.setDefaultTimeout(15000);
+  screen.on("pageerror", (error) => errors.push(error.message));
   const records = [];
   let directoryDenied = false;
-  const submittedTwice = Promise.withResolvers();
   const actor = "00000000-0000-4000-8000-000000000001";
   await screen.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -115,7 +133,6 @@ async function checkUnacknowledgedUpload(failure) {
     records.push(asset);
     if (records.length === 1)
       return failure === "abort" ? route.abort("failed") : route.fulfill({ status: 401 });
-    submittedTwice.resolve();
     return route.fulfill({ status: 201, json: asset });
   });
   await screen.goto(new URL("/spaces?add=1", baseUrl).href);
@@ -131,10 +148,7 @@ async function checkUnacknowledgedUpload(failure) {
   await screen.waitForFunction(
     () => document.querySelector("dialog form")?.getAttribute("aria-busy") === "false",
   );
-  if (await save.isEnabled()) {
-    await save.click();
-    await submittedTwice.promise;
-  }
+  assert.ok(await save.isDisabled(), "An upload with a lost receipt cannot be resubmitted");
   assert.equal(
     records.length,
     1,
@@ -201,9 +215,7 @@ try {
     .getByRole("button", { name: /View Model/ })
     .first()
     .waitFor();
-  await page
-    .locator(".asset-admin-thumbnail img")
-    .evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
+  await waitForVisibleThumbnails();
   const controlTops = await page
     .locator(".asset-admin-heading")
     .evaluate((row) =>
@@ -669,9 +681,7 @@ try {
   });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.locator(".asset-admin-card").first().waitFor();
-  await page
-    .locator(".asset-admin-thumbnail img")
-    .evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
+  await waitForVisibleThumbnails();
   await page.screenshot({ path: "test-results/scrum168/assets.png", fullPage: true });
 
   // Model dialogs keep their own asset type rather than inheriting the space form

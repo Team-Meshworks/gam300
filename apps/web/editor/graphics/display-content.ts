@@ -1,3 +1,4 @@
+import { cancelStandPlaybackAttempt, playStandVideo } from "../../shared/asset-runtime/stand-video";
 import { displaySurface } from "../../shared/asset-runtime/display-surface";
 import { createDisplayText } from "../../shared/asset-runtime/display-text";
 import { disposeModels } from "../../shared/asset-runtime/ModelCache";
@@ -135,18 +136,19 @@ export function createDisplayContent(
     } else {
       video = document.createElement("video");
       video.crossOrigin = "anonymous";
-      video.preload = "metadata";
+      video.preload = "auto";
+      video.autoplay = true;
       video.playsInline = true;
-      video.loop = !preview || content.loop;
+      video.loop = true;
       video.volume = content.volume;
-      video.muted = true;
+      video.muted = false;
       video.onloadeddata = () => {
         if (disposed || !video) return;
         videoReady = true;
         const texture = new THREE.VideoTexture(video);
         texture.colorSpace = THREE.SRGBColorSpace;
         replace(texture, video.videoWidth, video.videoHeight);
-        if (wantsPlayback && !document.hidden) void video.play().catch(() => {});
+        if (wantsPlayback) playStandVideo(video);
       };
       video.onerror = failure;
       video.src = media.url;
@@ -156,22 +158,24 @@ export function createDisplayContent(
       signature,
       group,
       pause() {
-        video?.pause();
+        if (video) {
+          cancelStandPlaybackAttempt(video);
+          video.pause();
+        }
       },
       resume() {
-        if (video && videoReady && wantsPlayback) void video.play().catch(() => {});
+        if (video && videoReady && wantsPlayback) playStandVideo(video);
       },
-      setPreview(active) {
+      setPreview() {
         if (!video) return;
         video.pause();
         wantsPlayback = true;
-        video.muted = true;
-        video.loop = !active || (content.type === "video" && content.loop);
-        if (videoReady && !document.hidden) void video.play().catch(() => {});
+        if (videoReady) playStandVideo(video);
       },
       toggle() {
         if (!preview || document.hidden || !video || disposed) return;
         if (!video.paused) {
+          cancelStandPlaybackAttempt(video);
           wantsPlayback = false;
           video.pause();
         } else {
@@ -198,6 +202,7 @@ export function createDisplayContent(
           image.removeAttribute("src");
         }
         if (video) {
+          cancelStandPlaybackAttempt(video);
           video.pause();
           video.onloadeddata = null;
           video.onerror = null;

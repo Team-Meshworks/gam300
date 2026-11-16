@@ -15,7 +15,14 @@ const ids = [
   "11111111-1111-4111-8111-111111111114",
   "11111111-1111-4111-8111-111111111116",
 ];
+const standAssetId = "dddddddd-0000-4000-8000-000000000001";
 const media = [
+  [
+    standAssetId,
+    "model",
+    "../../../assets/delivery/stands-displays/display-rectangle-stand-v1.glb",
+    "model/gltf-binary",
+  ],
   [ids[0], "environment", "../../../assets/delivery/test-room.glb", "model/gltf-binary"],
   [ids[1], "model", "../../../assets/delivery/test-crate.glb", "model/gltf-binary"],
   [ids[2], "image", "../../../assets/delivery/sample-media/sample-coast.webp", "image/webp"],
@@ -66,7 +73,29 @@ label.placement = {
 };
 const video = first.objects[0].components.find((item) => item.type === "video");
 video.assetId = ids[3];
+const standId = "dddddddd-0000-4000-8000-000000000002";
+const revisit = {
+  ...first.objects[0].components.find((item) => item.type === "navigationPoint"),
+  id: "dddddddd-0000-4000-8000-000000000004",
+  label: "Revisit this room",
+  sceneId: first.id,
+  viewpointId: first.viewpoints[0].id,
+};
+first.objects[0].components.push(revisit);
+first.objects.push({
+  ...structuredClone(first.objects[0]),
+  id: standId,
+  assetId: standAssetId,
+  components: [{ ...video, id: "dddddddd-0000-4000-8000-000000000003", loop: false }],
+  transform: { position: [3, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+});
 first.rules = [
+  {
+    id: "dddddddd-0000-4000-8000-000000000005",
+    enabled: true,
+    trigger: { type: "click", targetId: revisit.id },
+    actions: [{ type: "navigateScene", sceneId: first.id, viewpointId: revisit.viewpointId }],
+  },
   {
     id: "11111111-1111-4111-8111-111111111115",
     enabled: true,
@@ -121,6 +150,7 @@ try {
     args: ["--enable-unsafe-swiftshader"],
   });
   const editor = await browser.newPage();
+  editor.setDefaultTimeout(30000);
   const observeScenes = (page) =>
     page.addInitScript(() => {
       window.__THREE_DEVTOOLS__ = new EventTarget();
@@ -214,15 +244,64 @@ try {
       });
       return { walls, marker };
     });
+  // Inspect the actual texture on the stand, before any gesture or opening the media panel.
+  const waitForStand = (page, requireSound = false) =>
+    page.waitForFunction(
+      ({ id, requireSound }) => {
+        const scene = window.parityScenes.findLast((entry) => entry.getObjectByName(id));
+        let playing = false;
+        scene?.traverse((node) => {
+          const map = node.material?.map;
+          if (!map?.isVideoTexture) return;
+          for (let owner = node; owner; owner = owner.parent) {
+            if (owner.name === id || owner.userData.objectId === id) {
+              playing ||=
+                (!requireSound || (!map.image.muted && map.image.volume > 0)) &&
+                map.image.loop &&
+                !map.image.paused &&
+                map.image.currentTime > 0;
+              break;
+            }
+          }
+        });
+        return playing;
+      },
+      { id: standId, requireSound },
+      { timeout: 15000 },
+    );
+  await waitForStand(editor);
+  await editor.keyboard.press("Shift");
+  await waitForStand(editor, true);
   const authoredRoom = await readRoom(editor);
   assert.ok(authoredRoom.marker, "The editor renders the attached icon");
   assert.ok(
     authoredRoom.walls.every((rgb) => Math.min(...rgb) > 20),
     JSON.stringify(authoredRoom.walls),
   );
+  const authoredTransform = await editor.evaluate((id) => {
+    const root = window.parityScenes
+      .map((scene) => scene.getObjectByName(id))
+      .filter(Boolean)
+      .at(-1);
+    return (
+      root && {
+        position: root.position.toArray(),
+        rotation: root.quaternion.toArray(),
+        scale: root.scale.toArray(),
+        visible: root.visible,
+      }
+    );
+  }, first.objects[0].id);
+  assert.ok(authoredTransform, "The editor renders the authored model");
   await editor.getByRole("button", { name: "Preview", exact: true }).click();
+  await editor.getByRole("status").getByText("Exhibition ready").waitFor();
+  await waitForStand(editor, true);
   const visitor = await browser.newPage();
+  visitor.setDefaultTimeout(30000);
   await observeScenes(visitor);
+  await visitor.addInitScript(() =>
+    Object.defineProperty(document, "hidden", { configurable: true, value: true }),
+  );
   await visitor.route("**/api/v1/publications/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     const item = media.find((asset) => path.endsWith(`/${asset.id}/bytes`));
@@ -245,21 +324,44 @@ try {
   });
   await visitor.goto(`${origin}/p/${publicationId}`);
   await visitor.getByRole("status").getByText("Exhibition ready").waitFor();
-  const authoredTransform = await editor.evaluate((id) => {
-    const root = window.parityScenes
-      .map((scene) => scene.getObjectByName(id))
-      .filter(Boolean)
-      .at(-1);
-    return (
-      root && {
-        position: root.position.toArray(),
-        rotation: root.quaternion.toArray(),
-        scale: root.scale.toArray(),
-        visible: root.visible,
-      }
+  const stand = visitor.locator("video[data-stand-video]");
+  await visitor.waitForFunction(
+    () => document.querySelector("video[data-stand-video]")?.readyState >= 2,
+  );
+  assert.ok(
+    await stand.evaluate((video) => video.paused),
+    "An initially hidden stand waits for visibility",
+  );
+  await visitor.evaluate(() => {
+    delete document.hidden;
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await waitForStand(visitor);
+  await visitor.keyboard.press("Shift");
+  await waitForStand(visitor, true);
+  for (const page of [editor, visitor]) {
+    const video = page.locator("video[data-stand-video]");
+    await video.evaluate((node) => {
+      node.pause();
+      Object.defineProperty(document, "hidden", { configurable: true, value: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+      delete document.hidden;
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    assert.ok(
+      await video.evaluate((node) => node.paused),
+      "Returning to a tab preserves an explicit pause",
     );
-  }, first.objects[0].id);
-  assert.ok(authoredTransform, "The editor renders the authored model");
+    const oldCanvas = await page.locator(".visitor-canvas canvas").elementHandle();
+    await page.locator(".visitor-information > summary").click();
+    await page.getByRole("button", { name: revisit.label }).click();
+    await page.waitForFunction((canvas) => !canvas.isConnected, oldCanvas);
+    await page.getByRole("status").getByText("Exhibition ready").waitFor();
+    await waitForStand(page, true);
+    assert.equal(await page.getByRole("combobox").inputValue(), "0");
+    if (await page.locator(".visitor-information").evaluate((details) => details.open))
+      await page.locator(".visitor-information > summary").click();
+  }
   for (const page of [visitor]) {
     const room = await readRoom(page);
     assert.deepEqual(room.walls, authoredRoom.walls, "All four interior walls match the editor");

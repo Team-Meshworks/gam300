@@ -17,7 +17,7 @@ import { dockEdges, loadDockEdge, nearestEdge, saveDockEdge, type DockEdge } fro
 import { Icon, type IconName } from "./Icon";
 import { displayPanelTools, displayCaseTools } from "./display-tools";
 import { furnitureTools } from "./furniture-tools";
-import { belongsInAssetPicker } from "./asset-selection";
+import { belongsInAssetPicker, type AssetPickerMode } from "./asset-selection";
 
 const cameraTools: { id: NavigationTool; label: string; hint: string; icon: IconName }[] = [
   { id: "select", label: "Select", hint: "Select · click objects to edit them", icon: "select" },
@@ -84,7 +84,7 @@ export function BottomBar({
   onToolChange: (tool: NavigationTool) => void;
   // Available while editing; choosing a camera tool switches to third person
   showCameraTools: boolean;
-  onPickerChange: (mode: "rooms" | "assets" | null) => void;
+  onPickerChange: (mode: AssetPickerMode | null) => void;
 }) {
   const setDragImage = useDragImage();
   const categories = baseCategories.map((category) =>
@@ -99,12 +99,17 @@ export function BottomBar({
   );
   // Only one tool selected at a time. Library start closed now since its a big pop up
   const [selected, setSelected] = useState<SceneTool | null>(null);
-  const roomsOpen = selected === "rooms";
-  const libraryOpen = selected === "library" || roomsOpen;
+  const pickerMode =
+    selected === "library"
+      ? "assets"
+      : selected === "rooms" || selected === "furniture"
+        ? selected
+        : null;
+  const libraryOpen = pickerMode !== null;
   useEffect(() => {
-    onPickerChange(roomsOpen ? "rooms" : libraryOpen ? "assets" : null);
+    onPickerChange(pickerMode);
     return () => onPickerChange(null);
-  }, [roomsOpen, libraryOpen, onPickerChange]);
+  }, [pickerMode, onPickerChange]);
   const [draggingAsset, setDraggingAsset] = useState(false);
   const [picked, setPicked] = useState<Record<Category, number>>({
     rooms: 0,
@@ -181,8 +186,8 @@ export function BottomBar({
 
   // Display tools open their concrete choices immediately; selecting one uses normal placement.
   function chooseCategory(event: MouseEvent<HTMLButtonElement>, id: Category) {
-    if (id === "rooms") {
-      select(roomsOpen ? null : "rooms");
+    if (id === "rooms" || id === "furniture") {
+      select(selected === id ? null : id);
       return;
     }
     if (popup?.id === id) return setPopup(null);
@@ -254,9 +259,9 @@ export function BottomBar({
           style={draggingAsset ? { visibility: "hidden" } : undefined}
         >
           <AssetPicker
-            key={roomsOpen ? "rooms" : "assets"}
-            mode={roomsOpen ? "rooms" : "assets"}
-            assets={assets.filter((asset) => belongsInAssetPicker(asset, roomsOpen, assets))}
+            key={pickerMode}
+            mode={pickerMode}
+            assets={assets.filter((asset) => belongsInAssetPicker(asset, pickerMode, assets))}
             ready={ready}
             thumbnailFor={thumbnailFor}
             onAdd={onAdd}
@@ -429,7 +434,7 @@ export function BottomBar({
                 aria-label={category.label}
                 data-category={category.id}
                 aria-pressed={selected === category.id}
-                aria-expanded={category.id === "rooms" ? roomsOpen : popup?.id === category.id}
+                aria-expanded={pickerMode === category.id || popup?.id === category.id}
                 onClick={(event) => chooseCategory(event, category.id)}
                 {...toolTip.handlers(category.label)}
               >

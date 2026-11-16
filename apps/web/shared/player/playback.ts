@@ -1,3 +1,4 @@
+import { cancelStandPlaybackAttempt, playStandVideo } from "../asset-runtime/stand-video";
 import * as THREE from "three";
 import type { ProjectAction, ProjectRule } from "../project/project-content";
 import type { InteractionAction } from "../project/project-types";
@@ -212,9 +213,14 @@ export function createVisitorPlayback(
           );
           if (article) {
             article.hidden = !action.visible;
+            if (action.visible)
+              article
+                .querySelectorAll<HTMLVideoElement>("video[data-stand-video]")
+                .forEach(playStandVideo);
             if (!action.visible)
               article.querySelectorAll<HTMLMediaElement>("audio,video").forEach((node) => {
                 const id = node.closest<HTMLElement>("[data-component-id]")?.dataset.componentId;
+                if (node.dataset?.standVideo) cancelStandPlaybackAttempt(node as HTMLVideoElement);
                 if (id) discardMedia(id);
                 node.pause();
               });
@@ -347,10 +353,15 @@ export function createVisitorPlayback(
     if (disposed || departing) return;
     content.querySelectorAll<HTMLMediaElement>("audio,video").forEach((node) => {
       if (document.hidden) {
+        if (node.dataset.standVideo) cancelStandPlaybackAttempt(node as HTMLVideoElement);
         node.dataset.wasPlaying = String(!node.paused);
         node.pause();
       } else if (node.dataset.wasPlaying === "true" && !node.closest("[hidden]")) {
         node.dataset.wasPlaying = "false";
+        if (node.dataset.standVideo) {
+          playStandVideo(node as HTMLVideoElement);
+          return;
+        }
         void node.play().catch(() => {
           /* Native controls remain available if automatic resume is denied */
         });
