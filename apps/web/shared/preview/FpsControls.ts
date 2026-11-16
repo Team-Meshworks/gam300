@@ -73,7 +73,7 @@ export class FpsControls {
   private lookHeld = false;
   // Preview walks like a visitor, nothing starts flying there
   private flightAllowed = true;
-  // Preview holds a saved camera above the floor until the visitor moves, then they drop down
+  // Preview holds every authored pose until the visitor requests movement
   private perched = false;
   private readonly _euler = new THREE.Euler(0, 0, 0, "YXZ");
   private readonly physicsPosition = new THREE.Vector3();
@@ -139,13 +139,13 @@ export class FpsControls {
   // Pick up from wherever the camera is now. Starting in the air means flying, so nothing drops.
   // Preview cant fly, so a raised camera is held there instead
   sync(): void {
-    const floor = this.walkSpace?.place(this.camera.position);
+    const floor = this.walkSpace?.place(this.camera.position.clone());
     this.walkingUnavailable = this.walkSpace !== undefined && floor === undefined;
     this.standingHeight = EYE_HEIGHT + (floor ?? 0);
     this.stopMotion();
     const raised = this.camera.position.y > this.standingHeight + 1e-4;
     this.flying = raised && this.flightAllowed;
-    this.perched = raised && !this.flightAllowed;
+    this.perched = !this.flightAllowed;
     this._euler.setFromQuaternion(this.camera.quaternion, "YXZ");
     this.yaw = this._euler.y;
     this.pitch = this._euler.x;
@@ -284,12 +284,23 @@ export class FpsControls {
     const maxSpeed = sprint ? SPRINT_SPEED : WALK_SPEED;
     if (!this.flightAllowed) this.flying = false;
     if (this.perched) {
-      // Stay on the saved view until any movement, which leaves it and falls to the floor
+      // Looking alone keeps the authored view, even outside the walkable room
       if (!space && !this.hasMovementInput()) {
         this.velocity.set(0, 0, 0);
         return;
       }
       this.perched = false;
+      // Enter the walkable space only on movement, before integrating collision steps
+      if (this.walkSpace) {
+        const floor = this.walkSpace.place(this.physicsPosition);
+        if (floor === undefined) {
+          this.walkingUnavailable = true;
+          return;
+        }
+        this.standingHeight = floor + EYE_HEIGHT;
+        this.minimumHeight = Math.min(this.standingHeight, this.physicsPosition.y);
+        this.previousPhysics.copy(this.physicsPosition);
+      }
     }
 
     const inputZ =

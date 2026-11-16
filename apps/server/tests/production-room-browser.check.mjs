@@ -292,7 +292,7 @@ try {
   assert.equal(playing.status(), 200);
   assert.equal(playing.headers()["content-type"], "audio/mp4");
   await page.getByLabel("Exhibition view", { exact: true }).waitFor({ state: "visible" });
-  await page.getByRole("button", { name: "Enable audio", exact: true }).click();
+  await page.getByLabel("Exhibition view", { exact: true }).click({ position: { x: 20, y: 20 } });
   await page.waitForFunction((ownerId) => {
     const source = window.spatialSource;
     const audio = source?.mediaElement;
