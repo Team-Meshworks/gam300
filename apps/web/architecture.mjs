@@ -93,6 +93,7 @@ export const modules = {
       "shared/preview/interaction-session.ts",
       "shared/preview/rule-dispatch.ts",
       "shared/preview/preview-start.ts",
+      "shared/preview/walk-space.ts",
       "shared/preview/MobileControls.tsx",
       "shared/preview/preview.css",
     ],

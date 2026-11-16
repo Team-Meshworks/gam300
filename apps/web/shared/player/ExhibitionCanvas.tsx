@@ -5,8 +5,9 @@ import { createActiveClock } from "../preview/active-clock";
 import { FpsControls, type FpsMobileControls } from "../preview/FpsControls";
 import { MobileControls } from "../preview/MobileControls";
 import { standOnPreviewFloor } from "../preview/preview-start";
+import { createWalkSpace } from "../preview/walk-space";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { STARTER_ROOM_SHA256 } from "../asset-runtime/catalogue";
+import { isRoomModel, knownRoomGeometry, STARTER_ROOM_SHA256 } from "../asset-runtime/catalogue";
 import { disposeModels } from "../asset-runtime/ModelCache";
 import { createExhibitAppearance } from "../asset-runtime/exhibit-appearance";
 import { containDisplay } from "../asset-runtime/display-layout";
@@ -96,22 +97,22 @@ export function ExhibitionCanvas({
     queueMicrotask(() => {
       if (!controller.signal.aborted) setMobile(fps.mobileControls);
     });
-    const setView = (pose: typeof starting) => {
+    const setView = (pose: typeof starting, standOnFloor = false) => {
       camera.position.fromArray(pose.position);
       camera.quaternion.fromArray(pose.rotation);
       camera.fov = pose.fovDegrees;
       camera.updateProjectionMatrix();
+      if (standOnFloor) standOnPreviewFloor(camera, fps);
       controls.target
         .copy(camera.position)
         .add(new THREE.Vector3(0, 0, -5).applyQuaternion(camera.quaternion));
       controls.update();
     };
-    const start = () => {
-      setView(starting);
-      if (!entryView?.id && !("startViewpointId" in source && source.startViewpointId)) {
-        standOnPreviewFloor(camera, fps);
-      }
-    };
+    const start = () =>
+      setView(
+        starting,
+        !entryView?.id && !("startViewpointId" in source && source.startViewpointId),
+      );
     selectView.current = (id) => {
       const view = source.viewpoints?.find((item) => item.id.toLowerCase() === id.toLowerCase());
       if (view) setView(view.camera);
@@ -252,7 +253,14 @@ export function ExhibitionCanvas({
     const loader = new GLTFLoader(manager);
     const entrances = createRoomEntrances();
     const appearances = createExhibitAppearance();
-    const rooms: THREE.Group[] = [];
+    const rooms = new Map<THREE.Object3D, { model: THREE.Object3D; starter: boolean }>();
+    function syncRooms() {
+      const visible = [...rooms].filter(([root]) => root.visible);
+      entrances.sync(visible.filter(([, room]) => room.starter).map(([root]) => root));
+      fps.setWalkSpace(
+        visible.length ? createWalkSpace(visible.map(([, room]) => room.model)) : undefined,
+      );
+    }
     void (async () => {
       for (const object of objects) {
         const asset = exhibition.assets.find((row) => row.id === object.assetId);
@@ -378,12 +386,16 @@ export function ExhibitionCanvas({
           marker.position.fromArray(hotspot.position);
           root.add(marker);
         }
-        if (root.visible && digest === STARTER_ROOM_SHA256) {
-          rooms.push(root);
+        if (
+          asset.kind === "environment" ||
+          (asset.kind === "model" &&
+            (knownRoomGeometry[digest] || isRoomModel(exhibition.assets, asset.id)))
+        ) {
+          rooms.set(root, { model: gltf.scene, starter: digest === STARTER_ROOM_SHA256 });
         }
       }
       if (!controller.signal.aborted) {
-        entrances.sync(rooms);
+        syncRooms();
         const information = host
           .closest(".visitor-preview")
           ?.querySelector<HTMLElement>(`[data-exhibition-scene="${source.id}"]`);
@@ -400,6 +412,9 @@ export function ExhibitionCanvas({
                 setResult({ exhibition, sceneIndex, attempt, message, failed: false });
             },
             beginInput,
+            (root) => {
+              if (rooms.has(root)) syncRooms();
+            },
           );
           play.current = playback.start;
           playback.begin();

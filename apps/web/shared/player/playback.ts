@@ -21,6 +21,7 @@ export function createVisitorPlayback(
   navigate: (sceneId: string, viewpointId: string) => boolean | void,
   report: (message: string) => void,
   beginInput: () => void = () => {},
+  visibilityChanged?: (object: THREE.Object3D) => void,
 ) {
   // Keep timing, zone entry and camera movement scoped to this visit rather than the saved rules
   let started = false,
@@ -201,7 +202,10 @@ export function createVisitorPlayback(
         }
         case "setVisible": {
           const object = root(action.objectId);
-          if (object) object.visible = action.visible;
+          if (object && object.visible !== action.visible) {
+            object.visible = action.visible;
+            visibilityChanged?.(object);
+          }
           const article = [...content.querySelectorAll<HTMLElement>("[data-owner-id]")].find(
             (node) => equal(node.dataset.ownerId ?? "", action.objectId),
           );

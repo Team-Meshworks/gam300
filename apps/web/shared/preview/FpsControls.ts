@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { EYE_HEIGHT, type createWalkSpace } from "./walk-space";
+export { EYE_HEIGHT } from "./walk-space";
 function isTextEditingTarget(target: EventTarget): boolean {
   return (
     target instanceof HTMLElement &&
@@ -7,7 +9,6 @@ function isTextEditingTarget(target: EventTarget): boolean {
   );
 }
 
-export const EYE_HEIGHT = 0.9;
 // Slower than before, 5 and 12 m/s made people feel sick
 const WALK_SPEED = 3;
 const SPRINT_SPEED = 7;
@@ -53,6 +54,8 @@ export class FpsControls {
   private pitch = 0;
   private roll = 0;
   private minimumHeight = EYE_HEIGHT;
+  private standingHeight = EYE_HEIGHT;
+  private walkSpace?: ReturnType<typeof createWalkSpace> | undefined;
   private dragging = false;
   private engaged = false;
   private flying = false;
@@ -131,8 +134,9 @@ export class FpsControls {
   // Pick up from wherever the camera is now. Starting in the air means flying, so nothing drops.
   // Preview cant fly, so a raised camera is held there instead
   sync(): void {
+    this.standingHeight = EYE_HEIGHT + (this.walkSpace?.place(this.camera.position) ?? 0);
     this.stopMotion();
-    const raised = this.camera.position.y > EYE_HEIGHT + 1e-4;
+    const raised = this.camera.position.y > this.standingHeight + 1e-4;
     this.flying = raised && this.flightAllowed;
     this.perched = raised && !this.flightAllowed;
     this._euler.setFromQuaternion(this.camera.quaternion, "YXZ");
@@ -140,7 +144,7 @@ export class FpsControls {
     this.pitch = this._euler.x;
     this.roll = this._euler.z;
     // Below eye height is an authored low viewpoint, stand there rather than jump up
-    this.minimumHeight = Math.min(EYE_HEIGHT, this.camera.position.y);
+    this.minimumHeight = Math.min(this.standingHeight, this.camera.position.y);
     this.applyRotation();
   }
 
@@ -201,11 +205,17 @@ export class FpsControls {
   setFlightAllowed(allowed: boolean): void {
     this.flightAllowed = allowed;
     if (allowed) {
+      this.walkSpace = undefined;
       this.perched = false;
     } else if (this.flying) {
       this.flying = false;
       this.perched = true;
     }
+  }
+
+  setWalkSpace(space: ReturnType<typeof createWalkSpace> | undefined): void {
+    this.walkSpace = space;
+    if (this.engaged) this.sync();
   }
 
   // A viewpoint or saved camera just moved the camera, carry on from exactly that pose
@@ -306,8 +316,16 @@ export class FpsControls {
       this.velocity.y = fall;
     }
     this.physicsPosition.addScaledVector(previous.lerp(this.velocity, 0.5), delta);
+    if (this.walkSpace) {
+      const targetY = this.physicsPosition.y;
+      const eyeClearance = EYE_HEIGHT + this.minimumHeight - this.standingHeight;
+      this.standingHeight =
+        this.walkSpace.move(this.previousPhysics, this.physicsPosition, eyeClearance) + EYE_HEIGHT;
+      this.minimumHeight = this.standingHeight - EYE_HEIGHT + eyeClearance;
+      if (this.physicsPosition.y < targetY) this.velocity.y = Math.min(0, this.velocity.y);
+    }
     // An authored low viewpoint is the floor until you climb back to eye height
-    if (this.physicsPosition.y >= EYE_HEIGHT) this.minimumHeight = EYE_HEIGHT;
+    if (this.physicsPosition.y >= this.standingHeight) this.minimumHeight = this.standingHeight;
     if (this.physicsPosition.y <= this.minimumHeight) {
       this.physicsPosition.y = this.minimumHeight;
       this.velocity.y = Math.max(this.velocity.y, 0);
