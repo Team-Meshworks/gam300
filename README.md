@@ -127,7 +127,8 @@ educators to `/home` and administrators to `/admin/dashboard`. Separate entry pa
 remain available at `/landing` and `/login`. Open an authorised server project at
 `/?projectId=<id>`. The web-only launcher does not start the account API, so authoring
 requires the combined stack. To use sign-in, follow
-the [local API and PostgreSQL setup](docs/deployment.md#local-api-and-postgresql-integration):
+the Windows [local database and dashboard walkthrough](#local-database-and-dashboard-login-windows) or the
+[local API and PostgreSQL setup](docs/deployment.md#local-api-and-postgresql-integration):
 set the private database passwords and start the combined Compose stack. Open
 [https://localhost:8444/landing](https://localhost:8444/landing) or
 [https://localhost:8444/login](https://localhost:8444/login). Caddy uses a local CA, so
@@ -144,6 +145,100 @@ the quiet browser backup before reloading to check recovery.
 
 The same Dockerfile is used by CI and deployment. See the
 [deployment guide](docs/deployment.md#local-development) for prerequisites and details.
+
+### Local database and dashboard login (Windows)
+
+These steps run the full application from your checked-out branch using PowerShell 7.4+
+and Docker Desktop with Linux containers. Run them from the repository root in the same
+PowerShell session. The `spatia-server` Compose project uses a local PostgreSQL database;
+it does not connect to the hosted `dev` database. Switching branches while reusing this
+project also reuses its local accounts and projects.
+
+1. Start Docker Desktop and restore the delivery assets:
+
+   ```powershell
+   git lfs install
+   git lfs pull --include="assets/delivery/**" --exclude=""
+   ```
+
+2. For a new local setup, create the ignored root `.env` with two different random database
+   passwords. **If `.env` already exists, keep it** and make sure it contains
+   `SPATIA_DATABASE_PASSWORD` and `SPATIA_API_PASSWORD`, each a different random hexadecimal
+   string of at least 32 characters. Keep the existing passwords when restarting a database;
+   changing the file does not rotate an already initialised PostgreSQL password.
+
+   ```powershell
+   if (Test-Path -LiteralPath '.env') { throw 'Keep the existing .env; do not overwrite it.' }
+   @(
+     "SPATIA_DATABASE_PASSWORD=$([Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)))"
+     "SPATIA_API_PASSWORD=$([Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)))"
+     'PUBLICATION_ORIGIN=https://localhost:8444'
+   ) | Set-Content -LiteralPath '.env' -Encoding ascii
+   ```
+
+   The optional publication origin above enables publication on this local HTTPS origin.
+   Keep `.env` private and never commit it.
+
+3. Build and start the editor, API and database. Stop any other local stack using ports
+   `8081` or `8444` first. Continue only when startup succeeds; the first build can take time.
+   The stack applies the database migrations automatically.
+
+   ```powershell
+   $spatiaCompose = @('-f', 'compose.yaml', '-f', 'compose.server.yaml', '-p', 'spatia-server')
+   docker compose @spatiaCompose up -d --build --wait
+   if ($LASTEXITCODE -ne 0) { throw 'Local stack startup failed.' }
+   ```
+
+4. Create the first local administrator **once**. Enter a username and a temporary password
+   of 12–128 characters when prompted. The password goes to the bootstrap command through
+   standard input; it is not stored in a file or passed as a command argument.
+
+   ```powershell
+   $spatiaAdmin = Read-Host 'Local administrator username'
+   $spatiaPassword = Read-Host 'Temporary password (12-128 characters)' -AsSecureString
+   $spatiaPreviousEncoding = $OutputEncoding
+   try {
+     $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+     $spatiaJson = @{
+       userName = $spatiaAdmin
+       initialPassword = ConvertFrom-SecureString $spatiaPassword -AsPlainText
+     } | ConvertTo-Json -Compress
+     $spatiaJson | docker compose @spatiaCompose exec -T api dotnet Spatia.Server.dll bootstrap-admin
+     if ($LASTEXITCODE -ne 0) { throw "Bootstrap exited with code $LASTEXITCODE." }
+   } finally {
+     $OutputEncoding = $spatiaPreviousEncoding
+     $spatiaJson = $null
+     $spatiaPassword.Dispose()
+   }
+   ```
+
+   Bootstrap refuses to run if this database already has an administrator. In that case,
+   use the existing local administrator account; bootstrap does not reset its password.
+   If the command reports an uncertain outcome, inspect the database state before retrying.
+
+5. Trust the local Caddy certificate for your Windows user so the browser can use HTTPS:
+
+   ```powershell
+   $spatiaCa = Join-Path $env:TEMP 'spatia-server-root.crt'
+   docker compose @spatiaCompose cp gateway:/data/caddy/pki/authorities/local/root.crt $spatiaCa
+   if ($LASTEXITCODE -ne 0) { throw 'Could not copy the local CA certificate.' }
+   Import-Certificate -FilePath $spatiaCa -CertStoreLocation 'Cert:\CurrentUser\Root'
+   ```
+
+   This trusts the local CA for the current Windows user. Open
+   [https://localhost:8444/login](https://localhost:8444/login), sign in with the local
+   administrator username and temporary password, and change the password when prompted.
+   Administrators are then directed to `/admin/dashboard`.
+
+To rebuild after code changes, rerun the `up -d --build --wait` command above. To stop
+the stack, run `docker compose @spatiaCompose down`. In a new PowerShell session, set
+`$spatiaCompose` again first. Keep the same `.env` and do not add `--volumes` to `down`:
+the volumes contain your local accounts, projects, encryption keys and certificate.
+For other operating systems or advanced configuration, see the
+[local API and PostgreSQL guide](docs/deployment.md#local-api-and-postgresql-integration)
+and [administrator bootstrap reference](apps/server/README.md#private-bootstrap-and-administrator-operations-part-4).
+
+
 
 ## Controls
 
