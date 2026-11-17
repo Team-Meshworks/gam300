@@ -7,6 +7,7 @@ import path from "node:path";
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
 import { launchBrowser } from "./browser-security.mjs";
+import { blankProject } from "./authoring-project-fixture.mjs";
 
 // Run the real-media component fixture independently while publication gates are being verified
 if (process.argv.includes("--playback-only")) {
@@ -59,6 +60,7 @@ if (process.argv.includes("--playback-only")) {
   let releaseAssets;
   let assetGate;
   try {
+    await checkFirstTouchAudio(browser, origin, publicationId);
     const page = await browser.newPage();
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/v1/publications/**", async (route) => {
@@ -585,6 +587,85 @@ if (process.argv.includes("--playback-only")) {
 }
 
 // Reuse production playback/content with real local media and an isolated loopback test server
+async function checkFirstTouchAudio(browser, origin, publicationId) {
+  const page = await browser.newPage({
+    isMobile: true,
+    hasTouch: true,
+    viewport: { width: 390, height: 844 },
+  });
+  try {
+    const project = structuredClone(blankProject);
+    const assetId = "22222222-2222-4222-8222-222222222222";
+    const audio = await readFile(
+      new URL("../../../assets/delivery/audio/calm-piano.m4a", import.meta.url),
+    );
+    const base = `/api/v1/publications/${publicationId}`;
+    const url = `${base}/assets/${assetId}/bytes`;
+    project.scenes[0].audio = [
+      {
+        id: "63636363-6363-4363-8363-636363636363",
+        type: "audio",
+        mode: "global",
+        assetId,
+        caption: "Background music",
+        loop: true,
+        volume: 0.6,
+      },
+    ];
+    await page.route(`**${base}**`, (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === url) return route.fulfill({ contentType: "audio/mp4", body: audio });
+      if (path === base) return route.fulfill({ json: project });
+      return route.fulfill({
+        json: {
+          publicationId,
+          projectId: project.projectId,
+          sourceRevision: 1,
+          assets: [
+            {
+              id: assetId,
+              kind: "audio",
+              sha256: createHash("sha256").update(audio).digest("hex"),
+              url,
+            },
+          ],
+        },
+      });
+    });
+    // Observe the native autoplay decision without evaluating in the page before the first tap.
+    // Browser automation can otherwise grant user activation during the setup.
+    await page.addInitScript(() => {
+      const play = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function () {
+        const attempt = play.call(this);
+        attempt.then(
+          () => console.log("Initial audio playing"),
+          (error) => console.log("Initial audio", error.name),
+        );
+        return attempt;
+      };
+    });
+    const outcome = page.waitForEvent("console", (message) =>
+      message.text().startsWith("Initial audio"),
+    );
+    await page.goto(`${origin}/p/${publicationId}`);
+    assert.equal((await outcome).text(), "Initial audio NotAllowedError");
+    // Blank canvas above the centered audio notice and the movement controls.
+    await page.touchscreen.tap(195, 220);
+    await page.waitForFunction(
+      () => {
+        const track = document.querySelector("audio[data-background]");
+        return track && !track.paused && track.currentTime > 0;
+      },
+      undefined,
+      { timeout: 5000 },
+    );
+    console.log("First touch on empty visitor canvas starts blocked background music.");
+  } finally {
+    await page.close();
+  }
+}
+
 async function checkPlayback() {
   const dir = fileURLToPath(new URL("../", import.meta.url));
   await mkdir(path.join(dir, "test-results/visitor-playback-probe"), { recursive: true });
