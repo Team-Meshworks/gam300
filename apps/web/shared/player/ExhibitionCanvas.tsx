@@ -215,6 +215,9 @@ export function ExhibitionCanvas({
           .closest(".visitor-preview")
           ?.querySelector<HTMLElement>(`[data-exhibition-scene="${source.id}"]`)
           ?.dispatchEvent(new CustomEvent("exhibit-inspect", { detail: id }));
+      } else if (event.pointerType !== "mouse") {
+        // Touch and pen gain user activation on release. A blank tap has no exhibit click to retry audio.
+        playback?.start();
       }
     };
     renderer.domElement.addEventListener("pointerdown", down);
