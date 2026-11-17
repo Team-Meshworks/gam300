@@ -137,9 +137,13 @@ try {
     await page.waitForFunction(() => !!window.walkCamera);
     await page.locator('canvas[aria-label="Exhibition view"]').click();
     await page.keyboard.down("w");
-    await page.waitForTimeout(3000);
+    await page.waitForFunction(() => window.walkCamera.position.x > 5.5);
     const through = await page.evaluate(() => window.walkCamera.position.toArray());
-    await page.waitForTimeout(5000);
+    await page.waitForFunction(() => window.walkCamera.position.x > 14.4);
+    // Keep walking into the wall for simulation frames, including on slow software renderers.
+    await page.evaluate(async () => {
+      for (let frame = 0; frame < 45; frame++) await new Promise(requestAnimationFrame);
+    });
     await page.keyboard.up("w");
     const blocked = await page.evaluate(() => window.walkCamera.position.toArray());
     outcomes.push({ name, through, blocked });

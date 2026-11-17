@@ -294,17 +294,8 @@ try {
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
   assert.notEqual(await screenshotHash(), original, "Walking moves the visible camera");
-  await page.getByRole("button", { name: "Reset view" }).click();
-  await page.mouse.move(0, 0);
-  await page.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-  );
-  assert.equal(await screenshotHash(), original, "Reset restores the starting view");
-  console.log("Walking and reset verified");
-  const first = await canvas.elementHandle();
-  await page.getByRole("combobox").selectOption("1");
-  await page.getByRole("status").getByText("Exhibition ready").waitFor();
-  assert.equal(await first.evaluate((element) => element.isConnected), false);
+  assert.equal(await page.getByRole("combobox").count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Reset view" }).count(), 0);
   assert.equal(await canvas.count(), 1);
   assert.equal(
     requests.some((path) => /^\/editor\//.test(path)),
