@@ -431,7 +431,10 @@ try {
     for (const input of ["walk", "look"]) {
       await page.getByRole("button", { name: "Next room", exact: true }).click();
       await page.getByText("Automatic scene navigation stopped at a repeated scene.").waitFor();
-      assert.equal(await page.getByRole("combobox").inputValue(), "1");
+      assert.equal(
+        await page.locator("[data-exhibition-scene]").getAttribute("data-exhibition-scene"),
+        second.id,
+      );
       const canvas = page.getByLabel("Exhibition view", { exact: true });
       await canvas.focus();
       if (input === "walk") {
@@ -450,7 +453,8 @@ try {
       }
       try {
         await page.waitForFunction(
-          () => document.querySelector(".visitor-scene-picker select")?.value === "0",
+          (id) => document.querySelector("[data-exhibition-scene]")?.dataset.exhibitionScene === id,
+          first.id,
         );
       } catch (error) {
         throw new Error(`Failed to return to A by ${input} on ${page.url()}`, { cause: error });
@@ -461,13 +465,8 @@ try {
       if (!(await page.locator(".visitor-information").evaluate((details) => details.open)))
         await page.locator(".visitor-information > summary").click();
     }
-    assert.deepEqual(await page.getByRole("combobox").locator("option").allTextContents(), [
-      "First gallery",
-      "Second gallery",
-    ]);
-    await page.getByRole("combobox").selectOption("1");
-    await page.getByRole("status").getByText("Exhibition ready").waitFor();
-    await page.getByRole("button", { name: "Reset view" }).click();
+    assert.equal(await page.getByRole("combobox").count(), 0);
+    assert.equal(await page.getByRole("button", { name: /Reset view|Enable audio/ }).count(), 0);
   }
   assert.deepEqual(saved.document(), project, "Viewing does not mutate the authored draft");
   console.log("PASS visitor wall lighting, hotspot and published interactions");

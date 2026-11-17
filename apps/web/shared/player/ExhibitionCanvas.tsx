@@ -26,7 +26,6 @@ import { fetchPlayerAsset } from "./player-asset";
 export function ExhibitionCanvas({
   exhibition,
   sceneIndex,
-  isPreview,
   viewpoint,
   navigate,
   beginNavigationEvent,
@@ -34,15 +33,12 @@ export function ExhibitionCanvas({
 }: {
   exhibition: PlayerSnapshot;
   sceneIndex: number;
-  isPreview: boolean;
   navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean;
   beginNavigationEvent(): void;
   onPlaybackReady(ready: boolean): void;
   viewpoint?: Readonly<{ id: string }> | undefined;
 }) {
   const mount = useRef<HTMLDivElement>(null);
-  const play = useRef<() => void>(() => {});
-  const reset = useRef<() => void>(() => {});
   const selectView = useRef<(id: string) => void>(() => {});
   const [entryView] = useState(viewpoint);
   const [attempt, setAttempt] = useState(0);
@@ -131,7 +127,6 @@ export function ExhibitionCanvas({
       const view = source.viewpoints?.find((item) => item.id.toLowerCase() === id.toLowerCase());
       if (view) setView(view.camera);
     };
-    reset.current = start;
     start();
     const { fog } = lightExhibitionScene(scene);
     const size = new ResizeObserver(() => {
@@ -173,10 +168,8 @@ export function ExhibitionCanvas({
       cancelPress();
       // Pointerdown precedes the FPS mousedown which requests capture; that gesture only enters look mode
       if (event.button !== 0 || !event.isPrimary) return;
-      if (fps.wantsCapture(event)) {
-        if (isPreview) playback?.start();
-        return;
-      }
+      playback?.start();
+      if (fps.wantsCapture(event)) return;
       press = {
         id: event.pointerId,
         x: event.clientX,
@@ -222,7 +215,7 @@ export function ExhibitionCanvas({
           .closest(".visitor-preview")
           ?.querySelector<HTMLElement>(`[data-exhibition-scene="${source.id}"]`)
           ?.dispatchEvent(new CustomEvent("exhibit-inspect", { detail: id }));
-      } else playback?.start();
+      }
     };
     renderer.domElement.addEventListener("pointerdown", down);
     renderer.domElement.addEventListener("pointerup", click);
@@ -427,12 +420,11 @@ export function ExhibitionCanvas({
                 });
             },
             beginNavigationEvent,
-            isPreview ? "Click or tap the scene to enable audio" : undefined,
+            "Click or tap the scene to enable audio",
             (root) => {
               if (rooms.has(root)) syncRooms();
             },
           );
-          play.current = playback.start;
           playback.begin();
           onPlaybackReady(true);
         }
@@ -481,7 +473,6 @@ export function ExhibitionCanvas({
       document.removeEventListener("pointerlockchange", cancelPress);
       document.removeEventListener("visibilitychange", cancelPress);
       window.removeEventListener("blur", cancelPress);
-      play.current = () => {};
       size.disconnect();
       renderer.setAnimationLoop(null);
       fps.dispose();
@@ -491,19 +482,9 @@ export function ExhibitionCanvas({
       disposeModels(scene);
       renderer.dispose();
       renderer.domElement.remove();
-      reset.current = () => {};
       selectView.current = () => {};
     };
-  }, [
-    exhibition,
-    sceneIndex,
-    entryView,
-    attempt,
-    navigate,
-    beginNavigationEvent,
-    onPlaybackReady,
-    isPreview,
-  ]);
+  }, [exhibition, sceneIndex, entryView, attempt, navigate, beginNavigationEvent, onPlaybackReady]);
   useEffect(() => {
     if (viewpoint && viewpoint !== entryView) selectView.current(viewpoint.id);
   }, [viewpoint, entryView]);
@@ -519,30 +500,6 @@ export function ExhibitionCanvas({
         <button onClick={() => setAttempt((previous) => previous + 1)}>
           Retry loading exhibition
         </button>
-      )}
-      {!isPreview && (
-        <div className="visitor-controls">
-          <button onClick={() => play.current()}>Enable audio</button>
-          <button
-            onClick={() => {
-              beginNavigationEvent();
-              reset.current();
-            }}
-          >
-            Reset view
-          </button>
-          {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
-            <button
-              key={view.id}
-              onClick={() => {
-                beginNavigationEvent();
-                selectView.current(view.id);
-              }}
-            >
-              {view.name}
-            </button>
-          ))}
-        </div>
       )}
       {current && !current.failed && (
         <>

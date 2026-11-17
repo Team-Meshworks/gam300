@@ -292,7 +292,10 @@ if (process.argv.includes("--playback-only")) {
       (id) => window.v2Scene?.children.some((node) => node.name === id),
       snapshot.scenes[1].id,
     );
-    assert.equal(await page.getByRole("combobox").inputValue(), "1");
+    assert.equal(
+      await page.locator("[data-exhibition-scene]").getAttribute("data-exhibition-scene"),
+      snapshot.scenes[1].id,
+    );
     assert.equal(
       await page.evaluate(
         (id) => window.v2Scene.getObjectByName(id).visible,
@@ -365,7 +368,9 @@ if (process.argv.includes("--playback-only")) {
     await page.waitForFunction((canvas) => !canvas.isConnected, originalCanvas);
     const pointResult = {
       actions: await page.evaluate(() => window.pointActions),
-      destination: await page.getByRole("combobox").inputValue(),
+      destination: await page
+        .locator("[data-exhibition-scene]")
+        .getAttribute("data-exhibition-scene"),
     };
     first.rules.pop();
 
@@ -422,7 +427,7 @@ if (process.argv.includes("--playback-only")) {
     assert.deepEqual(
       { pointResult, automatic },
       {
-        pointResult: { actions: 1, destination: "0" },
+        pointResult: { actions: 1, destination: first.id },
         automatic: [first.id, second.id],
       },
     );
@@ -431,7 +436,10 @@ if (process.argv.includes("--playback-only")) {
       .getByRole("status")
       .getByText(/automatic scene navigation/i)
       .waitFor();
-    assert.equal(await page.getByRole("combobox").inputValue(), "0");
+    assert.equal(
+      await page.locator("[data-exhibition-scene]").getAttribute("data-exhibition-scene"),
+      first.id,
+    );
 
     // Entering a previous room by walking into its zone is a new interaction.
     // The incoming stationary camera starts outside the zone.
@@ -480,12 +488,21 @@ if (process.argv.includes("--playback-only")) {
       name: "Zone view",
       camera: { ...second.viewpoints[0].camera, position: [1.25, 1.6, 5] },
     });
+    second.objects[0].components.push({
+      id: "10000000-0000-4000-8000-000000000009",
+      type: "navigationPoint",
+      label: "Zone view",
+      sceneId: second.id,
+      viewpointId: second.viewpoints.at(-1).id,
+    });
     await page.reload();
     await page.waitForFunction(
       (id) => document.querySelector("[data-exhibition-scene]")?.dataset.exhibitionScene === id,
       second.id,
     );
     await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
+    if (!(await page.locator(".visitor-information").evaluate((node) => node.open)))
+      await page.locator(".visitor-information summary").click();
     await page.getByRole("button", { name: "Zone view", exact: true }).click();
     await page.waitForFunction(
       (id) => window.enteredScenes.includes(id) && window.enteredScenes.length >= 3,
@@ -521,7 +538,9 @@ if (process.argv.includes("--playback-only")) {
       window.v2Fps.syncFromCamera();
     });
     await page.waitForTimeout(500);
-    await page.getByRole("button", { name: "Reset view", exact: true }).click();
+    if (!(await page.locator(".visitor-information").evaluate((node) => node.open)))
+      await page.locator(".visitor-information summary").click();
+    await page.getByRole("button", { name: "Return to entrance", exact: true }).click();
     await page.waitForTimeout(500);
     await page.waitForFunction(() => window.enteredScenes.length >= 3, null, { timeout: 5000 });
     assert.deepEqual((await page.evaluate(() => window.enteredScenes)).slice(0, 3), [
@@ -529,6 +548,7 @@ if (process.argv.includes("--playback-only")) {
       second.id,
       first.id,
     ]);
+    second.objects[0].components.pop();
     second.viewpoints.pop();
     first.rules[1].enabled = false;
 

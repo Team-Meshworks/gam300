@@ -47,31 +47,7 @@ export function ExhibitionPlayer({
   return (
     <section aria-label="Exhibition" className="visitor-preview is-walking">
       <h1 className="sr-only">{exhibition.document.title}</h1>
-      {previewControls ? (
-        <div className="preview-session-controls">{previewControls}</div>
-      ) : (
-        <div className="visitor-scene-picker">
-          <label>
-            Scene
-            <select
-              value={scene}
-              onChange={(event) => {
-                const index = Number(event.target.value);
-                visited.current = new Set([exhibition.document.scenes[index]!.id.toLowerCase()]);
-                setNotice("");
-                setScene(index);
-                setViewpoint(undefined);
-              }}
-            >
-              {exhibition.document.scenes.map((item, index) => (
-                <option key={item.id} value={index}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      )}
+      {previewControls && <div className="preview-session-controls">{previewControls}</div>}
       {notice && (
         <p role="status" className="visitor-status">
           {notice}
@@ -80,7 +56,6 @@ export function ExhibitionPlayer({
       <ExhibitionCanvas
         key={`${scene}-${visit}`}
         exhibition={exhibition}
-        isPreview={Boolean(previewControls)}
         beginNavigationEvent={beginInput}
         onPlaybackReady={onPlaybackReady}
         sceneIndex={scene}

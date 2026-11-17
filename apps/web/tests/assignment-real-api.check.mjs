@@ -321,7 +321,8 @@ try {
   assert.equal(shared.pathname, `/p/${publicationId}`);
   await visitor.goto(origin + shared.pathname + shared.search + shared.hash);
   await visitor.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
-  await visitor.getByRole("button", { name: "Enable audio", exact: true }).click();
+  await visitor.getByLabel("Exhibition view", { exact: true }).click();
+  await visitor.evaluate(() => document.exitPointerLock());
   await visitor.locator("canvas").waitFor();
   assert.equal(
     (await visitorContext.request.get(`${origin}/api/v1/publications/${publicationId}`)).status(),
