@@ -5,8 +5,9 @@ import { createActiveClock } from "../preview/active-clock";
 import { FpsControls, type FpsMobileControls } from "../preview/FpsControls";
 import { MobileControls } from "../preview/MobileControls";
 import { standOnPreviewFloor } from "../preview/preview-start";
+import { createWalkSpace } from "../preview/walk-space";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { STARTER_ROOM_SHA256 } from "../asset-runtime/catalogue";
+import { isRoomModel, knownRoomGeometry, STARTER_ROOM_SHA256 } from "../asset-runtime/catalogue";
 import { disposeModels } from "../asset-runtime/ModelCache";
 import { createExhibitAppearance } from "../asset-runtime/exhibit-appearance";
 import { containDisplay } from "../asset-runtime/display-layout";
@@ -25,6 +26,7 @@ import { fetchPlayerAsset } from "./player-asset";
 export function ExhibitionCanvas({
   exhibition,
   sceneIndex,
+  isPreview,
   viewpoint,
   navigate,
   beginNavigationEvent,
@@ -32,6 +34,7 @@ export function ExhibitionCanvas({
 }: {
   exhibition: PlayerSnapshot;
   sceneIndex: number;
+  isPreview: boolean;
   navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean;
   beginNavigationEvent(): void;
   onPlaybackReady(ready: boolean): void;
@@ -108,22 +111,22 @@ export function ExhibitionCanvas({
     queueMicrotask(() => {
       if (!controller.signal.aborted) setMobile(fps.mobileControls);
     });
-    const setView = (pose: typeof starting) => {
+    const setView = (pose: typeof starting, standOnFloor = false) => {
       camera.position.fromArray(pose.position);
       camera.quaternion.fromArray(pose.rotation);
       camera.fov = pose.fovDegrees;
       camera.updateProjectionMatrix();
+      if (standOnFloor) standOnPreviewFloor(camera, fps);
       controls.target
         .copy(camera.position)
         .add(new THREE.Vector3(0, 0, -5).applyQuaternion(camera.quaternion));
       controls.update();
     };
-    const start = () => {
-      setView(starting);
-      if (!entryView?.id && !("startViewpointId" in source && source.startViewpointId)) {
-        standOnPreviewFloor(camera, fps);
-      }
-    };
+    const start = () =>
+      setView(
+        starting,
+        !entryView?.id && !("startViewpointId" in source && source.startViewpointId),
+      );
     selectView.current = (id) => {
       const view = source.viewpoints?.find((item) => item.id.toLowerCase() === id.toLowerCase());
       if (view) setView(view.camera);
@@ -169,7 +172,11 @@ export function ExhibitionCanvas({
     const down = (event: PointerEvent) => {
       cancelPress();
       // Pointerdown precedes the FPS mousedown which requests capture; that gesture only enters look mode
-      if (event.button !== 0 || !event.isPrimary || fps.wantsCapture(event)) return;
+      if (event.button !== 0 || !event.isPrimary) return;
+      if (fps.wantsCapture(event)) {
+        if (isPreview) playback?.start();
+        return;
+      }
       press = {
         id: event.pointerId,
         x: event.clientX,
@@ -260,7 +267,14 @@ export function ExhibitionCanvas({
     const loader = new GLTFLoader(manager);
     const entrances = createRoomEntrances();
     const appearances = createExhibitAppearance();
-    const rooms: THREE.Group[] = [];
+    const rooms = new Map<THREE.Object3D, { model: THREE.Object3D; starter: boolean }>();
+    function syncRooms() {
+      const visible = [...rooms].filter(([root]) => root.visible);
+      entrances.sync(visible.filter(([, room]) => room.starter).map(([root]) => root));
+      fps.setWalkSpace(
+        visible.length ? createWalkSpace(visible.map(([, room]) => room.model)) : undefined,
+      );
+    }
     const hotspots = "hotspots" in source ? source.hotspots : [];
     let hotspotTemplate: THREE.Sprite | undefined;
     void (async () => {
@@ -381,12 +395,16 @@ export function ExhibitionCanvas({
           if (hotspotTemplate && hotspot.objectId.toLowerCase() === object.id.toLowerCase())
             attachHotspotSprite(hotspotTemplate.clone(), root, hotspot.position);
         }
-        if (root.visible && digest === STARTER_ROOM_SHA256) {
-          rooms.push(root);
+        if (
+          asset.kind === "environment" ||
+          (asset.kind === "model" &&
+            (knownRoomGeometry[digest] || isRoomModel(exhibition.assets, asset.id)))
+        ) {
+          rooms.set(root, { model: gltf.scene, starter: digest === STARTER_ROOM_SHA256 });
         }
       }
       if (!controller.signal.aborted) {
-        entrances.sync(rooms);
+        syncRooms();
         const information = host
           .closest(".visitor-preview")
           ?.querySelector<HTMLElement>(`[data-exhibition-scene="${source.id}"]`);
@@ -409,6 +427,10 @@ export function ExhibitionCanvas({
                 });
             },
             beginNavigationEvent,
+            isPreview ? "Click or tap the scene to enable audio" : undefined,
+            (root) => {
+              if (rooms.has(root)) syncRooms();
+            },
           );
           play.current = playback.start;
           playback.begin();
@@ -472,7 +494,16 @@ export function ExhibitionCanvas({
       reset.current = () => {};
       selectView.current = () => {};
     };
-  }, [exhibition, sceneIndex, entryView, attempt, navigate, beginNavigationEvent, onPlaybackReady]);
+  }, [
+    exhibition,
+    sceneIndex,
+    entryView,
+    attempt,
+    navigate,
+    beginNavigationEvent,
+    onPlaybackReady,
+    isPreview,
+  ]);
   useEffect(() => {
     if (viewpoint && viewpoint !== entryView) selectView.current(viewpoint.id);
   }, [viewpoint, entryView]);
@@ -489,28 +520,30 @@ export function ExhibitionCanvas({
           Retry loading exhibition
         </button>
       )}
-      <div className="visitor-controls">
-        <button onClick={() => play.current()}>Enable audio</button>
-        <button
-          onClick={() => {
-            beginNavigationEvent();
-            reset.current();
-          }}
-        >
-          Reset view
-        </button>
-        {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
+      {!isPreview && (
+        <div className="visitor-controls">
+          <button onClick={() => play.current()}>Enable audio</button>
           <button
-            key={view.id}
             onClick={() => {
               beginNavigationEvent();
-              selectView.current(view.id);
+              reset.current();
             }}
           >
-            {view.name}
+            Reset view
           </button>
-        ))}
-      </div>
+          {exhibition.document.scenes[sceneIndex]?.viewpoints?.map((view) => (
+            <button
+              key={view.id}
+              onClick={() => {
+                beginNavigationEvent();
+                selectView.current(view.id);
+              }}
+            >
+              {view.name}
+            </button>
+          ))}
+        </div>
+      )}
       {current && !current.failed && (
         <>
           {captured && <span className="crosshair" aria-hidden="true" />}

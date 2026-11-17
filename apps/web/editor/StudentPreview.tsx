@@ -44,7 +44,7 @@ export function StudentPreview({ snapshot, onExit }: { snapshot: PlayerSnapshot;
     <Player
       key={visit}
       exhibition={snapshot}
-      controls={
+      previewControls={
         <>
           <button onClick={() => setVisit(visit + 1)}>Restart preview</button>
           {exit}

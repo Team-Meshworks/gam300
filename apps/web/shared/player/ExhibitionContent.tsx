@@ -159,7 +159,11 @@ export function ExhibitionContent({
   function component(item: ContentComponent, ownerId?: string, standVideo = false) {
     if (item.type === "hotspot")
       return (
-        <button key={item.id} onClick={() => ownerId && activate(ownerId)}>
+        <button
+          key={item.id}
+          disabled={!playbackReady}
+          onClick={() => ownerId && activate(ownerId)}
+        >
           {item.label || "Activate exhibit"}
         </button>
       );
@@ -252,7 +256,11 @@ export function ExhibitionContent({
               <h2>{object.name}</h2>
               {hotspots.some(
                 (hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase(),
-              ) && <button onClick={() => activate(object.id)}>Activate {object.name}</button>}
+              ) && (
+                <button disabled={!playbackReady} onClick={() => activate(object.id)}>
+                  Activate {object.name}
+                </button>
+              )}
               {components(object).map((item) =>
                 component(
                   item,

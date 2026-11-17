@@ -242,7 +242,8 @@ try {
   await openSavedProject(page);
   await button("Preview").click();
   await page.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
-  await button("Enable audio").click();
+  await page.getByLabel("Exhibition view", { exact: true }).click({ position: { x: 20, y: 20 } });
+  await page.evaluate(() => document.exitPointerLock());
   await page.waitForFunction(
     () => window.spatialPanners.length === 1 && window.spatialSources.length === 1,
   );

@@ -6,6 +6,7 @@ import {
   ROOM_TRANSFORM,
 } from "../../shared/project/selection-transform";
 import { createRoomEntrances } from "../../shared/asset-runtime/room-entrances";
+import { createWalkSpace } from "../../shared/preview/walk-space";
 import { visibleModelBounds, visibleRaycastHit, nearestExhibitHit } from "./visible-model-bounds";
 import { textSurfacePlacement } from "./text-placement";
 import {
@@ -313,6 +314,20 @@ export function initScene(
         return isStarterRoomModel(assets, object.assetId) && instance ? [instance] : [];
       }),
     ]);
+    if (modeManager.getState().mode === "visitor") syncWalkSpace();
+  }
+  function syncWalkSpace() {
+    const rooms = environment ? [environment] : [];
+    for (const object of objects) {
+      const instance = instances.get(object.id);
+      if (
+        instance?.visible &&
+        (object as Partial<ContentObject>).visible !== false &&
+        isCatalogueRoomModel(assets, object.assetId)
+      )
+        rooms.push(instance);
+    }
+    fpsControls.setWalkSpace(rooms.length ? createWalkSpace(rooms) : undefined);
   }
   const displays = createDisplayContent(assets, render, models);
   const spatialAudio = createSceneAudio(camera, assets, (message) =>
@@ -1787,6 +1802,7 @@ export function initScene(
   const unsubscribeMode = modeManager.subscribe(({ mode, view, captured }) => {
     if (mode !== previousMode) {
       if (mode === "visitor") {
+        syncWalkSpace();
         previewOrigin = { sceneId: projectScene?.id, loadGeneration: appliedLoadGeneration };
         pendingPreviewReturn = undefined;
       } else {

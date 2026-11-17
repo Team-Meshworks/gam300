@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { EYE_HEIGHT, type createWalkSpace } from "./walk-space";
+export { EYE_HEIGHT } from "./walk-space";
 function isTextEditingTarget(target: EventTarget): boolean {
   return (
     target instanceof HTMLElement &&
@@ -7,7 +9,6 @@ function isTextEditingTarget(target: EventTarget): boolean {
   );
 }
 
-export const EYE_HEIGHT = 0.9;
 // Slower than before, 5 and 12 m/s made people feel sick
 const WALK_SPEED = 3;
 const SPRINT_SPEED = 7;
@@ -53,6 +54,9 @@ export class FpsControls {
   private pitch = 0;
   private roll = 0;
   private minimumHeight = EYE_HEIGHT;
+  private standingHeight = EYE_HEIGHT;
+  private walkSpace?: ReturnType<typeof createWalkSpace> | undefined;
+  private walkingUnavailable = false;
   private dragging = false;
   private engaged = false;
   private flying = false;
@@ -69,7 +73,7 @@ export class FpsControls {
   private lookHeld = false;
   // Preview walks like a visitor, nothing starts flying there
   private flightAllowed = true;
-  // Preview holds a saved camera above the floor until the visitor moves, then they drop down
+  // Preview holds every authored pose until the visitor requests movement
   private perched = false;
   private readonly _euler = new THREE.Euler(0, 0, 0, "YXZ");
   private readonly physicsPosition = new THREE.Vector3();
@@ -135,16 +139,19 @@ export class FpsControls {
   // Pick up from wherever the camera is now. Starting in the air means flying, so nothing drops.
   // Preview cant fly, so a raised camera is held there instead
   sync(): void {
+    const floor = this.walkSpace?.place(this.camera.position.clone());
+    this.walkingUnavailable = this.walkSpace !== undefined && floor === undefined;
+    this.standingHeight = EYE_HEIGHT + (floor ?? 0);
     this.stopMotion();
-    const raised = this.camera.position.y > EYE_HEIGHT + 1e-4;
+    const raised = this.camera.position.y > this.standingHeight + 1e-4;
     this.flying = raised && this.flightAllowed;
-    this.perched = raised && !this.flightAllowed;
+    this.perched = !this.flightAllowed;
     this._euler.setFromQuaternion(this.camera.quaternion, "YXZ");
     this.yaw = this._euler.y;
     this.pitch = this._euler.x;
     this.roll = this._euler.z;
     // Below eye height is an authored low viewpoint, stand there rather than jump up
-    this.minimumHeight = Math.min(EYE_HEIGHT, this.camera.position.y);
+    this.minimumHeight = Math.min(this.standingHeight, this.camera.position.y);
     this.applyRotation();
   }
 
@@ -205,11 +212,18 @@ export class FpsControls {
   setFlightAllowed(allowed: boolean): void {
     this.flightAllowed = allowed;
     if (allowed) {
+      this.walkSpace = undefined;
+      this.walkingUnavailable = false;
       this.perched = false;
     } else if (this.flying) {
       this.flying = false;
       this.perched = true;
     }
+  }
+
+  setWalkSpace(space: ReturnType<typeof createWalkSpace> | undefined): void {
+    this.walkSpace = space;
+    if (this.engaged) this.sync();
   }
 
   // A viewpoint or saved camera just moved the camera, carry on from exactly that pose
@@ -263,17 +277,30 @@ export class FpsControls {
   }
 
   private step(delta: number): void {
+    // Keep look and viewpoint navigation available without walking through unsupported rooms
+    if (this.walkingUnavailable) return;
     const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
     const space = this.keys.has("Space") || this.mobileJump;
     const maxSpeed = sprint ? SPRINT_SPEED : WALK_SPEED;
     if (!this.flightAllowed) this.flying = false;
     if (this.perched) {
-      // Stay on the saved view until any movement, which leaves it and falls to the floor
+      // Looking alone keeps the authored view, even outside the walkable room
       if (!space && !this.hasMovementInput()) {
         this.velocity.set(0, 0, 0);
         return;
       }
       this.perched = false;
+      // Enter the walkable space only on movement, before integrating collision steps
+      if (this.walkSpace) {
+        const floor = this.walkSpace.place(this.physicsPosition);
+        if (floor === undefined) {
+          this.walkingUnavailable = true;
+          return;
+        }
+        this.standingHeight = floor + EYE_HEIGHT;
+        this.minimumHeight = Math.min(this.standingHeight, this.physicsPosition.y);
+        this.previousPhysics.copy(this.physicsPosition);
+      }
     }
 
     const inputZ =
@@ -310,8 +337,16 @@ export class FpsControls {
       this.velocity.y = fall;
     }
     this.physicsPosition.addScaledVector(previous.lerp(this.velocity, 0.5), delta);
+    if (this.walkSpace) {
+      const targetY = this.physicsPosition.y;
+      const eyeClearance = EYE_HEIGHT + this.minimumHeight - this.standingHeight;
+      this.standingHeight =
+        this.walkSpace.move(this.previousPhysics, this.physicsPosition, eyeClearance) + EYE_HEIGHT;
+      this.minimumHeight = this.standingHeight - EYE_HEIGHT + eyeClearance;
+      if (this.physicsPosition.y < targetY) this.velocity.y = Math.min(0, this.velocity.y);
+    }
     // An authored low viewpoint is the floor until you climb back to eye height
-    if (this.physicsPosition.y >= EYE_HEIGHT) this.minimumHeight = EYE_HEIGHT;
+    if (this.physicsPosition.y >= this.standingHeight) this.minimumHeight = this.standingHeight;
     if (this.physicsPosition.y <= this.minimumHeight) {
       this.physicsPosition.y = this.minimumHeight;
       this.velocity.y = Math.max(this.velocity.y, 0);

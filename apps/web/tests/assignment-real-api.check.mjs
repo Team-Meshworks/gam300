@@ -295,6 +295,20 @@ try {
   assert.ok(publicationId);
   assert.equal(publication.publicationId, publicationId);
   await fresh.waitForURL(`${origin}/home?tab=published`);
+  // A teacher inspecting an older edition must still be able to open the student's current review.
+  const teacherEdition = new URL("/", origin);
+  teacherEdition.search = new URLSearchParams({
+    classId: process.env.SPATIA_TEST_CLASS,
+    assignmentId: receipt.assignmentId,
+    studentId,
+    projectId: project,
+    review: "1",
+    view: "published",
+  });
+  await page.goto(teacherEdition.href);
+  await page.getByRole("link", { name: "Review current submission" }).click();
+  await review.waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("reviewProjectId"), project);
   const visitorContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const visitor = await visitorContext.newPage();
   visitor.setDefaultTimeout(20000);

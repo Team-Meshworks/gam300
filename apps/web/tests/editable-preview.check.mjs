@@ -23,7 +23,23 @@ try {
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   await page.getByRole("region", { name: "Exhibition", exact: true }).waitFor();
   assert.equal(await page.locator(".editor-shell").count(), 0);
-  await page.getByRole("button", { name: "Exit preview", exact: true }).click();
+  assert.equal(await page.getByRole("combobox", { name: "Scene", exact: true }).count(), 0);
+  assert.equal(await page.locator(".visitor-controls").count(), 0);
+  const restart = page.getByRole("button", { name: "Restart preview", exact: true });
+  const exit = page.getByRole("button", { name: "Exit preview", exact: true });
+  for (const width of [1366, 390]) {
+    await page.setViewportSize({ width, height: 768 });
+    const left = await restart.boundingBox();
+    const right = await exit.boundingBox();
+    assert.ok(left.y < 32 && left.y === right.y && left.x + left.width <= right.x);
+    assert.ok(width - right.x - right.width < 32);
+  }
+  const canvas = await page.locator(".visitor-canvas canvas").elementHandle();
+  await restart.click();
+  await page.waitForFunction((previous) => !previous.isConnected, canvas);
+  await page.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await exit.click();
   await page.getByRole("button", { name: "Preview", exact: true }).waitFor();
   assert.equal(
     await page
