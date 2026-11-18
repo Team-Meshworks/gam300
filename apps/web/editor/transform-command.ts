@@ -7,6 +7,7 @@ import {
   checkFields,
   invalid,
   isRecord,
+  readField,
   type ValidationResult,
 } from "../shared/project/validation-helpers";
 
@@ -42,12 +43,13 @@ export function prepareTransformCommand(
   if (!isRecord(input)) return invalid("edit", "Expected a transform edit");
   const fields = checkFields(input, ["objectId", "before", "after"], "edit");
   if (!fields.ok) return fields;
-  if (typeof input.objectId !== "string") return invalid("edit.objectId", "Expected an object ID");
-  const original = objects.find((object) => object.id === input.objectId);
+  const objectId = readField(input, "objectId");
+  if (typeof objectId !== "string") return invalid("edit.objectId", "Expected an object ID");
+  const original = objects.find((object) => object.id === objectId);
   if (!original) return invalid("edit.objectId", "This object is no longer in the scene");
-  const before = validateTransform(input.before, "edit.before");
+  const before = validateTransform(readField(input, "before"), "edit.before");
   if (!before.ok) return before;
-  const after = validateTransform(input.after, "edit.after");
+  const after = validateTransform(readField(input, "after"), "edit.after");
   if (!after.ok) return after;
   // Don't let a drag that started earlier overwrite a newer edit to this object.
   if (!sameTransform(original.transform, before.value))

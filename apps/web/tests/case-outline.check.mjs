@@ -12,35 +12,36 @@ try {
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   const result = await page.evaluate(async () => {
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-    const { editorModelCache, initScene } = await import("/graphics/scene.ts");
+    const { initScene } = await import("/graphics/scene.ts");
     const { visibleModelBounds } = await import("/graphics/visible-model-bounds.ts");
     const asset = assets.find((asset) => asset.id === "display-full-glass-case-v1");
-    const lease = await editorModelCache.acquire(asset, new AbortController().signal);
-    const prototype = Object.getPrototypeOf(Object.getPrototypeOf(lease.value.model));
-    const original = prototype.add;
+    const { Scene } = await import("/@id/three");
     let outline;
-    prototype.add = function (...nodes) {
-      for (const node of nodes) if (node.box?.isBox3 && node.isLineSegments) outline = node;
-      return original.apply(this, nodes);
+    const observeOutline = ({ child }) => {
+      if (child.box?.isBox3 && child.isLineSegments) outline = child;
     };
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;inset:0;width:800px;height:600px";
     document.body.append(host);
     let ready;
     const loaded = new Promise((resolve) => (ready = resolve));
-    const renderer = initScene(host, assets, {
-      onStatus: (status) => {
-        if (status === "ready") ready();
-      },
-      onThumbnail() {},
-      onSelect() {},
-      onTransform() {},
-      onObjectClick() {},
-      onUpdate() {},
-    });
+    Scene.prototype.addEventListener("childadded", observeOutline);
+    let renderer;
+    try {
+      renderer = initScene(host, assets, {
+        onStatus: (status) => {
+          if (status === "ready") ready();
+        },
+        onThumbnail() {},
+        onSelect() {},
+        onTransform() {},
+        onObjectClick() {},
+        onUpdate() {},
+      });
+    } finally {
+      Scene.prototype.removeEventListener("childadded", observeOutline);
+    }
     await loaded;
-    prototype.add = original;
-    lease.release();
     const owner = {
       id: "case",
       assetId: asset.id,

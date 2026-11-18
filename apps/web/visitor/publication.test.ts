@@ -1,6 +1,8 @@
 import fixture from "../shared/project/fixtures/m2-publication-project.json";
-import { afterEach, expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { validateProject } from "../shared/project/project-validation";
+import { deferred } from "../tests/deferred";
+import { serveHttp } from "../tests/http-fixture";
 import { loadPublication, readPublicationManifest } from "./publication";
 const id = "11111111-1111-4111-8111-111111111111";
 const asset = "22222222-2222-4222-8222-222222222222";
@@ -17,6 +19,26 @@ const value = {
     },
   ],
 };
+
+function servePublication(manifest: unknown, snapshot: unknown) {
+  const path = `/api/v1/publications/${id}`;
+  return serveHttp((request) => {
+    switch (new URL(request.url).pathname) {
+      case `${path}/manifest`:
+        return Response.json(manifest);
+      case path:
+        return Response.json(snapshot);
+      default:
+        return new Response(null, { status: 404 });
+    }
+  });
+}
+
+async function openPublication(manifest: unknown, snapshot: unknown) {
+  const server = await servePublication(manifest, snapshot);
+  return loadPublication(id, new AbortController().signal, server.fetch);
+}
+
 it("uses only assets bound to the requested publication", () => {
   expect(readPublicationManifest(value, id).assets[0]?.url).toBe(value.assets[0]?.url);
 });
@@ -72,8 +94,6 @@ it("rejects mismatched editions and duplicate asset identities", () => {
   ).toThrow();
 });
 
-afterEach(() => vi.unstubAllGlobals());
-
 it.each([
   [
     "moved",
@@ -101,22 +121,8 @@ it.each([
   };
   expect(validateProject(v2, new Map([[asset, "environment"]])).ok).toBe(true);
   const manifest = { ...value, assets: [{ ...value.assets[0]!, kind: "environment" }] };
-  for (const snapshot of [v1, v2]) {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        async (url: string) =>
-          new Response(JSON.stringify(url.endsWith("/manifest") ? manifest : snapshot)),
-      ),
-    );
-    if (snapshot.schemaVersion === 1) {
-      await expect(loadPublication(id, new AbortController().signal)).rejects.toThrow();
-    } else {
-      expect(
-        (await loadPublication(id, new AbortController().signal)).document.scenes[0],
-      ).toMatchObject(state);
-    }
-  }
+  await expect(openPublication(manifest, v1)).rejects.toThrow("format is not supported");
+  expect((await openPublication(manifest, v2)).document.scenes[0]).toMatchObject(state);
 });
 
 function v2Publication(enabled = false) {
@@ -141,19 +147,41 @@ function v2Publication(enabled = false) {
       },
     ],
   };
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(
-      async (url: string) =>
-        new Response(JSON.stringify(url.endsWith("/manifest") ? manifest : project)),
-    ),
-  );
-  return { project };
+  return { project, manifest };
 }
 
 it.each([false, true])("opens both v2 scenes with enabled rules set to %s", async (enabled) => {
-  const { project } = v2Publication(enabled);
-  expect((await loadPublication(id, new AbortController().signal)).document).toMatchObject(project);
+  const { project, manifest } = v2Publication(enabled);
+  expect((await openPublication(manifest, project)).document).toMatchObject(project);
+});
+
+it("rejects a buffered snapshot with the original abort reason after access is revoked", async () => {
+  const { project, manifest } = v2Publication();
+  const server = await servePublication(manifest, project);
+  const manifestRead = deferred<void>();
+  const snapshotRead = deferred<void>();
+  const releaseSnapshot = deferred<void>();
+  const request: typeof fetch = async (input, init) => {
+    const response = await server.fetch(input, init);
+    await response.clone().arrayBuffer();
+    if (response.url.endsWith("/manifest")) {
+      manifestRead.resolve();
+    } else {
+      snapshotRead.resolve();
+      await releaseSnapshot.promise;
+    }
+    return response;
+  };
+  const controller = new AbortController();
+  const reason = new DOMException("Exhibition access was revoked", "AbortError");
+  const opening = loadPublication(id, controller.signal, request);
+  try {
+    await Promise.race([opening, Promise.all([manifestRead.promise, snapshotRead.promise])]);
+    controller.abort(reason);
+  } finally {
+    releaseSnapshot.resolve();
+  }
+  await expect(opening).rejects.toBe(reason);
 });
 
 it.each(["audio", "image", "video"])(
@@ -167,7 +195,7 @@ it.each(["audio", "image", "video"])(
 );
 
 it("rejects URL-only audio rather than silently fetching media outside the captured edition", async () => {
-  const { project } = v2Publication();
+  const { project, manifest } = v2Publication();
   Object.assign(project.scenes[0]!, {
     interactions: [
       {
@@ -176,9 +204,7 @@ it("rejects URL-only audio rather than silently fetching media outside the captu
       },
     ],
   });
-  await expect(loadPublication(id, new AbortController().signal)).rejects.toThrow(
-    "approved library track",
-  );
+  await expect(openPublication(manifest, project)).rejects.toThrow("approved library track");
 });
 
 it("retains captured bottom-center placement for non-room models", () => {
@@ -254,11 +280,7 @@ it("loads the student's V1 hotspot actions from the published snapshot", async (
       },
     ],
   };
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string) => Response.json(url.endsWith("/manifest") ? manifest : source)),
-  );
-  const loaded = await loadPublication(id, new AbortController().signal);
+  const loaded = await openPublication(manifest, source);
   expect(loaded.document.scenes[0]).toMatchObject({ interactions: source.scenes[0]!.interactions });
 });
 

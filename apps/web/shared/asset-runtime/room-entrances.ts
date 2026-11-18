@@ -1,12 +1,12 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-const directions: Record<string, THREE.Vector3> = {
-  Wall_Back: new THREE.Vector3(0, 0, -1),
-  Wall_Front: new THREE.Vector3(0, 0, 1),
-  Wall_Left: new THREE.Vector3(-1, 0, 0),
-  Wall_Right: new THREE.Vector3(1, 0, 0),
-};
+const directions = new Map([
+  ["Wall_Back", new THREE.Vector3(0, 0, -1)],
+  ["Wall_Front", new THREE.Vector3(0, 0, 1)],
+  ["Wall_Left", new THREE.Vector3(-1, 0, 0)],
+  ["Wall_Right", new THREE.Vector3(1, 0, 0)],
+]);
 
 // Replace only the centre opening; keep two jambs and a lintel within the original wall bounds
 function doorway(source: THREE.BufferGeometry, alongX: boolean) {
@@ -69,7 +69,7 @@ export function createRoomEntrances() {
         // Imported scaled/tilted rooms retain their walls rather than mismatched openings
         if (scale.distanceTo(new THREE.Vector3(1, 1, 1)) > 1e-5 || up.y < 0.99999) continue;
         room.traverse((node) => {
-          const direction = directions[node.name];
+          const direction = directions.get(node.name);
           if (!(node instanceof THREE.Mesh) || !direction) return;
           const original = changed.get(node)?.original ?? node.geometry;
           original.computeBoundingBox();

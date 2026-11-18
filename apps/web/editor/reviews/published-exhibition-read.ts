@@ -3,7 +3,8 @@ import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { knownRoomGeometry } from "../../shared/asset-runtime/catalogue";
 import { deserializeProject } from "../../shared/project/project-deserialization";
 import { MAX_PROJECT_BYTES } from "../../shared/project/project-limits";
-import { isId, isRecord } from "../home/workspace-api";
+import { isId } from "../home/workspace-api";
+import { isRecord, readField } from "../../shared/project/validation-helpers";
 import type { OpenedServerProject } from "../persistence/server-project-read";
 
 export async function readPublishedExhibition(
@@ -34,10 +35,15 @@ export async function readPublishedExhibition(
   const value: unknown = JSON.parse(text);
   if (
     !isRecord(value) ||
+    !("projectId" in value) ||
+    !("publicationId" in value) ||
+    !("revision" in value) ||
+    !("assets" in value) ||
     value.projectId !== projectId ||
     !isId(value.publicationId) ||
+    typeof value.revision !== "number" ||
     !Number.isSafeInteger(value.revision) ||
-    (value.revision as number) < 0 ||
+    value.revision < 0 ||
     !Array.isArray(value.assets) ||
     value.assets.length > 100000
   )
@@ -47,6 +53,12 @@ export async function readPublishedExhibition(
   const assets: CatalogueAsset[] = value.assets.map((asset: unknown) => {
     if (
       !isRecord(asset) ||
+      !("id" in asset) ||
+      !("name" in asset) ||
+      !("kind" in asset) ||
+      !("sha256" in asset) ||
+      !("url" in asset) ||
+      !("category" in asset) ||
       typeof asset.id !== "string" ||
       seen.has(asset.id) ||
       typeof asset.name !== "string" ||
@@ -60,7 +72,7 @@ export async function readPublishedExhibition(
     )
       throw new Error("The exhibition assets could not be verified.");
     seen.add(asset.id);
-    const geometry = knownRoomGeometry[asset.sha256];
+    const geometry = knownRoomGeometry.get(asset.sha256);
     return {
       id: asset.id,
       name: asset.name,
@@ -71,13 +83,13 @@ export async function readPublishedExhibition(
       ...(typeof asset.category === "string" ? { category: asset.category } : {}),
       ...(geometry
         ? { boundsMeters: geometry, placement: "bottom-center" as const }
-        : asset.placement === "bottom-center"
+        : readField(asset, "placement") === "bottom-center"
           ? { placement: "bottom-center" as const }
           : {}),
     };
   });
   const document = deserializeProject(
-    JSON.stringify(value.document),
+    JSON.stringify(readField(value, "document")),
     new Map(assets.map((asset) => [asset.id, asset.kind])),
   );
   if (!document.ok || document.value.projectId !== projectId)
@@ -93,7 +105,7 @@ export async function readPublishedExhibition(
   const opened: OpenedServerProject = {
     accountId,
     document: document.value,
-    revision: value.revision as number,
+    revision: value.revision,
     canEdit: false,
   };
   return { opened, assets };

@@ -1,4 +1,5 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
+import { serveHttp, serveResponses } from "../../tests/http-fixture";
 import { classroom, createClassroomClient } from "./classroom-api";
 
 const classId = "ef580108-e406-4c8e-ac76-75cd41e9d2dc";
@@ -11,15 +12,14 @@ const json = (items: unknown[]) =>
 
 it("retains organisation identity and rejects inconsistent class lists", async () => {
   const row = { id: classId, name: "History", organizationId };
-  const request = vi.fn<typeof fetch>().mockResolvedValue(json([row]));
+  const { fetch: request } = await serveResponses(json([row]), json([row, row]));
   expect(await createClassroomClient(request).classes()).toEqual([row]);
-  request.mockResolvedValue(json([row, row]));
   await expect(createClassroomClient(request).classes()).rejects.toThrow("inconsistent");
   expect(() => classroom({ ...row, organizationId: null })).toThrow("verified");
 });
 it("reads enrolled and eligible students from their distinct authorised routes", async () => {
-  const request = vi.fn<typeof fetch>().mockImplementation(async (path) =>
-    String(path).includes("eligible-students")
+  const { fetch: request, requests } = await serveHttp(({ url }) =>
+    new URL(url).pathname.endsWith("/eligible-students")
       ? json([{ userId: studentId, userName: "Alice", enrolled: true }])
       : json([
           {
@@ -34,15 +34,15 @@ it("reads enrolled and eligible students from their distinct authorised routes",
     members: [{ userId: studentId, userName: "Alice", accountActive: true, role: "Creator" }],
     eligible: [{ userId: studentId, userName: "Alice", enrolled: true }],
   });
-  expect(request.mock.calls.map(([path]) => path)).toEqual([
-    `/api/v1/classes/${classId}/roster?limit=20`,
+  expect(requests.map(({ url }) => url.replace(new URL(url).origin, "")).toSorted()).toEqual([
     `/api/v1/classes/${classId}/eligible-students?limit=20`,
+    `/api/v1/classes/${classId}/roster?limit=20`,
   ]);
 });
 it("does not manufacture roster permissions from an unknown role or invalid enrolment", async () => {
   for (const badRole of [true, false]) {
-    const request = vi.fn<typeof fetch>().mockImplementation(async (path) =>
-      String(path).includes("eligible-students")
+    const { fetch: request } = await serveHttp(({ url }) =>
+      new URL(url).pathname.endsWith("/eligible-students")
         ? json([{ userId: studentId, userName: "Alice", enrolled: badRole ? false : "true" }])
         : json([
             {

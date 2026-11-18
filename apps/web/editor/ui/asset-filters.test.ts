@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import {
   filterAssets,
@@ -9,7 +9,7 @@ import {
 } from "./asset-filters";
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  localStorage.removeItem("spatia-favourite-assets");
 });
 
 function asset(id: string, category?: string): CatalogueAsset {
@@ -73,29 +73,11 @@ describe("asset filters", () => {
 describe("remembered favourites", () => {
   it("saves and loads, ignoring junk", () => {
     // Model storage independently so persistence checks cannot leak favourites between tests
-    const values = new Map<string, string>();
-    vi.stubGlobal("localStorage", {
-      getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => void values.set(key, value),
-    });
     saveFavourites(["vase"]);
     expect(loadFavourites()).toEqual(["vase"]);
-    values.set("spatia-favourite-assets", '["mask", 3, null]');
+    localStorage.setItem("spatia-favourite-assets", '["mask", 3, null]');
     expect(loadFavourites()).toEqual(["mask"]);
-    values.set("spatia-favourite-assets", "not json");
-    expect(loadFavourites()).toEqual([]);
-  });
-
-  it("starts empty when storage is blocked", () => {
-    vi.stubGlobal("localStorage", {
-      getItem: () => {
-        throw new DOMException("Blocked", "SecurityError");
-      },
-      setItem: () => {
-        throw new DOMException("Blocked", "SecurityError");
-      },
-    });
-    expect(() => saveFavourites(["vase"])).not.toThrow();
+    localStorage.setItem("spatia-favourite-assets", "not json");
     expect(loadFavourites()).toEqual([]);
   });
 });

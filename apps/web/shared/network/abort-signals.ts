@@ -3,7 +3,10 @@ export function combineAbortSignals(signals: readonly AbortSignal[]): AbortSigna
   if (typeof AbortSignal.any === "function") {
     return AbortSignal.any([...signals]);
   }
+  return combineAbortSignalsFallback(signals);
+}
 
+export function combineAbortSignalsFallback(signals: readonly AbortSignal[]): AbortSignal {
   const controller = new AbortController();
   const abort = (signal: AbortSignal) => {
     // Preserve the first cancellation reason and release listeners on every source

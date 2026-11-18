@@ -1,4 +1,5 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
+import { serveHttp, serveResponses } from "../../tests/http-fixture";
 import {
   assignmentChoices,
   assignmentSession,
@@ -32,8 +33,6 @@ const session = () =>
   });
 const csrf = () => json({ requestToken: "token" });
 
-afterEach(() => vi.unstubAllGlobals());
-
 it("reads named assignment projects and rejects malformed identity labels", async () => {
   const details = {
     assignmentId: "request",
@@ -50,241 +49,213 @@ it("reads named assignment projects and rejects malformed identity labels", asyn
       },
     ],
   };
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => json(details)),
+  const valid = await serveResponses(json(details));
+  expect(await readAssignment("class", "request", undefined, valid.fetch)).toEqual(details);
+  const { fetch: fetcher } = await serveResponses(
+    json({
+      ...details,
+      projects: [{ ...details.projects[0], isPublic: "yes" }],
+    }),
   );
-  expect(await readAssignment("class", "request")).toEqual(details);
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () =>
+  await expect(readAssignment("class", "request", undefined, fetcher)).rejects.toThrow(
+    "unavailable",
+  );
+  for (const studentName of [42, "", "  "]) {
+    const { fetch: fetcher } = await serveResponses(
       json({
         ...details,
-        projects: [{ ...details.projects[0], isPublic: "yes" }],
+        projects: [{ ...details.projects[0], studentName }],
       }),
-    ),
-  );
-  await expect(readAssignment("class", "request")).rejects.toThrow("unavailable");
-  for (const studentName of [42, "", "  "]) {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        json({
-          ...details,
-          projects: [{ ...details.projects[0], studentName }],
-        }),
-      ),
     );
-    await expect(readAssignment("class", "request")).rejects.toThrow("unavailable");
+    await expect(readAssignment("class", "request", undefined, fetcher)).rejects.toThrow(
+      "unavailable",
+    );
   }
 });
 
 it.each([403, 404])(
   "unlocks an initial %i denial but preserves a previously uncertain request",
   async (status) => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (path: string) => {
-        if (path === "/api/v1/auth/session") return session();
-        if (path === "/api/v1/auth/csrf") return csrf();
-        return json({}, status);
-      }),
-    );
-    expect(await submitAssignment(pending, false)).toMatchObject({
+    const { fetch: fetcher } = await serveHttp(({ url }) => {
+      const path = url.slice(new URL(url).origin.length);
+      if (path === "/api/v1/auth/session") return session();
+      if (path === "/api/v1/auth/csrf") return csrf();
+      return json({}, status);
+    });
+    expect(await submitAssignment(pending, false, fetcher)).toMatchObject({
       kind: "rejected",
     });
-    expect(await submitAssignment(pending, true)).toEqual({ kind: "unknown" });
+    expect(await submitAssignment(pending, true, fetcher)).toEqual({ kind: "unknown" });
   },
 );
 
 it("allows correction after an initial oversized request but preserves an uncertain replay", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (path: string) => {
-      if (path === "/api/v1/auth/session") return session();
-      if (path === "/api/v1/auth/csrf") return csrf();
-      return json({}, 413);
-    }),
-  );
-  expect(await submitAssignment(pending, false)).toMatchObject({
+  const { fetch: fetcher } = await serveHttp(({ url }) => {
+    const path = url.slice(new URL(url).origin.length);
+    if (path === "/api/v1/auth/session") return session();
+    if (path === "/api/v1/auth/csrf") return csrf();
+    return json({}, 413);
+  });
+  expect(await submitAssignment(pending, false, fetcher)).toMatchObject({
     kind: "rejected",
   });
-  expect(await submitAssignment(pending, true)).toEqual({ kind: "unknown" });
+  expect(await submitAssignment(pending, true, fetcher)).toEqual({ kind: "unknown" });
 });
 
 it("retries an uncertain request with the same identity and complete body", async () => {
-  const fetchMock = vi
-    .fn()
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(csrf())
-    .mockResolvedValueOnce(session())
-    .mockRejectedValueOnce(new Error("lost response"))
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(csrf())
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(
-      json({
-        assignmentId: "request",
-        projects: [
-          { studentId: "alice", projectId: "a" },
-          { studentId: "bob", projectId: "b" },
-        ],
-      }),
-    )
-    .mockResolvedValueOnce(session());
-  vi.stubGlobal("fetch", fetchMock);
-  expect(await submitAssignment(pending, false)).toEqual({ kind: "unknown" });
-  expect(await submitAssignment(pending, true)).toMatchObject({
+  const { fetch: fetcher, requests } = await serveResponses(
+    session(),
+    csrf(),
+    session(),
+    Response.error(),
+    session(),
+    csrf(),
+    session(),
+    json({
+      assignmentId: "request",
+      projects: [
+        { studentId: "alice", projectId: "a" },
+        { studentId: "bob", projectId: "b" },
+      ],
+    }),
+    session(),
+  );
+  expect(await submitAssignment(pending, false, fetcher)).toEqual({ kind: "unknown" });
+  expect(await submitAssignment(pending, true, fetcher)).toMatchObject({
     kind: "confirmed",
     assignmentId: "request",
   });
-  expect(fetchMock.mock.calls[3]?.[1]?.body).toBe(fetchMock.mock.calls[7]?.[1]?.body);
-  expect(JSON.parse(fetchMock.mock.calls[3]?.[1]?.body as string)).toEqual(pending.body);
-  expect(fetchMock.mock.calls[3]?.[1]?.headers).toMatchObject({
-    "X-CSRF-TOKEN": "token",
-    "X-Spatia-Account": "teacher",
-  });
+  const original = await requests[3]!.text();
+  expect(original).toBe(await requests[7]!.text());
+  expect(JSON.parse(original)).toEqual(pending.body);
+  expect(requests[3]!.headers.get("X-CSRF-TOKEN")).toBe("token");
+  expect(requests[3]!.headers.get("X-Spatia-Account")).toBe("teacher");
 });
 
 it("keeps malformed success and later rejection uncertain", async () => {
-  const fetchMock = vi
-    .fn()
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(csrf())
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(new Response("bad json", { status: 201 }))
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(csrf())
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(json({}, 422));
-  vi.stubGlobal("fetch", fetchMock);
-  expect(await submitAssignment(pending, false)).toEqual({ kind: "unknown" });
-  expect(await submitAssignment(pending, true)).toEqual({ kind: "unknown" });
+  const { fetch: fetcher } = await serveResponses(
+    session(),
+    csrf(),
+    session(),
+    new Response("bad json", { status: 201 }),
+    session(),
+    csrf(),
+    session(),
+    json({}, 422),
+  );
+  expect(await submitAssignment(pending, false, fetcher)).toEqual({ kind: "unknown" });
+  expect(await submitAssignment(pending, true, fetcher)).toEqual({ kind: "unknown" });
 });
 
 it("allows a known first rejection to be corrected and refuses another account", async () => {
-  const fetchMock = vi
-    .fn()
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(csrf())
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(json({}, 422))
-    .mockResolvedValueOnce(
-      json({
-        userId: "other",
-        displayName: "Other",
-        role: "Educator",
-        orgId: "school",
-      }),
-    );
-  vi.stubGlobal("fetch", fetchMock);
-  expect(await submitAssignment(pending, false)).toMatchObject({
+  const { fetch: fetcher, requests } = await serveResponses(
+    session(),
+    csrf(),
+    session(),
+    json({}, 422),
+    json({
+      userId: "other",
+      displayName: "Other",
+      role: "Educator",
+      orgId: "school",
+    }),
+  );
+  expect(await submitAssignment(pending, false, fetcher)).toMatchObject({
     kind: "rejected",
   });
-  expect(await submitAssignment(pending, false)).toMatchObject({
+  expect(await submitAssignment(pending, false, fetcher)).toMatchObject({
     kind: "rejected",
   });
-  expect(fetchMock).toHaveBeenCalledTimes(5);
+  expect(requests).toHaveLength(5);
 });
 
 it("does not submit an assignment after the account switches during CSRF acquisition", async () => {
-  const fetchMock = vi
-    .fn()
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(csrf())
-    .mockResolvedValueOnce(
-      json({
-        userId: "other",
-        displayName: "Other",
-        role: "Educator",
-        orgId: "school",
-      }),
-    );
-  vi.stubGlobal("fetch", fetchMock);
-  expect((await submitAssignment(pending, false)).kind).toBe("rejected");
-  expect(fetchMock.mock.calls.every(([, init]) => !init?.method)).toBe(true);
+  const { fetch: fetcher, requests } = await serveResponses(
+    session(),
+    csrf(),
+    json({
+      userId: "other",
+      displayName: "Other",
+      role: "Educator",
+      orgId: "school",
+    }),
+  );
+  expect((await submitAssignment(pending, false, fetcher)).kind).toBe("rejected");
+  expect(requests.every(({ method }) => method === "GET")).toBe(true);
 });
 
 it("uses authorized paginated choices and only enrolled students", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (path: string) => {
-      if (path.startsWith("/api/v1/classes/class/eligible-students"))
-        return json({
-          items: [
-            {
-              userId: "a",
-              userName: "alice123",
-              displayName: "Alice",
-              enrolled: true,
-            },
-            { userId: "b", userName: "Bob", enrolled: false },
-          ],
-          nextCursor: null,
-        });
-      if (path.startsWith("/api/v1/classes"))
-        return json({
-          items: [{ id: "class", name: "Class" }],
-          nextCursor: null,
-        });
-      if (path.includes("cursor=next"))
-        return json({
-          items: [
-            {
-              projectId: "two",
-              title: "Two",
-              revision: 1,
-              permissions: { canManage: true },
-            },
-          ],
-          nextCursor: null,
-        });
+  const { fetch: fetcher } = await serveHttp(({ url }) => {
+    const path = url.slice(new URL(url).origin.length);
+    if (path.startsWith("/api/v1/classes/class/eligible-students"))
       return json({
         items: [
           {
-            projectId: "one",
-            title: "One",
-            revision: 0,
-            permissions: { canManage: false },
+            userId: "a",
+            userName: "alice123",
+            displayName: "Alice",
+            enrolled: true,
+          },
+          { userId: "b", userName: "Bob", enrolled: false },
+        ],
+        nextCursor: null,
+      });
+    if (path.startsWith("/api/v1/classes"))
+      return json({
+        items: [{ id: "class", name: "Class" }],
+        nextCursor: null,
+      });
+    if (path.includes("cursor=next"))
+      return json({
+        items: [
+          {
+            projectId: "two",
+            title: "Two",
+            revision: 1,
+            permissions: { canManage: true },
           },
         ],
-        nextCursor: "next",
+        nextCursor: null,
       });
-    }),
-  );
-  expect(await assignmentChoices()).toEqual({
+    return json({
+      items: [
+        {
+          projectId: "one",
+          title: "One",
+          revision: 0,
+          permissions: { canManage: false },
+        },
+      ],
+      nextCursor: "next",
+    });
+  });
+  expect(await assignmentChoices(undefined, fetcher)).toEqual({
     classes: [{ id: "class", label: "Class" }],
     projects: [{ projectId: "two", title: "Two", revision: 1 }],
   });
-  expect(await enrolledStudents("class")).toEqual([
+  expect(await enrolledStudents("class", undefined, fetcher)).toEqual([
     { id: "a", name: "Alice", account: "alice123", classIds: ["class"] },
   ]);
 });
 
 it("uses the authoritative login name independently from the display name", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () =>
-      json({
-        userId: "teacher",
-        displayName: "Ms Tan",
-        userName: "teacher.tan",
-        role: "Educator",
-        orgId: "school",
-      }),
-    ),
+  const { fetch: fetcher } = await serveResponses(
+    json({
+      userId: "teacher",
+      displayName: "Ms Tan",
+      userName: "teacher.tan",
+      role: "Educator",
+      orgId: "school",
+    }),
   );
-  expect((await assignmentSession()).userName).toBe("teacher.tan");
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () =>
-      json({
-        userId: "teacher",
-        displayName: "Ms Tan",
-        role: "Educator",
-        orgId: "school",
-      }),
-    ),
+  expect((await assignmentSession(undefined, fetcher)).userName).toBe("teacher.tan");
+  const withoutLoginName = await serveResponses(
+    json({
+      userId: "teacher",
+      displayName: "Ms Tan",
+      role: "Educator",
+      orgId: "school",
+    }),
   );
-  expect((await assignmentSession()).userName).toBeUndefined();
+  expect((await assignmentSession(undefined, withoutLoginName.fetch)).userName).toBeUndefined();
 });

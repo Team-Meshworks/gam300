@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
+import { exhaustStorage } from "./local-storage-quota.mjs";
 import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5182";
@@ -278,14 +279,11 @@ try {
   await dialog.getByLabel("Project title").fill("Storage failure");
   await chooseSpace(assetId);
   await dialog.getByLabel("Organisation").selectOption(orgId);
-  await page.evaluate(() => {
-    Storage.prototype.setItem = () => {
-      throw new Error("Storage unavailable");
-    };
-  });
+  const restoreStorage = await exhaustStorage(page);
   await dialog.getByRole("button", { name: "Create project" }).click();
-  await dialog.getByText(/storage unavailable|could not save recovery/i).waitFor();
+  await dialog.getByText(/quota|could not save recovery/i).waitFor();
   assert.equal(writes.length, 4, "No request is sent when recovery state cannot be stored");
+  await restoreStorage();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("button", { name: "Discard details" }).click();
   await page.reload();

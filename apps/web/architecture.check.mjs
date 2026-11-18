@@ -209,6 +209,12 @@ try {
       false,
     ],
     [
+      "Vite Three.js dependency URL",
+      'void import("/@id/three");',
+      /project cannot import package three/,
+      false,
+    ],
+    [
       "CommonJS dependency",
       'require("../../editor/graphics/scene");',
       /forbidden dependency project -> rendering/,

@@ -4,8 +4,10 @@ import m2 from "./fixtures/m2-project.json";
 import manifest from "./fixtures/project-format-cases.json";
 import { deserializeProject } from "./project-deserialization";
 import { serializeProject } from "./project-serialization";
+import { validateProjectStructure } from "./project-structure-validation";
 import { missingProjectCapabilities } from "./project-capabilities";
 import type { ContentProject } from "./project-content";
+import { readField } from "./validation-helpers";
 
 type FormatCase = {
   name: string;
@@ -45,6 +47,23 @@ describe("shared browser/server project-format fixtures", () => {
     expect(deserializeProject(saved.value, new Map())).toEqual({ ok: true, value: input });
   });
 
+  it("reads required and optional scene fields only from the authored object", () => {
+    const input = structuredClone(m2);
+    const scene = input.scenes[0]!;
+    Object.setPrototypeOf(scene, { id: scene.id, environmentVisible: false });
+    const parsed = validateProjectStructure(input);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) throw new Error(parsed.error.message);
+    expect(parsed.value.scenes[0]).not.toHaveProperty("environmentVisible");
+
+    const withoutId: Partial<typeof scene> = scene;
+    delete withoutId.id;
+    expect(validateProjectStructure(input)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].id", message: "Required field is missing" },
+    });
+  });
+
   it.each(manifest.rawCases)("raw JSON: $name", (test) => {
     const result = deserializeProject(test.json, assets);
     expect(result.ok).toBe(test.valid);
@@ -53,25 +72,36 @@ describe("shared browser/server project-format fixtures", () => {
     }
   });
   it.each(cases)("$name", (test) => {
-    const input: unknown = structuredClone(test.base === "m1" ? m1 : m2);
+    const input = structuredClone(test.base === "m1" ? m1 : m2);
 
     // Change only this case's fixture so failures cannot alter later inputs
     for (const patch of test.patches) {
-      let parent = input as Record<string, unknown>;
+      let parent: unknown = input;
       for (const segment of patch.path.slice(0, -1)) {
-        parent = parent[String(segment)] as Record<string, unknown>;
+        if (typeof parent !== "object" || parent === null)
+          throw new Error("Missing fixture parent");
+        parent = readField(parent, segment);
       }
-      const key = String(patch.path.at(-1));
+      const key = patch.path.at(-1);
+      if (typeof parent !== "object" || parent === null || key === undefined) {
+        throw new Error("Invalid fixture patch");
+      }
       if (patch.remove) {
-        delete parent[key];
+        Reflect.deleteProperty(parent, key);
       } else {
         // Build large boundary inputs at runtime to keep the shared fixture compact
-        parent[key] =
+        const value =
           patch.repeat === undefined
             ? patch.value
             : typeof patch.value === "string"
               ? patch.value.repeat(patch.repeat)
               : Array.from({ length: patch.repeat }, () => structuredClone(patch.value));
+        Object.defineProperty(parent, key, {
+          value,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       }
     }
     const result = deserializeProject(JSON.stringify(input), assets);

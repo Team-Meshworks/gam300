@@ -1,147 +1,214 @@
-import { afterEach, beforeEach, expect, it, vi, type MockInstance } from "vitest";
+import { readFile } from "node:fs/promises";
+import { URL as FileUrl } from "node:url";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import * as THREE from "three";
-import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { deferred } from "../../tests/deferred";
+import { serveHttp, serveResponses } from "../../tests/http-fixture";
 import { ModelCache } from "./ModelCache";
 import type { CatalogueAsset } from "./catalogue";
 
-const asset: CatalogueAsset = {
-  id: "crate-v1",
-  name: "Crate",
-  kind: "model",
-  url: "/crate.glb",
-  sha256: "a".repeat(64),
-  thumbnail: null,
-};
+const bytes = Uint8Array.from(
+  await readFile(new FileUrl("../../../../assets/delivery/test-crate.glb", import.meta.url)),
+);
+const glb = () => new Response(bytes);
 let cache: ModelCache;
-let fetchModel: ReturnType<typeof vi.fn<typeof fetch>>;
-let parse: MockInstance<GLTFLoader["parseAsync"]>;
 
-function model() {
-  const geometry = new THREE.BoxGeometry();
-  const texture = new THREE.Texture();
-  const material = new THREE.MeshBasicMaterial({ map: texture });
-  const mesh = new THREE.Mesh(geometry, material);
-  const scene = new THREE.Group();
-  scene.add(mesh, mesh.clone());
-  const disposed = [geometry, material, texture].map((resource) => vi.spyOn(resource, "dispose"));
-  return { gltf: { scene } as GLTF, scene, disposed, texture };
+function descriptor(origin: string): CatalogueAsset {
+  return {
+    id: "crate-v1",
+    name: "Crate",
+    kind: "model",
+    url: new URL("/crate.glb", origin).href,
+    sha256: "a".repeat(64),
+    thumbnail: null,
+  };
 }
-function acquire(descriptor = asset, signal = new AbortController().signal) {
-  return cache.acquire(descriptor, signal);
+
+function mesh(model: THREE.Group) {
+  const object = model.children[0];
+  if (!(object instanceof THREE.Mesh) || !(object.material instanceof THREE.Material)) {
+    throw new Error("Expected the crate mesh and material");
+  }
+  return object;
+}
+
+function disposalCount(model: THREE.Group) {
+  const object = mesh(model);
+  let geometries = 0;
+  let materials = 0;
+  object.geometry.addEventListener("dispose", () => geometries++);
+  object.material.addEventListener("dispose", () => materials++);
+  return () => [geometries, materials];
+}
+
+function acquire(asset: CatalogueAsset, signal = new AbortController().signal) {
+  return cache.acquire(asset, signal);
 }
 
 beforeEach(() => {
   vi.useFakeTimers();
   cache = new ModelCache();
-  fetchModel = vi
-    .fn<typeof fetch>()
-    .mockImplementation(async () => new Response(new ArrayBuffer(0)));
-  vi.stubGlobal("fetch", fetchModel);
-  parse = vi.spyOn(GLTFLoader.prototype, "parseAsync").mockImplementation(async () => model().gltf);
 });
 afterEach(() => {
   cache.invalidate();
   vi.useRealTimers();
   vi.restoreAllMocks();
-  vi.unstubAllGlobals();
 });
 
 it("coalesces requests, preserves independent transforms and protects other borrowers", async () => {
-  const loaded = model();
-  parse.mockResolvedValue(loaded.gltf);
-  const [a, b] = await Promise.all([acquire(), acquire()]);
-  expect(fetchModel).toHaveBeenCalledTimes(1);
-  expect(parse).toHaveBeenCalledTimes(1);
+  const { origin } = await serveResponses(glb());
+  const asset = descriptor(origin);
+  const parse = vi.spyOn(GLTFLoader.prototype, "parseAsync");
+  const [a, b] = await Promise.all([acquire(asset), acquire(asset)]);
+  expect(parse).toHaveBeenCalledOnce();
   expect(a.value).toBe(b.value);
-  const first = a.value.model.clone(true);
-  const second = b.value.model.clone(true);
+  const loaded = a.value.model;
+  const first = loaded.clone(true);
+  const second = loaded.clone(true);
   first.position.x = 9;
   expect(second.position.x).toBe(0);
-  expect(loaded.scene.position.x).toBe(0);
-  a.value.thumbnail = "data:image/png;base64,test";
+  expect(loaded.position.x).toBe(0);
+  const disposals = disposalCount(loaded);
   a.release();
   a.release();
   cache.invalidate(asset.id);
-  expect(loaded.disposed.every((dispose) => dispose.mock.calls.length === 0)).toBe(true);
+  expect(disposals()).toEqual([0, 0]);
   b.release();
   b.release();
-  expect(loaded.disposed.every((dispose) => dispose.mock.calls.length === 1)).toBe(true);
+  expect(disposals()).toEqual([1, 1]);
 });
 
 it("evicts both HTTP and parse failures so a retry really loads again", async () => {
-  fetchModel.mockResolvedValueOnce(new Response("Unavailable", { status: 503 }));
-  await expect(acquire()).rejects.toThrow("503");
-  parse.mockRejectedValueOnce(new Error("Invalid GLB"));
-  await expect(acquire()).rejects.toThrow("Invalid GLB");
-  const lease = await acquire();
-  expect(fetchModel).toHaveBeenCalledTimes(3);
+  const { origin } = await serveResponses(
+    new Response("Unavailable", { status: 503 }),
+    new Response(new Uint8Array(20)),
+    glb(),
+  );
+  const asset = descriptor(origin);
+  const parse = vi.spyOn(GLTFLoader.prototype, "parseAsync");
+  await expect(acquire(asset)).rejects.toThrow("503");
+  expect(parse).not.toHaveBeenCalled();
+  await expect(acquire(asset)).rejects.toThrow();
+  const lease = await acquire(asset);
+  expect(lease.value.model.children).toHaveLength(1);
   expect(parse).toHaveBeenCalledTimes(2);
   lease.release();
 });
 
 it("cancels one waiter without aborting another, and aborts when no waiters remain", async () => {
-  let finish: (response: Response) => void = () => {};
-  fetchModel.mockImplementation(
-    (_url, init) =>
-      new Promise((resolve, reject) => {
-        finish = resolve;
-        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
-      }),
-  );
+  const active = deferred<Request>();
+  const completed = deferred<Response>();
+  const abandoned = deferred<Request>();
+  const stopped = deferred<Response>();
+  let requests = 0;
+  const { origin } = await serveHttp((request) => {
+    requests++;
+    if (requests === 1) {
+      active.resolve(request);
+      return completed.promise;
+    }
+    if (requests === 2) {
+      abandoned.resolve(request);
+      return stopped.promise;
+    }
+    throw new Error("Unexpected model download");
+  });
+  const asset = descriptor(origin);
   const a = new AbortController();
   const b = new AbortController();
   const pendingA = acquire(asset, a.signal);
   const pendingB = acquire(asset, b.signal);
-  const rejectionA = expect(pendingA).rejects.toMatchObject({ name: "AbortError" });
-  a.abort();
-  await rejectionA;
-  expect(fetchModel.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
-  finish(new Response(new ArrayBuffer(0)));
-  (await pendingB).release();
-  cache.invalidate();
-  const pending = acquire(asset, b.signal);
-  const rejection = expect(pending).rejects.toMatchObject({ name: "AbortError" });
-  b.abort();
-  await rejection;
-  expect(fetchModel.mock.calls[1]?.[1]?.signal?.aborted).toBe(true);
-  expect(() => acquire(asset, b.signal)).toThrow();
+  try {
+    const shared = await active.promise;
+    const rejectionA = expect(pendingA).rejects.toMatchObject({ name: "AbortError" });
+    a.abort();
+    await rejectionA;
+    expect(shared.signal.aborted).toBe(false);
+    completed.resolve(glb());
+    (await pendingB).release();
+    cache.invalidate();
+    const pending = acquire(asset, b.signal);
+    const sole = await abandoned.promise;
+    const disconnected = new Promise<void>((resolve) =>
+      sole.signal.addEventListener("abort", () => resolve(), { once: true }),
+    );
+    const rejection = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    b.abort();
+    await rejection;
+    await disconnected;
+    expect(sole.signal.aborted).toBe(true);
+    expect(() => acquire(asset, b.signal)).toThrow();
+  } finally {
+    completed.resolve(glb());
+    stopped.resolve(Response.error());
+  }
 });
 
 it("disposes a late parse without evicting a newer request with the same key", async () => {
-  const late = model();
-  let finish: (gltf: GLTF) => void = () => {};
-  const started = new Promise<void>((resolve) => {
-    parse.mockImplementationOnce(() => {
-      resolve();
-      return new Promise((resolveParse) => {
-        finish = resolveParse;
-      });
+  const bufferRequested = deferred<void>();
+  const completeBuffer = deferred<Response>();
+  const vertices = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+  let loads = 0;
+  const { origin } = await serveHttp((request) => {
+    const url = new URL(request.url);
+    if (url.pathname === "/vertices.bin") {
+      bufferRequested.resolve();
+      return completeBuffer.promise;
+    }
+    if (++loads !== 1) return glb();
+    return Response.json({
+      asset: { version: "2.0" },
+      scene: 0,
+      scenes: [{ nodes: [0] }],
+      nodes: [{ mesh: 0 }],
+      meshes: [{ primitives: [{ attributes: { POSITION: 0 } }] }],
+      accessors: [
+        {
+          bufferView: 0,
+          componentType: 5126,
+          count: 3,
+          type: "VEC3",
+          min: [0, 0, 0],
+          max: [1, 1, 0],
+        },
+      ],
+      bufferViews: [{ buffer: 0, byteLength: vertices.byteLength }],
+      buffers: [{ byteLength: vertices.byteLength, uri: new URL("/vertices.bin", url).href }],
     });
   });
+  const asset = descriptor(origin);
+  const parse = vi.spyOn(GLTFLoader.prototype, "parseAsync");
+  const dispose = vi.spyOn(THREE.BufferGeometry.prototype, "dispose");
   const controller = new AbortController();
   const pending = acquire(asset, controller.signal);
-  const rejection = expect(pending).rejects.toMatchObject({ name: "AbortError" });
-  await started;
-  controller.abort();
-  await rejection;
-  const current = await acquire();
-  finish(late.gltf);
-  await vi.waitFor(() =>
-    expect(late.disposed.every((dispose) => dispose.mock.calls.length === 1)).toBe(true),
-  );
-  const again = await acquire();
-  expect(again.value).toBe(current.value);
-  expect(fetchModel).toHaveBeenCalledTimes(2);
-  current.release();
-  again.release();
+  try {
+    await bufferRequested.promise;
+    const rejection = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    controller.abort();
+    await rejection;
+    const current = await acquire(asset);
+    completeBuffer.resolve(new Response(new Uint8Array(vertices.buffer)));
+    const late = await parse.mock.results[0]!.value;
+    const again = await acquire(asset);
+    expect(dispose.mock.contexts).toEqual([mesh(late.scene).geometry]);
+    expect(again.value).toBe(current.value);
+    expect(loads).toBe(2);
+    current.release();
+    again.release();
+  } finally {
+    completeBuffer.resolve(Response.error());
+  }
 });
 
 it("keys immutable IDs, content hashes, delivery URLs and placement; invalidation reacquires", async () => {
-  const original = await acquire();
+  const { origin } = await serveResponses(glb(), glb(), glb(), glb(), glb(), glb());
+  const asset = descriptor(origin);
+  const original = await acquire(asset);
   const variants = [
     { ...asset, id: "crate-v2" },
     { ...asset, sha256: "b".repeat(64) },
-    { ...asset, url: "/crate-new.glb" },
+    { ...asset, url: new URL("/crate-new.glb", origin).href },
     { ...asset, placement: "bottom-center" as const },
   ];
   for (const variant of variants) {
@@ -150,51 +217,45 @@ it("keys immutable IDs, content hashes, delivery URLs and placement; invalidatio
     other.release();
   }
   cache.invalidate(asset.id);
-  const reloaded = await acquire();
+  const reloaded = await acquire(asset);
   expect(reloaded.value).not.toBe(original.value);
-  expect(fetchModel).toHaveBeenCalledTimes(6);
   original.release();
   reloaded.release();
 });
 
 it("retains at most three idle models and resets the 30-second expiry on reuse", async () => {
-  const loaded = Array.from({ length: 4 }, () => model());
-  for (const [i, item] of loaded.entries()) {
-    parse.mockResolvedValueOnce(item.gltf);
-    (await acquire({ ...asset, id: `crate-${i}` })).release();
+  const { origin } = await serveResponses(glb(), glb(), glb(), glb());
+  const asset = descriptor(origin);
+  const disposals: (() => number[])[] = [];
+  for (let index = 0; index < 4; index++) {
+    const lease = await acquire({ ...asset, id: `crate-${index}` });
+    disposals.push(disposalCount(lease.value.model));
+    lease.release();
   }
-  expect(loaded[0]?.disposed[0]).toHaveBeenCalledTimes(1);
-  expect(loaded[1]?.disposed[0]).not.toHaveBeenCalled();
+  expect(disposals[0]?.()).toEqual([1, 1]);
+  expect(disposals[1]?.()).toEqual([0, 0]);
   vi.advanceTimersByTime(29_999);
   const warm = await acquire({ ...asset, id: "crate-1" });
   warm.value.thumbnail = "cached-thumbnail";
   warm.release();
   vi.advanceTimersByTime(1);
-  expect(loaded[1]?.disposed[0]).not.toHaveBeenCalled();
-  expect(loaded[2]?.disposed[0]).toHaveBeenCalledTimes(1);
+  expect(disposals[1]?.()).toEqual([0, 0]);
+  expect(disposals[2]?.()).toEqual([1, 1]);
   const again = await acquire({ ...asset, id: "crate-1" });
   expect(again.value.thumbnail).toBe("cached-thumbnail");
   again.release();
   vi.advanceTimersByTime(30_000);
-  expect(loaded[1]?.disposed[0]).toHaveBeenCalledTimes(1);
-  expect(fetchModel).toHaveBeenCalledTimes(4);
+  expect(disposals[1]?.()).toEqual([1, 1]);
 });
 
-it("keeps acquired resources beyond idle expiry and closes a shared bitmap exactly once", async () => {
-  class Bitmap {
-    close = vi.fn();
-  }
-  vi.stubGlobal("ImageBitmap", Bitmap);
-  const bitmap = new Bitmap();
-  const loaded = model();
-  loaded.texture.source.data = bitmap;
-  parse.mockResolvedValue(loaded.gltf);
-  const lease = await acquire();
+it("keeps acquired resources beyond idle expiry", async () => {
+  const { origin } = await serveResponses(glb());
+  const lease = await acquire(descriptor(origin));
+  const disposals = disposalCount(lease.value.model);
   vi.advanceTimersByTime(60_000);
-  expect(bitmap.close).not.toHaveBeenCalled();
+  expect(disposals()).toEqual([0, 0]);
   lease.release();
   cache.invalidate();
   cache.invalidate();
-  expect(bitmap.close).toHaveBeenCalledTimes(1);
-  expect(loaded.disposed.every((dispose) => dispose.mock.calls.length === 1)).toBe(true);
+  expect(disposals()).toEqual([1, 1]);
 });

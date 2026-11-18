@@ -1,4 +1,5 @@
-import { createWorkspaceClient, isId, isRecord } from "./workspace-api";
+import { createWorkspaceClient, isId } from "./workspace-api";
+import { isRecord } from "../../shared/project/validation-helpers";
 
 export interface Classroom {
   id: string;
@@ -20,12 +21,15 @@ export interface EligibleStudent {
 export function classroom(value: unknown): Classroom {
   if (
     !isRecord(value) ||
+    !("id" in value) ||
+    !("organizationId" in value) ||
+    !("name" in value) ||
     !isId(value.id) ||
     !isId(value.organizationId) ||
     typeof value.name !== "string"
   )
     throw new Error("Class information could not be verified.");
-  return value as unknown as Classroom;
+  return { id: value.id, organizationId: value.organizationId, name: value.name };
 }
 
 export function createClassroomClient(request: typeof fetch = fetch) {
@@ -45,40 +49,52 @@ export function createClassroomClient(request: typeof fetch = fetch) {
       api.pages(`${path}/roster`, signal),
       api.pages(`${path}/eligible-students`, signal),
     ]);
-    const roles: Record<string, ClassMember["role"]> = {
-      "d14c51b6-510a-4430-a27c-bfdc6e9d801b": "Educator",
-      "862d776c-4d56-4dd8-919d-26044b6d8a44": "Creator",
-    };
+    const roles = new Map<string, ClassMember["role"]>([
+      ["d14c51b6-510a-4430-a27c-bfdc6e9d801b", "Educator"],
+      ["862d776c-4d56-4dd8-919d-26044b6d8a44", "Creator"],
+    ]);
     const parsedMembers = members.map((row) => {
+      const role =
+        isRecord(row) && "roleId" in row && typeof row.roleId === "string"
+          ? roles.get(row.roleId)
+          : undefined;
       if (
         !isRecord(row) ||
+        !("userId" in row) ||
+        !("userName" in row) ||
+        !("accountActive" in row) ||
         !isId(row.userId) ||
         typeof row.userName !== "string" ||
         typeof row.accountActive !== "boolean" ||
-        typeof row.roleId !== "string" ||
-        !roles[row.roleId]
+        !role
       )
         throw new Error("The roster could not be verified.");
       return {
         userId: row.userId,
         userName: row.userName,
         accountActive: row.accountActive,
-        role: roles[row.roleId]!,
+        role,
       };
     });
+    const parsedEligible = eligible.map((row) => {
+      if (
+        !isRecord(row) ||
+        !("userId" in row) ||
+        !("userName" in row) ||
+        !("enrolled" in row) ||
+        !isId(row.userId) ||
+        typeof row.userName !== "string" ||
+        typeof row.enrolled !== "boolean"
+      )
+        throw new Error("The roster could not be verified.");
+      return { userId: row.userId, userName: row.userName, enrolled: row.enrolled };
+    });
     if (
-      eligible.some(
-        (row) =>
-          !isRecord(row) ||
-          !isId(row.userId) ||
-          typeof row.userName !== "string" ||
-          typeof row.enrolled !== "boolean",
-      ) ||
       new Set(parsedMembers.map((row) => row.userId)).size !== parsedMembers.length ||
-      new Set(eligible.map((row) => (row as EligibleStudent).userId)).size !== eligible.length
+      new Set(parsedEligible.map((row) => row.userId)).size !== parsedEligible.length
     )
       throw new Error("The roster could not be verified.");
-    return { members: parsedMembers, eligible: eligible as EligibleStudent[] };
+    return { members: parsedMembers, eligible: parsedEligible };
   }
   return { classes, roster };
 }

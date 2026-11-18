@@ -146,7 +146,7 @@ it("keeps approved room geometry aligned with the matching asset hashes", async 
   );
   expect(rooms.length).toBe(16);
   for (const room of rooms) {
-    expect(knownRoomGeometry[room.sha256]).toEqual(room.boundsMeters);
+    expect(knownRoomGeometry.get(room.sha256)).toEqual(room.boundsMeters);
     const modelId = room.assetId.replace(/-v1$/, "-module-v1");
     const model = manifest.assets.find((asset: { assetId: string }) => asset.assetId === modelId);
     expect(model?.kind).toBe("model");

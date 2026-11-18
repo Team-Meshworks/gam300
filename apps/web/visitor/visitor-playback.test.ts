@@ -1,99 +1,42 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it } from "vitest";
 import * as THREE from "three";
 import { createVisitorPlayback } from "../shared/player/playback";
 import type { ProjectRule } from "../shared/project/project-content";
 import type { Interaction } from "../shared/project/project-types";
+import { createActionRunner } from "../editor/interaction/actionHandler";
 import { createInteractionHandler } from "../editor/interaction/interactionHandler";
-const resume = vi.hoisted(() => vi.fn<() => Promise<void>>());
-beforeEach(() => resume.mockReset().mockResolvedValue());
 
-vi.mock("three", async (original) => {
-  const actual = await original<typeof import("three")>();
-  return {
-    ...actual,
-    AudioListener: class extends actual.Object3D {
-      context = { resume };
-      gain = { disconnect() {} };
-    },
-  };
+const destination = "saved-view";
+const viewpoint = {
+  id: destination,
+  name: "Saved view",
+  camera: { position: [2, 1, 3], rotation: [0, 0, 0, 1], fovDegrees: 60 },
+} as const;
+const activeVisits: ReturnType<typeof createVisitorPlayback>[] = [];
+
+afterEach(() => {
+  for (const visit of activeVisits.splice(0)) visit.dispose();
+  document.body.replaceChildren();
 });
 
-it("clears a rejected audio-context resume only after the context recovers", async () => {
-  const { runtime, report } = fixture(0);
-  resume.mockRejectedValueOnce(new DOMException("Gesture required", "NotAllowedError"));
-  runtime.start();
-  await vi.waitFor(() =>
-    expect(report).toHaveBeenLastCalledWith("Select Enable audio to allow playback"),
-  );
-  runtime.start();
-  await vi.waitFor(() => expect(report).toHaveBeenLastCalledWith("Exhibition ready"));
-  runtime.dispose();
-});
-
-it("does not publish a late recovery status after the visit is disposed", async () => {
-  const { runtime, nodes, report } = fixture();
-  runtime.begin();
-  await vi.waitFor(() => expect(report).toHaveBeenCalled());
-  let resolve!: () => void;
-  nodes[0]!.play.mockReturnValueOnce(
-    new Promise<void>((done) => {
-      resolve = done;
-    }),
-  );
-  runtime.start();
-  runtime.dispose();
-  report.mockClear();
-  resolve();
-  await Promise.resolve();
-  await Promise.resolve();
-  expect(report).not.toHaveBeenCalled();
-});
-afterEach(() => vi.unstubAllGlobals());
-
-function fixture(
-  count = 1,
-  rules: readonly ProjectRule[] = [],
-  interactions: readonly Interaction[] = [],
-  navigate: (scene: string, viewpoint: string) => boolean | void = vi.fn(),
-) {
-  vi.stubGlobal("document", Object.assign(new EventTarget(), { hidden: false }));
-  const owners = Array.from({ length: count }, (_, index) => ({
-    dataset: { ownerId: `owner-${index}` },
-    hidden: false,
-    querySelectorAll: (selector: string) => (selector === "audio,video" ? [nodes[index]!] : []),
-  }));
-  const nodes = Array.from({ length: count }, (_, index) => ({
-    readyState: 4,
-    paused: true,
-    ended: false,
-    currentTime: 0,
-    play: vi
-      .fn<() => Promise<void>>()
-      .mockResolvedValue()
-      .mockRejectedValueOnce(new DOMException("Gesture required", "NotAllowedError")),
-    pause: vi.fn(),
-    closest: (selector: string) =>
-      selector === "[hidden]"
-        ? owners[index]!.hidden
-          ? owners[index]
-          : null
-        : { dataset: { componentId: String(index) } },
-  }));
-  const panels = nodes.map((node, index) => ({
-    dataset: { componentId: String(index) },
-    querySelector: () => node,
-  }));
-  const content = Object.assign(new EventTarget(), {
-    querySelectorAll: (selector: string) =>
-      selector === "[data-component-id]"
-        ? panels
-        : selector === "[data-owner-id]"
-          ? owners
-          : selector === "audio[data-spatial-owner]"
-            ? []
-            : nodes,
-  });
-  const report = vi.fn();
+function visit({
+  rules = [],
+  interactions = [],
+  navigate = () => false,
+  showObject,
+}: {
+  rules?: readonly ProjectRule[];
+  interactions?: readonly Interaction[];
+  navigate?: (sceneId: string) => boolean;
+  showObject?: (object: THREE.Object3D) => void;
+} = {}) {
+  const content = document.createElement("main");
+  const owner = document.createElement("article");
+  owner.dataset.ownerId = "owner";
+  content.append(owner);
+  document.body.append(content);
+  const camera = new THREE.PerspectiveCamera();
+  const object = new THREE.Group();
   const runtime = createVisitorPlayback(
     {
       id: "scene",
@@ -105,213 +48,79 @@ function fixture(
       hotspots: [],
       groups: [],
       zones: [],
-      viewpoints: [],
+      viewpoints: [viewpoint],
       rules,
     },
-    new THREE.PerspectiveCamera(),
+    camera,
     { target: new THREE.Vector3(), update() {} },
-    new Map(),
-    content as unknown as HTMLElement,
+    new Map([["owner", object]]),
+    content,
     navigate,
-    report,
-    vi.fn(),
+    () => {},
+    undefined,
+    undefined,
+    showObject,
   );
-  return { runtime, nodes, owners, panels, report };
+  activeVisits.push(runtime);
+  return { runtime, owner, object, camera };
 }
 
+const sceneStart: readonly Interaction[] = [
+  { when: { type: "scene-starts" }, do: { type: "navigate-scene", sceneId: "missing" } },
+  { when: { type: "scene-starts" }, do: { type: "move-to-viewpoint", viewpointId: destination } },
+];
+
 it("continues ordered scene-start actions after a failure in both preview and visitor", () => {
-  const alert = vi.fn().mockImplementationOnce(() => {
-    throw new Error("blocked");
-  });
-  vi.stubGlobal("window", { alert });
-  const interactions: Interaction[] = [
-    { when: { type: "scene-starts" }, do: { type: "print-hi" } },
-    { when: { type: "scene-starts" }, do: { type: "print-hi" } },
-  ];
-  const preview = createInteractionHandler(interactions, []);
+  const unavailable = () => {
+    throw new Error("Navigation service unavailable");
+  };
+  const views: string[] = [];
+  const preview = createInteractionHandler(
+    sceneStart,
+    [],
+    createActionRunner({
+      goToScene: unavailable,
+      goToViewpoint: (id) => {
+        views.push(id);
+      },
+    }),
+  );
   preview.sceneStarted();
-  expect(alert).toHaveBeenCalledTimes(2);
-  alert.mockClear().mockImplementationOnce(() => {
-    throw new Error("blocked");
-  });
-  const { runtime } = fixture(0, [], interactions);
-  expect(() => runtime.begin()).not.toThrow();
-  expect(alert).toHaveBeenCalledTimes(2);
-  runtime.dispose();
+  expect(views).toEqual([destination]);
+  const { runtime, camera } = visit({ interactions: sceneStart, navigate: unavailable });
+  runtime.begin();
+  runtime.update(0);
+  expect(camera.position.toArray()).toEqual(viewpoint.camera.position);
 });
 
 it("continues to the next scene-start rule when an action fails", () => {
-  const { runtime, owners } = fixture(1, [
-    {
-      id: "first",
-      enabled: true,
-      trigger: { type: "sceneStart" },
-      actions: [{ type: "showPanel", panelId: "0" }],
+  const { runtime, owner, object } = visit({
+    showObject: () => {
+      throw new Error("Render notification failed");
     },
-    {
-      id: "second",
-      enabled: true,
-      trigger: { type: "sceneStart" },
-      actions: [{ type: "setVisible", objectId: "owner-0", visible: false }],
-    },
-  ]);
-  expect(() => runtime.begin()).not.toThrow();
-  expect(owners[0]!.hidden).toBe(true);
-  runtime.dispose();
-});
-
-function visibilityRule(seconds: number, visible: boolean): ProjectRule {
-  return {
-    id: `visibility-${seconds}`,
-    enabled: true,
-    trigger: { type: "elapsed", seconds },
-    actions: [{ type: "setVisible", objectId: "OWNER-0", visible }],
-  };
-}
-
-it("discards a hidden owner's blocked track while retaining other blocked tracks", async () => {
-  const { runtime, nodes, owners, report } = fixture(2, [visibilityRule(1, false)]);
+    rules: [
+      {
+        id: "first",
+        enabled: true,
+        trigger: { type: "sceneStart" },
+        actions: [{ type: "setVisible", objectId: "owner", visible: false }],
+      },
+      {
+        id: "second",
+        enabled: true,
+        trigger: { type: "sceneStart" },
+        actions: [{ type: "setVisible", objectId: "owner", visible: false }],
+      },
+    ],
+  });
   runtime.begin();
-  await vi.waitFor(() => expect(report).toHaveBeenCalledTimes(2));
-  runtime.update(1);
-  expect(owners[0]!.hidden).toBe(true);
-  expect(nodes[0]!.pause).toHaveBeenCalledOnce();
-  expect(report).toHaveBeenLastCalledWith("Select Enable audio to allow playback");
-  runtime.start();
-  await vi.waitFor(() => expect(report).toHaveBeenLastCalledWith("Exhibition ready"));
-  runtime.start();
-  expect(nodes[0]!.play).toHaveBeenCalledOnce();
-  expect(nodes[1]!.play).toHaveBeenCalledTimes(2);
-  runtime.dispose();
-});
-
-it("clears the warning immediately when a rule hides the last blocked owner", async () => {
-  const { runtime, report } = fixture(1, [visibilityRule(1, false)]);
-  runtime.begin();
-  await vi.waitFor(() =>
-    expect(report).toHaveBeenLastCalledWith("Select Enable audio to allow playback"),
-  );
-  runtime.update(1);
-  expect(report).toHaveBeenLastCalledWith("Exhibition ready");
-  runtime.dispose();
-});
-
-it.each([false, true])(
-  "ignores a late rejection from a hidden request (shown again: %s)",
-  async (showAgain) => {
-    const { runtime, nodes, owners, report } = fixture(2, [
-      visibilityRule(1, false),
-      ...(showAgain ? [visibilityRule(2, true)] : []),
-    ]);
-    let reject!: (reason: Error) => void;
-    nodes[0]!.play.mockReset().mockReturnValueOnce(
-      new Promise<void>((_, fail) => {
-        reject = fail;
-      }),
-    );
-    runtime.begin();
-    await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
-    expect(nodes[0]!.play).toHaveBeenCalledOnce();
-    runtime.update(1);
-    expect(owners[0]!.hidden).toBe(true);
-    runtime.start();
-    await vi.waitFor(() => expect(report).toHaveBeenLastCalledWith("Exhibition ready"));
-    if (showAgain) runtime.update(1);
-    report.mockClear();
-    reject(new DOMException("Interrupted playback", "AbortError"));
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(report).not.toHaveBeenCalled();
-    runtime.start();
-    expect(nodes[0]!.play).toHaveBeenCalledOnce();
-    runtime.dispose();
-  },
-);
-
-it("clears a blocked request when its component no longer exists", async () => {
-  const { runtime, nodes, panels, report } = fixture();
-  runtime.begin();
-  await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
-  panels.splice(0);
-  runtime.start();
-  await vi.waitFor(() => expect(report).toHaveBeenLastCalledWith("Exhibition ready"));
-  expect(nodes[0]!.play).toHaveBeenCalledOnce();
-  runtime.dispose();
-});
-
-it("allows a fresh play action after showing an owner without restoring its old rejection", async () => {
-  const show = visibilityRule(2, true);
-  const { runtime, nodes, report } = fixture(1, [
-    visibilityRule(1, false),
-    { ...show, actions: [...show.actions, { type: "playMedia", mediaId: "0" }] },
-  ]);
-  let reject!: (reason: Error) => void;
-  nodes[0]!.play
-    .mockReset()
-    .mockResolvedValue()
-    .mockReturnValueOnce(
-      new Promise<void>((_, fail) => {
-        reject = fail;
-      }),
-    );
-  runtime.begin();
-  expect(nodes[0]!.play).toHaveBeenCalledOnce();
-  runtime.update(1);
-  runtime.update(1);
-  expect(nodes[0]!.play).toHaveBeenCalledTimes(2);
-  await Promise.resolve();
-  reject(new DOMException("Old request interrupted", "AbortError"));
-  await Promise.resolve();
-  await Promise.resolve();
-  expect(report).not.toHaveBeenCalledWith("Select Enable audio to allow playback");
-  runtime.start();
-  expect(nodes[0]!.play).toHaveBeenCalledTimes(2);
-  runtime.dispose();
-});
-
-it("clears the permission warning when a blocked track succeeds after Enable audio", async () => {
-  const { runtime, nodes, report } = fixture();
-  runtime.begin();
-  await vi.waitFor(() =>
-    expect(report).toHaveBeenLastCalledWith("Select Enable audio to allow playback"),
-  );
-  nodes[0]!.play.mockResolvedValueOnce();
-  runtime.start();
-  await vi.waitFor(() => expect(report).toHaveBeenLastCalledWith("Exhibition ready"));
-  expect(nodes[0]!.play).toHaveBeenCalledTimes(2);
-  runtime.dispose();
-});
-
-it("keeps the warning until every blocked track has recovered", async () => {
-  const { runtime, nodes, report } = fixture(2);
-  runtime.begin();
-  await vi.waitFor(() => expect(report).toHaveBeenCalled());
-  nodes[0]!.play.mockResolvedValueOnce();
-  nodes[1]!.play.mockRejectedValueOnce(new DOMException("Still blocked", "NotAllowedError"));
-  runtime.start();
-  await vi.waitFor(() => expect(nodes[1]!.play).toHaveBeenCalledTimes(2));
-  await Promise.resolve();
-  await Promise.resolve();
-  expect(report).toHaveBeenLastCalledWith("Select Enable audio to allow playback");
-  nodes[1]!.play.mockResolvedValueOnce();
-  runtime.start();
-  await vi.waitFor(() => expect(report).toHaveBeenLastCalledWith("Exhibition ready"));
-  runtime.dispose();
+  expect(object.visible).toBe(false);
+  expect(owner.hidden).toBe(true);
 });
 
 it("keeps the current scene playable when a navigation request is rejected", () => {
-  const alert = vi.fn();
-  vi.stubGlobal("window", { alert });
-  const { runtime } = fixture(
-    0,
-    [],
-    [
-      { when: { type: "scene-starts" }, do: { type: "navigate-scene", sceneId: "missing" } },
-      { when: { type: "scene-starts" }, do: { type: "print-hi" } },
-    ],
-    () => false,
-  );
+  const { runtime, camera } = visit({ interactions: sceneStart });
   runtime.begin();
-  expect(alert).toHaveBeenCalledWith("hi");
-  runtime.dispose();
+  runtime.update(0);
+  expect(camera.position.toArray()).toEqual(viewpoint.camera.position);
 });

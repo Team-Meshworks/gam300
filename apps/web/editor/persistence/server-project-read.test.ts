@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { serveResponses } from "../../tests/http-fixture";
 import fixture from "../../shared/project/fixtures/m1-project.json";
 import { readServerProject } from "./server-project-read";
 
@@ -17,28 +18,23 @@ const envelope = {
 
 function responses(project: unknown = envelope, finalAccount: unknown = session) {
   // The two session responses surround the project read so account changes cannot go unnoticed
-  return vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(Response.json(session))
-    .mockResolvedValueOnce(Response.json(project))
-    .mockResolvedValueOnce(Response.json(finalAccount));
+  return serveResponses(
+    Response.json(session),
+    Response.json(project),
+    Response.json(finalAccount),
+  );
 }
 
 const read = (fetcher: typeof fetch, signal = new AbortController().signal) =>
   readServerProject(fixture.projectId, "alice", assets, signal, fetcher);
 
 describe("authenticated project opening", () => {
-  // Exercise every opening and account-switch check on older Android browsers
-  beforeEach(() => {
-    class OlderAbortSignal extends AbortSignal {}
-    Object.defineProperty(OlderAbortSignal, "any", { value: undefined });
-    vi.stubGlobal("AbortSignal", OlderAbortSignal);
-  });
-  afterEach(() => vi.unstubAllGlobals());
-
   it("returns validated content and retains read-only permissions", async () => {
     // Open the server response as a candidate and retain its read-only permission
-    const fetcher = responses({ ...envelope, permissions: { canEdit: false } });
+    const { fetch: fetcher, requests } = await responses({
+      ...envelope,
+      permissions: { canEdit: false },
+    });
     expect(await read(fetcher)).toMatchObject({
       ok: true,
       value: {
@@ -49,15 +45,19 @@ describe("authenticated project opening", () => {
       },
     });
     // Project reads use the current same-origin session and never reuse a cached response
-    expect(fetcher.mock.calls[1]).toEqual([
-      `/api/v1/projects/${fixture.projectId}`,
-      expect.objectContaining({ credentials: "same-origin", cache: "no-store", redirect: "error" }),
-    ]);
+    expect(new URL(requests[1]!.url).pathname).toBe(`/api/v1/projects/${fixture.projectId}`);
+    expect(requests[1]).toMatchObject({
+      credentials: "same-origin",
+      cache: "no-store",
+      redirect: "error",
+    });
   });
 
   it("rejects a response if the active account changed during loading", async () => {
     // A response arriving after an account switch must never replace the active draft
-    expect(await read(responses(envelope, { ...session, userId: "bob" }))).toMatchObject({
+    expect(
+      await read((await responses(envelope, { ...session, userId: "bob" })).fetch),
+    ).toMatchObject({
       ok: false,
     });
   });
@@ -70,16 +70,16 @@ describe("authenticated project opening", () => {
     { ...envelope, document: { ...fixture, version: 999 } },
     { ...envelope, permissions: {} },
   ])("rejects malformed or mismatched server content", async (body) => {
-    expect(await read(responses(body))).toMatchObject({ ok: false });
+    expect(await read((await responses(body)).fetch)).toMatchObject({ ok: false });
   });
 
   it("does not request project content after an expired session or cancellation", async () => {
     // Expired and cancelled sessions stop before fetching any project content
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 401 }));
+    const { fetch: fetcher, requests } = await serveResponses(new Response(null, { status: 401 }));
     expect(await read(fetcher)).toMatchObject({ ok: false });
-    expect(fetcher).toHaveBeenCalledTimes(1);
-    fetcher.mockClear();
-    expect(await read(fetcher, AbortSignal.abort())).toMatchObject({ ok: false });
-    expect(fetcher).not.toHaveBeenCalled();
+    expect(requests).toHaveLength(1);
+    const cancelled = await serveResponses();
+    expect(await read(cancelled.fetch, AbortSignal.abort())).toMatchObject({ ok: false });
+    expect(cancelled.requests).toHaveLength(0);
   });
 });

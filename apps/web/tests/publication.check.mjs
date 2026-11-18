@@ -1,3 +1,4 @@
+import { exhaustStorage } from "./local-storage-quota.mjs";
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
 
@@ -178,9 +179,7 @@ try {
   await linkField.focus();
   await page.keyboard.press("Tab");
   assert.equal(await copyButton.evaluate((element) => element === document.activeElement), true);
-  await page.evaluate(() => {
-    Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject() } });
-  });
+  await page.context().grantPermissions([], { origin });
   await page.keyboard.press("Enter");
   await page.getByText("Copy the link from the field above.").waitFor();
   const decoderAvailable = await page.evaluate(() => "BarcodeDetector" in window);
@@ -283,15 +282,12 @@ try {
   currentSession = session;
   await page.reload();
   await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
-  await page.evaluate(() => {
-    Storage.prototype.setItem = () => {
-      throw new DOMException("Blocked", "QuotaExceededError");
-    };
-  });
+  const restoreStorage = await exhaustStorage(page, "sessionStorage");
   const countBeforeStorageFailure = requests.length;
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await page.getByText(/could not safely store.*request/i).waitFor();
   assert.equal(requests.length, countBeforeStorageFailure);
+  await restoreStorage();
   // A confirmed modal publication must leave without its own pending guard blocking navigation
   outcome = "saved";
   await page.route("**/workspace/main.tsx*", async (route) => {

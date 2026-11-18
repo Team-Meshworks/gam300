@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, readFile } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
 import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
+import { verifyExhibitAppearance } from "./exhibit-appearance.mjs";
 const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5185/",
   args: ["--enable-unsafe-swiftshader"],
@@ -17,11 +18,12 @@ try {
   );
   const origin = process.argv[2] ?? "http://127.0.0.1:5185/";
   await renderer.goto(new URL("approved-room-harness.html", origin).href);
+  await verifyExhibitAppearance(renderer);
   const fixture = JSON.parse(
     await readFile(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
   );
   const measured = await renderer.evaluate(async (fixture) => {
-    const { editorModelCache, initScene } = await import("/graphics/scene.ts");
+    const { initScene } = await import("/graphics/scene.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const starter = assets.find((asset) => asset.id === "test-room-v1");
     const module = assets.find((asset) => asset.id === "test-room-module-v1");
@@ -32,14 +34,12 @@ try {
       id: "11111111-1111-4111-8111-111111111111",
       sha256: "b".repeat(64),
     };
-    const lease = await editorModelCache.acquire(starter, new AbortController().signal);
-    const prototype = Object.getPrototypeOf(Object.getPrototypeOf(lease.value.model));
-    const add = prototype.add;
+    const { Scene } = await import("/@id/three");
     let scene;
-    prototype.add = function (...nodes) {
-      if (this.isScene) scene = this;
-      return add.apply(this, nodes);
+    const observeScene = ({ target }) => {
+      scene = target;
     };
+    Scene.prototype.addEventListener("childadded", observeScene);
     const { promise: ready, resolve } = Promise.withResolvers();
     let handle;
     try {
@@ -52,8 +52,7 @@ try {
         onUpdate() {},
       });
     } finally {
-      prototype.add = add;
-      lease.release();
+      Scene.prototype.removeEventListener("childadded", observeScene);
     }
     const status = await ready;
     if (status !== "ready") throw new Error("Room renderer did not start: " + status);
@@ -351,23 +350,16 @@ try {
   // Observe viewport-owned room clones so connection checks never inspect or alter cached source models
   const captureRooms = () =>
     page.evaluate(async () => {
-      const { editorModelCache } = await import("/graphics/scene.ts");
-      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-      const lease = await editorModelCache.acquire(
-        assets.find((asset) => asset.id === "test-room-v1"),
-        new AbortController().signal,
-      );
-      const prototype = Object.getPrototypeOf(Object.getPrototypeOf(lease.value.model));
-      const add = prototype.add;
+      const { Scene } = await import("/@id/three");
+      if (window.observeRooms) {
+        Scene.prototype.removeEventListener("childadded", window.observeRooms);
+      }
       window.roomRoots = [];
-      prototype.add = function (...nodes) {
-        for (const node of nodes) {
-          if (node.name === "placement-preview") window.roomGhost = node;
-          else if (this.isScene && node.getObjectByName("Wall_Back")) window.roomRoots.push(node);
-        }
-        return add.apply(this, nodes);
+      window.observeRooms = ({ child }) => {
+        if (child.name === "placement-preview") window.roomGhost = child;
+        else if (child.getObjectByName("Wall_Back")) window.roomRoots.push(child);
       };
-      lease.release();
+      Scene.prototype.addEventListener("childadded", window.observeRooms);
     });
   await captureRooms();
   async function choose() {

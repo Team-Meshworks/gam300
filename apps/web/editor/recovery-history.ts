@@ -6,6 +6,7 @@ import {
   freezeValidatedData,
   invalid,
   isRecord,
+  readField,
   type ValidationResult,
 } from "../shared/project/validation-helpers";
 
@@ -180,17 +181,21 @@ export function validateRecoveryHistory(
     return fields;
   }
   const scene = project.scenes[0]!;
+  const rawVersion = readField(raw, "version");
   if (
-    (raw.version !== 1 && raw.version !== 2) ||
-    raw.projectId !== project.projectId ||
-    raw.sceneId !== scene.id
+    (rawVersion !== 1 && rawVersion !== 2) ||
+    readField(raw, "projectId") !== project.projectId ||
+    readField(raw, "sceneId") !== scene.id
   ) {
     return invalid("history", "Recovery history belongs to a different project or version");
   }
+  const version = rawVersion;
+  const rawPast = readField(raw, "past");
+  const rawFuture = readField(raw, "future");
   if (
-    !Array.isArray(raw.past) ||
-    !Array.isArray(raw.future) ||
-    raw.past.length + raw.future.length > 100
+    !Array.isArray(rawPast) ||
+    !Array.isArray(rawFuture) ||
+    rawPast.length + rawFuture.length > 100
   ) {
     return invalid("history", "Recovery history exceeds the 100-edit limit");
   }
@@ -201,9 +206,10 @@ export function validateRecoveryHistory(
   } catch {
     return invalid("history", "Recovery history is not serializable");
   }
-  const version = raw.version;
+  const rawCurrent = readField(raw, "current");
+  const rawViews = readField(raw, "views");
   if (Object.hasOwn(raw, "documents")) {
-    const docs = raw.documents;
+    const docs = readField(raw, "documents");
     if (!isRecord(docs)) return invalid("history.documents", "Invalid document history");
     const fields = checkFields(
       docs,
@@ -211,35 +217,39 @@ export function validateRecoveryHistory(
       "history.documents",
     );
     if (!fields.ok) return fields;
+    const documentPast = readField(docs, "past");
+    const documentFuture = readField(docs, "future");
     if (
-      !Array.isArray(docs.past) ||
-      !Array.isArray(docs.future) ||
-      docs.past.length + docs.future.length > 100 ||
-      docs.past.length !== raw.past.length ||
-      docs.future.length !== raw.future.length
+      !Array.isArray(documentPast) ||
+      !Array.isArray(documentFuture) ||
+      documentPast.length + documentFuture.length > 100 ||
+      documentPast.length !== rawPast.length ||
+      documentFuture.length !== rawFuture.length
     )
       return invalid("history.documents", "Document history does not match the edit history");
     function read(value: unknown): ValidationResult<ProjectHistoryState> {
       if (!isRecord(value)) return invalid("history.documents", "Invalid saved edit");
       const fields = checkFields(value, ["project", "activeSceneId"], "history.documents");
       if (!fields.ok) return fields;
-      const checked = validateProject(value.project, assetKinds, DRAFT_PROJECT);
+      const checked = validateProject(readField(value, "project"), assetKinds, DRAFT_PROJECT);
       if (!checked.ok) return checked;
+      const activeSceneId = readField(value, "activeSceneId");
       if (
         checked.value.projectId !== project.projectId ||
-        typeof value.activeSceneId !== "string" ||
-        !checked.value.scenes.some((s) => s.id === value.activeSceneId)
+        typeof activeSceneId !== "string" ||
+        !checked.value.scenes.some((s) => s.id === activeSceneId)
       )
         return invalid(
           "history.documents",
           "Saved edit belongs to a different project or missing scene",
         );
-      return { ok: true, value: { project: checked.value, activeSceneId: value.activeSceneId } };
+      return { ok: true, value: { project: checked.value, activeSceneId } };
     }
     const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
-    const current = read({ project: docs.current, activeSceneId: docs.activeSceneId });
+    const document = readField(docs, "current");
+    const current = read({ project: document, activeSceneId: readField(docs, "activeSceneId") });
     if (!current.ok) return current;
-    if (docs.current !== project) {
+    if (document !== project) {
       const saved = validateProject(project, assetKinds, DRAFT_PROJECT);
       if (!saved.ok) return saved;
       if (!same(current.value.project, saved.value))
@@ -248,8 +258,8 @@ export function validateRecoveryHistory(
     const past: ProjectHistoryState[] = [],
       future: ProjectHistoryState[] = [];
     for (const [input, output] of [
-      [docs.past, past],
-      [docs.future, future],
+      [documentPast, past],
+      [documentFuture, future],
     ] as const) {
       for (const item of input) {
         const checked = read(item);
@@ -257,18 +267,24 @@ export function validateRecoveryHistory(
         output.push(checked.value);
       }
     }
-    const viewCopies = raw.views;
+    const viewCopies = isRecord(rawViews)
+      ? {
+          current: readField(rawViews, "current"),
+          past: readField(rawViews, "past"),
+          future: readField(rawViews, "future"),
+        }
+      : undefined;
     if (
-      viewCopies !== undefined &&
-      (!isRecord(viewCopies) ||
+      rawViews !== undefined &&
+      (!viewCopies ||
         !Array.isArray(viewCopies.past) ||
         !Array.isArray(viewCopies.future) ||
         viewCopies.past.length !== past.length ||
         viewCopies.future.length !== future.length)
     )
       return invalid("history.views", "Viewpoint history does not match the saved scene");
-    if (isRecord(viewCopies)) {
-      const fields = checkFields(viewCopies, ["current", "past", "future"], "history.views");
+    if (isRecord(rawViews)) {
+      const fields = checkFields(rawViews, ["current", "past", "future"], "history.views");
       if (!fields.ok) return fields;
     }
     // Older checkpoints can retain unnormalized compatibility copies alongside a full document.
@@ -291,17 +307,11 @@ export function validateRecoveryHistory(
       );
       return checked.ok && same(checked.value, document);
     }
-    if (
-      !matches(
-        current.value.project,
-        raw.current,
-        isRecord(viewCopies) ? viewCopies.current : undefined,
-      )
-    )
+    if (!matches(current.value.project, rawCurrent, viewCopies?.current))
       return invalid("history", "Recovery history does not match the saved scene");
     for (const [entries, copies, views] of [
-      [past, raw.past, isRecord(viewCopies) ? viewCopies.past : undefined],
-      [future, raw.future, isRecord(viewCopies) ? viewCopies.future : undefined],
+      [past, rawPast, viewCopies?.past],
+      [future, rawFuture, viewCopies?.future],
     ] as const) {
       if (
         entries.some(
@@ -314,7 +324,7 @@ export function validateRecoveryHistory(
     return {
       ok: true,
       value: freezeValidatedData({
-        version: raw.version,
+        version,
         projectId: project.projectId,
         sceneId: scene.id,
         current: sceneState(current.value.project, version),
@@ -338,45 +348,51 @@ export function validateRecoveryHistory(
       } as RecoveryHistory),
     };
   }
-  if (raw.views !== undefined && project.scenes.length > 1)
+  if (rawViews !== undefined && project.scenes.length > 1)
     return invalid("history", "Scene-authoring history requires full document snapshots");
-  if (raw.views !== undefined && project.schemaVersion === 1)
+  if (rawViews !== undefined && project.schemaVersion === 1)
     return invalid("history.views", "Older scene history needs compatibility import");
 
   let views: RecoveryHistory["views"];
   if (Object.hasOwn(raw, "views")) {
-    const data = raw.views;
+    if (!isRecord(rawViews))
+      return invalid("history.views", "Viewpoint history does not match the edit history");
+    const viewPast = readField(rawViews, "past");
+    const viewFuture = readField(rawViews, "future");
     if (
-      !isRecord(data) ||
-      !Array.isArray(data.past) ||
-      !Array.isArray(data.future) ||
-      data.past.length !== raw.past.length ||
-      data.future.length !== raw.future.length
+      !Array.isArray(viewPast) ||
+      !Array.isArray(viewFuture) ||
+      viewPast.length !== rawPast.length ||
+      viewFuture.length !== rawFuture.length
     )
       return invalid("history.views", "Viewpoint history does not match the edit history");
-    const fields = checkFields(data, ["current", "past", "future"], "history.views");
+    const fields = checkFields(rawViews, ["current", "past", "future"], "history.views");
     if (!fields.ok) return fields;
     const read = (value: unknown, objects: unknown) =>
       validateProject(
         {
           ...project,
           scenes: [
-            { ...scene, objects: isRecord(objects) ? objects.objects : objects, viewpoints: value },
+            {
+              ...scene,
+              objects: isRecord(objects) ? readField(objects, "objects") : objects,
+              viewpoints: value,
+            },
             ...project.scenes.slice(1),
           ],
         },
         assetKinds,
         DRAFT_PROJECT,
       );
-    const current = read(data.current, raw.current);
+    const current = read(readField(rawViews, "current"), rawCurrent);
     if (!current.ok) return current;
     if (JSON.stringify(firstViews(current.value)) !== JSON.stringify(firstViews(project)))
       return invalid("history.views", "Viewpoints do not match the saved scene");
     const past: (readonly NamedViewpoint[])[] = [],
       future: (readonly NamedViewpoint[])[] = [];
     for (const [input, objects, output] of [
-      [data.past, raw.past, past],
-      [data.future, raw.future, future],
+      [viewPast, rawPast, past],
+      [viewFuture, rawFuture, future],
     ] as const) {
       for (const [i, value] of input.entries()) {
         const checked = read(value, objects[i]);
@@ -410,7 +426,7 @@ export function validateRecoveryHistory(
     let objects = input;
     // Older backups predate room renaming and inherit their document's scene name
     let sceneName: unknown = scene.name;
-    let groups = document.schemaVersion === 2 ? document.scenes[0]!.groups : undefined;
+    let groups: unknown;
     if (version === 2) {
       if (document.schemaVersion !== 2 || !isRecord(input)) {
         return invalid("history", "Hierarchy history requires a content scene");
@@ -421,9 +437,11 @@ export function validateRecoveryHistory(
         "history.state",
       );
       if (!fields.ok) return fields;
-      if ("sceneName" in input) sceneName = input.sceneName;
-      objects = input.objects;
-      groups = input.groups as typeof groups;
+      if ("sceneName" in input) sceneName = readField(input, "sceneName");
+      objects = readField(input, "objects");
+      groups = readField(input, "groups");
+    } else {
+      groups = document.schemaVersion === 2 ? document.scenes[0]!.groups : undefined;
     }
     return validateProject(
       {
@@ -460,8 +478,8 @@ export function validateRecoveryHistory(
 
   // The history's current snapshot must describe the same normalized data as the saved scene
   // Reject mismatches before restoring either stack so undo cannot introduce unrelated state
-  const current = readObjects(raw.current, views?.current);
-  const expected = readObjects(sceneState(project, raw.version), views?.current);
+  const current = readObjects(rawCurrent, views?.current);
+  const expected = readObjects(sceneState(project, version), views?.current);
   if (!current.ok) {
     return current;
   }
@@ -476,8 +494,8 @@ export function validateRecoveryHistory(
   const past: HistoryState[] = [];
   const future: HistoryState[] = [];
   for (const [input, output, viewpoints] of [
-    [raw.past, past, views?.past],
-    [raw.future, future, views?.future],
+    [rawPast, past, views?.past],
+    [rawFuture, future, views?.future],
   ] as const) {
     for (const [i, state] of input.entries()) {
       const checked = readObjects(state, viewpoints?.[i]);

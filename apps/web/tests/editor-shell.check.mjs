@@ -817,15 +817,14 @@ try {
         const request = session.get("fixture-lock");
         request.onsuccess = keepAlive;
       }
-      keepAlive();
-      const original = IDBDatabase.prototype.transaction;
-      IDBDatabase.prototype.transaction = function (stores, mode, ...options) {
-        if (this.name === "vthere-local-drafts" && mode === "readwrite") {
-          window.recoveryWriteStarted = true;
-          IDBDatabase.prototype.transaction = original;
-        }
-        return original.call(this, stores, mode, ...options);
-      };
+      await new Promise((resolve, reject) => {
+        const request = session.get("fixture-lock");
+        request.onsuccess = () => {
+          keepAlive();
+          resolve();
+        };
+        request.onerror = () => reject(request.error);
+      });
     });
     try {
       // Schedule a fresh backup after installing the lock, even on a slow runner
@@ -834,13 +833,15 @@ try {
       const renameCrate = nested.getByRole("textbox", { name: /^Rename / });
       await renameCrate.fill("Backup test crate");
       await renameCrate.press("Enter");
-      await nested.waitForFunction(() => window.recoveryWriteStarted, null, { timeout: 10000 });
+      const saving = nested.locator('.save-state[data-state="saving"]');
+      await saving.waitFor({ timeout: 10000 });
       await addAsset(nested, "Starter room");
       assert.equal(
         await nested.locator(".object-row").count(),
         3,
         "A background recovery backup must not prevent adding a room",
       );
+      assert.equal(await saving.count(), 1);
     } finally {
       await nested.evaluate(() => {
         window.releaseRecoveryLock = true;

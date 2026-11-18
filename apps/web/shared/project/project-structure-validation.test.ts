@@ -100,7 +100,7 @@ describe("M1 project structure", () => {
 
   it("accepts legacy scenes without interactions and validates saved rules", () => {
     const { project, scene } = sampleProject();
-    const legacyScene = structuredClone(scene) as Record<string, unknown>;
+    const legacyScene: Partial<typeof scene> = structuredClone(scene);
     delete legacyScene.interactions;
     delete legacyScene.hotspots;
     expect(validateProjectStructure({ ...project, scenes: [legacyScene] })).toEqual({
@@ -196,10 +196,10 @@ describe("M1 project structure", () => {
       error: { path: "project.scenes[0].interactions[0].do.url" },
     });
 
-    scene.interactions = [
-      { when: { type: "scene-starts" }, do: { type: "print-hi" }, extra: 1 },
-    ] as unknown as { when: unknown; do: unknown }[];
-    expect(validateProjectStructure(project)).toMatchObject({
+    const interactions = [{ when: { type: "scene-starts" }, do: { type: "print-hi" }, extra: 1 }];
+    expect(
+      validateProjectStructure({ ...project, scenes: [{ ...scene, interactions }] }),
+    ).toMatchObject({
       ok: false,
       error: { path: "project.scenes[0].interactions[0].extra" },
     });
@@ -240,10 +240,10 @@ describe("M1 project structure", () => {
     });
 
     hotspot.position[0] = 0;
-    scene.hotspots = [
-      { id: hotspot.id, objectId: 42, position: [0, 0, 0] },
-    ] as unknown as typeof scene.hotspots;
-    expect(validateProjectStructure(project)).toMatchObject({
+    const hotspots = [{ id: hotspot.id, objectId: 42, position: [0, 0, 0] }];
+    expect(
+      validateProjectStructure({ ...project, scenes: [{ ...scene, hotspots }] }),
+    ).toMatchObject({
       ok: false,
       error: { path: "project.scenes[0].hotspots[0].objectId" },
     });

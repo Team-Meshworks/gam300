@@ -54,14 +54,13 @@ it("budgets large document histories with linear serialization while retaining t
   const future = Array.from({ length: 10 }, (_, i) => state(100 + i));
   const stringify = JSON.stringify;
   let serializedCharacters = 0;
-  const spy = vi.spyOn(JSON, "stringify").mockImplementation((value) => {
-    const result = stringify(value);
-    serializedCharacters += result?.length ?? 0;
-    return result;
-  });
+  const spy = vi.spyOn(JSON, "stringify");
   let history;
   try {
     history = captureProjectHistory(project, source.id, { past, future });
+    for (const result of spy.mock.results) {
+      if (result.type === "return") serializedCharacters += result.value?.length ?? 0;
+    }
   } finally {
     spy.mockRestore();
   }

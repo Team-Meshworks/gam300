@@ -295,11 +295,7 @@ try {
         const linkField = page.getByRole("textbox", { name: "Share your project" });
         assert.equal(await linkField.inputValue(), `https://spatia.example/p/${publicationId}`);
         assert.equal(await linkField.getAttribute("readonly"), "");
-        await page.evaluate(() =>
-          Object.defineProperty(navigator, "clipboard", {
-            value: { writeText: () => Promise.reject() },
-          }),
-        );
+        await page.context().grantPermissions([], { origin });
         const shareCard = page.locator(".sp-student-card--published");
         const shareHeight = (await shareCard.boundingBox()).height;
         await page.getByRole("button", { name: "Copy", exact: true }).click();

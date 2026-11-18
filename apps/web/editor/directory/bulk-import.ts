@@ -25,11 +25,11 @@ type DirectoryWrite = (
 ) => Promise<unknown>;
 type DirectoryRead = (path: string) => Promise<unknown>;
 
-const id = (value: unknown): value is string =>
-  typeof value === "string" &&
+const isNonEmptyId = (value: string): boolean =>
   /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value) &&
   value !== "00000000-0000-0000-0000-000000000000";
-const row = (value: unknown): value is Record<string, unknown> =>
+const id = (value: unknown): value is string => typeof value === "string" && isNonEmptyId(value);
+const isObject = (value: unknown): value is object =>
   !!value && typeof value === "object" && !Array.isArray(value);
 
 export class ImportRejected extends Error {}
@@ -51,14 +51,20 @@ function receipt(
   const invalid = () =>
     new Error("The import receipt could not be verified. Check the same import again.");
   if (
-    !row(value) ||
+    !isObject(value) ||
+    !("operationId" in value) ||
     value.operationId !== operationId ||
+    !("orgId" in value) ||
     value.orgId !== orgId ||
+    !("acknowledged" in value) ||
     typeof value.acknowledged !== "boolean" ||
+    !("expiresAt" in value) ||
     typeof value.expiresAt !== "string" ||
     !Number.isFinite(Date.parse(value.expiresAt)) ||
+    !("created" in value) ||
     !Array.isArray(value.created) ||
     value.created.length > 200 ||
+    !("credentials" in value) ||
     !Array.isArray(value.credentials) ||
     value.credentials.length > value.created.length ||
     (value.acknowledged && value.credentials.length)
@@ -68,12 +74,16 @@ function receipt(
   const names = new Set<string>();
   for (const item of value.created) {
     if (
-      !row(item) ||
+      !isObject(item) ||
+      !("userId" in item) ||
       !id(item.userId) ||
+      !("userName" in item) ||
       typeof item.userName !== "string" ||
       !item.userName ||
+      !("displayName" in item) ||
       typeof item.displayName !== "string" ||
       !item.displayName ||
+      !("role" in item) ||
       (item.role !== "Creator" && item.role !== "Educator") ||
       byId.has(item.userId) ||
       names.has(item.userName) ||
@@ -98,9 +108,12 @@ function receipt(
   const credentials: NewAccount[] = [];
   for (const item of value.credentials) {
     if (
-      !row(item) ||
+      !isObject(item) ||
+      !("userId" in item) ||
       !id(item.userId) ||
+      !("userName" in item) ||
       exported.has(item.userId) ||
+      !("password" in item) ||
       typeof item.password !== "string" ||
       item.password.length < 12 ||
       item.password.length > 128
@@ -132,13 +145,13 @@ export function createBulkImport(
   write: DirectoryWrite,
   read: DirectoryRead,
 ) {
-  if (!id(actorId) || !id(orgId))
+  if (!isNonEmptyId(actorId) || !isNonEmptyId(orgId))
     throw new Error("The organisation or administrator could not be verified.");
   const key = `spatia.bulk-import:${actorId}:${orgId}`;
   const collection = `/api/v1/admin/organizations/${orgId}/bulk-imports`;
   function pending(): string | null {
     const operation = localStorage.getItem(key);
-    if (operation !== null && !id(operation))
+    if (operation !== null && !isNonEmptyId(operation))
       throw new Error(
         "The import reference could not be read. Check the directory before starting another import.",
       );
@@ -160,7 +173,7 @@ export function createBulkImport(
     }
   }
   function base(operationId: string) {
-    if (!id(operationId)) throw new Error("The import identifier could not be verified.");
+    if (!isNonEmptyId(operationId)) throw new Error("The import identifier could not be verified.");
     return `${collection}/${operationId}`;
   }
   function locked<T>(action: () => Promise<T>): Promise<T> {
@@ -170,9 +183,12 @@ export function createBulkImport(
   async function verifyActor() {
     const session = await read("/api/v1/auth/session");
     if (
-      !row(session) ||
+      !isObject(session) ||
+      !("userId" in session) ||
       session.userId !== actorId ||
+      !("role" in session) ||
       session.role !== "Administrator" ||
+      !("mustChangePassword" in session) ||
       session.mustChangePassword !== false
     )
       throw new Error(
@@ -195,22 +211,28 @@ export function createBulkImport(
     do {
       const page = await read(`${collection}?limit=20${cursor ? `&cursor=${cursor}` : ""}`);
       if (
-        !row(page) ||
+        !isObject(page) ||
+        !("items" in page) ||
         !Array.isArray(page.items) ||
         page.items.length > 20 ||
+        !("nextCursor" in page) ||
         (page.nextCursor !== null && !id(page.nextCursor))
       )
         throw invalid();
       for (const item of page.items) {
         if (
-          !row(item) ||
+          !isObject(item) ||
+          !("operationId" in item) ||
           !id(item.operationId) ||
           result.has(item.operationId) ||
+          !("createdAt" in item) ||
           typeof item.createdAt !== "string" ||
           !Number.isFinite(Date.parse(item.createdAt)) ||
+          !("expiresAt" in item) ||
           typeof item.expiresAt !== "string" ||
           !Number.isFinite(Date.parse(item.expiresAt)) ||
           Date.parse(item.createdAt) > Date.parse(item.expiresAt) ||
+          !("createdCount" in item) ||
           typeof item.createdCount !== "number" ||
           !Number.isSafeInteger(item.createdCount) ||
           item.createdCount < 0 ||

@@ -12,7 +12,8 @@ import {
   type CreationHead,
   type CreationPurpose,
 } from "./create-operation";
-import { createWorkspaceClient, isId, isRecord } from "./workspace-api";
+import { createWorkspaceClient, isId } from "./workspace-api";
+import { isRecord, readField } from "../../shared/project/validation-helpers";
 import "./pending-create-recovery.css";
 
 const api = createWorkspaceClient();
@@ -35,6 +36,15 @@ type RecoveryProps = {
   historicalLocal?: boolean;
   refreshKey?: string;
 };
+
+function parseLocalRecovery(raw: string | null) {
+  try {
+    const value: unknown = raw === null ? null : JSON.parse(raw);
+    return isRecord(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
 
 export function PendingCreateRecovery(props: RecoveryProps) {
   return props.active ? (
@@ -103,15 +113,13 @@ function CreationRecoveryPanel({
       });
     return () => controller.abort();
   }, [actorId, purpose, showHead, onPendingChange]);
-  let local: Record<string, unknown> | null = null;
-  try {
-    const parsed: unknown = observed === null ? null : JSON.parse(observed);
-    if (isRecord(parsed)) local = parsed;
-  } catch {
-    local = null;
-  }
-  const localId = isRecord(local?.body) ? local.body.operationId : local?.operationId;
-  const receipt = head?.state === "unacknowledged" ? head.receipt : local?.receipt;
+  const local = parseLocalRecovery(observed);
+  const localBody = local && readField(local, "body");
+  const localId = isRecord(localBody)
+    ? readField(localBody, "operationId")
+    : local && readField(local, "operationId");
+  const receipt =
+    head?.state === "unacknowledged" ? head.receipt : local && readField(local, "receipt");
   const operationId = head?.state === "unacknowledged" ? head.operationId : localId;
   const recoverable =
     isId(operationId) &&
@@ -146,8 +154,8 @@ function CreationRecoveryPanel({
         const ids = new Set<string>();
         setRows(
           values.map((value) => {
-            const id = isRecord(value) ? value[classes ? "id" : "projectId"] : undefined;
-            const name = isRecord(value) ? value[classes ? "name" : "title"] : undefined;
+            const id = isRecord(value) ? readField(value, classes ? "id" : "projectId") : undefined;
+            const name = isRecord(value) ? readField(value, classes ? "name" : "title") : undefined;
             if (!isId(id) || typeof name !== "string" || ids.has(id))
               throw new Error("The current list could not be verified.");
             ids.add(id);
@@ -168,21 +176,33 @@ function CreationRecoveryPanel({
         }
         if (classes) {
           const values = await api.pages("/api/v1/classes", signal, actorId);
-          const found = values.find((value) => isRecord(value) && value.id === receipt.id);
-          if (!isRecord(found) || typeof found.name !== "string" || !isId(found.id))
+          const found = values.find(
+            (value) => isRecord(value) && readField(value, "id") === readField(receipt, "id"),
+          );
+          if (
+            !isRecord(found) ||
+            !("id" in found) ||
+            !("name" in found) ||
+            typeof found.name !== "string" ||
+            !isId(found.id)
+          )
             throw new Error(
               "The recovered class is no longer available. Review the current list before acknowledging it.",
             );
           await checkAccount(signal);
           setReviewed({ id: found.id, name: found.name, receipt });
         } else {
-          if (!isId(receipt.projectId))
+          if (!("projectId" in receipt) || !isId(receipt.projectId))
             throw new Error("The recovered project could not be verified.");
           const value = await api.read("/api/v1/projects/" + receipt.projectId, signal, actorId);
           if (
             !isRecord(value) ||
+            !("projectId" in value) ||
+            !("document" in value) ||
+            !("revision" in value) ||
             value.projectId !== receipt.projectId ||
             !isRecord(value.document) ||
+            !("title" in value.document) ||
             typeof value.document.title !== "string" ||
             !Number.isSafeInteger(value.revision) ||
             Number(value.revision) < 0

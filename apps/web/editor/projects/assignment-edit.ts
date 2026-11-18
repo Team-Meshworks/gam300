@@ -1,5 +1,6 @@
 import { assignmentSession } from "./assignment-api";
-import { isId, isRecord } from "../home/workspace-api";
+import { isId } from "../home/workspace-api";
+import { isRecord } from "../../shared/project/validation-helpers";
 import { localDeadlineToUnixSeconds } from "./deadline";
 
 export type PendingAssignmentEdit = {
@@ -52,6 +53,10 @@ export function readAssignmentEdit(
   const value: unknown = JSON.parse(raw);
   if (
     !isRecord(value) ||
+    !("actorId" in value) ||
+    !("classId" in value) ||
+    !("assignmentId" in value) ||
+    !("body" in value) ||
     value.actorId !== actorId ||
     value.classId !== classId ||
     value.assignmentId !== assignmentId ||
@@ -59,6 +64,13 @@ export function readAssignmentEdit(
     !isId(value.classId) ||
     !isId(value.assignmentId) ||
     !isRecord(value.body) ||
+    !("mutationId" in value.body) ||
+    !("expectedRevision" in value.body) ||
+    !("dueAtUnixSeconds" in value.body) ||
+    !("title" in value.body) ||
+    !("description" in value.body) ||
+    !("instructions" in value.body) ||
+    !("studentIds" in value.body) ||
     !isId(value.body.mutationId) ||
     !Number.isSafeInteger(value.body.expectedRevision) ||
     (value.body.expectedRevision as number) < 0 ||
@@ -82,26 +94,32 @@ export function readAssignmentEdit(
 export async function submitAssignmentEdit(
   pending: PendingAssignmentEdit,
   previouslyUncertain: boolean,
+  request: typeof fetch = fetch,
 ): Promise<AssignmentEditResult> {
   let sent = false;
   try {
-    const session = await assignmentSession();
+    const session = await assignmentSession(undefined, request);
     if (session.userId !== pending.actorId || session.mustChangePassword)
       throw new Error("Account changed");
-    const csrfResponse = await fetch("/api/v1/auth/csrf", {
+    const csrfResponse = await request("/api/v1/auth/csrf", {
       credentials: "same-origin",
       cache: "no-store",
       headers: { "X-Spatia-Account": pending.actorId },
       signal: AbortSignal.timeout(15000),
     });
     const csrf: unknown = csrfResponse.ok ? await csrfResponse.json() : null;
-    if (!isRecord(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken)
+    if (
+      !isRecord(csrf) ||
+      !("requestToken" in csrf) ||
+      typeof csrf.requestToken !== "string" ||
+      !csrf.requestToken
+    )
       throw new Error("Missing token");
-    const current = await assignmentSession();
+    const current = await assignmentSession(undefined, request);
     if (current.userId !== pending.actorId || current.mustChangePassword)
       throw new Error("Account changed");
     sent = true;
-    const response = await fetch(
+    const response = await request(
       `/api/v1/classes/${encodeURIComponent(pending.classId)}/assignments/${encodeURIComponent(pending.assignmentId)}`,
       {
         method: "PATCH",
@@ -126,11 +144,13 @@ export async function submitAssignmentEdit(
       };
     if (response.status !== 200) return { kind: "unknown" };
     const result: unknown = await response.json();
-    const after = await assignmentSession();
+    const after = await assignmentSession(undefined, request);
     if (
       after.userId !== pending.actorId ||
       after.mustChangePassword ||
       !isRecord(result) ||
+      !("assignmentId" in result) ||
+      !("revision" in result) ||
       result.assignmentId !== pending.assignmentId ||
       result.revision !== pending.body.expectedRevision + 1
     )

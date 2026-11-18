@@ -1,4 +1,5 @@
-import { isId, isRecord, type WriteResult } from "../home/workspace-api";
+import { isId, type WriteResult } from "../home/workspace-api";
+import { isRecord, readField } from "../../shared/project/validation-helpers";
 import {
   isDefinitivePublicationRejection,
   publicationAcknowledgement,
@@ -46,6 +47,14 @@ export function readApprovalPublication(
   const value: unknown = JSON.parse(raw);
   if (
     !isRecord(value) ||
+    !("actorId" in value) ||
+    !("projectId" in value) ||
+    !("studentId" in value) ||
+    !("submissionId" in value) ||
+    !("decisionId" in value) ||
+    !("publicationId" in value) ||
+    !("revision" in value) ||
+    !("feedback" in value) ||
     value.actorId !== actorId ||
     value.projectId !== projectId ||
     value.studentId !== studentId ||
@@ -55,12 +64,13 @@ export function readApprovalPublication(
     !(value.submissionId === null || isId(value.submissionId)) ||
     !isId(value.decisionId) ||
     !isId(value.publicationId) ||
+    typeof value.revision !== "number" ||
     !Number.isSafeInteger(value.revision) ||
-    (value.revision as number) < 0 ||
+    value.revision < 0 ||
     typeof value.feedback !== "string" ||
     value.feedback.length > 4000 ||
     value.feedback.includes("\0") ||
-    (value.approvalOnly !== undefined && value.approvalOnly !== true)
+    (readField(value, "approvalOnly") !== undefined && readField(value, "approvalOnly") !== true)
   )
     throw new Error("The earlier publishing request could not be verified.");
   return value as ApprovalPublicationIntent;

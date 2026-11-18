@@ -16,15 +16,8 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
-    window.displayVideos = [];
-    const create = document.createElement.bind(document);
-    document.createElement = function (tag, options) {
-      const element = create(tag, options);
-      if (tag === "video") window.displayVideos.push(element);
-      return element;
-    };
-    window.showOpenFilePicker = undefined;
-    window.showSaveFilePicker = undefined;
+    Reflect.deleteProperty(window, "showOpenFilePicker");
+    Reflect.deleteProperty(window, "showSaveFilePicker");
   });
   const project = await serveProject(page, origin);
   await page.goto(project.url);
@@ -210,31 +203,51 @@ try {
     (object) => object.assetId === "display-square-stand-v1",
   ).components;
   assert.equal(displayMedia[0].assetId, "sample-coast-video-v1");
-  await page.waitForFunction(() =>
-    window.displayVideos.some(
-      (video) => video.src.length > 0 && !video.paused && video.muted && video.currentTime > 0.15,
-    ),
-  );
+  async function expectEditorPlayback() {
+    const inspection = await page.context().newCDPSession(page);
+    try {
+      const objectGroup = "display-videos";
+      const { result } = await inspection.send("Runtime.evaluate", {
+        expression: "HTMLVideoElement.prototype",
+        objectGroup,
+      });
+      const { objects } = await inspection.send("Runtime.queryObjects", {
+        prototypeObjectId: result.objectId,
+        objectGroup,
+      });
+      await inspection.send("Runtime.callFunctionOn", {
+        objectId: objects.objectId,
+        functionDeclaration: "function () { window.displayVideos = Array.from(this); }",
+      });
+      await inspection.send("Runtime.releaseObjectGroup", { objectGroup });
+    } finally {
+      await inspection.detach();
+    }
+    await page.waitForFunction(() =>
+      window.displayVideos.some(
+        (video) => video.currentSrc && !video.paused && video.currentTime > 0.15,
+      ),
+    );
+  }
+  await expectEditorPlayback();
   await page.getByRole("button", { name: "Preview", exact: true }).click();
-  const toggleVideo = page.getByRole("button", { name: /^Play \/ pause / });
-  await toggleVideo.waitFor();
-  await page.waitForFunction(() =>
-    window.displayVideos.some((video) => video.currentSrc && !video.muted && video.paused),
-  );
-  await toggleVideo.click();
-  await page.waitForFunction(() =>
-    window.displayVideos.some(
-      (video) => video.currentSrc && !video.muted && !video.paused && video.currentTime > 0.15,
-    ),
-  );
-  await toggleVideo.click();
-  await page.waitForFunction(() =>
-    window.displayVideos.some((video) => video.currentSrc && !video.muted && video.paused),
-  );
+  await page.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
+  await page.locator(".visitor-information summary").click();
+  const video = page.locator("video[data-stand-video]");
+  await video.waitFor();
+  assert.equal(await video.evaluate((node) => node.controls), true);
+  await page.waitForFunction(() => {
+    const node = document.querySelector("video[data-stand-video]");
+    return node?.currentSrc && !node.muted && !node.paused && node.currentTime > 0.15;
+  });
+  await video.evaluate((node) => node.pause());
+  assert.equal(await video.evaluate((node) => node.paused), true);
+  await video.evaluate((node) => node.play());
+  assert.equal(await video.evaluate((node) => node.paused), false);
+  await video.evaluate((node) => node.pause());
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
-  await page.waitForFunction(() =>
-    window.displayVideos.some((video) => video.currentSrc && video.muted && !video.paused),
-  );
+  await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await expectEditorPlayback();
   assert.equal(displayMedia.length, 1);
   assert.equal(
     fixtureSave.scenes[0].objects.find((object) => object.assetId === "display-cube-v1").components

@@ -12,9 +12,9 @@ export interface ProgressIntent {
   feedback: string;
 }
 const invalid = () => new ReviewError("The review service returned an invalid response.");
-const object = (value: unknown): Record<string, unknown> => {
+const object = (value: unknown): object => {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw invalid();
-  return value as Record<string, unknown>;
+  return value;
 };
 const uuid = (value: unknown): string => {
   if (typeof value !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value))
@@ -24,9 +24,13 @@ const uuid = (value: unknown): string => {
 function parse(value: unknown): ProgressReview {
   const r = object(value);
   if (
+    !("id" in r) ||
+    !("feedback" in r) ||
     typeof r.feedback !== "string" ||
+    !("createdAt" in r) ||
     typeof r.createdAt !== "string" ||
     !Number.isFinite(Date.parse(r.createdAt)) ||
+    !("revision" in r) ||
     typeof r.revision !== "number" ||
     !Number.isSafeInteger(r.revision) ||
     r.revision < 0
@@ -72,14 +76,18 @@ export function createProgressReviewClient(request: typeof fetch = fetch) {
           }),
         ),
       );
-      if (!Array.isArray(r.items)) throw invalid();
+      if (!("items" in r) || !Array.isArray(r.items)) throw invalid();
       const session = object(await read(await send("/api/v1/auth/session")));
+      if (!("userId" in session)) throw invalid();
       if (
         uuid(session.userId) !== uuid(actorId) ||
+        !("role" in session) ||
         session.role !== role ||
+        !("mustChangePassword" in session) ||
         session.mustChangePassword !== false
       )
         throw new ReviewError("Your account changed. Reload before viewing reviews.");
+      if (!("nextCursor" in r)) throw invalid();
       return {
         items: r.items.map(parse),
         nextCursor: r.nextCursor === null ? null : uuid(r.nextCursor),
@@ -101,7 +109,12 @@ export function createProgressReviewClient(request: typeof fetch = fetch) {
             await send("/api/v1/auth/csrf", { headers: { "X-Spatia-Account": uuid(actorId) } }),
           ),
         );
-        if (typeof value.requestToken !== "string" || !value.requestToken) throw invalid();
+        if (
+          !("requestToken" in value) ||
+          typeof value.requestToken !== "string" ||
+          !value.requestToken
+        )
+          throw invalid();
         token = value.requestToken;
       } catch (error) {
         return { kind: "rejected", error: error instanceof ReviewError ? error : invalid() };

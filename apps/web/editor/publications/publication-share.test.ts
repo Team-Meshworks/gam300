@@ -3,6 +3,7 @@ import { createElement } from "react";
 import jsQR from "jsqr";
 import { describe, expect, it } from "vitest";
 import { PublicationShare } from "./PublicationShare";
+import { PublishStatus } from "./PublishStatus";
 
 describe("publication sharing", () => {
   it("shows the committed link and an accessible QR code", () => {
@@ -43,10 +44,7 @@ describe("publication sharing", () => {
 });
 
 // Pending reads cannot display an approval claim before the server confirms it.
-it("keeps unverified publication requirements neutral", async () => {
-  const { createElement } = await import("react");
-  const { renderToStaticMarkup } = await import("react-dom/server");
-  const { PublishStatus } = await import("./PublishStatus");
+it("keeps unverified publication requirements neutral", () => {
   const html = renderToStaticMarkup(
     createElement(PublishStatus, {
       state: "checking",

@@ -7,7 +7,8 @@ import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { Field } from "../../shared/ui/Field";
 import { Select } from "../../shared/ui/Select";
-import { createWorkspaceClient, isId, isRecord, projectReceipt } from "./workspace-api";
+import { createWorkspaceClient, isId, projectReceipt } from "./workspace-api";
+import { isRecord } from "../../shared/project/validation-helpers";
 
 import { createOperationKey, readCreateOperation, sendCreateOperation } from "./create-operation";
 
@@ -81,10 +82,14 @@ export function ProjectCreation({
             .then((value) => {
               if (!Array.isArray(value)) throw new Error("Invalid catalogue");
               return value
-                .filter((row: unknown) => isRecord(row) && row.kind === "environment")
+                .filter(
+                  (row: unknown) => isRecord(row) && "kind" in row && row.kind === "environment",
+                )
                 .map((row: unknown) => {
                   if (
                     !isRecord(row) ||
+                    !("id" in row) ||
+                    !("name" in row) ||
                     !isId(row.id) ||
                     typeof row.name !== "string" ||
                     !row.name.trim()

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ProjectHotspot } from "../../shared/project/project-types";
 import { createInteractionHandler, type Interaction } from "./interactionHandler";
+import { createActionRunner } from "./actionHandler";
 import { DEFAULT_ELAPSED_SECONDS } from "./triggerHandler";
 
 const hotspots: readonly ProjectHotspot[] = [
@@ -42,18 +43,24 @@ describe("interaction handler", () => {
   });
 
   it("continues after an action throws", () => {
-    const runAction = vi.fn().mockImplementationOnce(() => {
-      throw new Error("action failed");
-    });
+    const moved = vi.fn();
+    const runner = createActionRunner({ goToScene: () => false, goToViewpoint: moved });
+    expect(() => runner.run(sceneStartInteraction.do)).toThrow(ReferenceError);
     const handler = createInteractionHandler(
-      [sceneStartInteraction, sceneStartInteraction],
+      [
+        sceneStartInteraction,
+        {
+          when: sceneStartInteraction.when,
+          do: { type: "move-to-viewpoint", viewpointId: "next" },
+        },
+      ],
       hotspots,
-      recorder(runAction),
+      runner,
     );
 
     handler.sceneStarted();
 
-    expect(runAction).toHaveBeenCalledTimes(2);
+    expect(moved).toHaveBeenCalledExactlyOnceWith("next");
   });
 
   it("runs only the click interactions for the clicked object", () => {

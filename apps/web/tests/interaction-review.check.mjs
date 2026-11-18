@@ -279,11 +279,6 @@ try {
   console.log("PASS: exact 5 MiB v2 server project opens and recovers an account-scoped edit");
 
   const context = await browser.newContext();
-  // Exercise the real scene loop at roughly four frames per second.
-  await context.addInitScript(() => {
-    const request = window.requestAnimationFrame.bind(window);
-    window.requestAnimationFrame = (callback) => setTimeout(() => request(callback), 250);
-  });
   const page = await context.newPage();
   const clockServer = await serveProject(page, url);
   await page.goto(clockServer.url);
@@ -292,41 +287,111 @@ try {
   await page.getByRole("button", { name: "Interaction", exact: true }).click();
   await page.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
   await page.getByLabel("Interaction 1 when", { exact: true }).selectOption("time-elapsed");
-  await page.getByLabel("Interaction 1 after", { exact: true }).selectOption("2");
-  const started = Date.now();
-  const fired = page.waitForEvent("dialog", { timeout: 3500 });
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  const ruleMs = 2000;
+  await page.getByLabel("Interaction 1 after", { exact: true }).selectOption(String(ruleMs / 1000));
+  const previewButton = page.getByRole("button", { name: "Preview", exact: true });
+  await page.evaluate(() => {
+    const frames = { active: true, gaps: [], startedAt: 0 };
+    window.slowFrames = frames;
+    let previous = performance.now();
+    function occupyFrame(now) {
+      if (!frames.active) return;
+      frames.gaps.push(now - previous);
+      previous = now;
+      const end = performance.now() + 230;
+      while (performance.now() < end) {}
+      requestAnimationFrame(occupyFrame);
+    }
+    const ready = new MutationObserver(() => {
+      if (
+        Array.from(document.querySelectorAll('[role="status"]')).some(
+          (status) => status.textContent.trim() === "Exhibition ready",
+        )
+      ) {
+        ready.disconnect();
+        frames.startedAt = Date.now();
+        previous = performance.now();
+        requestAnimationFrame(occupyFrame);
+      }
+    });
+    ready.observe(document.body, { childList: true, subtree: true, characterData: true });
+  });
+  const fired = page.waitForEvent("dialog", { timeout: 6000 });
+  await previewButton.click();
   const dialog = await fired;
-  const elapsed = Date.now() - started;
+  const firedAt = Date.now();
   assert.equal(dialog.message(), "hi");
   await dialog.accept();
-  assert.ok(elapsed >= 1800 && elapsed < 3500, `Two-second rule fired after ${elapsed} ms`);
+  const frames = await page.evaluate(() => {
+    const state = window.slowFrames;
+    state.active = false;
+    return { startedAt: state.startedAt, slow: state.gaps.filter((gap) => gap >= 200).length };
+  });
+  const elapsed = firedAt - frames.startedAt;
+  const longFrames = frames.slow;
+  assert.ok(longFrames >= 3, `Expected several slow frames, observed ${longFrames}`);
+  assert.ok(
+    elapsed >= ruleMs - 200 && elapsed < ruleMs + 1500,
+    `Two-second rule fired after ${elapsed} ms`,
+  );
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
-  const hiddenAlerts = [];
-  page.on("dialog", async (dialog) => {
-    hiddenAlerts.push(Date.now());
-    await dialog.accept();
-  });
   await page.getByRole("button", { name: "Preview", exact: true }).click();
-  await new Promise((resolve) => setTimeout(resolve, 400));
-  await page.evaluate(() => {
+  await page.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
+  const alert = page.waitForEvent("dialog", { timeout: ruleMs * 6 }).then(async (dialog) => {
+    const at = Date.now();
+    const message = dialog.message();
+    await dialog.accept();
+    return { at, message };
+  });
+  const startedAt = await page.evaluate(async (visibleMs) => {
+    const start = Date.now();
+    const deadline = performance.now() + visibleMs;
+    await new Promise((resolve) => {
+      function frame(now) {
+        if (now >= deadline) resolve();
+        else requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    });
+    return start;
+  }, ruleMs / 5);
+  const hiddenAt = await page.evaluate(() => {
     Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+    const at = Date.now();
     document.dispatchEvent(new Event("visibilitychange"));
+    return at;
   });
-  await new Promise((resolve) => setTimeout(resolve, 2500));
-  assert.equal(hiddenAlerts.length, 0, "Hidden time must not advance the rule");
-  const resumed = Date.now();
-  await page.evaluate(() => {
+  const deadline = AbortSignal.timeout(ruleMs + 500);
+  const noDialog = new Promise((resolve) =>
+    deadline.addEventListener("abort", () => resolve(null), { once: true }),
+  );
+  assert.equal(
+    await Promise.race([alert, noDialog]),
+    null,
+    "Hidden time must not advance the rule",
+  );
+  const resumedAt = await page.evaluate(() => {
     Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    const at = Date.now();
     document.dispatchEvent(new Event("visibilitychange"));
+    return at;
   });
-  while (!hiddenAlerts.length && Date.now() - resumed < 2500)
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  assert.equal(hiddenAlerts.length, 1);
-  assert.ok(hiddenAlerts[0] - resumed >= 1300, "Visible time remaining is preserved");
+  const resumedAlert = await alert;
+  assert.equal(resumedAlert.message, "hi");
+  assert.ok(resumedAt - hiddenAt >= ruleMs, "The hidden interval must cross the rule deadline");
+  const afterResume = resumedAlert.at - resumedAt;
+  const activeTime = hiddenAt - startedAt + afterResume;
+  assert.ok(
+    afterResume >= 1300 && afterResume < ruleMs + 500,
+    `Rule fired ${afterResume} ms after resuming`,
+  );
+  assert.ok(
+    activeTime >= ruleMs - 150 && activeTime < ruleMs + 800,
+    `Rule fired after ${activeTime} ms of visible time`,
+  );
   await context.close();
   console.log("PASS: real scene clock excludes simulated hidden intervals and resumes correctly");
-  console.log(`PASS: actual scene loop at 250-ms frames fired after ${elapsed} ms`);
+  console.log(`PASS: actual scene loop fired after ${elapsed} ms across ${longFrames} slow frames`);
 } finally {
   await browser.close();
 }

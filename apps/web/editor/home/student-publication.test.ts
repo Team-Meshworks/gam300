@@ -1,4 +1,5 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
+import { serveHttp } from "../../tests/http-fixture";
 import { readStudentPublication } from "./student-publication";
 
 const project = "11111111-1111-4111-8111-111111111111";
@@ -6,9 +7,9 @@ const publication = "22222222-2222-4222-8222-222222222222";
 const actor = "33333333-3333-4333-8333-333333333333";
 
 it("returns the current authorised link and keeps the request bound to the student", async () => {
-  const fetcher = vi.fn(async (input: RequestInfo | URL) =>
+  const { fetch: fetcher, requests } = await serveHttp(({ url }) =>
     Response.json(
-      String(input).includes("/auth/session")
+      new URL(url).pathname === "/api/v1/auth/session"
         ? { userId: actor, mustChangePassword: false }
         : {
             items: [
@@ -24,16 +25,17 @@ it("returns the current authorised link and keeps the request bound to the stude
   );
   const result = await readStudentPublication(project, actor, fetcher);
   expect(result?.visitorUrl).toBe(`https://spatia.example/p/${publication}`);
-  expect(fetcher).toHaveBeenCalledWith(
-    `/api/v1/projects/${project}/publication-links`,
-    expect.objectContaining({ headers: { "X-Spatia-Account": actor }, credentials: "same-origin" }),
+  const sent = requests.find(
+    ({ url }) => new URL(url).pathname === `/api/v1/projects/${project}/publication-links`,
   );
+  expect(sent?.headers.get("X-Spatia-Account")).toBe(actor);
+  expect(sent?.credentials).toBe("same-origin");
 });
 
 it("does not display a link when the account changes or the response is unsafe", async () => {
-  const fetcher = vi.fn(async (input: RequestInfo | URL) =>
+  const { fetch: fetcher } = await serveHttp(({ url }) =>
     Response.json(
-      String(input).includes("/auth/session")
+      new URL(url).pathname === "/api/v1/auth/session"
         ? { userId: "44444444-4444-4444-8444-444444444444", mustChangePassword: false }
         : {
             items: [

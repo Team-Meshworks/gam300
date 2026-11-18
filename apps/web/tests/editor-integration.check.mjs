@@ -42,32 +42,40 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("dialog", (dialog) => dialog.accept());
-  await page.addInitScript(() => {
-    window.auditPickers = 0;
-    window.showSaveFilePicker = async () => {
-      window.auditPickers++;
-      throw new DOMException("Cancelled", "AbortError");
-    };
-    // Hold the first real backup's completion so shortcut coverage cannot miss it.
-    const put = IDBObjectStore.prototype.put;
-    IDBObjectStore.prototype.put = function (...args) {
-      const request = put.apply(this, args);
-      if (this.name === "session") {
-        IDBObjectStore.prototype.put = put;
-        const transaction = this.transaction;
-        const complete = transaction.oncomplete;
-        transaction.oncomplete = (event) => {
-          window.finishBackup = () => complete.call(transaction, event);
-        };
-      }
-      return request;
-    };
-  });
+  const chooser = await page.context().newCDPSession(page);
+  await chooser.send("Page.enable");
+  await chooser.send("Page.setInterceptFileChooserDialog", { enabled: true, cancel: true });
+  const auditPickers = [];
+  chooser.on("Page.fileChooserOpened", (event) => auditPickers.push(event));
   const project = await serveProject(page, url);
   await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await page.evaluate(async () => {
+    const { IndexedDBDraftDatabase, SESSION_STORE_NAME } = await import("/persistence/draft-db.ts");
+    const database = await new IndexedDBDraftDatabase().getIndexedDB();
+    const transaction = database.transaction(SESSION_STORE_NAME, "readwrite");
+    const session = transaction.objectStore(SESSION_STORE_NAME);
+    let released = false;
+    const alive = Promise.withResolvers();
+    const complete = new Promise((resolve) =>
+      transaction.addEventListener("complete", resolve, { once: true }),
+    );
+    function hold() {
+      const request = session.get("audit-transaction-lock");
+      request.addEventListener("success", () => {
+        alive.resolve();
+        if (!released) hold();
+      });
+    }
+    hold();
+    window.finishBackup = async () => {
+      released = true;
+      await complete;
+      database.close();
+    };
+    await alive.promise;
+  });
   await addAsset(page, "Starter room");
-  await page.waitForFunction(() => typeof window.finishBackup === "function");
   await addAsset(page, "Sample crate");
   const position = await page.getByLabel("Selected position").textContent();
   assert.equal(
@@ -85,7 +93,7 @@ try {
     "Delete",
   ])
     await page.keyboard.press(key);
-  assert.equal(await page.evaluate(() => window.auditPickers), 0, "Navigation cannot open Save");
+  assert.equal(auditPickers.length, 0, "Navigation cannot open Save");
   assert.equal(await page.locator(".object-row").count(), 0, "Preview removes editing controls");
   // Preview takes the whole bottom bar away, so got nothing left to click
   assert.equal(await page.locator(".bottom-dock").count(), 0, "Preview hides the asset library");
@@ -122,6 +130,20 @@ try {
     if (!scene) await new Promise((resolve) => setTimeout(resolve, 50));
   }
   assert.ok(scene, "Recovery history did not reach the expected edit");
+  const saveRequested = Promise.withResolvers();
+  const allowSave = Promise.withResolvers();
+  const projectId = new URL(project.url).searchParams.get("projectId");
+  await page.route(`**/api/v1/projects/${projectId}`, async (route) => {
+    if (route.request().method() === "PUT") {
+      saveRequested.resolve();
+      await allowSave.promise;
+    }
+    await route.fallback();
+  });
+  await page.locator(".object-row").first().click();
+  await page.keyboard.press("Control+d");
+  await saveRequested.promise;
+  await page.keyboard.press("Control+z");
   // A deferred wheel commit must not edit the document behind a project decision
   await page.locator(".object-row").first().click();
   const box = await page.locator("canvas").boundingBox();
@@ -160,6 +182,7 @@ try {
   await page.waitForTimeout(300);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "detached" });
+  allowSave.resolve();
   assert.equal(
     await page.locator(".object-row").count(),
     1,
@@ -177,6 +200,9 @@ try {
     }),
   );
   await renderer.goto(new URL("audit-harness.html", url).href);
+  await renderer.exposeFunction("acquireAuditLock", () =>
+    renderer.locator("canvas").click({ position: { x: 50, y: 50 } }),
+  );
   const fixture = JSON.parse(
     readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
   );
@@ -187,12 +213,11 @@ try {
     const { initScene } = await import("/graphics/scene.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const host = document.getElementById("host");
-    const originalAdd = THREE.Object3D.prototype.add;
     let scene;
-    THREE.Object3D.prototype.add = function (...objects) {
-      if (this.isScene) scene = this;
-      return originalAdd.apply(this, objects);
+    const observeScene = ({ target }) => {
+      scene = target;
     };
+    THREE.Scene.prototype.addEventListener("childadded", observeScene);
     const { promise: ready, resolve: finish } = Promise.withResolvers();
     const commits = [];
     const clicks = [];
@@ -213,7 +238,7 @@ try {
         },
       );
     } finally {
-      THREE.Object3D.prototype.add = originalAdd;
+      THREE.Scene.prototype.removeEventListener("childadded", observeScene);
     }
     await ready;
     try {
@@ -349,22 +374,15 @@ try {
       const visibleOnReturn = gizmo.visible;
       await new Promise((resolve) => setTimeout(resolve, 300));
       const unexpectedCommits = commits.length;
-      const stoppedDistances = [];
-      for (const event of ["blur", "visibilitychange"]) {
-        manager.setMode("visitor");
-        window.dispatchEvent(new KeyboardEvent("keydown", { key: "w", code: "KeyW" }));
-        manager.update(0.1);
-        if (event === "blur") window.dispatchEvent(new Event("blur"));
-        else {
-          Object.defineProperty(document, "hidden", { configurable: true, value: true });
-          document.dispatchEvent(new Event("visibilitychange"));
-          Reflect.deleteProperty(document, "hidden");
-        }
-        const stopped = camera.position.clone();
-        for (let i = 0; i < 10; i++) manager.update(0.1);
-        stoppedDistances.push(camera.position.distanceTo(stopped));
-        manager.setMode("editor");
-      }
+      manager.initializeView("third");
+      manager.setMode("visitor");
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "w", code: "KeyW" }));
+      manager.update(0.1);
+      window.dispatchEvent(new Event("blur"));
+      const stopped = camera.position.clone();
+      for (let i = 0; i < 10; i++) manager.update(0.1);
+      const stoppedOnBlur = camera.position.distanceTo(stopped);
+      manager.setMode("editor");
 
       // Preview clicks with a locked mouse aim at the crosshair, not where the lock began
       manager.setMode("visitor");
@@ -396,21 +414,22 @@ try {
             ...init,
           }),
         );
-      const setLocked = (locked) => {
-        if (locked)
-          Object.defineProperty(document, "pointerLockElement", {
-            configurable: true,
-            get: () => canvas,
-          });
-        else Reflect.deleteProperty(document, "pointerLockElement");
-        document.dispatchEvent(new Event("pointerlockchange"));
-      };
       clicks.length = 0;
       // Control: the corner itself is off the exhibit
       press("pointerdown", { pointerType: "touch" });
       press("pointerup", { pointerType: "touch" });
       const cornerClicks = clicks.length;
-      setLocked(true);
+      const acquired = new Promise((resolve, reject) => {
+        const signal = AbortSignal.timeout(5000);
+        document.addEventListener("pointerlockchange", resolve, { once: true, signal });
+        signal.addEventListener("abort", () => reject(new Error("Pointer lock was not acquired")), {
+          once: true,
+        });
+      });
+      await window.acquireAuditLock();
+      await acquired;
+      if (document.pointerLockElement !== canvas) throw new Error("Expected native pointer lock");
+      clicks.length = 0;
       press("pointerdown", { pointerType: "mouse" });
       press("pointerup", { pointerType: "mouse" });
       const lockedClicks = [...clicks];
@@ -420,7 +439,7 @@ try {
       press("pointermove", { pointerType: "mouse", movementX: 30, buttons: 1 });
       press("pointerup", { pointerType: "mouse" });
       const draggedClicks = clicks.length;
-      setLocked(false);
+      document.exitPointerLock();
       manager.setMode("editor");
       handle.update([object], object.id);
       return {
@@ -443,7 +462,7 @@ try {
         visibleOnReturn,
         unexpectedCommits,
         previewScale,
-        stoppedDistances,
+        stoppedOnBlur,
       };
     } finally {
       handle.dispose();
@@ -483,7 +502,29 @@ try {
   assert.equal(measured.visibleOnReturn, true);
   assert.equal(measured.unexpectedCommits, 0, "Entering Visitor cancels a pending wheel edit");
   assert.ok(measured.previewScale > 1, "The cancellation check started a real scale preview");
-  assert.deepEqual(measured.stoppedDistances, [0, 0]);
+  assert.equal(measured.stoppedOnBlur, 0, "Blur clears held movement");
+  const hidden = await renderer.evaluate(async () => {
+    const { FpsControls, EYE_HEIGHT } = await import("/controls/fpsControls.ts");
+    const { PerspectiveCamera } = await import("/@id/three");
+    const detached = document.implementation.createHTMLDocument();
+    const camera = new PerspectiveCamera();
+    camera.position.y = EYE_HEIGHT;
+    const controls = new FpsControls(camera, detached.createElement("canvas"));
+    controls.setFlightAllowed(false);
+    controls.engage();
+    try {
+      controls.mobileControls.setMove(0, 1);
+      controls.update(0.1);
+      const moved = camera.position.z < -0.1;
+      const stopped = camera.position.clone();
+      detached.dispatchEvent(new Event("visibilitychange"));
+      for (let i = 0; i < 10; i++) controls.update(0.1);
+      return { hidden: detached.hidden, moved, drift: camera.position.distanceTo(stopped) };
+    } finally {
+      controls.dispose();
+    }
+  });
+  assert.deepEqual(hidden, { hidden: true, moved: true, drift: 0 });
   assert.equal(await renderer.locator("canvas").count(), 0, "Disposal removes the renderer");
   assert.deepEqual(errors, []);
   await renderer.close();
@@ -511,12 +552,11 @@ try {
     const { initScene } = await import("/graphics/scene.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const host = document.getElementById("host");
-    const originalAdd = THREE.Object3D.prototype.add;
     let scene;
-    THREE.Object3D.prototype.add = function (...objects) {
-      if (this.isScene) scene = this;
-      return originalAdd.apply(this, objects);
+    const observeScene = ({ target }) => {
+      scene = target;
     };
+    THREE.Scene.prototype.addEventListener("childadded", observeScene);
     const { promise: ready, resolve: finish } = Promise.withResolvers();
     const object = {
       ...fixture.scenes[0].objects[0],
@@ -547,7 +587,7 @@ try {
         },
       );
     } finally {
-      THREE.Object3D.prototype.add = originalAdd;
+      THREE.Scene.prototype.removeEventListener("childadded", observeScene);
     }
     await ready;
     await handle.prepareAsset(object.assetId);

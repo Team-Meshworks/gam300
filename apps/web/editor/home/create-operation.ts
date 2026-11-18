@@ -1,14 +1,10 @@
-import {
-  createWorkspaceClient,
-  isId,
-  isRecord,
-  projectReceipt,
-  type WriteResult,
-} from "./workspace-api";
+import { createWorkspaceClient, isId, projectReceipt, type WriteResult } from "./workspace-api";
+import { isRecord, readField } from "../../shared/project/validation-helpers";
 import { createAccountClient } from "../accounts/account-client";
 
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-export type CreationPurpose = "project" | "class" | "duplicate" | "import" | "assignment-source";
+const creationPurposes = ["project", "class", "duplicate", "import", "assignment-source"] as const;
+export type CreationPurpose = (typeof creationPurposes)[number];
 export type CreationHead = {
   operationId: string | null;
   state: "ready" | "unacknowledged";
@@ -19,7 +15,12 @@ type Write = (actorId: string, path: string, method: "POST", body: object) => Pr
 export type CreateOperation = {
   actorId: string;
   path: string;
-  body: Record<string, unknown>;
+  body: {
+    operationId: string;
+    name?: unknown;
+    orgId?: unknown;
+    creationGuard?: { purpose: CreationPurpose; previousOperationId: string | null };
+  };
   payloadDigest?: string;
   receipt?: unknown;
 };
@@ -31,20 +32,26 @@ export const createOperationKey = (actorId: string, purpose: string) =>
 export function creationHead(value: unknown, purpose: CreationPurpose): CreationHead {
   if (
     !isRecord(value) ||
+    !("operationId" in value) ||
+    !("state" in value) ||
+    !("receipt" in value) ||
     !(value.operationId === null || isId(value.operationId)) ||
-    !["ready", "unacknowledged"].includes(String(value.state)) ||
+    (value.state !== "ready" && value.state !== "unacknowledged") ||
     (value.state === "ready" ? value.receipt !== null : !isId(value.operationId)) ||
     (value.receipt !== null && !creationReceipt(value.receipt, purpose))
   )
     throw new Error(
       "Creation recovery is incompatible or unavailable. Your entries and saved request are unchanged. Update the app and server together before creating.",
     );
-  return value as CreationHead;
+  return { operationId: value.operationId, state: value.state, receipt: value.receipt };
 }
 
 export function creationReceipt(value: unknown, purpose: CreationPurpose): boolean {
   return purpose === "class"
     ? isRecord(value) &&
+        "id" in value &&
+        "organizationId" in value &&
+        "name" in value &&
         isId(value.id) &&
         isId(value.organizationId) &&
         typeof value.name === "string"
@@ -54,13 +61,14 @@ export function creationReceipt(value: unknown, purpose: CreationPurpose): boole
 export async function loadCreationHead(
   actorId: string,
   purpose: CreationPurpose,
+  request: typeof fetch = fetch,
 ): Promise<CreationHead> {
-  const accounts = createAccountClient();
+  const accounts = createAccountClient(request);
   if ((await accounts.getSession())?.userId !== actorId)
     throw new Error("The account changed. Reload before continuing.");
   let value: unknown;
   try {
-    value = await createWorkspaceClient().read(
+    value = await createWorkspaceClient(request).read(
       "/api/v1/creation-operations/" + purpose,
       undefined,
       actorId,
@@ -123,9 +131,36 @@ export function duplicateCreateReceipt(value: unknown, operation: CreateOperatio
   return (
     isId(sourceId) &&
     projectReceipt(value) &&
-    isRecord(value) &&
-    isId(value.projectId) &&
     value.projectId.toLowerCase() !== sourceId.toLowerCase()
+  );
+}
+
+function isCreationPurpose(value: unknown): value is CreationPurpose {
+  return creationPurposes.some((purpose) => purpose === value);
+}
+
+function validCreateOperation(value: unknown, actorId: string): value is CreateOperation {
+  if (!isRecord(value)) return false;
+  const body = readField(value, "body");
+  const path = readField(value, "path");
+  const payloadDigest = readField(value, "payloadDigest");
+  if (
+    readField(value, "actorId") !== actorId ||
+    typeof path !== "string" ||
+    !/^\/api\/v1\/(projects(?:\/[0-9a-f-]{36}\/duplicate)?|classes)$/.test(path) ||
+    !isRecord(body) ||
+    !isId(readField(body, "operationId")) ||
+    (payloadDigest !== undefined &&
+      (typeof payloadDigest !== "string" || !/^[a-f0-9]{64}$/.test(payloadDigest)))
+  )
+    return false;
+
+  const guard = readField(body, "creationGuard");
+  if (guard === undefined) return true;
+  if (!isRecord(guard)) return false;
+  const predecessor = readField(guard, "previousOperationId");
+  return (
+    isCreationPurpose(readField(guard, "purpose")) && (predecessor === null || isId(predecessor))
   );
 }
 
@@ -137,29 +172,11 @@ export function readCreateOperation(
   const raw = storage.getItem(key);
   if (raw === null) return null;
   const value: unknown = JSON.parse(raw);
-  if (
-    !isRecord(value) ||
-    value.actorId !== actorId ||
-    typeof value.path !== "string" ||
-    !/^\/api\/v1\/(projects(?:\/[0-9a-f-]{36}\/duplicate)?|classes)$/.test(value.path) ||
-    !isRecord(value.body) ||
-    !isId(value.body.operationId) ||
-    (value.body.creationGuard !== undefined &&
-      (!isRecord(value.body.creationGuard) ||
-        !["project", "class", "duplicate", "import", "assignment-source"].includes(
-          String(value.body.creationGuard.purpose),
-        ) ||
-        !(
-          value.body.creationGuard.previousOperationId === null ||
-          isId(value.body.creationGuard.previousOperationId)
-        ))) ||
-    (value.payloadDigest !== undefined &&
-      (typeof value.payloadDigest !== "string" || !/^[a-f0-9]{64}$/.test(value.payloadDigest)))
-  )
+  if (!validCreateOperation(value, actorId))
     throw new Error(
       "The saved creation request could not be verified. Check your projects or classes before continuing.",
     );
-  return value as CreateOperation;
+  return value;
 }
 
 export async function sendCreateOperation(
@@ -168,17 +185,17 @@ export async function sendCreateOperation(
   actorId: string,
   write: Write,
   verify: (value: unknown) => boolean,
-  input?: { path: string; body: Record<string, unknown>; retainBody?: false; retry?: true },
+  input?: { path: string; body: object; retainBody?: false; retry?: true },
   readHead: ReadCreationHead = loadCreationHead,
 ): Promise<WriteResult> {
   let dispatched = false;
   try {
     if (!navigator.locks) throw new Error("This browser cannot safely coordinate creation.");
     return await navigator.locks.request(key, async () => {
-      const purpose = key.slice(createOperationKey(actorId, "").length) as CreationPurpose;
+      const purpose = key.slice(createOperationKey(actorId, "").length);
       if (!key.startsWith(createOperationKey(actorId, "")))
         throw new Error("The account scope could not be verified.");
-      if (!["project", "class", "duplicate", "import", "assignment-source"].includes(purpose))
+      if (!isCreationPurpose(purpose))
         throw new Error("The creation purpose could not be verified.");
       const head = await readHead(actorId, purpose);
       const payloadDigest =

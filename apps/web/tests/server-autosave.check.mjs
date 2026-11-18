@@ -11,9 +11,6 @@ const alice = "00000000-0000-4000-8000-000000000001";
 const bob = "00000000-0000-4000-8000-000000000002";
 const browser = await launchBrowser({ target: base, args: ["--enable-unsafe-swiftshader"] });
 const context = await browser.newContext();
-await context.addInitScript(() => {
-  Object.defineProperty(AbortSignal, "any", { configurable: true, value: undefined });
-});
 let account = alice,
   document = structuredClone(fixture),
   revision = 7,
@@ -117,6 +114,42 @@ async function saved() {
   );
 }
 
+async function invalidateRecoveryRevision() {
+  const key = ["account", alice, fixture.projectId];
+  const update = (restored) =>
+    page.evaluate(
+      async ({ key, restored }) => {
+        const database = await new Promise((resolve, reject) => {
+          const request = indexedDB.open("vthere-local-drafts", 2);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        try {
+          return await new Promise((resolve, reject) => {
+            const transaction = database.transaction("session", "readwrite");
+            const store = transaction.objectStore("session");
+            const request = store.get(key);
+            transaction.oncomplete = () => resolve(request.result);
+            transaction.onabort = () => reject(transaction.error);
+            request.onsuccess = () => {
+              if (!request.result) {
+                reject(new Error("Expected an existing recovery record"));
+                transaction.abort();
+                return;
+              }
+              store.put(restored ?? { ...request.result, revision: "invalid" }, key);
+            };
+          });
+        } finally {
+          database.close();
+        }
+      },
+      { key, restored },
+    );
+  const original = await update(null);
+  return () => update(original);
+}
+
 async function chooseRecovery() {
   const recovery = page.getByRole("button", { name: "Keep Recovery and Exit", exact: true });
   if (!(await recovery.isVisible())) {
@@ -165,7 +198,6 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
   ];
   let currentCapability = capability,
     serverRevision = 1;
-  const captured = [];
   const isolated = await browser.newContext();
   try {
     await isolated.route("**/api/v1/**", async (route) => {
@@ -209,7 +241,6 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
             permissions: { canEdit: true },
           });
         const body = request.postDataJSON();
-        captured.push(body);
         serverDocument = body.document;
         return json(200, {
           projectId: fixture.projectId,
@@ -322,13 +353,17 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
     const name = `Catalogue capability ${String(capability)}`;
     await scenario.getByRole("button", { name: "Scenes", exact: true }).click();
     await scenario.getByLabel("Scene name", { exact: true }).fill(name);
+    const savedCapability = scenario.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        response.ok() &&
+        request.method() === "PUT" &&
+        new URL(request.url()).pathname === "/api/v1/projects/" + fixture.projectId &&
+        request.postDataJSON().document.scenes[0].name === name
+      );
+    });
     await scenario.getByRole("button", { name: "Rename scene", exact: true }).click();
-    const deadline = Date.now() + 15000;
-    while (!captured.some((entry) => entry.document.scenes[0].name === name)) {
-      if (Date.now() >= deadline) throw new Error("The approved-room project did not save");
-      await scenario.waitForTimeout(100);
-    }
-    const written = captured.find((entry) => entry.document.scenes[0].name === name).document;
+    const written = (await savedCapability).request().postDataJSON().document;
     assert.equal(written.scenes[0].environmentAssetId, approvedId);
     assert.deepEqual(
       written.scenes[0].objects.map((object) => object.assetId),
@@ -778,15 +813,7 @@ try {
   assert.equal(document.scenes[0].name, "Draft retained after sign-out");
 
   // A failed local checkpoint blocks both saving and recovery-based departure.
-  await page.evaluate(() => {
-    const put = IDBObjectStore.prototype.put;
-    window.failRecovery = true;
-    IDBObjectStore.prototype.put = function (...args) {
-      if (window.failRecovery && this.name === "session")
-        throw new DOMException("Full", "QuotaExceededError");
-      return put.apply(this, args);
-    };
-  });
+  const restoreForRetry = await invalidateRecoveryRevision();
   const beforeStorageFailure = writes.length;
   await edit("Storage failure edit");
   await page.locator('.save-state[data-state="failed"]').waitFor();
@@ -796,17 +823,13 @@ try {
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
   await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).click();
-  await page.evaluate(() => {
-    window.failRecovery = false;
-  });
+  await restoreForRetry();
   await projectOption("Retry Save");
   await saved();
   assert.equal(document.scenes[0].name, "Storage failure edit");
 
   // Expiry plus a failed final backup must retain the only live draft behind its owner.
-  await page.evaluate(() => {
-    window.failRecovery = true;
-  });
+  const restoreAfterExpiry = await invalidateRecoveryRevision();
   await edit("Only live draft after expiry");
   await page.locator('.save-state[data-state="failed"]').waitFor();
   account = null;
@@ -827,9 +850,7 @@ try {
   assert.equal(page.url(), url, "A failed recovery write must keep the only draft in this tab");
   assert.equal(await page.locator(".editor-shell").count(), 0);
   account = alice;
-  await page.evaluate(() => {
-    window.failRecovery = false;
-  });
+  await restoreAfterExpiry();
   await page.getByRole("button", { name: "Retry opening" }).click();
   await ready();
   assert.equal(

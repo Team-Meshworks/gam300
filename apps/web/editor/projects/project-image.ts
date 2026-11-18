@@ -7,12 +7,11 @@ export type EncodedProjectImage = {
 
 export function validProjectImage(value: unknown): value is ProjectImage | null | undefined {
   if (value == null) return true;
-  if (typeof value !== "object") return false;
-  const image = value as Record<string, unknown>;
+  if (typeof value !== "object" || !("type" in value) || !("url" in value)) return false;
   return (
-    (image.type === "cover" || image.type === "panorama") &&
-    typeof image.url === "string" &&
-    /^\/api\/v1\/projects\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/image$/i.test(image.url)
+    (value.type === "cover" || value.type === "panorama") &&
+    typeof value.url === "string" &&
+    /^\/api\/v1\/projects\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/image$/i.test(value.url)
   );
 }
 
