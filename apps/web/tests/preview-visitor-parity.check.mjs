@@ -166,6 +166,15 @@ async function checkStandVisibility(host, url, mode) {
   let phase = "opening the application";
   await withVisibilityPage(host, async (page) => {
     if (mode === "Preview") await page.setVisible(true);
+    await page.addInitScript(() => {
+      window.standPlaybackVisibility = [];
+      const play = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function () {
+        if (this.matches("video[data-stand-video]"))
+          window.standPlaybackVisibility.push(document.visibilityState);
+        return play.call(this);
+      };
+    });
     await page.goto(url);
     if (mode === "Preview") {
       phase = "waiting for the Preview button";
@@ -239,18 +248,23 @@ async function checkStandVisibility(host, url, mode) {
     );
     await page.setVisible(true);
     phase = "starting the stand after visibility returns";
-    await page.evaluate(
+    const playbackVisibility = await page.evaluate(
       () =>
         new Promise((resolve) => {
           const stand = document.querySelector("video[data-stand-video]");
           const playing = () => {
             if (stand.paused || stand.currentTime === 0) return;
             stand.removeEventListener("timeupdate", playing);
-            resolve();
+            resolve(window.standPlaybackVisibility);
           };
           stand.addEventListener("timeupdate", playing);
           playing();
         }),
+    );
+    assert.deepEqual(
+      [...new Set(playbackVisibility)],
+      ["visible"],
+      `${mode}: the stand only requests playback in a visible document`,
     );
     await page.evaluate(() => {
       const stand = document.querySelector("video[data-stand-video]");

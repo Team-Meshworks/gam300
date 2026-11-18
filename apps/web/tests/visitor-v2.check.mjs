@@ -199,12 +199,13 @@ if (process.argv.includes("--playback-only")) {
     assert.equal(await inspections(), 0, "Capture click does not activate");
     await page.mouse.down();
     await page.mouse.move(x + 30, y, { steps: 4 });
+    await page.mouse.move(x, y, { steps: 4 });
     await page.mouse.up();
     await page.evaluate(
       () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
     );
-    assert.equal(await inspections(), 0, "Native locked drag does not activate");
-    await page.mouse.click(x + 30, y);
+    assert.equal(await inspections(), 0, "A locked drag out and back does not activate");
+    await page.mouse.click(x, y);
     assert.equal(await inspections(), 1, "Native locked stationary click activates real geometry");
     await page.evaluate(() => {
       const canvas = document.querySelector("canvas");

@@ -65,6 +65,9 @@ export async function withVisibilityPage(page, run) {
     await send("Page.enable");
     return await run({
       evaluate,
+      addInitScript(fn) {
+        return send("Page.addScriptToEvaluateOnNewDocument", { source: `(${fn.toString()})();` });
+      },
       async goto(url) {
         await receive(
           (message) => message.method === "Page.domContentEventFired",

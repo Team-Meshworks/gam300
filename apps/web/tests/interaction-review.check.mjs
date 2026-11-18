@@ -260,6 +260,7 @@ try {
 
   const context = await browser.newContext();
   const page = await context.newPage();
+  await page.clock.install({ time: new Date("2026-01-01T00:00:00Z") });
   const clockServer = await serveProject(page, url);
   await page.goto(clockServer.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
@@ -269,109 +270,38 @@ try {
   await page.getByLabel("Interaction 1 when", { exact: true }).selectOption("time-elapsed");
   const ruleMs = 2000;
   await page.getByLabel("Interaction 1 after", { exact: true }).selectOption(String(ruleMs / 1000));
-  const previewButton = page.getByRole("button", { name: "Preview", exact: true });
-  await page.evaluate(() => {
-    const frames = { active: true, gaps: [], startedAt: 0 };
-    window.slowFrames = frames;
-    let previous = performance.now();
-    function occupyFrame(now) {
-      if (!frames.active) return;
-      frames.gaps.push(now - previous);
-      previous = now;
-      const end = performance.now() + 230;
-      while (performance.now() < end) {}
-      requestAnimationFrame(occupyFrame);
-    }
-    const ready = new MutationObserver(() => {
-      if (
-        Array.from(document.querySelectorAll('[role="status"]')).some(
-          (status) => status.textContent.trim() === "Exhibition ready",
-        )
-      ) {
-        ready.disconnect();
-        frames.startedAt = Date.now();
-        previous = performance.now();
-        requestAnimationFrame(occupyFrame);
-      }
-    });
-    ready.observe(document.body, { childList: true, subtree: true, characterData: true });
-  });
-  const fired = page.waitForEvent("dialog", { timeout: 6000 });
-  await previewButton.click();
-  const dialog = await fired;
-  const firedAt = Date.now();
-  assert.equal(dialog.message(), "hi");
-  await dialog.accept();
-  const frames = await page.evaluate(() => {
-    const state = window.slowFrames;
-    state.active = false;
-    return { startedAt: state.startedAt, slow: state.gaps.filter((gap) => gap >= 200).length };
-  });
-  const elapsed = firedAt - frames.startedAt;
-  const longFrames = frames.slow;
-  assert.ok(longFrames >= 3, `Expected several slow frames, observed ${longFrames}`);
-  assert.ok(
-    elapsed >= ruleMs - 200 && elapsed < ruleMs + 1500,
-    `Two-second rule fired after ${elapsed} ms`,
-  );
-  await page.getByRole("button", { name: "Exit preview", exact: true }).click();
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
-  await page.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
-  const alert = page.waitForEvent("dialog", { timeout: ruleMs * 6 }).then(async (dialog) => {
-    const at = Date.now();
-    const message = dialog.message();
+  await page.clock.pauseAt(new Date("2026-01-02T00:00:00Z"));
+  const messages = [];
+  page.on("dialog", async (dialog) => {
+    messages.push(dialog.message());
     await dialog.accept();
-    return { at, message };
   });
-  const startedAt = await page.evaluate(async (visibleMs) => {
-    const start = Date.now();
-    const deadline = performance.now() + visibleMs;
-    await new Promise((resolve) => {
-      function frame(now) {
-        if (now >= deadline) resolve();
-        else requestAnimationFrame(frame);
-      }
-      requestAnimationFrame(frame);
-    });
-    return start;
-  }, ruleMs / 5);
-  const hiddenAt = await page.evaluate(() => {
-    Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
-    const at = Date.now();
+  await page.getByRole("button", { name: "Preview", exact: true }).dispatchEvent("click");
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Exhibition ready" })
+    .waitFor({ state: "attached" });
+  const frameMs = 250;
+  await page.clock.fastForward(frameMs);
+  assert.deepEqual(messages, []);
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
     document.dispatchEvent(new Event("visibilitychange"));
-    return at;
   });
-  const deadline = AbortSignal.timeout(ruleMs + 500);
-  const noDialog = new Promise((resolve) =>
-    deadline.addEventListener("abort", () => resolve(null), { once: true }),
-  );
-  assert.equal(
-    await Promise.race([alert, noDialog]),
-    null,
-    "Hidden time must not advance the rule",
-  );
-  const resumedAt = await page.evaluate(() => {
-    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
-    const at = Date.now();
+  await page.clock.fastForward(ruleMs * 2);
+  assert.deepEqual(messages, [], "Four seconds hidden must not fire the two-second rule");
+  await page.evaluate(() => {
+    delete document.hidden;
     document.dispatchEvent(new Event("visibilitychange"));
-    return at;
   });
-  const resumedAlert = await alert;
-  assert.equal(resumedAlert.message, "hi");
-  assert.ok(resumedAt - hiddenAt >= ruleMs, "The hidden interval must cross the rule deadline");
-  const afterResume = resumedAlert.at - resumedAt;
-  const activeTime = hiddenAt - startedAt + afterResume;
-  assert.ok(
-    afterResume >= 1300 && afterResume < ruleMs + 500,
-    `Rule fired ${afterResume} ms after resuming`,
-  );
-  assert.ok(
-    activeTime >= ruleMs - 150 && activeTime < ruleMs + 800,
-    `Rule fired after ${activeTime} ms of visible time`,
-  );
+  for (let elapsed = 2 * frameMs; elapsed < ruleMs; elapsed += frameMs) {
+    await page.clock.fastForward(frameMs);
+    assert.deepEqual(messages, [], `The rule fired early after ${elapsed} ms`);
+  }
+  await page.clock.fastForward(frameMs);
+  assert.deepEqual(messages, ["hi"], "The rule resumes and fires after eight visible frames");
   await context.close();
-  console.log("PASS: real scene clock excludes simulated hidden intervals and resumes correctly");
-  console.log(`PASS: actual scene loop fired after ${elapsed} ms across ${longFrames} slow frames`);
+  console.log("PASS: elapsed interaction counts slow preview frames and excludes hidden time");
 } finally {
   await browser.close();
 }
