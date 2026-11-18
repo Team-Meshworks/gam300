@@ -1,5 +1,4 @@
 import { createBulkImport, ImportRejected, ImportRequestError } from "./bulk-import";
-import type { NewAccount } from "./account-csv";
 
 export interface ManagedAccount {
   userId: string;
@@ -348,33 +347,6 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
       },
     ) => account(await write("/api/v1/admin/users", "POST", { ...values, orgId })),
     bulkImport: (orgId: string) => createBulkImport(accountId ?? "", orgId, write, send),
-    createBulk: async (orgId: string, values: NewAccount[]) => {
-      const result = await write(
-        "/api/v1/admin/users/bulk",
-        "POST",
-        values.map((value) => ({ ...value, orgId })),
-        90000,
-      );
-      const unconfirmed = "Creation could not be verified. Refresh the directory before retrying.";
-      if (!Array.isArray(result) || result.length > values.length)
-        throw new DirectoryWriteUnconfirmed(unconfirmed);
-      let accounts: ManagedAccount[];
-      try {
-        accounts = result.map(account);
-      } catch (cause) {
-        throw new DirectoryWriteUnconfirmed(unconfirmed, { cause });
-      }
-      const expected = new Map(values.map((value) => [value.userName, value]));
-      if (
-        new Set(accounts.map((value) => value.userId)).size !== accounts.length ||
-        new Set(accounts.map((value) => value.userName)).size !== accounts.length ||
-        accounts.some(
-          (item) => item.orgId !== orgId || expected.get(item.userName)?.role !== item.role,
-        )
-      )
-        throw new DirectoryWriteUnconfirmed(unconfirmed);
-      return accounts;
-    },
     update: async (userId: string, values: AccountChanges) =>
       account(await write(`/api/v1/admin/users/${encodeURIComponent(userId)}`, "PATCH", values)),
     hideStudents: (orgId: string, userIds: string[]) =>

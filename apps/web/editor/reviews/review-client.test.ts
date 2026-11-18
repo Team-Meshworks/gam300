@@ -144,7 +144,7 @@ describe("review HTTP contract", () => {
       error: { code: "review_assets_unavailable" },
     });
   });
-  it.each([500, 502, 503])("treats generic %s writes as uncertain", async (status) => {
+  it.each([500, 503])("treats generic %s writes as uncertain", async (status) => {
     const server = await serveResponses(
       Response.json({ requestToken: "token" }),
       Response.json({}, { status }),

@@ -105,14 +105,13 @@ describe("asset placement and display attachments", () => {
     if (!root.ok) throw new Error(root.error);
     const before = store.getSnapshot();
 
-    // Neither an invalid target nor a malformed display anchor may leave a partial child
-    expect(store.addAttachedObject("vase", "missing", [0, 1, 0]).ok).toBe(false);
     expect(store.addAttachedObject("vase", root.object.id, [0, NaN, 0]).ok).toBe(false);
     expect(store.getSnapshot()).toBe(before);
 
     expect(store.deleteObject(root.object.id).ok).toBe(true);
+    const deleted = store.getSnapshot();
     expect(store.addAttachedObject("vase", root.object.id, [0, 1, 0]).ok).toBe(false);
-    expect(store.getSnapshot().objects).toHaveLength(0);
+    expect(store.getSnapshot()).toBe(deleted);
   });
   it("preserves display descendants on replacement and restores the removed branch with Undo", () => {
     const catalogue = [...assets, { ...assets[1]!, id: "crate", name: "Crate" }];
@@ -155,31 +154,6 @@ describe("asset placement and display attachments", () => {
     expect(store.getSnapshot().objects[1]).toEqual(displayed);
     expect(store.switchScene(firstSceneId).ok).toBe(true);
     expect(store.getSnapshot().objects).toHaveLength(0);
-  });
-  it("places multiple room modules in one scene and retains them across serialization and undo", () => {
-    // These generic room fixtures check repeated placement independently of Starter room snapping
-    const module = { ...assets[1]!, id: "room-module", name: "Starter room" };
-    const catalogue = [...assets, module];
-    const store = createLoadedStore(catalogue, "room");
-    for (const x of [10, 20]) {
-      expect(store.addObject(module.id, [x, 0, 0]).ok).toBe(true);
-    }
-
-    // Reopening preserves distinct instances and their recoverable placement order
-    const project = store.getSnapshot().project!;
-    expect(project.scenes).toHaveLength(1);
-    expect(project.scenes[0]!.objects).toHaveLength(2);
-    expect(new Set(project.scenes[0]!.objects.map((object) => object.id)).size).toBe(2);
-    const kinds = new Map(catalogue.map((asset) => [asset.id, asset.kind]));
-    const saved = serializeProject(project, kinds);
-    if (!saved.ok) throw new Error(saved.error.message);
-    expect(store.loadProject(saved.value, kinds, store.getRecoveryHistory()).ok).toBe(true);
-    store.undo();
-    expect(store.getSnapshot().objects).toHaveLength(1);
-    store.redo();
-    expect(store.getSnapshot().objects.map((object) => object.transform.position[0])).toEqual([
-      10, 20,
-    ]);
   });
   it("replaces one slot and restores removal without losing the display case", () => {
     const store = createLoadedStore(

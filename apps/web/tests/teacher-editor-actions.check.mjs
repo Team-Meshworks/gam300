@@ -53,7 +53,6 @@ submittedDocument.scenes.push(secondScene);
 submittedDocument.scenes[0].interactions = [
   { when: { type: "scene-starts" }, do: { type: "print-hi" } },
 ];
-const previewAlerts = [];
 const submittedSummary = {
   submissionId,
   revision: 0,
@@ -237,10 +236,11 @@ try {
       studentId: student,
       review: "1",
     });
-  page.on("dialog", async (dialog) => {
-    previewAlerts.push(dialog.message());
-    await dialog.accept();
+  page.on("dialog", (dialog) => dialog.accept());
+  const submittedInteraction = page.waitForEvent("dialog", {
+    predicate: (dialog) => dialog.type() === "alert" && dialog.message() === "hi",
   });
+  void submittedInteraction.catch(() => {});
   await page.goto(url);
   await page.getByRole("button", { name: "Review", exact: true }).waitFor();
   const failures = [];
@@ -281,12 +281,7 @@ try {
         submittedDocument.title,
       );
       assert.notEqual(submittedDocument.title, savedDocument.title);
-      for (let attempt = 0; attempt < 100 && !previewAlerts.includes("hi"); attempt++)
-        await page.waitForTimeout(20);
-      assert.ok(
-        previewAlerts.includes("hi"),
-        "The submitted scene-start interaction must run in educator preview",
-      );
+      await submittedInteraction;
       const submittedRoom = page
         .getByRole("navigation", { name: "Scenes", exact: true })
         .getByRole("button", { name: "Submitted second room", exact: true });

@@ -19,8 +19,10 @@ let pendingAccountCreate;
 let failedBulkDelete;
 let loseImportReceipt = false;
 const importReceipts = new Map();
+const bulkImportsPath = `/api/v1/admin/organizations/${orgId}/bulk-imports`;
 const isBulkCreate = (path) =>
-  path.endsWith("/users/bulk") || /\/bulk-imports\/[\da-f-]+$/.test(path);
+  path.startsWith(`${bulkImportsPath}/`) &&
+  /^[\da-f-]{36}$/.test(path.slice(bulkImportsPath.length + 1));
 let organizationActive = true;
 let organizationName = "Ridgeview Secondary School";
 let emptyProjects = false;
@@ -61,7 +63,7 @@ try {
         },
       });
     }
-    if (path === `/api/v1/admin/organizations/${orgId}/bulk-imports` && req.method() === "GET") {
+    if (path === bulkImportsPath && req.method() === "GET") {
       assert.equal(req.headers()["x-spatia-account"], userId);
       if (!organizationActive)
         return route.fulfill({ status: 404, json: { code: "bulk_import_not_found" } });
@@ -122,7 +124,7 @@ try {
           if (body.userIds.includes(rows[index].userId)) rows.splice(index, 1);
         return route.fulfill({ status: 204 });
       }
-      if (path.includes("/bulk-imports/") && req.method() === "POST") {
+      if (path.startsWith(`${bulkImportsPath}/`) && req.method() === "POST") {
         assert.equal(req.headers()["x-spatia-account"], userId);
         const [operationId, action] = path.split("/").slice(-2);
         const receipt = importReceipts.get(operationId);
@@ -135,6 +137,8 @@ try {
         return route.fulfill({ status: 204 });
       }
       if (isBulkCreate(path)) {
+        assert.equal(req.method(), "PUT");
+        assert.equal(req.headers()["x-spatia-account"], userId);
         const created = body
           .filter((value) => !rows.some((row) => row.userName === value.userName))
           .map((value) => ({
@@ -163,21 +167,18 @@ try {
           expiresAt: new Date(Date.now() + 86400000).toISOString(),
           acknowledged: false,
         };
-        if (req.method() === "PUT") {
-          assert.equal(req.headers()["x-spatia-account"], userId);
-          importReceipts.set(operationId, receipt);
-        }
+        importReceipts.set(operationId, receipt);
         if (loseImportReceipt) {
           loseImportReceipt = false;
           return route.abort("failed");
         }
         return route.fulfill({
           status: created.length ? 201 : 200,
-          json: req.method() === "PUT" ? receipt : created,
+          json: receipt,
         });
       }
-      if (req.method() === "POST") {
-        if (path === "/api/v1/admin/users") await pendingAccountCreate?.promise;
+      if (req.method() === "POST" && path === "/api/v1/admin/users") {
+        await pendingAccountCreate?.promise;
         const account = {
           userId: randomUUID(),
           orgId,
@@ -671,8 +672,7 @@ try {
   const download = page.waitForEvent("download");
   await csvDialog.getByRole("button", { name: "Save changes", exact: true }).click();
   assert.equal((await download).suggestedFilename(), "account-credentials.csv");
-  if (await csvDialog.isVisible())
-    await csvDialog.getByRole("button", { name: "Acknowledge credential handoff" }).click();
+  await csvDialog.getByRole("button", { name: "Acknowledge credential handoff" }).click();
   await csvDialog.waitFor({ state: "detached" });
   const batch = writes.filter((write) => isBulkCreate(write.path));
   assert.equal(batch.length, 1, "One upload click sends exactly one batch");
@@ -701,8 +701,7 @@ try {
     !credentialsText.includes('"CSV Learner"'),
     "Skipped accounts must not receive new credentials",
   );
-  if (await repeated.isVisible())
-    await repeated.getByRole("button", { name: "Acknowledge credential handoff" }).click();
+  await repeated.getByRole("button", { name: "Acknowledge credential handoff" }).click();
   await repeated.waitFor({ state: "detached" });
   await page
     .getByRole("button", { name: "View account for CSV Fresh Learner", exact: true })
@@ -865,13 +864,14 @@ try {
   await secondDialog.getByRole("button", { name: "Check import receipt" }).waitFor();
   const beforeManual = writes.filter((write) => write.path === "/api/v1/admin/users").length;
   await staged.getByRole("button", { name: "Save changes", exact: true }).click();
-  await page.waitForTimeout(500);
+  const checkStagedReceipt = staged.getByRole("button", { name: "Check import receipt" });
+  await checkStagedReceipt.waitFor();
   assert.equal(
     writes.filter((write) => write.path === "/api/v1/admin/users").length,
     beforeManual,
     "Staged CSV never sends the manual fields",
   );
-  await staged.getByRole("button", { name: "Check import receipt" }).click();
+  await checkStagedReceipt.click();
   await staged.getByText("Second Student", { exact: true }).waitFor();
   await staged.getByRole("button", { name: "Acknowledge credential handoff" }).click();
   await staged.waitFor({ state: "detached" });
@@ -901,6 +901,15 @@ try {
   const saveImport = uncertainImport.getByRole("button", { name: "Save changes", exact: true });
   await saveImport.click();
   await uncertainImport.getByRole("alert").waitFor();
+  await uncertainImport
+    .getByRole("button", { name: "Check import receipt", exact: true })
+    .waitFor();
+  assert.equal(await saveImport.count(), 0, "An uncertain import must only offer receipt recovery");
+  assert.equal(
+    unconfirmedDownloads,
+    0,
+    "An uncertain import must not offer unverified credentials",
+  );
   const durableValues = await page.evaluate(() =>
     Object.entries(localStorage)
       .filter(([key]) => key.startsWith("spatia.bulk-import:"))
@@ -908,12 +917,10 @@ try {
   );
   assert.equal(durableValues.length, 1);
   assert.match(durableValues[0], /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i);
-  if ((await saveImport.isVisible()) && (await saveImport.isEnabled())) {
-    await Promise.all([
-      page.waitForResponse((response) => response.url().endsWith("/users/bulk")),
-      saveImport.click(),
-    ]);
-  }
+  assert.equal(
+    writes.filter((write) => isBulkCreate(write.path)).at(-1).path,
+    `${bulkImportsPath}/${durableValues[0]}`,
+  );
   assert.equal(
     importCount(),
     beforeLoss + 1,

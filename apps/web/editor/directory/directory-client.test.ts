@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { serveHttp, serveResponses } from "../../tests/http-fixture";
-import { createDirectoryClient, DirectoryWriteUnconfirmed } from "./directory-client";
+import { createDirectoryClient } from "./directory-client";
 
 const user = {
   userId: "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e",
@@ -13,40 +13,6 @@ const user = {
 };
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
-it("requires directory reconciliation only when a dispatched import lacks a valid receipt", async () => {
-  const values = [
-    {
-      displayName: "Sample",
-      userName: "sample",
-      role: "Creator" as const,
-      initialPassword: "sample initial value",
-    },
-  ];
-  const request = await serveResponses(
-    json({}, 503),
-    json({ requestToken: "token" }),
-    json({ code: "invalid_account_input" }, 400),
-    json({ requestToken: "token" }),
-    json([], 503),
-    json({ requestToken: "token" }),
-    json([user], 201),
-  );
-  const client = createDirectoryClient(request.fetch, user.userId);
-  await expect(client.createBulk(user.orgId, values)).rejects.not.toBeInstanceOf(
-    DirectoryWriteUnconfirmed,
-  );
-  await expect(client.createBulk(user.orgId, values)).rejects.not.toBeInstanceOf(
-    DirectoryWriteUnconfirmed,
-  );
-  await expect(client.createBulk(user.orgId, values)).rejects.toBeInstanceOf(
-    DirectoryWriteUnconfirmed,
-  );
-  await expect(client.createBulk(user.orgId, values)).rejects.toBeInstanceOf(
-    DirectoryWriteUnconfirmed,
-  );
-  expect(request.requests.filter(({ method }) => method === "POST")).toHaveLength(3);
-});
-
 it("loads every page within the selected organisation", async () => {
   const organization = {
     id: user.orgId,

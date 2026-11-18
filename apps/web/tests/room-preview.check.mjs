@@ -171,25 +171,14 @@ try {
       );
       await page.locator(".viewport-stage").click();
     };
-    const document = () => project.document();
-    const waitForDocument = async (environmentAssetId, count, matches = () => true) => {
-      const deadline = Date.now() + 5000;
-      while (Date.now() < deadline) {
-        const saved = await document();
-        const scene = saved?.scenes[0];
-        if (
+    const waitForDocument = (environmentAssetId, count, matches = () => true) =>
+      project.waitForDocument(
+        ({ scenes: [scene] }) =>
           scene?.environmentAssetId === environmentAssetId &&
           scene.objects.length === count &&
-          matches(scene)
-        )
-          return saved;
-        await page.waitForTimeout(100);
-      }
-      throw new Error(
-        `Room document did not retain ${environmentAssetId} with ${count} added rooms: ${JSON.stringify(await document())}; ${(await page.locator('[role="alert"], [role="status"]').allTextContents()).join(" | ")}`,
+          matches(scene),
       );
-    };
-    return { page, choose, select, document, waitForDocument };
+    return { page, choose, select, document: project.document, waitForDocument };
   }
 
   const approvedPicker = await roomPickerPage();
@@ -368,19 +357,15 @@ try {
       .getByRole("button", { name: "Starter room", exact: true })
       .click();
   }
-  async function saved(count, matches = () => true) {
-    const deadline = Date.now() + 15000;
-    while (Date.now() < deadline) {
-      const doc = project.document();
-      if (doc?.scenes[0].objects.length === count && matches(doc)) return doc;
-      await page.waitForTimeout(100);
-    }
-    throw new Error("Room placement did not reach storage");
+  function saved(count, matches = () => true) {
+    return project.waitForDocument(
+      (doc) => doc.scenes[0]?.objects.length === count && matches(doc),
+    );
   }
   const stage = page.locator(".viewport-stage");
   await choose();
   await stage.click({ position: { x: 600, y: 350 } });
-  let doc = await saved(0);
+  let doc = await saved(0, (value) => value.scenes[0].environmentAssetId === "test-room-v1");
   // Back the actual editor camera away so the enlarged 80 m grid edge is visible.
   await page.evaluate(() => {
     let mesh;

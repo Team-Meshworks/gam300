@@ -63,16 +63,6 @@ export type RecoveryHistory = Readonly<{
 
 export const MAX_HISTORY_BYTES = 20 * 1024 * 1024;
 
-// Whole object-list snapshots cover deletion, ordering and copies without serializing closures
-// This is local recovery data only; it never enters the portable project format
-export function captureRecoveryHistory(
-  project: ProjectDocument,
-  states: { past: HistoryState[]; future: HistoryState[] },
-  views?: { past: (readonly NamedViewpoint[])[]; future: (readonly NamedViewpoint[])[] },
-): RecoveryHistory {
-  return trimRecoveryHistory(createRecoveryHistory(project, states, views));
-}
-
 function createRecoveryHistory(
   project: ProjectDocument,
   states: { past: HistoryState[]; future: HistoryState[] },

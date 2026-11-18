@@ -253,12 +253,13 @@ try {
   console.log("Initial canvas captured");
   await canvas.focus();
   await page.keyboard.down("d");
-  await afterRender();
-  await page.keyboard.up("d");
+  try {
+    await afterRender();
+  } finally {
+    await page.keyboard.up("d");
+  }
   assert.equal(await canvas.evaluate((element) => element === document.activeElement), true);
-  await page.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-  );
+  await afterRender();
   assert.notEqual(await screenshotHash(), original, "Walking moves the visible camera");
   assert.equal(await canvas.count(), 1);
   assert.equal(

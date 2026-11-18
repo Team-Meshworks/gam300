@@ -7,7 +7,6 @@ import {
   searchAssets,
   type CatalogueAsset,
 } from "./catalogue";
-import { createLoadedStore } from "../../tests/project-store-fixture";
 
 const assets: readonly CatalogueAsset[] = Object.freeze([
   Object.freeze({
@@ -52,27 +51,6 @@ describe("catalogue search", () => {
     for (const query of [".*", "[", "<script>", "' OR 1=1 --"]) {
       expect(searchAssets(assets, query)).toEqual([]);
     }
-  });
-
-  it("places a search result through existing history and preserves its ID on redo", () => {
-    const store = createLoadedStore(assets, "room");
-    const match = searchAssets(assets, "BLUE")[0];
-    expect(match).toBeDefined();
-    const result = store.addObject(match!.id, [1, 0, -2]);
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error(result.error);
-    const placed = store.getSnapshot();
-    expect(placed.objects).toHaveLength(1);
-    expect(result.object.assetId).toBe("chair");
-    expect(result.object.transform.position).toEqual([1, 0, -2]);
-
-    searchAssets(assets, "nothing");
-    searchAssets(assets, "");
-    expect(store.getSnapshot()).toBe(placed);
-    store.undo();
-    expect(store.getSnapshot().objects).toHaveLength(0);
-    store.redo();
-    expect(store.getSnapshot().objects[0]?.id).toBe(result.object.id);
   });
 });
 

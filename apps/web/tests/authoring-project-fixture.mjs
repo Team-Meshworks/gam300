@@ -1,3 +1,4 @@
+import { EventEmitter, on } from "node:events";
 import { readFileSync } from "node:fs";
 import { json } from "node:stream/consumers";
 
@@ -26,7 +27,13 @@ export const blankProject = {
 export function createProjectFixture(initial = blankProject) {
   let document = structuredClone(initial);
   let revision = 1;
+  const saves = new EventEmitter();
   const projectPath = `/api/v1/projects/${initial.projectId}`;
+  function setDocument(next) {
+    document = structuredClone(next);
+    revision++;
+    saves.emit("saved", document);
+  }
   async function respond(path, method, token, readBody) {
     const reply = (status, json) => ({ status, json });
     if (path === "/api/v1/auth/session")
@@ -59,11 +66,11 @@ export function createProjectFixture(initial = blankProject) {
         });
       const body = await readBody();
       if (body.expectedRevision !== revision || token !== "test-token") return reply(409, {});
-      document = body.document;
+      setDocument(body.document);
       return reply(200, {
         projectId: initial.projectId,
         clientMutationId: body.clientMutationId,
-        revision: ++revision,
+        revision,
       });
     }
     return reply(404, {});
@@ -97,17 +104,25 @@ export function createProjectFixture(initial = blankProject) {
       }
     },
     document: () => structuredClone(document),
-    setDocument: (next) => {
-      document = structuredClone(next);
-      revision++;
+    setDocument,
+    async waitForDocument(matches) {
+      if (matches(document)) return structuredClone(document);
+      for await (const [saved] of on(saves, "saved", { signal: AbortSignal.timeout(15_000) })) {
+        if (matches(saved)) return structuredClone(saved);
+      }
     },
   };
 }
 
 export async function serveProject(page, origin, initial = blankProject) {
-  const { route, document, setDocument } = createProjectFixture(initial);
+  const { route, document, setDocument, waitForDocument } = createProjectFixture(initial);
   await page.context().route("**/api/v1/**", route);
-  return { url: new URL(`/?projectId=${initial.projectId}`, origin).href, document, setDocument };
+  return {
+    url: new URL(`/?projectId=${initial.projectId}`, origin).href,
+    document,
+    setDocument,
+    waitForDocument,
+  };
 }
 
 export async function openSavedProject(page) {

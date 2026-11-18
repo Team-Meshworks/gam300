@@ -103,9 +103,9 @@ describe("authored hierarchy", () => {
     expect(store.renameObject(before.id, " ").ok).toBe(false);
     expect(store.getSnapshot()).toBe(renamed);
     store.undo();
-    expect(store.getSnapshot().objects[0]).toEqual(before);
+    expect(store.getSnapshot().objects[0]).toBe(before);
     store.redo();
-    expect(store.getSnapshot().objects[0]!.name).toBe("Display pedestal");
+    expect(store.getSnapshot().objects[0]).toEqual({ ...before, name: "Display pedestal" });
   });
   it("rejects room nesting without changing the document or history", () => {
     const roomModel = {

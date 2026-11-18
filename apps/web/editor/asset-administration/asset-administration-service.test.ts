@@ -104,30 +104,25 @@ it.each([
   },
 );
 
-it("sends an explicit destructive opt-in with the current CSRF token on the same origin", async () => {
-  // Capture the token request before the mutation to prove writes use the current account session
+it("deletes an asset from the catalogue without removing it from projects", async () => {
+  const assetId = "22222222-2222-4222-8222-222222222222";
+  const deleted = { ...candidate, id: assetId, hidden: true, deleted: true, actions: ["remove"] };
   const http = await serveResponses(
     Response.json({ requestToken: "current-token" }),
-    Response.json({
-      ...candidate,
-      hidden: true,
-      deleted: true,
-      removedFromProjects: true,
-      actions: [],
-    }),
+    Response.json(deleted),
   );
   const result = await createAssetAdministrationService(actor, http.fetch).changeAvailability(
-    "asset-1",
+    assetId,
     "delete",
     new AbortController().signal,
-    true,
   );
-  expect(result.ok).toBe(true);
+  expect(result).toEqual({ ok: true, value: deleted });
   expect(http.requests.map(({ url }) => new URL(url).pathname)).toEqual([
     "/api/v1/auth/csrf",
-    "/api/v1/admin/assets/asset-1/availability",
+    `/api/v1/admin/assets/${assetId}/availability`,
   ]);
   const change = http.requests[1]!;
+  expect(change.method).toBe("POST");
   expect(change.credentials).toBe("same-origin");
   for (const { headers } of http.requests) {
     expect(headers.get("X-Spatia-Account")).toBe(actor);
@@ -135,7 +130,7 @@ it("sends an explicit destructive opt-in with the current CSRF token on the same
   expect(change.headers.get("X-CSRF-TOKEN")).toBe("current-token");
   expect(await change.json()).toEqual({
     action: "delete",
-    removeFromProjects: true,
+    removeFromProjects: false,
   });
 });
 
@@ -306,22 +301,6 @@ it.each([
   expect(result).toMatchObject({ ok: false, kind: expected });
 });
 
-it("treats a dispatched asset removal returning 401 as unknown", async () => {
-  const http = await serveHttp((incoming) => {
-    const url = new URL(incoming.url).pathname;
-    return url === "/api/v1/auth/csrf"
-      ? Response.json({ requestToken: "token" })
-      : new Response(null, { status: 401 });
-  });
-  const result = await createAssetAdministrationService(actor, http.fetch).changeAvailability(
-    "asset",
-    "remove",
-    new AbortController().signal,
-    true,
-  );
-  expect(result).toMatchObject({ ok: false, kind: "unknown" });
-});
-
 it.each([401, 403])("distinguishes asset %s preflight and dispatched responses", async (status) => {
   let preflight = true;
   const http = await serveHttp((incoming) => {
@@ -335,8 +314,10 @@ it.each([401, 403])("distinguishes asset %s preflight and dispatched responses",
   const run = () =>
     service.changeAvailability("asset", "remove", new AbortController().signal, true);
   expect(await run()).toMatchObject({ ok: false, kind: "denied" });
+  expect(http.requests.map(({ method }) => method)).toEqual(["GET"]);
   preflight = false;
   expect(await run()).toMatchObject({ ok: false, kind: status === 401 ? "unknown" : "denied" });
+  expect(http.requests.map(({ method }) => method)).toEqual(["GET", "GET", "PUT"]);
 });
 
 it("retains a legacy uncertain write across service reentry until an authorized catalogue load", async () => {

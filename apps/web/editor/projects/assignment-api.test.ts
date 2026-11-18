@@ -147,7 +147,7 @@ it("keeps malformed success and later rejection uncertain", async () => {
   expect(await submitAssignment(pending, true, fetcher)).toEqual({ kind: "unknown" });
 });
 
-it("allows a known first rejection to be corrected and refuses another account", async () => {
+it("reports a first validation rejection and refuses the retry from a different account", async () => {
   const { fetch: fetcher, requests } = await serveResponses(
     session(),
     csrf(),
@@ -160,13 +160,24 @@ it("allows a known first rejection to be corrected and refuses another account",
       orgId: "school",
     }),
   );
-  expect(await submitAssignment(pending, false, fetcher)).toMatchObject({
+  expect(await submitAssignment(pending, false, fetcher)).toEqual({
     kind: "rejected",
+    message:
+      "The assignment was not created. Check the source revision, class and students, then try again.",
   });
-  expect(await submitAssignment(pending, false, fetcher)).toMatchObject({
+  expect(
+    requests
+      .filter(({ method }) => method !== "GET")
+      .map(({ method, url }) => [method, new URL(url).pathname]),
+  ).toEqual([["POST", "/api/v1/classes/class/assignments"]]);
+  const requestsBeforeRetry = requests.length;
+  expect(await submitAssignment(pending, false, fetcher)).toEqual({
     kind: "rejected",
+    message: "The account changed. Reload before creating an assignment.",
   });
-  expect(requests).toHaveLength(5);
+  expect(
+    requests.slice(requestsBeforeRetry).map(({ method, url }) => [method, new URL(url).pathname]),
+  ).toEqual([["GET", "/api/v1/auth/session"]]);
 });
 
 it("does not submit an assignment after the account switches during CSRF acquisition", async () => {

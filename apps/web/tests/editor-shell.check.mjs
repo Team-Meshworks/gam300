@@ -264,6 +264,7 @@ try {
   );
   const emptyFixture = structuredClone(fixture);
   emptyFixture.scenes[0].objects = [];
+  await page.clock.install();
   await openDocument(emptyFixture);
   // Reopening the same document must discard uncommitted scene-form drafts.
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
@@ -427,28 +428,32 @@ try {
   await page.locator(".crosshair").waitFor();
   assert.equal(await page.locator(".crosshair").count(), 1);
   assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true", "Grabbing picks nothing");
-  await page.keyboard.down("s");
-  await page.waitForTimeout(600);
-  await page.keyboard.up("s");
+  const walkBackward = async (milliseconds) => {
+    await page.keyboard.down("s");
+    await page.clock.runFor(milliseconds);
+    await page.keyboard.up("s");
+  };
   // A stationary click immediately after walking must not carry residual velocity.
-  await page.mouse.down();
-  await page.waitForTimeout(100);
-  await page.mouse.up();
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+  try {
+    await walkBackward(600);
+    await page.mouse.down();
+    await page.clock.runFor(100);
+    await page.mouse.up();
+  } finally {
+    await page.clock.resume();
+  }
   assert.equal(await rows.first().getAttribute("aria-pressed"), "true", "Crosshair picks");
   assert.equal(await position.textContent(), initialPosition, "A plain click carries nothing");
   // Holding the click carries it while walking. Backing up keeps it under the crosshair
   await page.mouse.down();
-  await page.keyboard.down("s");
-  await page.waitForTimeout(300);
-  await page.keyboard.up("s");
+  await walkBackward(300);
   await page.mouse.up();
   assert.notEqual(await position.textContent(), initialPosition, "Holding the click carries it");
   await page.keyboard.press("Control+z");
   assert.equal(await position.textContent(), initialPosition, "One Undo puts the carry back");
   // Looking up while carrying lifts it off the floor, then look back down at it
   const centre = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
-  const height = async () => Number((await position.textContent()).match(/Y (-?[\d.]+)/)[1]);
-  //send mouse movement directly to the page to have a more consistent testing
   // The camera only turns on the next frame, so wait for it before aiming or letting go
   const look = (movementY) =>
     page.evaluate((y) => {
@@ -458,20 +463,18 @@ try {
       return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     }, movementY);
   await page.mouse.down();
-  await page.waitForTimeout(100);
+  await page.evaluate(() => new Promise(requestAnimationFrame));
   await look(-8);
   await page.mouse.up();
-  console.log("movement seen:", JSON.stringify(await page.evaluate(() => window.lookLog)));
   await page.waitForFunction(
     () => {
       const text = document.querySelector('output[aria-label="Selected position"]')?.textContent;
       const match = text?.match(/Y (-?[\d.]+)/);
-      return match !== null && Number(match[1]) > 0.1;
+      return match && Number(match[1]) > 0.1;
     },
     undefined,
     { timeout: 2000 },
   );
-  assert.ok((await height()) > 0.1, "Looking up lifts what is carried");
   await page.keyboard.press("Control+z");
   await look(8);
   assert.equal(await position.textContent(), initialPosition);
@@ -493,10 +496,9 @@ try {
   assert.ok(await redo.isEnabled(), "One Undo puts the turn back");
   // Freeing the mouse mid-carry puts the object back where it was
   await page.mouse.down();
-  await page.keyboard.down("s");
-  await page.waitForTimeout(300);
-  await page.keyboard.up("s");
+  await walkBackward(300);
   await page.keyboard.down("Alt");
+  await page.waitForFunction(() => document.pointerLockElement === null);
   assert.equal(await locked(), null, "Holding Alt gives the mouse back");
   await page.mouse.up();
   assert.equal(await position.textContent(), initialPosition, "Alt cancels the carry");

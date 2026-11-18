@@ -45,25 +45,20 @@ function once(target, event) {
 }
 
 function whenReady(node) {
-  if (node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const listeners = new AbortController();
-    node.addEventListener(
-      "loadeddata",
-      () => {
+    const check = () => {
+      if (node.error) {
+        listeners.abort();
+        reject(new Error(node.error.message || "The media fixture did not load"));
+      } else if (node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
         listeners.abort();
         resolve();
-      },
-      { signal: listeners.signal },
-    );
-    node.addEventListener(
-      "error",
-      () => {
-        listeners.abort();
-        reject(new Error(node.error?.message ?? "The media fixture did not load"));
-      },
-      { signal: listeners.signal },
-    );
+      }
+    };
+    for (const event of ["loadeddata", "canplay", "error"])
+      node.addEventListener(event, check, { signal: listeners.signal });
+    check();
   });
 }
 

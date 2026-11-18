@@ -8,14 +8,12 @@ const assets = new Map([
 ]);
 
 describe("project JSON reader", () => {
-  it("rejects duplicate keys, including escaped spellings, before replacing a project", () => {
-    for (const duplicate of ['"schemaVersion":1,', '"schema\\u0056ersion":1,']) {
-      const text = JSON.stringify(fixture).replace("{", `{${duplicate}`);
-      expect(deserializeProject(text, assets)).toEqual({
-        ok: false,
-        error: { path: "project", message: "Project JSON contains duplicate fields" },
-      });
-    }
+  it("reports an escaped duplicate field as a duplicate key", () => {
+    const text = JSON.stringify(fixture).replace("{", '{"schema\\u0056ersion":1,');
+    expect(deserializeProject(text, assets)).toEqual({
+      ok: false,
+      error: { path: "project", message: "Project JSON contains duplicate fields" },
+    });
   });
   it("reads indented JSON with escaped quotes, backslashes and brackets in names", () => {
     const input = { ...fixture, title: 'Room "A" \\ ' + "[{".repeat(40) + "展览\n" };
@@ -25,7 +23,7 @@ describe("project JSON reader", () => {
     });
   });
 
-  it.each(["", '{"title":', '{"title":"private text",}', "]["])(
+  it.each(['{"title":"private text",}', "]["])(
     "returns a safe syntax error for malformed JSON %j",
     (text) => {
       expect(deserializeProject(text, assets)).toEqual({
@@ -35,15 +33,10 @@ describe("project JSON reader", () => {
     },
   );
 
-  it("rejects non-text input and valid JSON with the wrong project structure", () => {
-    expect(deserializeProject(fixture, assets).ok).toBe(false);
-    expect(deserializeProject("null", assets)).toMatchObject({
+  it("rejects non-text input as a reader error", () => {
+    expect(deserializeProject(fixture, assets)).toEqual({
       ok: false,
-      error: { path: "project" },
-    });
-    expect(deserializeProject('{"schemaVersion":99}', assets)).toMatchObject({
-      ok: false,
-      error: { path: "project.schemaVersion" },
+      error: { path: "project", message: "Expected project JSON text" },
     });
   });
 

@@ -18,6 +18,7 @@ async function checkDialogTypography() {
       page: font(document.querySelector(".asset-admin h1")),
       title: font(dialog.querySelector("h2")),
       upload: dialog.classList.contains("asset-admin-dialog-upload"),
+      confirmation: dialog.classList.contains("asset-admin-dialog-confirmation"),
       section: dialog.querySelector("h3") ? font(dialog.querySelector("h3")) : null,
       labels: [
         ...dialog.querySelectorAll(".asset-admin-fields > .asset-admin-select > :is(label, span)"),
@@ -35,11 +36,17 @@ async function checkDialogTypography() {
     };
   });
   assert.equal(sizes.title, sizes.upload || page.viewportSize().width <= 700 ? 22 : 25);
-  assert.ok(
-    sizes.section === null || sizes.section === sizes.title,
+  assert.equal(
+    sizes.section,
+    sizes.confirmation ? null : sizes.title,
     "Asset Details uses the same heading scale as the popup title",
   );
   assert.equal(sizes.page, 25, "Catalogue page headings keep the PDF's 25px level");
+  if (!sizes.confirmation) {
+    assert.equal(sizes.labels.length, 2, "Asset Type and Filter Category labels are shown");
+    assert.equal(sizes.values.length, 2, "Both asset details have visible values or controls");
+  }
+  assert.ok(sizes.actions.length > 0, "The dialog offers actions");
   assert.ok(
     sizes.labels.every((size) => size === 15),
     "Asset labels keep their 15px level",
@@ -68,12 +75,15 @@ async function waitForVisibleThumbnails() {
   await page.waitForFunction(
     () => {
       const region = document.querySelector(".asset-admin-scroll").getBoundingClientRect();
-      return [...document.querySelectorAll(".asset-admin-thumbnail img")].every((image) => {
-        const box = image.getBoundingClientRect();
-        const visible =
-          box.bottom > Math.max(0, region.top) && box.top < Math.min(innerHeight, region.bottom);
-        return !visible || (image.complete && image.naturalWidth > 0);
-      });
+      const images = [...document.querySelectorAll(".asset-admin-thumbnail img")].filter(
+        (image) => {
+          const box = image.getBoundingClientRect();
+          return (
+            box.bottom > Math.max(0, region.top) && box.top < Math.min(innerHeight, region.bottom)
+          );
+        },
+      );
+      return images.length > 0 && images.every((image) => image.complete && image.naturalWidth > 0);
     },
     undefined,
     { timeout: 10000 },

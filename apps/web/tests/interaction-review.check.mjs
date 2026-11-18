@@ -1,6 +1,7 @@
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import { blankProject, openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
+import { waitForStoredDraft } from "./stored-draft.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -35,10 +36,9 @@ async function add(page, name) {
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await placeAtRoomCenter(page);
 }
-async function backup(page, expectedUrl, count) {
-  const deadline = Date.now() + 12000;
-  while (Date.now() < deadline) {
-    const ready = await page.evaluate(
+function backup(page, expectedUrl, count) {
+  return waitForStoredDraft(page, () =>
+    page.evaluate(
       async ({ expectedUrl, count }) => {
         const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
         const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
@@ -46,21 +46,20 @@ async function backup(page, expectedUrl, count) {
           accountId: "00000000-0000-4000-8000-000000000001",
           projectId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
         });
-        const scene = result.ok && result.value?.document?.scenes[0];
-        return (
-          scene &&
-          scene.interactions.length === count &&
-          scene.interactions[0]?.do.url === expectedUrl
-        );
+        const document = result.ok ? result.value?.document : null;
+        const scene = document?.scenes[0];
+        return scene?.interactions.length === count && scene.interactions[0]?.do.url === expectedUrl
+          ? document
+          : null;
       },
       { expectedUrl, count },
+    ),
+  ).catch(async (cause) => {
+    throw new Error(
+      "Recovery did not reach expected URL/count: " + (await page.locator("body").innerText()),
+      { cause },
     );
-    if (ready) return;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error(
-    "Recovery did not reach expected URL/count: " + (await page.locator("body").innerText()),
-  );
+  });
 }
 try {
   for (const version of [1, 2]) {
@@ -132,18 +131,7 @@ try {
       await page.getByRole("button", { name: "Interaction", exact: true }).click();
     }
     await page.getByLabel("Interaction 1 do", { exact: true }).selectOption("open-link");
-    await backup(page, "", 1); // Wait past the actual two-second debounce, leaving the URL empty.
-    const restoredVersion = await page.evaluate(async () => {
-      const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
-      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-      return (
-        await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])), {
-          accountId: "00000000-0000-4000-8000-000000000001",
-          projectId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-        })
-      ).value.document.schemaVersion;
-    });
-    assert.equal(restoredVersion, version);
+    assert.equal((await backup(page, "", 1)).schemaVersion, version);
     await page.getByRole("button", { name: "Leave editor", exact: true }).click();
     const confirmation = page.getByRole("dialog");
     await confirmation.waitFor();
@@ -161,7 +149,7 @@ try {
       .fill("https://example.com/corrected");
     await backup(page, "https://example.com/corrected", 1);
     await page.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
-    await backup(page, "https://example.com/corrected", 2);
+    const recovered = await backup(page, "https://example.com/corrected", 2);
     await page.reload();
     await recover(page);
     await page.getByRole("button", { name: "Interaction", exact: true }).click();
@@ -171,17 +159,9 @@ try {
       "https://example.com/corrected",
     );
     if (version === 2) {
-      const mixed = await page.evaluate(async () => {
-        const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
-        const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-        const result = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])), {
-          accountId: "00000000-0000-4000-8000-000000000001",
-          projectId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-        });
-        return result.value.document;
-      });
-      mixed.scenes[0].hotspots[0].objectId = mixed.scenes[0].hotspots[0].objectId.toUpperCase();
-      server.setDocument(mixed);
+      const firstHotspot = recovered.scenes[0].hotspots[0];
+      firstHotspot.objectId = firstHotspot.objectId.toUpperCase();
+      server.setDocument(recovered);
       await page.reload();
       await openSavedProject(page);
       if (!(await targets.count()))

@@ -75,19 +75,12 @@ it("recovers transient saturation while preserving authenticated delivery", asyn
   ).toBe(true);
 });
 
-it("waits through six seconds of saturated permits instead of failing on the fifth response", async () => {
-  const server = await serveSaturation(6000, "1");
-  const pending = fetchPlayerAsset(server.url, new AbortController().signal);
-  await server.advanceUntil(6000);
-  expect(await (await pending).text()).toBe("retained bytes");
-  expect(server.attempts()).toBeGreaterThan(5);
-});
-
-it("allows a slow permitted transfer to release a slot after thirty seconds", async () => {
+it("keeps retrying saturated permits until one becomes available after 65 seconds", async () => {
   const server = await serveSaturation(65000, "1");
   const pending = fetchPlayerAsset(server.url, new AbortController().signal);
   await server.advanceUntil(65000);
   expect(await (await pending).text()).toBe("retained bytes");
+  expect(server.attempts()).toBeGreaterThan(5);
 });
 
 it("bounds retries by elapsed time and never retries permanent access denials", async () => {

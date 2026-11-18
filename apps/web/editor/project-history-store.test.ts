@@ -141,6 +141,31 @@ it("upgrades viewpoint-only recovery to full documents without losing view edits
   expect(again.getSnapshot().project).toEqual(original);
 });
 
+it("restores grouping from an older hierarchy history without document or view snapshots", () => {
+  const original = viewpointFixture.document.scenes[0]!;
+  const group = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Exhibit", parentId: null };
+  const objects = original.objects.map((object) => ({ ...object, parentId: group.id }));
+  const document = {
+    ...viewpointFixture.document,
+    scenes: [{ ...original, objects, groups: [group] }],
+  };
+  const history = {
+    version: 2,
+    projectId: document.projectId,
+    sceneId: original.id,
+    current: { objects, groups: [group] },
+    past: [{ objects: original.objects, groups: [] }],
+    future: [],
+  };
+
+  const store = setup({ document, history });
+  expect(store.getSnapshot().project).toEqual(normalize(document));
+  store.undo();
+  expect(store.getSnapshot().project).toEqual(normalize(viewpointFixture.document));
+  store.redo();
+  expect(store.getSnapshot().project).toEqual(normalize(document));
+});
+
 it("restores redo on a loaded project without borrowing later attachments", () => {
   let store = createLoadedStore(assets, "room");
   const object = checked(store.addObject("crate", [1, 0, 0])).object;

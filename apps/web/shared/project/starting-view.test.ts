@@ -27,12 +27,11 @@ it("uses the authored starting camera independently of viewpoint order", () => {
   assert.equal(getStartingCamera(scene), camera);
   assert.equal(getStartingCamera({ ...scene, viewpoints: [second, first] }), camera);
 });
-it("identifies a saved view with the same pose without adding a wire-format field", () => {
+it("identifies a saved view with the same pose", () => {
   assert.equal(getStartingView({ ...scene, startCamera: second.camera }), second);
-  assert.equal(getStartingCamera({ ...scene, startCamera: second.camera }), second.camera);
 });
-it("uses the saved camera when there are no viewpoints", () => {
-  assert.equal(getStartingCamera({ ...scene, viewpoints: [] }), camera);
+it("uses the saved camera in older scenes without viewpoints", () => {
   const { viewpoints: _viewpoints, ...legacy } = scene;
+  assert.equal(getStartingView(legacy), undefined);
   assert.equal(getStartingCamera(legacy), camera);
 });

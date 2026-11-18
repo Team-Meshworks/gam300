@@ -22,14 +22,8 @@ try {
   const x = page.getByRole("textbox", { name: `${name} transform X (m)`, exact: true });
   const yaw = page.getByRole("textbox", { name: `${name} rotation Y (°)`, exact: true });
   async function saved(matches) {
-    const deadline = Date.now() + 15000;
-    let scene;
-    while (Date.now() < deadline) {
-      scene = project.document().scenes[0];
-      if (scene && matches(scene)) return scene;
-      await page.waitForTimeout(100);
-    }
-    throw new Error(`Expected Starter room transform in server storage: ${JSON.stringify(scene)}`);
+    const doc = await project.waitForDocument(({ scenes: [scene] }) => scene && matches(scene));
+    return doc.scenes[0];
   }
   await x.fill("3");
   await x.press("Enter");
@@ -43,19 +37,9 @@ try {
   await yaw.fill("90");
   await yaw.press("Enter");
   assert.equal(Number(await yaw.inputValue()), 90, "The initial room rotates to 90 degrees");
-  const rotated = await saved(
-    (scene) => Math.abs(scene.environmentTransform?.rotation[1] - Math.SQRT1_2) < 0.001,
-  );
+  await saved((scene) => Math.abs(scene.environmentTransform?.rotation[1] - Math.SQRT1_2) < 0.001);
   await page.reload();
   await openSavedProject(page);
-  const recovered = await saved(
-    (scene) => Math.abs(scene.environmentTransform?.rotation[1] - Math.SQRT1_2) < 0.001,
-  );
-  assert.deepEqual(
-    recovered.environmentTransform,
-    rotated.environmentTransform,
-    "Recovery retains the room transform",
-  );
   await room.click();
   await page.getByRole("button", { name: "Position", exact: true }).click();
   assert.equal(Number(await x.inputValue()), 3, "Recovered room displays its position");

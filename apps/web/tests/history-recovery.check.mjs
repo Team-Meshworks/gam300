@@ -1,6 +1,7 @@
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import { serveProject } from "./authoring-project-fixture.mjs";
+import { waitForStoredDraft } from "./stored-draft.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -57,10 +58,9 @@ try {
   await addAsset(page, "Starter room");
   await addAsset(page, "Sample crate");
   const rows = page.locator(".object-row");
-  async function waitForRecovery(count, futureCount, hotspots = 0, interactions = 0) {
-    const deadline = Date.now() + 10000;
-    while (Date.now() < deadline) {
-      const ready = await page.evaluate(
+  function waitForRecovery(count, futureCount, hotspots = 0, interactions = 0) {
+    return waitForStoredDraft(page, () =>
+      page.evaluate(
         async ({ count, futureCount, hotspots, interactions }) => {
           const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
           const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
@@ -77,11 +77,10 @@ try {
           );
         },
         { count, futureCount, hotspots, interactions },
-      );
-      if (ready) return;
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    throw new Error("Recovery history did not reach the expected edit");
+      ),
+    ).catch((cause) => {
+      throw new Error("Recovery history did not reach the expected edit", { cause });
+    });
   }
 
   // Capture the starting state so Undo is checked independently of the default spawn position
@@ -295,11 +294,9 @@ try {
   const target = await compatibilityPage
     .getByLabel("Interaction 1 hotspot", { exact: true })
     .inputValue();
-  async function waitForActiveScene(name, hotspotCount, ruleCount) {
-    const deadline = Date.now() + 10000;
-    while (Date.now() < deadline) {
-      // Await IndexedDB explicitly; an async predicate is itself truthy to DOM polling.
-      const ready = await compatibilityPage.evaluate(
+  function waitForActiveScene(name, hotspotCount, ruleCount) {
+    return waitForStoredDraft(compatibilityPage, () =>
+      compatibilityPage.evaluate(
         async ({ activeId, name, hotspotCount, ruleCount }) => {
           const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
           const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
@@ -318,11 +315,12 @@ try {
           );
         },
         { activeId, name, hotspotCount, ruleCount },
-      );
-      if (ready) return;
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    throw new Error("Recovery did not persist the expected active scene and interactions");
+      ),
+    ).catch((cause) => {
+      throw new Error("Recovery did not persist the expected active scene and interactions", {
+        cause,
+      });
+    });
   }
   await waitForActiveScene("Exhibit", 1, 1);
   await reloadRecovery(compatibilityPage);

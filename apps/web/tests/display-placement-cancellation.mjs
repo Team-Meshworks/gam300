@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
+
+const fixturePath = `/@fs/${fileURLToPath(new URL("./project-store-fixture.ts", import.meta.url)).replaceAll("\\", "/")}`;
 
 // Mount the actual component/save handler; defer only the model-placement boundary.
 export async function checkDisplayPlacementCancellation(browser, origin) {
@@ -25,72 +28,87 @@ export async function checkDisplayPlacementCancellation(browser, origin) {
       await page.addScriptTag({
         type: "importmap",
         content: JSON.stringify({
-          imports: { react: "/@id/react", "react-dom/client": "/@id/react-dom/client" },
+          imports: {
+            react: "/@id/react",
+            "react-dom/client": "/@id/react-dom/client",
+            "./project-store-fixture.ts": fixturePath,
+          },
         }),
       });
-      await page.evaluate(async () => {
+      const supports = await page.evaluate(async () => {
         const react = await import("react");
         const reactDOM = await import("react-dom/client");
         const { createElement, StrictMode } = react.default ?? react;
         const { createRoot } = reactDOM.default ?? reactDOM;
         const { DisplayEditor } = await import("/ui/DisplayEditor.tsx");
+        const { createLoadedStore } = await import("./project-store-fixture.ts");
+        const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
+        const store = createLoadedStore(assets, "test-room-v1");
+        function placeSupport(id, x) {
+          const asset = assets.find((entry) => entry.id === id && entry.displayRole === "physical");
+          if (!asset) throw new Error(`Missing physical support ${id}`);
+          const result = store.addObject(id, [x, 0, 0]);
+          if (!result.ok) throw new Error(result.error);
+          return { asset, object: result.object };
+        }
+        const supports = {
+          A: placeSupport("display-cube-v1", 0),
+          B: placeSupport("display-full-glass-case-v1", 5),
+        };
         const host = document.createElement("div");
         document.body.append(host);
         const root = createRoot(host);
-        const project = {};
-        const transform = { position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] };
-        const asset = { id: "display", name: "Display", kind: "model", displayRole: "physical" };
-        const crate = {
-          id: "crate",
-          name: "Deferred crate",
-          kind: "model",
-          sha256: "b".repeat(64),
-        };
-        const writes = [],
-          closes = [],
-          pending = [];
-        const store = {
-          getSnapshot: () => ({ project, objects: [] }),
-          addAttachedObject: (assetId, ownerId) => {
-            writes.push({ assetId, ownerId });
-            return { ok: true };
-          },
-        };
+        const closes = [];
+        const pending = [];
         window.displayCancellation = {
-          writes,
           closes,
           pending,
-          open(id) {
+          snapshot: store.getSnapshot,
+          open(support) {
+            const { asset, object } = supports[support];
             root.render(
               createElement(
                 StrictMode,
                 null,
                 createElement(DisplayEditor, {
-                  key: id,
-                  object: { id, name: id, transform },
+                  key: object.id,
+                  object,
                   asset,
-                  assets: [asset, crate],
-                  project,
+                  assets,
+                  project: store.getSnapshot().project,
                   store,
                   thumbnailFor: () => undefined,
-                  placementFor: () => new Promise((resolve) => pending.push(resolve)),
+                  placementFor(ownerId, assetId) {
+                    const request = Promise.withResolvers();
+                    pending.push({ ...request, ownerId, assetId, support });
+                    return request.promise;
+                  },
                   onClose: () => {
-                    closes.push(id);
+                    closes.push(object.id);
                     root.render(null);
                   },
                 }),
               ),
             );
           },
-          async finish(index) {
-            pending[index](transform);
-            await new Promise((resolve) => setTimeout(resolve, 0));
+          finish(index) {
+            const { promise, resolve, support } = pending[index];
+            const { object, asset } = supports[support];
+            resolve({
+              ...object.transform,
+              position: [object.transform.position[0], asset.displayTop ?? 0, 0],
+              scale: [0.2, 0.2, 0.2],
+            });
+            return promise;
           },
         };
         window.displayCancellation.open("A");
+        return { A: supports.A.object, B: supports.B.object };
       });
-      const dialog = page.getByRole("dialog");
-      await dialog.getByRole("button", { name: "Deferred crate", exact: true }).click();
+      const before = await page.evaluate(() => window.displayCancellation.snapshot().project);
+      const dialog = page.getByRole("dialog", { name: "Place an object on this display" });
+      await dialog.getByText(supports.A.name, { exact: true }).waitFor();
+      await dialog.getByRole("button", { name: "Sample crate", exact: true }).click();
       await dialog.getByRole("button", { name: "Add", exact: true }).click();
       await page.waitForFunction(() => window.displayCancellation.pending.length === 1);
       if (dismissal === "close") {
@@ -100,24 +118,43 @@ export async function checkDisplayPlacementCancellation(browser, origin) {
       }
       if (dismissal !== "unmount") await dialog.waitFor({ state: "hidden" });
       await page.evaluate(() => window.displayCancellation.open("B"));
-      await dialog.getByText("B", { exact: true }).waitFor();
+      const replacement = dialog.getByText(supports.B.name, { exact: true });
+      await replacement.waitFor();
+      assert.deepEqual(
+        await page.evaluate(() =>
+          window.displayCancellation.pending.map(({ assetId, ownerId }) => ({ assetId, ownerId })),
+        ),
+        [{ assetId: "test-crate-v1", ownerId: supports.A.id }],
+      );
       await page.evaluate(() => window.displayCancellation.finish(0));
-      assert.deepEqual(await page.evaluate(() => window.displayCancellation.writes), [], dismissal);
+      assert.deepEqual(
+        await page.evaluate(() => window.displayCancellation.snapshot().project),
+        before,
+        `Late placement after ${dismissal} must leave the draft unchanged`,
+      );
       assert.deepEqual(
         await page.evaluate(() => window.displayCancellation.closes),
-        dismissal === "unmount" ? [] : ["A"],
+        dismissal === "unmount" ? [] : [supports.A.id],
         "The stale operation must not close B",
       );
-      assert.equal(await dialog.isVisible(), true);
+      assert.equal(await replacement.isVisible(), true);
       // The replacement dialog still saves normally, including under StrictMode replay.
-      await dialog.getByRole("button", { name: "Deferred crate", exact: true }).click();
+      await dialog.getByRole("button", { name: "Sample crate", exact: true }).click();
       await dialog.getByRole("button", { name: "Add", exact: true }).click();
       await page.waitForFunction(() => window.displayCancellation.pending.length === 2);
-      await page.evaluate(() => window.displayCancellation.finish(1));
+      const fitted = await page.evaluate(() => window.displayCancellation.finish(1));
       await dialog.waitFor({ state: "hidden" });
-      assert.deepEqual(await page.evaluate(() => window.displayCancellation.writes), [
-        { assetId: "crate", ownerId: "B" },
-      ]);
+      const objects = await page.evaluate(() => window.displayCancellation.snapshot().objects);
+      assert.deepEqual(
+        objects.slice(0, 2).map(({ id }) => id),
+        [supports.A.id, supports.B.id],
+      );
+      assert.deepEqual(
+        objects
+          .slice(2)
+          .map(({ assetId, parentId, transform }) => ({ assetId, parentId, transform })),
+        [{ assetId: "test-crate-v1", parentId: supports.B.id, transform: fitted }],
+      );
       assert.deepEqual(errors, []);
     } catch (error) {
       console.error(dismissal, errors, await page.locator("body").innerText());

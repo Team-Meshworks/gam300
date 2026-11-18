@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   blankSourceKey,
+  blankSourceAttempt,
   readBlankSource,
   historicalBlankSource,
   uncorrelatedBlankSource,
@@ -211,17 +212,27 @@ it("reuses the confirmed source after an assignment failure instead of creating 
   expect(server.creates()).toHaveLength(1);
 });
 
-it("never sends a duplicate when the source creation outcome is uncertain", async () => {
+it("replays the stored source creation operation after an uncertain outcome", async () => {
   const store = storage();
   const server = await sourceApi({ create: () => Response.error() });
   expect(await createBlankSource(store, server, creatorId, "Museum", "space")).toEqual({
     kind: "unknown",
   });
+  const key = blankSourceKey(creatorId);
+  const stored = store.getItem(key);
+  const attempt = blankSourceAttempt(stored ?? "");
+  expect(attempt).toEqual({
+    operationId: expect.any(String),
+    creationGuard: { purpose: "assignment-source", previousOperationId: null },
+    title: "Museum",
+    environmentAssetId: "space",
+  });
   expect(await createBlankSource(store, server, creatorId, "Museum", "space")).toEqual({
     kind: "unknown",
   });
-  expect(server.creates()).toHaveLength(2);
-  expect(server.creates()[1]).toEqual(server.creates()[0]);
+  const write = { actorId: creatorId, path: "/api/v1/projects", method: "POST", body: attempt };
+  expect(server.creates()).toEqual([write, write]);
+  expect(store.getItem(key)).toBe(stored);
 });
 
 it("does not send creation if the recovery marker cannot be verified", async () => {

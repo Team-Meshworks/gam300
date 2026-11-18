@@ -142,10 +142,10 @@ try {
   await page
     .getByRole("button", { name: "Log Out", exact: true })
     .evaluate((button) => button.click());
-  await page.waitForTimeout(200);
-  assert.equal(logoutPosts, 0, "A pending publication must block header logout");
+  assert.equal(await qr.count(), 0, "An in-flight publication must not expose a QR code");
   releasePublish();
   await page.getByText(/could not be confirmed/i).waitFor();
+  assert.equal(logoutPosts, 0, "A pending publication must block header logout");
   assert.equal(await page.getByRole("link", { name: /open publication/i }).count(), 0);
   assert.equal(await qr.count(), 0, "An uncertain publication must not expose a QR code");
   assert.deepEqual(requests[0].intent, { audience: "Authenticated", viewerIds: [student] });

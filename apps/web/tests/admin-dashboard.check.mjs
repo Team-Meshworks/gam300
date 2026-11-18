@@ -81,6 +81,7 @@ try {
   let adminProjectReads = 0;
   let creations = 0;
   let loseCreationReply = false;
+  const creationReply = Promise.withResolvers();
   // Keep mock catalogue previews independent of Vite source paths and build hashing.
   const assetThumbnail = await readFile("editor/home/assets/default-project-neutral.jpg");
   await page.route("**/test-fixtures/admin-asset-thumbnail.jpg", (route) =>
@@ -154,7 +155,7 @@ try {
         });
         creations++;
         if (loseCreationReply) return route.abort("failed");
-        await new Promise((resolve) => setTimeout(resolve, 150));
+        await creationReply.promise;
         return route.fulfill({
           status: 201,
           json: {
@@ -891,6 +892,10 @@ try {
       button.click();
       button.click();
     });
+  const creating = dialog.getByRole("button", { name: "Creating…", exact: true });
+  await creating.waitFor();
+  assert.equal(await creating.isDisabled(), true);
+  creationReply.resolve();
   await dialog.waitFor({ state: "detached" });
   assert.equal(creations, 1);
   await page.waitForURL(origin + "/organisations");
@@ -922,13 +927,11 @@ try {
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
   dialog = page.getByRole("dialog", { name: "Add Organisation", exact: true });
   await dialog.getByLabel("Organisation name").fill("Unconfirmed School");
-  let create = dialog.getByRole("button", { name: "Create Organisation", exact: true });
+  const create = dialog.getByRole("button", { name: "Create Organisation", exact: true });
   await create.click();
-  await dialog.getByRole("alert").waitFor();
-  if ((await create.isVisible()) && (await create.isEnabled())) {
-    await create.click();
-    await dialog.getByRole("alert").waitFor();
-  }
+  await dialog.getByRole("alert").filter({ hasText: "Unconfirmed School" }).waitFor();
+  await dialog.getByRole("button", { name: "Check organisation directory" }).waitFor();
+  assert.equal(await create.count(), 0, "An uncertain creation must offer directory recovery");
   assert.equal(creations, 2, "Losing the receipt must not allow a second creation");
   await page.reload();
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
@@ -941,8 +944,7 @@ try {
   dialog = page.getByRole("dialog", { name: "Add Organisation", exact: true });
   await dialog.getByRole("button", { name: "I checked the directory" }).click();
   await dialog.getByLabel("Organisation name").fill("Different School");
-  create = dialog.getByRole("button", { name: "Create Organisation", exact: true });
-  assert.equal(await create.isEnabled(), true);
+  assert.equal(await dialog.getByRole("button", { name: "Create Organisation" }).isEnabled(), true);
   await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
   loseCreationReply = false;
   for (const [button, path, title, expected, excluded, noun] of [

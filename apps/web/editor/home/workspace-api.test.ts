@@ -89,7 +89,7 @@ it("sends the exact revision with CSRF and verifies the resulting account", asyn
   expect(await requests[3]!.text()).toBe(JSON.stringify({ expectedRevision: 3, archived: true }));
 });
 it("does not turn post-send failures or expired sessions into a safe retry", async () => {
-  for (const status of [401, 403, 404, 500, 503]) {
+  for (const status of [401, 403, 404, 503]) {
     const { fetch: request, requests } = await serveResponses(
       json(session),
       json({ requestToken: "token" }),

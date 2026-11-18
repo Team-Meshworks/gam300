@@ -1,6 +1,7 @@
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import { blankProject, serveProject } from "./authoring-project-fixture.mjs";
+import { waitForStoredDraft } from "./stored-draft.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
@@ -39,6 +40,7 @@ async function addAsset(page, name) {
 
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+  await page.clock.install();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("dialog", (dialog) => dialog.accept());
@@ -108,10 +110,8 @@ try {
   assert.equal(await page.locator(".object-row").count(), 2);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await page.evaluate(() => window.finishBackup());
-  let scene;
-  const deadline = Date.now() + 10000;
-  while (Date.now() < deadline && !scene) {
-    scene = await page.evaluate(async () => {
+  const scene = await waitForStoredDraft(page, () =>
+    page.evaluate(async () => {
       const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
       const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
       const saved = await loadRecoverySession(
@@ -126,10 +126,8 @@ try {
         saved.value.history?.future.length === 1
         ? saved.value.document.scenes[0]
         : null;
-    });
-    if (!scene) await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  assert.ok(scene, "Recovery history did not reach the expected edit");
+    }),
+  );
   const saveRequested = Promise.withResolvers();
   const allowSave = Promise.withResolvers();
   const projectId = new URL(project.url).searchParams.get("projectId");
@@ -179,10 +177,16 @@ try {
     { x: box.x + ((point.x + 1) * box.width) / 2, y: box.y + ((1 - point.y) * box.height) / 2 },
   );
   await page.getByRole("dialog").waitFor();
-  await page.waitForTimeout(300);
+  await page.clock.fastForward(300);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "detached" });
   allowSave.resolve();
+  await page.locator('.save-state[data-state="saved"]').waitFor();
+  assert.deepEqual(
+    project.document().scenes[0].objects,
+    scene.objects,
+    "The wheel edit was cancelled before saving",
+  );
   assert.equal(
     await page.locator(".object-row").count(),
     1,
@@ -192,6 +196,8 @@ try {
 
   // Exercise the actual renderer and controls without production-only debug hooks
   const renderer = await browser.newPage();
+  await renderer.clock.install();
+  await renderer.exposeFunction("advanceWheelDeadline", () => renderer.clock.fastForward(300));
   renderer.on("pageerror", (error) => errors.push(error.message));
   await renderer.route("**/audit-harness.html", (route) =>
     route.fulfill({
@@ -372,7 +378,7 @@ try {
       handle.update([object], object.id);
       manager.setMode("editor");
       const visibleOnReturn = gizmo.visible;
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await window.advanceWheelDeadline();
       const unexpectedCommits = commits.length;
       manager.initializeView("third");
       manager.setMode("visitor");
@@ -990,7 +996,7 @@ try {
     );
   const tipBefore = (await read()).gizmoTip;
   await walk(0, -1);
-  await touchPage.waitForTimeout(300);
+  await touchPage.waitForFunction((before) => window.harness.read().gizmoTip !== before, tipBefore);
   await walk(0, 0);
   assert.notEqual((await read()).gizmoTip, tipBefore, "Walking refreshes the gizmo");
   await touchPage.evaluate(() => {
@@ -1038,7 +1044,10 @@ try {
   await touch("touchStart", stick, onCrate);
   assert.equal((await read()).selected, objectId, "A press while walking still reaches the scene");
   await walk(0, -1);
-  await touchPage.waitForTimeout(300);
+  await touchPage.waitForFunction(
+    (before) => window.harness.read().position.some((value, axis) => value !== before[axis]),
+    atOrigin,
+  );
   await walk(0, 0);
   assert.notDeepEqual(
     (await read()).position,
@@ -1059,7 +1068,10 @@ try {
 
   await touch("touchStart", onCrate);
   await walk(0, -1);
-  await touchPage.waitForTimeout(300);
+  await touchPage.waitForFunction(
+    (before) => window.harness.read().position.some((value, axis) => value !== before[axis]),
+    atOrigin,
+  );
   await walk(0, 0);
   assert.notDeepEqual((await read()).position, atOrigin);
   await touch("touchCancel");

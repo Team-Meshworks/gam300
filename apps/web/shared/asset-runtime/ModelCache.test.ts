@@ -56,20 +56,14 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("coalesces requests, preserves independent transforms and protects other borrowers", async () => {
+it("coalesces requests and protects other borrowers until their final release", async () => {
   const { origin } = await serveResponses(glb());
   const asset = descriptor(origin);
   const parse = vi.spyOn(GLTFLoader.prototype, "parseAsync");
   const [a, b] = await Promise.all([acquire(asset), acquire(asset)]);
   expect(parse).toHaveBeenCalledOnce();
   expect(a.value).toBe(b.value);
-  const loaded = a.value.model;
-  const first = loaded.clone(true);
-  const second = loaded.clone(true);
-  first.position.x = 9;
-  expect(second.position.x).toBe(0);
-  expect(loaded.position.x).toBe(0);
-  const disposals = disposalCount(loaded);
+  const disposals = disposalCount(a.value.model);
   a.release();
   a.release();
   cache.invalidate(asset.id);

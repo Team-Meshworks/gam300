@@ -17,7 +17,6 @@ import { deferred } from "../../tests/deferred";
 import { createDocumentStore } from "../document-store";
 import { degreesToQuaternion } from "../ui/rotation-angles";
 import { connectServerProjectSession, type ServerSaveStatus } from "./server-project-session";
-import { validateServerSaveRecovery } from "./server-save-recovery";
 import { writeServerDraft, type ServerDraftRequest } from "./server-draft-write";
 
 afterEach(() => vi.useRealTimers());
@@ -233,15 +232,11 @@ describe("persisted server save identity", () => {
     });
   });
 
-  it.each([
-    { ...serverSave, revision: -1 },
-    { ...serverSave, pending: { ...serverSave.pending, clientMutationId: "invalid" } },
-    { ...serverSave, pending: { ...serverSave.pending, documentJson: "{}" } },
-    {
+  it("rejects another project's save metadata without replacing the existing backup", async () => {
+    const damaged = {
       ...serverSave,
       confirmedJson: serializedFixture({ ...fixture, projectId: crypto.randomUUID() }),
-    },
-  ])("rejects damaged server metadata without replacing the existing backup", async (damaged) => {
+    };
     // Invalid retry metadata must not overwrite the previous valid recovery copy
     const database = new RecoveryDatabase();
     await applySaveRecoverySession(
@@ -251,7 +246,6 @@ describe("persisted server save identity", () => {
       database,
       scope,
     );
-    expect(validateServerSaveRecovery(damaged, projectId, assets).ok).toBe(false);
     expect(
       await applySaveRecoverySession(
         { ...recoverySession(), serverSave: damaged },

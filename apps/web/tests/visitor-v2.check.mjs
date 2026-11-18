@@ -308,12 +308,17 @@ if (process.argv.includes("--playback-only")) {
     for (let repeat = 0; repeat < 2; repeat++) {
       await page.locator("canvas").focus();
       await page.keyboard.down("d");
-      await page.waitForTimeout(300);
-      await page.keyboard.up("d");
-      assert.notDeepEqual(
-        await page.evaluate(() => window.v2Camera.position.toArray()),
-        expected.position,
-      );
+      try {
+        await page.waitForFunction(
+          (position) =>
+            window.v2Camera.position
+              .toArray()
+              .some((value, index) => Math.abs(value - position[index]) > 0.1),
+          expected.position,
+        );
+      } finally {
+        await page.keyboard.up("d");
+      }
       await page.getByRole("button", { name: "Return to entrance", exact: true }).click();
       await page.waitForFunction(
         (position) =>
@@ -385,6 +390,10 @@ if (process.argv.includes("--playback-only")) {
         when: { type: "time-elapsed", seconds: 1 },
         do: { type: "navigate-scene", sceneId: first.id.toUpperCase() },
       },
+      {
+        when: { type: "time-elapsed", seconds: 1 },
+        do: { type: "print-hi" },
+      },
     ];
     second.rules = [
       {
@@ -414,7 +423,19 @@ if (process.argv.includes("--playback-only")) {
         attributeFilter: ["data-exhibition-scene"],
       });
     });
-    await page.reload();
+    const laterAction = page
+      .waitForEvent("dialog", (dialog) => dialog.type() === "alert")
+      .then(async (dialog) => {
+        const message = dialog.message();
+        await dialog.accept();
+        return message;
+      });
+    const [, message] = await Promise.all([page.reload(), laterAction]);
+    assert.equal(
+      message,
+      "hi",
+      "The next legacy action runs after automatic navigation is rejected",
+    );
     await page.waitForFunction(
       () =>
         window.enteredScenes.length >= 3 || document.querySelector(".visitor-information")?.open,
@@ -427,6 +448,13 @@ if (process.argv.includes("--playback-only")) {
         automatic: [first.id, second.id],
       },
     );
+    await page
+      .getByRole("status")
+      .getByText("Automatic scene navigation stopped at a repeated scene.", { exact: true })
+      .waitFor();
+    await page
+      .locator(`[data-exhibition-scene="${second.id}"] [data-component-id="${secondPanel.id}"]`)
+      .waitFor();
     await page.getByRole("button", { name: returnDoor.label, exact: true }).click();
     await page
       .getByRole("status")
@@ -529,15 +557,14 @@ if (process.argv.includes("--playback-only")) {
       .getByRole("status")
       .getByText(/automatic scene navigation/i)
       .waitFor();
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       window.v2Camera.position.set(10, 1.6, 5);
       window.v2Fps.syncFromCamera();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     });
-    await page.waitForTimeout(500);
     if (!(await page.locator(".visitor-information").evaluate((node) => node.open)))
       await page.locator(".visitor-information summary").click();
     await page.getByRole("button", { name: "Return to entrance", exact: true }).click();
-    await page.waitForTimeout(500);
     await page.waitForFunction(() => window.enteredScenes.length >= 3, null, { timeout: 5000 });
     assert.deepEqual((await page.evaluate(() => window.enteredScenes)).slice(0, 3), [
       first.id,
@@ -1252,6 +1279,38 @@ document.dispatchEvent(new Event("visitor-playback-ready"));
             expectedPlaying,
             state,
           );
+          if (state === "backgrounded-ready") {
+            phase = "pausing active spatial audio in the background";
+            await target.evaluate(() => {
+              const audio = document.querySelector('audio[aria-label="spatial"]');
+              const paused = new Promise((resolve) => {
+                audio.addEventListener("pause", () => resolve(), { once: true });
+              });
+              window.spatialVisibility = { audio, paused };
+            });
+            await target.setVisible(false);
+            assert.deepEqual(
+              await target.evaluate(async () => {
+                const { audio, paused } = window.spatialVisibility;
+                await paused;
+                window.spatialVisibility.resumed = new Promise((resolve) => {
+                  audio.addEventListener("playing", () => resolve(), { once: true });
+                });
+                return { hidden: document.hidden, paused: audio.paused };
+              }),
+              { hidden: true, paused: true },
+            );
+            phase = "resuming active spatial audio in the foreground";
+            await target.setVisible(true);
+            assert.deepEqual(
+              await target.evaluate(async () => {
+                const { audio, resumed } = window.spatialVisibility;
+                await resumed;
+                return { hidden: document.hidden, paused: audio.paused };
+              }),
+              { hidden: false, paused: false },
+            );
+          }
           await target.evaluate((disposed) => {
             if (!disposed) probe.runtime.dispose();
             probe.unmount();

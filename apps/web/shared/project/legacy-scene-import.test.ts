@@ -7,11 +7,7 @@ const kinds = new Map([
   ["test-crate-v1", "model"],
 ]);
 function older() {
-  const scene = {
-    ...structuredClone(sample.scenes[0]!),
-    hotspots: undefined,
-    interactions: undefined,
-  };
+  const { hotspots: _hotspots, interactions: _interactions, ...scene } = sample.scenes[0]!;
   const view = {
     id: crypto.randomUUID(),
     name: "Entrance",
@@ -35,18 +31,28 @@ describe("older publication project format", () => {
   it("reads an extended version 1 document while strict deserialization rejects it", () => {
     const old = older();
     const text = JSON.stringify(old);
-    expect(deserializeProject(text, kinds).ok).toBe(false);
-    const result = readOlderSceneFile(text, kinds);
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw Error(result.error.message);
-    expect(result.value.scenes.map((s) => s.id)).toEqual(old.scenes.map((s) => s.id));
-    expect(result.value.scenes[0]!.startCamera).toEqual(old.scenes[0]!.viewpoints[0]!.camera);
-    expect(result.value.scenes[0]!.objects).toEqual(old.scenes[0]!.objects);
+    expect(deserializeProject(text, kinds)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes" },
+    });
+    expect(readOlderSceneFile(text, kinds)).toEqual({ ok: true, value: old });
   });
-  it("rejects unknown fields, duplicate JSON keys and over-limit documents instead of dropping data", () => {
-    expect(readOlderSceneFile('{"schemaVersion":1,"schemaVersion":1}', kinds).ok).toBe(false);
+
+  it("rejects duplicate JSON keys in an otherwise valid older publication", () => {
+    const document = JSON.stringify(older());
+    const duplicate = document.replace('"schemaVersion":1', '"schemaVersion":1,"schemaVersion":1');
+    expect(readOlderSceneFile(duplicate, kinds)).toEqual({
+      ok: false,
+      error: { path: "project", message: "Project JSON contains duplicate fields" },
+    });
+  });
+
+  it("rejects unknown fields and over-limit documents instead of dropping data", () => {
     const old = older();
-    expect(readOlderSceneFile(JSON.stringify({ ...old, secret: "drop me" }), kinds).ok).toBe(false);
+    expect(readOlderSceneFile(JSON.stringify({ ...old, secret: "drop me" }), kinds)).toMatchObject({
+      ok: false,
+      error: { path: "project.secret" },
+    });
     const scenes = Array.from({ length: 21 }, () => ({
       ...old.scenes[1]!,
       id: crypto.randomUUID(),

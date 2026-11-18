@@ -118,18 +118,7 @@ describe("shared browser/server project-format fixtures", () => {
   });
 
   it("preserves authored content, parentage and ordering", () => {
-    const result = deserializeProject(JSON.stringify(m2), assets);
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
-      throw new Error(result.error.message);
-    }
-    const project = result.value as ContentProject;
-    const first = project.scenes[0]!;
-    expect(project.scenes.map((scene) => scene.id)).toEqual(m2.scenes.map((scene) => scene.id));
-    expect(first.name).toBe(m2.scenes[0]!.name);
-    expect(first.rules).toEqual(m2.scenes[0]!.rules);
-    expect(first.objects[0]!.components).toEqual(m2.scenes[0]!.objects[0]!.components);
-    expect(first.objects[1]!.parentId).toBe(first.objects[0]!.id);
+    expect(deserializeProject(JSON.stringify(m2), assets)).toEqual({ ok: true, value: m2 });
   });
 
   it("retains known unsupported rules and reports capabilities before execution", () => {

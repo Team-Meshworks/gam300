@@ -8,7 +8,15 @@ export async function checkNativeMedia(browser, origin) {
   async function check(scenario, verify) {
     const page = await browser.newPage();
     const pageErrors = [];
+    const requestFailures = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
+    page.on("requestfailed", (request) =>
+      requestFailures.push({ url: request.url(), error: request.failure()?.errorText }),
+    );
+    page.on("response", (response) => {
+      if (response.status() >= 400)
+        requestFailures.push({ url: response.url(), status: response.status() });
+    });
     try {
       const started = page.waitForEvent(
         "console",
@@ -17,8 +25,30 @@ export async function checkNativeMedia(browser, origin) {
       const errored = page.waitForEvent("pageerror").then((error) => {
         throw error;
       });
-      await page.goto(`${origin}/__native-media?case=${scenario}`);
-      await Promise.race([started, errored]);
+      try {
+        await Promise.race([
+          Promise.all([page.goto(`${origin}/__native-media?case=${scenario}`), started]),
+          errored,
+        ]);
+      } catch (cause) {
+        const state = await page
+          .evaluate(() => ({
+            ready: document.readyState,
+            visibility: document.visibilityState,
+            attempts: window.mediaProbe?.attempts.length,
+            media: [...document.querySelectorAll("audio,video")].map((node) => ({
+              url: node.currentSrc,
+              network: node.networkState,
+              ready: node.readyState,
+              error: node.error?.message,
+            })),
+          }))
+          .catch(() => null);
+        throw new Error(
+          `Native media ${scenario} did not start: ${JSON.stringify({ state, requestFailures })}`,
+          { cause },
+        );
+      }
       await verify(page, page.locator("#activate"));
       assert.deepEqual(pageErrors, [], scenario);
     } finally {
@@ -130,24 +160,19 @@ export async function checkNativeMedia(browser, origin) {
   });
 
   await check("partial", async (page, enable) => {
-    let release;
-    let notifyRequest;
-    const gate = new Promise((resolve) => {
-      release = resolve;
-    });
-    const requested = new Promise((resolve) => {
-      notifyRequest = resolve;
-    });
-    await page.route("**/fixture-media/audio?delayed", async (route) => {
-      notifyRequest();
+    const { promise: gate, resolve: release } = Promise.withResolvers();
+    const delayedUrl = `${origin}/fixture-media/audio?delayed`;
+    await page.route(delayedUrl, async (route) => {
       await gate;
       await route.continue({ url: `${origin}/fixture-media/audio` });
     });
     try {
-      await page.evaluate(() => {
-        mediaProbe.visit.nodes[1].src = "/fixture-media/audio?delayed";
-      });
-      await requested;
+      await Promise.all([
+        page.waitForRequest(delayedUrl),
+        page.evaluate((url) => {
+          mediaProbe.visit.nodes[1].src = url;
+        }, delayedUrl),
+      ]);
       await enable.click();
       assert.deepEqual(await page.evaluate(() => mediaProbe.settleMedia()), [
         "NotAllowedError",
