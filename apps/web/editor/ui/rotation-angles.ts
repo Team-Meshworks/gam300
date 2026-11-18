@@ -27,12 +27,12 @@ export function degreesToQuaternion([ax, ay, az]: Vector3Tuple): QuaternionTuple
   const hz = az / DEGREES / 2;
   const [cx, cy, cz] = [Math.cos(hx), Math.cos(hy), Math.cos(hz)];
   const [sx, sy, sz] = [Math.sin(hx), Math.sin(hy), Math.sin(hz)];
-  const quaternion = [
+  const [x, y, z, w] = [
     sx * cy * cz + cx * sy * sz,
     cx * sy * cz - sx * cy * sz,
     cx * cy * sz + sx * sy * cz,
     cx * cy * cz - sx * sy * sz,
   ];
-  const length = Math.hypot(...quaternion);
-  return quaternion.map((value) => value / length) as unknown as QuaternionTuple;
+  const length = Math.hypot(x, y, z, w);
+  return [x / length, y / length, z / length, w / length];
 }

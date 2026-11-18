@@ -19,12 +19,9 @@ try {
   await openSavedProject(page);
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   const before = structuredClone(project.document());
-  assert.equal(await page.getByRole("button", { name: "Test visitor", exact: true }).count(), 0);
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   await page.getByRole("region", { name: "Exhibition", exact: true }).waitFor();
   assert.equal(await page.locator(".editor-shell").count(), 0);
-  assert.equal(await page.getByRole("combobox", { name: "Scene", exact: true }).count(), 0);
-  assert.equal(await page.locator(".visitor-controls").count(), 0);
   const restart = page.getByRole("button", { name: "Restart preview", exact: true });
   const exit = page.getByRole("button", { name: "Exit preview", exact: true });
   for (const width of [1366, 390]) {

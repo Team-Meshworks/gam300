@@ -23,9 +23,13 @@ try {
   const picker = page.getByLabel("Choose cover image");
   const gallery = page.getByRole("button", { name: "Gallery" });
   const cover = page.getByRole("img", { name: "Selected cover image" });
-  assert.equal(await page.getByRole("radio", { name: "Gallery" }).count(), 0);
   assert.equal(await page.getByRole("radio", { name: "Cover image" }).isChecked(), true);
   const [chooser] = await Promise.all([page.waitForEvent("filechooser"), gallery.click()]);
+  const acceptedTypes = await chooser.element().evaluate((input) => input.accept);
+  assert.deepEqual(
+    new Set(acceptedTypes.split(",").map((type) => type.trim())),
+    new Set(["image/png", "image/jpeg", "image/webp"]),
+  );
   await chooser.setFiles(imageFile("first.png"));
   await cover.waitFor({ state: "visible" });
   const firstSource = await cover.getAttribute("src");

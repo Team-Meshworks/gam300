@@ -165,12 +165,22 @@ try {
     .filter({ hasText: "Science project" })
     .getByRole("button", { name: "View Details" })
     .click();
-  const response = page.waitForResponse((r) =>
+  const latestAssignment = page.waitForResponse((r) =>
     r.url().includes(`/classes/${classId}/assignments/${assignmentId}`),
   );
+  const recheckedSession = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === "/api/v1/auth/session",
+  );
   releaseRefresh();
-  await response;
-  await page.waitForTimeout(200);
+  const [assignmentResponse, sessionResponse] = await Promise.all([
+    latestAssignment,
+    recheckedSession,
+  ]);
+  assert.equal(await assignmentResponse.finished(), null);
+  assert.equal(await sessionResponse.finished(), null);
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
   assert.equal(
     await page.getByRole("heading", { name: "Science project" }).count(),
     1,

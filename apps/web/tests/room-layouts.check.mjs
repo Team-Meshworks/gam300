@@ -49,14 +49,8 @@ try {
     const picker = await openRooms();
     await picker.getByRole("button", { name, exact: true }).click();
   }
-  async function saved(id) {
-    const deadline = Date.now() + 15000;
-    while (Date.now() < deadline) {
-      const doc = project.document();
-      if (doc?.scenes[0].environmentAssetId === id) return doc;
-      await page.waitForTimeout(100);
-    }
-    throw Error(`Room ${id} was not saved`);
+  function saved(id) {
+    return project.waitForDocument((doc) => doc.scenes[0]?.environmentAssetId === id);
   }
   const picker = await openRooms();
   assert.equal(await picker.locator(".asset-card").count(), 17);
@@ -88,22 +82,12 @@ try {
   // Capture the actual rendered environment roots, beyond the normalized cached model.
   const captureRoom = () =>
     page.evaluate(async () => {
-      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-      const { editorModelCache } = await import("/graphics/scene.ts");
-      const lease = await editorModelCache.acquire(
-        assets.find((a) => a.id === "room-space1-v1"),
-        new AbortController().signal,
-      );
-      const prototype = Object.getPrototypeOf(Object.getPrototypeOf(lease.value.model));
-      const add = prototype.add;
-      prototype.add = function (...nodes) {
-        if (this.isScene)
-          for (const node of nodes)
-            if (node.name === "placement-preview") window.roomGhost = node;
-            else if (node.isGroup) window.renderedRoom = node;
-        return add.apply(this, nodes);
-      };
-      lease.release();
+      const { Scene } = await import("/@id/three");
+      Scene.prototype.addEventListener("childadded", ({ target, child }) => {
+        if (!target.fog) return;
+        if (child.name === "placement-preview") window.roomGhost = child;
+        else if (child.isGroup) window.renderedRoom = child;
+      });
     });
   for (const layout of layouts) {
     // A fresh context gives every layout its own initial environment.
@@ -116,6 +100,8 @@ try {
     await captureRoom();
     await choose(layout.name);
     const doc = await saved(layout.id);
+    await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor({ timeout: 60000 });
+    await page.waitForFunction(() => !!window.renderedRoom?.parent?.fog);
     const loadedPicker = await openRooms();
     const thumbnail = loadedPicker
       .getByRole("button", { name: layout.name, exact: true })
@@ -186,26 +172,32 @@ try {
       document.querySelector(".viewport-stage")?.getAttribute("data-dragging-asset") ===
       "room-doors-2-v1",
   );
-  const dragDeadline = Date.now() + 15000;
-  let validDrop = false;
-  while (Date.now() < dragDeadline && !validDrop) {
-    await stage.dispatchEvent("dragover", { clientX: 720, clientY: 500, dataTransfer: transfer });
-    validDrop = await page.evaluate(() => {
+  await page.waitForFunction(
+    (dataTransfer) => {
+      document.querySelector(".viewport-stage").dispatchEvent(
+        new DragEvent("dragover", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 720,
+          clientY: 500,
+          dataTransfer,
+        }),
+      );
       let color;
       window.roomGhost?.traverse((node) => {
         if (node.isMesh) color = node.material.color.getHexString();
       });
       return window.roomGhost?.visible && color === "999999";
-    });
-    if (!validDrop) await page.waitForTimeout(100);
-  }
-  assert.ok(validDrop, "Dragging Door 2 produces a valid placement preview");
+    },
+    transfer,
+    { timeout: 15000 },
+  );
   await stage.dispatchEvent("drop", { clientX: 720, clientY: 500, dataTransfer: transfer });
   await choice.dispatchEvent("dragend", { dataTransfer: transfer });
   assert.equal((await saved("room-doors-2-v1")).scenes[0].objects.length, 0);
   await page.reload();
   await openSavedProject(page);
-  await saved("room-doors-2-v1");
+  await page.locator(".scene-tree .environment-row").waitFor();
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   await page.screenshot({
     path: "test-results/room-layouts/door-two.png",

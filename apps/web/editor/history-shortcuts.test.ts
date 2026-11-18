@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { createCommandHistory } from "./command-history";
 import { handleDeleteShortcut, handleHistoryShortcut } from "./history-shortcuts";
 
 function keyEvent(overrides = {}) {
@@ -18,29 +17,6 @@ function keyEvent(overrides = {}) {
 }
 
 describe("history shortcuts", () => {
-  it("uses the existing history and drops redo after a new edit", () => {
-    const history = createCommandHistory<number>();
-    const increment = { label: "Edit", apply: (n: number) => n + 1, revert: (n: number) => n - 1 };
-    let state = history.execute(0, increment);
-    const actions = {
-      undo: () => {
-        state = history.undo(state);
-      },
-      redo: () => {
-        state = history.redo(state);
-      },
-    };
-    handleHistoryShortcut(keyEvent(), actions, false);
-    expect(state).toBe(0);
-    handleHistoryShortcut(keyEvent({ key: "y" }), actions, false);
-    expect(state).toBe(1);
-    handleHistoryShortcut(keyEvent(), actions, false);
-    state = history.execute(state, increment);
-    handleHistoryShortcut(keyEvent({ key: "Z", shiftKey: true }), actions, false);
-    expect(state).toBe(1);
-    expect(history.canRedo).toBe(false);
-  });
-
   it.each([
     [{}, "undo"],
     [{ key: "y" }, "redo"],

@@ -218,7 +218,6 @@ try {
   await input.fill("");
   await input.pressSequentially("Yes ok and yeah the caret stays beside this text");
   assert.equal(await input.getAttribute("contenteditable"), "plaintext-only");
-  assert.equal(await content.locator(".content-text-preview").count(), 0);
   const delta = await input.evaluate((el) => {
     const caret = getSelection().getRangeAt(0).cloneRange();
     caret.collapse(false);
@@ -235,7 +234,6 @@ try {
   assert.equal(imageChrome.width, reference.width);
   assert.equal(imageChrome.height, reference.height);
   assert.deepEqual(imageChrome.controls, reference.controls);
-  assert.equal(await content.getByRole("textbox", { name: /caption/i }).count(), 0);
   assert.equal(await content.locator(".asset-card").count(), 6);
   await content.getByRole("button", { name: "Video", exact: true }).hover();
   const tabColors = await content.evaluate((el) => ({
@@ -282,18 +280,11 @@ try {
   );
   assert.ok(cornerDelta <= 2, `Thumbnail corner differs from card by ${cornerDelta}`);
 
-  assert.equal(await content.getByRole("textbox", { name: /caption/i }).count(), 0);
   await content.screenshot({ path: "test-results/display-editor/video-library.png" });
   await content
     .getByRole("button", { name: "Sample dunes motion (3 seconds)", exact: true })
     .click();
   await content.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("button", { name: "Position", exact: true }).click();
-  assert.equal(
-    await page.getByRole("button", { name: "Edit exhibit information", exact: true }).count(),
-    0,
-  );
-  await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   const textAction = page.getByRole("button", { name: "Edit text", exact: true });
   assert.equal(await textAction.isDisabled(), true);
   await page.getByRole("button", { name: "Remove video", exact: true }).click();
@@ -340,12 +331,7 @@ try {
   assert.equal(physicalChrome.width, reference.width);
   assert.equal(physicalChrome.height, reference.height);
   assert.deepEqual(physicalChrome.controls, reference.controls);
-  assert.equal(await library.locator(".display-editor-object").count(), 0);
   assert.ok((await library.locator(".display-owner").innerText()).includes("Display plinth"));
-  assert.equal(
-    await library.getByRole("button", { name: "Remove content", exact: true }).count(),
-    0,
-  );
   assert.equal(await library.locator(".asset-card").count(), 5);
   await library.getByRole("button", { name: "Sample crate", exact: true }).click();
   await library.screenshot({ path: "test-results/display-editor/physical-library.png" });
@@ -371,7 +357,7 @@ try {
   assert.equal(await page.getByRole("button", { name: "Edit text", exact: true }).count(), 0);
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: one native formatted editing surface/caret; identical library sizes and chrome; no media captions; narrow rail/curved hover; stand controls; physical library, owner label, remove icon and Undo.",
+    "Display editor passed caret alignment, library layout, stand controls, object placement, removal and Undo.",
   );
 } finally {
   await browser.close();

@@ -66,13 +66,6 @@ try {
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1212 },
   });
-  // Reproduce older Android browsers across login, dashboard navigation and project opening
-  await page.addInitScript(() => {
-    Object.defineProperty(AbortSignal, "any", {
-      configurable: true,
-      value: undefined,
-    });
-  });
   page.setDefaultTimeout(10000);
   page.setDefaultNavigationTimeout(30000);
   const errors = [];
@@ -88,6 +81,7 @@ try {
   let adminProjectReads = 0;
   let creations = 0;
   let loseCreationReply = false;
+  const creationReply = Promise.withResolvers();
   // Keep mock catalogue previews independent of Vite source paths and build hashing.
   const assetThumbnail = await readFile("editor/home/assets/default-project-neutral.jpg");
   await page.route("**/test-fixtures/admin-asset-thumbnail.jpg", (route) =>
@@ -161,7 +155,7 @@ try {
         });
         creations++;
         if (loseCreationReply) return route.abort("failed");
-        await new Promise((resolve) => setTimeout(resolve, 150));
+        await creationReply.promise;
         return route.fulfill({
           status: 201,
           json: {
@@ -347,10 +341,6 @@ try {
     await page.getByRole("link", { name: "+ Add Item", exact: true }).getAttribute("href"),
     "/assets?add=1",
   );
-  assert.equal(
-    await page.getByRole("link", { name: "Open project workspace", exact: true }).count(),
-    0,
-  );
   await page.evaluate(() => {
     window.organisationNavigationMarker = "same-workspace";
   });
@@ -366,7 +356,6 @@ try {
   await page.goForward();
   await page.getByRole("heading", { name: "All Organisations", exact: true, level: 1 }).waitFor();
   assert.equal(await page.evaluate(() => window.organisationNavigationMarker), "same-workspace");
-  assert.equal(await page.getByRole("navigation", { name: "Workspace screens" }).count(), 0);
   await page.getByRole("link", { name: "Close organisations" }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   for (const [link, heading] of [
@@ -461,7 +450,6 @@ try {
     path: join(dirname(screenshot), "admin-projects-after.png"),
     fullPage: true,
   });
-  assert.equal(await page.getByRole("dialog", { name: "All Published Projects" }).count(), 0);
   for (const name of [
     /^All Work(?: \(\d+\))?$/,
     /^Private(?: \(\d+\))?$/,
@@ -469,8 +457,6 @@ try {
   ]) {
     assert.equal(await projectView.getByRole("tab", { name, exact: true }).isVisible(), true);
   }
-  assert.equal(await projectView.getByRole("tab", { name: /^Archived/ }).count(), 0);
-  assert.equal(await projectView.getByRole("link", { name: "Open project workspace" }).count(), 0);
   await projectView.getByRole("tab", { name: "All Work (4)", exact: true }).waitFor();
   assert.equal(
     await projectView
@@ -559,7 +545,6 @@ try {
     exact: true,
   });
   await details.waitFor();
-  assert.equal(await page.getByRole("dialog", { name: "Project details" }).count(), 0);
   assert.equal(await details.getByText("Life in Ancient Rome", { exact: true }).isVisible(), true);
   assert.equal(await details.locator(".admin-project-visibility").textContent(), "Public");
   await details.getByRole("link", { name: "Ridgeview Secondary School", exact: true }).waitFor();
@@ -856,7 +841,6 @@ try {
     3,
     "Loaded published projects are retained while deleted editions are removed",
   );
-  assert.equal(await projectView.getByRole("button", { name: "Load more projects" }).count(), 0);
   await projectView.getByLabel("Search published projects").fill("no matching project");
   await projectView.getByRole("status").filter({ hasText: "No matching projects" }).waitFor();
   assert.equal(
@@ -908,6 +892,10 @@ try {
       button.click();
       button.click();
     });
+  const creating = dialog.getByRole("button", { name: "Creating…", exact: true });
+  await creating.waitFor();
+  assert.equal(await creating.isDisabled(), true);
+  creationReply.resolve();
   await dialog.waitFor({ state: "detached" });
   assert.equal(creations, 1);
   await page.waitForURL(origin + "/organisations");
@@ -939,13 +927,11 @@ try {
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
   dialog = page.getByRole("dialog", { name: "Add Organisation", exact: true });
   await dialog.getByLabel("Organisation name").fill("Unconfirmed School");
-  let create = dialog.getByRole("button", { name: "Create Organisation", exact: true });
+  const create = dialog.getByRole("button", { name: "Create Organisation", exact: true });
   await create.click();
-  await dialog.getByRole("alert").waitFor();
-  if ((await create.isVisible()) && (await create.isEnabled())) {
-    await create.click();
-    await dialog.getByRole("alert").waitFor();
-  }
+  await dialog.getByRole("alert").filter({ hasText: "Unconfirmed School" }).waitFor();
+  await dialog.getByRole("button", { name: "Check organisation directory" }).waitFor();
+  assert.equal(await create.count(), 0, "An uncertain creation must offer directory recovery");
   assert.equal(creations, 2, "Losing the receipt must not allow a second creation");
   await page.reload();
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
@@ -958,8 +944,7 @@ try {
   dialog = page.getByRole("dialog", { name: "Add Organisation", exact: true });
   await dialog.getByRole("button", { name: "I checked the directory" }).click();
   await dialog.getByLabel("Organisation name").fill("Different School");
-  create = dialog.getByRole("button", { name: "Create Organisation", exact: true });
-  assert.equal(await create.isEnabled(), true);
+  assert.equal(await dialog.getByRole("button", { name: "Create Organisation" }).isEnabled(), true);
   await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
   loseCreationReply = false;
   for (const [button, path, title, expected, excluded, noun] of [

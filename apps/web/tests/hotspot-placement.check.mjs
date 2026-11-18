@@ -18,20 +18,12 @@ async function imported(page, project, document) {
   await openSavedProject(page);
 }
 
-async function recovery(page, project, count, position) {
-  const deadline = Date.now() + 12000;
-  while (Date.now() < deadline) {
-    const doc = project.document();
-    if (
+function recovery(project, count, position) {
+  return project.waitForDocument(
+    (doc) =>
       (doc?.scenes[0]?.hotspots?.length ?? 0) === count &&
       (position === undefined ||
-        JSON.stringify(doc.scenes[0].hotspots[0]?.position) === JSON.stringify(position))
-    )
-      return doc;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error(
-    `Recovery did not reach ${count} hotspots: ${await page.locator("body").innerText()}`,
+        JSON.stringify(doc.scenes[0].hotspots[0]?.position) === JSON.stringify(position)),
   );
 }
 
@@ -207,7 +199,7 @@ try {
     await imported(page, project, doc);
     await page.locator("[data-object-id]").first().click();
     await page.getByRole("button", { name: "Add Hotspot", exact: true }).click();
-    const clickDoc = await recovery(page, project, 1);
+    const clickDoc = await recovery(project, 1);
     const anchor = clickDoc.scenes[0].hotspots[0].position;
     const placement = await visiblePlacement(page, doc, local, anchor);
     assert.ok(
@@ -220,19 +212,16 @@ try {
     );
     await page.screenshot({ path: `${output}/${index}-${assetId}.png` });
     await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await recovery(page, project, 0);
+    await recovery(project, 0);
     await page.getByRole("button", { name: "Redo", exact: true }).click();
-    assert.deepEqual(
-      (await recovery(page, project, 1)).scenes[0].hotspots,
-      clickDoc.scenes[0].hotspots,
-    );
+    assert.deepEqual((await recovery(project, 1)).scenes[0].hotspots, clickDoc.scenes[0].hotspots);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await recovery(page, project, 0);
+    await recovery(project, 0);
     // The room is unsupported: drag must pick the actual exhibit, not fall back to selection.
     await page.locator(".environment-row").click();
     const point = await screenPoint(page, doc, fixture.hit);
     await dragHotspot(page, point);
-    const dragDoc = await recovery(page, project, 1);
+    const dragDoc = await recovery(project, 1);
     assert.deepEqual(
       dragDoc.scenes[0].hotspots[0].position,
       anchor,
@@ -241,11 +230,9 @@ try {
     assert.equal(dragDoc.scenes[0].hotspots[0].objectId, doc.scenes[0].objects[0].id);
     await page.reload({ waitUntil: "domcontentloaded" });
     await openSavedProject(page);
-    await page.locator("[data-object-id] .hotspot-indicator").first().waitFor();
-    assert.deepEqual(
-      (await recovery(page, project, 1)).scenes[0].hotspots,
-      dragDoc.scenes[0].hotspots,
-    );
+    await page
+      .locator(`[data-object-id="${doc.scenes[0].objects[0].id}"] .hotspot-indicator`)
+      .waitFor();
     // Existing authored positions remain byte-for-byte identical through import and edits.
     const legacy = structuredClone(dragDoc);
     legacy.scenes[0].hotspots[0].position = [-0.2, 0.1, -0.3];
@@ -254,7 +241,7 @@ try {
     await page.getByRole("button", { name: "Add Hotspot", exact: true }).click();
     await page.getByText("Each object can have at most one hotspot", { exact: true }).waitFor();
     assert.deepEqual(
-      (await recovery(page, project, 1, [-0.2, 0.1, -0.3])).scenes[0].hotspots[0].position,
+      (await recovery(project, 1, [-0.2, 0.1, -0.3])).scenes[0].hotspots[0].position,
       [-0.2, 0.1, -0.3],
     );
     await page.locator(".environment-row").click();

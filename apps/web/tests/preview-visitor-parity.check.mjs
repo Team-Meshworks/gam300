@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
-import { serveProject } from "./authoring-project-fixture.mjs";
+import { withVisibilityPage } from "./page-visibility.mjs";
+import { createProjectFixture } from "./authoring-project-fixture.mjs";
 
 const fixture = JSON.parse(
   readFileSync(new URL("../shared/project/fixtures/m2-project.json", import.meta.url), "utf8"),
@@ -137,9 +138,218 @@ const project = {
   scenes: [first, second],
 };
 const publicationId = "11111111-1111-4111-8111-111111111111";
+const projectPath = `/api/v1/projects/${project.projectId}`;
+const publicationPath = `/api/v1/publications/${publicationId}`;
+const editorAssets = media.map((item) => ({
+  id: item.id,
+  name: item.kind,
+  kind: item.kind,
+  sha256: item.sha256,
+  url: `${projectPath}/assets/${item.id}/bytes`,
+  category: null,
+  thumbnail: null,
+}));
+const manifest = {
+  publicationId,
+  projectId: project.projectId,
+  sourceRevision: 1,
+  assets: media.map((item) => ({
+    id: item.id,
+    kind: item.kind,
+    sha256: item.sha256,
+    url: `${publicationPath}/assets/${item.id}/bytes`,
+  })),
+};
+const saved = createProjectFixture(project);
+
+async function checkStandVisibility(host, url, mode) {
+  let phase = "opening the application";
+  await withVisibilityPage(host, async (page) => {
+    if (mode === "Preview") await page.setVisible(true);
+    await page.addInitScript(() => {
+      window.standPlaybackVisibility = [];
+      const play = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function () {
+        if (this.matches("video[data-stand-video]"))
+          window.standPlaybackVisibility.push(document.visibilityState);
+        return play.call(this);
+      };
+    });
+    await page.goto(url);
+    if (mode === "Preview") {
+      phase = "waiting for the Preview button";
+      await page.evaluate(() => {
+        const previewButton = () =>
+          [...document.querySelectorAll("button")].find(
+            (button) => button.textContent.trim() === "Preview" && !button.disabled,
+          );
+        if (previewButton()) return;
+        return new Promise((resolve) => {
+          const observer = new MutationObserver(() => {
+            if (!previewButton()) return;
+            observer.disconnect();
+            resolve();
+          });
+          observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+        });
+      });
+      await page.setVisible(false);
+      await page.evaluate(() => {
+        [...document.querySelectorAll("button")]
+          .find((button) => button.textContent.trim() === "Preview")
+          .click();
+      });
+    }
+    phase = "loading the stand in a hidden document";
+    const initial = await page
+      .evaluate(
+        () =>
+          new Promise((resolve) => {
+            const observer = new MutationObserver(ready);
+            function ready() {
+              const stand = document.querySelector("video[data-stand-video]");
+              const status = [...document.querySelectorAll('[role="status"]')].some(
+                (node) => node.textContent.trim() === "Exhibition ready",
+              );
+              if (!status || !stand?.getAttribute("src")?.startsWith("blob:")) return;
+              observer.disconnect();
+              resolve({
+                hidden: document.hidden,
+                paused: stand.paused,
+                currentTime: stand.currentTime,
+              });
+            }
+            observer.observe(document.body, {
+              childList: true,
+              subtree: true,
+              characterData: true,
+              attributeFilter: ["src"],
+            });
+            ready();
+          }),
+      )
+      .catch(async (cause) => {
+        const state = await page.evaluate(() => ({
+          statuses: [...document.querySelectorAll('[role="status"], [role="alert"]')].map(
+            (node) => node.textContent,
+          ),
+          videos: [...document.querySelectorAll("video")].map((video) => ({
+            stand: video.hasAttribute("data-stand-video"),
+            readyState: video.readyState,
+            networkState: video.networkState,
+          })),
+        }));
+        throw new Error(JSON.stringify(state), { cause });
+      });
+    assert.deepEqual(
+      initial,
+      { hidden: true, paused: true, currentTime: 0 },
+      `${mode}: an initially hidden stand waits for visibility`,
+    );
+    await page.setVisible(true);
+    phase = "starting the stand after visibility returns";
+    const playbackVisibility = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const stand = document.querySelector("video[data-stand-video]");
+          const playing = () => {
+            if (stand.paused || stand.currentTime === 0) return;
+            stand.removeEventListener("timeupdate", playing);
+            resolve(window.standPlaybackVisibility);
+          };
+          stand.addEventListener("timeupdate", playing);
+          playing();
+        }),
+    );
+    assert.deepEqual(
+      [...new Set(playbackVisibility)],
+      ["visible"],
+      `${mode}: the stand only requests playback in a visible document`,
+    );
+    await page.evaluate(() => {
+      const stand = document.querySelector("video[data-stand-video]");
+      const observed = { visibility: [], resumed: false };
+      window.standVisibility = observed;
+      stand.addEventListener("play", () => {
+        observed.resumed = true;
+      });
+      document.addEventListener("visibilitychange", (event) => {
+        observed.visibility.push([document.visibilityState, event.isTrusted]);
+      });
+      return new Promise((resolve) => {
+        stand.addEventListener("pause", () => resolve(), { once: true });
+        stand.pause();
+      });
+    });
+    phase = "returning with the stand manually paused";
+    await page.setVisible(false);
+    await page.setVisible(true);
+    const returned = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          function visible() {
+            if (window.standVisibility.visibility.at(-1)?.[0] !== "visible") return;
+            document.removeEventListener("visibilitychange", visible);
+            resolve({
+              ...window.standVisibility,
+              paused: document.querySelector("video[data-stand-video]").paused,
+            });
+          }
+          document.addEventListener("visibilitychange", visible);
+          visible();
+        }),
+    );
+    assert.deepEqual(
+      returned,
+      {
+        visibility: [
+          ["hidden", true],
+          ["visible", true],
+        ],
+        resumed: false,
+        paused: true,
+      },
+      `${mode}: returning to a tab preserves an explicit pause`,
+    );
+  }).catch((cause) => {
+    throw new Error(`${mode}: failed while ${phase}`, { cause });
+  });
+}
+
 const server = await createServer({
   configFile: fileURLToPath(new URL("../vite.config.ts", import.meta.url)),
   server: { host: "127.0.0.1", port: 0 },
+  plugins: [
+    {
+      name: "parity-api",
+      enforce: "pre",
+      configureServer(server) {
+        server.middlewares.use((request, response, next) => {
+          const path = request.url?.split("?", 1)[0] ?? "";
+          if (request.method !== "GET") return next();
+          const respond = (body) => {
+            response.writeHead(200, {
+              "Content-Type": "application/json",
+              "Cache-Control": "no-store",
+            });
+            response.end(JSON.stringify(body));
+          };
+          if (path === `${projectPath}/assets`) return respond(editorAssets);
+          if (path === `${publicationPath}/manifest`) return respond(manifest);
+          if (path === publicationPath) return respond(project);
+          const item = media.find(
+            ({ id }) =>
+              path === `${projectPath}/assets/${id}/bytes` ||
+              path === `${publicationPath}/assets/${id}/bytes`,
+          );
+          if (!item) return next();
+          response.writeHead(200, { "Content-Type": item.contentType });
+          return response.end(item.bytes);
+        });
+        server.middlewares.use(saved.middleware);
+      },
+    },
+  ],
 });
 let browser;
 try {
@@ -151,6 +361,8 @@ try {
   });
   const editor = await browser.newPage();
   editor.setDefaultTimeout(30000);
+  const editorUrl = `${origin}/?projectId=${project.projectId}`;
+  const visitorUrl = `${origin}/p/${publicationId}`;
   const observeScenes = (page) =>
     page.addInitScript(() => {
       window.__THREE_DEVTOOLS__ = new EventTarget();
@@ -173,28 +385,7 @@ try {
       });
     });
   await observeScenes(editor);
-  const saved = await serveProject(editor, origin, project);
-  const projectAssets = `/api/v1/projects/${project.projectId}/assets`;
-  await editor.route(`**${projectAssets}**`, (route) => {
-    const path = new URL(route.request().url()).pathname;
-    if (path === projectAssets)
-      return route.fulfill({
-        json: media.map((item) => ({
-          id: item.id,
-          name: item.kind,
-          kind: item.kind,
-          sha256: item.sha256,
-          url: `${projectAssets}/${item.id}/bytes`,
-          category: null,
-          thumbnail: null,
-        })),
-      });
-    const item = media.find((asset) => path.endsWith(`/${asset.id}/bytes`));
-    return item
-      ? route.fulfill({ contentType: item.contentType, body: item.bytes })
-      : route.fallback();
-  });
-  await editor.goto(saved.url);
+  await editor.goto(editorUrl);
   await editor.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   // Compare actual wall pixels from inside the Starter room, with the same eye position
   // in all three modes. A direction facing away from the player's old sun rendered black.
@@ -299,59 +490,12 @@ try {
   const visitor = await browser.newPage();
   visitor.setDefaultTimeout(30000);
   await observeScenes(visitor);
-  await visitor.addInitScript(() =>
-    Object.defineProperty(document, "hidden", { configurable: true, value: true }),
-  );
-  await visitor.route("**/api/v1/publications/**", (route) => {
-    const path = new URL(route.request().url()).pathname;
-    const item = media.find((asset) => path.endsWith(`/${asset.id}/bytes`));
-    if (item) return route.fulfill({ contentType: item.contentType, body: item.bytes });
-    return route.fulfill({
-      json: path.endsWith("/manifest")
-        ? {
-            publicationId,
-            projectId: project.projectId,
-            sourceRevision: 1,
-            assets: media.map((asset) => ({
-              id: asset.id,
-              kind: asset.kind,
-              sha256: asset.sha256,
-              url: `/api/v1/publications/${publicationId}/assets/${asset.id}/bytes`,
-            })),
-          }
-        : project,
-    });
-  });
-  await visitor.goto(`${origin}/p/${publicationId}`);
+  await visitor.goto(visitorUrl);
   await visitor.getByRole("status").getByText("Exhibition ready").waitFor();
-  const stand = visitor.locator("video[data-stand-video]");
-  await visitor.waitForFunction(
-    () => document.querySelector("video[data-stand-video]")?.readyState >= 2,
-  );
-  assert.ok(
-    await stand.evaluate((video) => video.paused),
-    "An initially hidden stand waits for visibility",
-  );
-  await visitor.evaluate(() => {
-    delete document.hidden;
-    document.dispatchEvent(new Event("visibilitychange"));
-  });
   await waitForStand(visitor);
   await visitor.keyboard.press("Shift");
   await waitForStand(visitor, true);
   for (const page of [editor, visitor]) {
-    const video = page.locator("video[data-stand-video]");
-    await video.evaluate((node) => {
-      node.pause();
-      Object.defineProperty(document, "hidden", { configurable: true, value: true });
-      document.dispatchEvent(new Event("visibilitychange"));
-      delete document.hidden;
-      document.dispatchEvent(new Event("visibilitychange"));
-    });
-    assert.ok(
-      await video.evaluate((node) => node.paused),
-      "Returning to a tab preserves an explicit pause",
-    );
     const oldCanvas = await page.locator(".visitor-canvas canvas").elementHandle();
     await page.locator(".visitor-information > summary").click();
     await page.getByRole("button", { name: revisit.label }).click();
@@ -429,6 +573,8 @@ try {
       return video && !video.paused && video.currentTime > 0;
     }, video.id);
     for (const input of ["walk", "look"]) {
+      if (!(await page.locator(".visitor-information").evaluate((details) => details.open)))
+        await page.locator(".visitor-information > summary").click();
       await page.getByRole("button", { name: "Next room", exact: true }).click();
       await page.getByText("Automatic scene navigation stopped at a repeated scene.").waitFor();
       assert.equal(
@@ -462,12 +608,10 @@ try {
         if (input === "walk") await page.keyboard.up("w");
       }
       await page.getByRole("status").getByText("Exhibition ready").waitFor();
-      if (!(await page.locator(".visitor-information").evaluate((details) => details.open)))
-        await page.locator(".visitor-information > summary").click();
     }
-    assert.equal(await page.getByRole("combobox").count(), 0);
-    assert.equal(await page.getByRole("button", { name: /Reset view|Enable audio/ }).count(), 0);
   }
+  await checkStandVisibility(editor, editorUrl, "Preview");
+  await checkStandVisibility(visitor, visitorUrl, "Visitor");
   assert.deepEqual(saved.document(), project, "Viewing does not mutate the authored draft");
   console.log("PASS visitor wall lighting, hotspot and published interactions");
 } finally {

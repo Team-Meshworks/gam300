@@ -32,12 +32,11 @@ try {
     const { HOTSPOT_ASSET } = await import(hotspotPath);
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const { promise, resolve, reject } = Promise.withResolvers();
-    const originalAdd = THREE.Object3D.prototype.add;
     let scene;
-    THREE.Object3D.prototype.add = function (...objects) {
-      if (this.isScene && this.background?.isColor) scene = this;
-      return originalAdd.apply(this, objects);
+    const observeScene = ({ target }) => {
+      if (target.background?.isColor) scene = target;
     };
+    THREE.Scene.prototype.addEventListener("childadded", observeScene);
     let handle;
     try {
       handle = initScene(
@@ -56,7 +55,7 @@ try {
         },
       );
     } finally {
-      THREE.Object3D.prototype.add = originalAdd;
+      THREE.Scene.prototype.removeEventListener("childadded", observeScene);
     }
     await promise;
     await Promise.all([

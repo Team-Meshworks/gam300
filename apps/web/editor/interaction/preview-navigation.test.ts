@@ -6,7 +6,7 @@ import { createInteractionHandler } from "./interactionHandler";
 import fixture from "../../shared/project/fixtures/m2-project.json";
 import { deserializeProject } from "../../shared/project/project-deserialization";
 
-it("stops delayed scene cycles while allowing a deliberate return", () => {
+function loadFixture() {
   const loaded = deserializeProject(
     JSON.stringify(fixture),
     new Map([
@@ -18,7 +18,11 @@ it("stops delayed scene cycles while allowing a deliberate return", () => {
     ]),
   );
   if (!loaded.ok) throw new Error(loaded.error.message);
-  const project = loaded.value;
+  return loaded.value;
+}
+
+it("stops delayed scene cycles while allowing a deliberate return", () => {
+  const project = loadFixture();
   const [first, second] = project.scenes;
   if (!first || !second) throw new Error("Two scenes are required");
   let activeSceneId = first.id;
@@ -116,7 +120,21 @@ it("navigates by stable IDs, resolves local viewpoints, stops scene-start loops 
 it.each(["scene-starts", "time-elapsed", "visitor-clicks-hotspot"] as const)(
   "stops the source scene's remaining %s actions after navigation",
   (type) => {
-    const navigation = { goToScene: vi.fn(() => true), goToViewpoint: vi.fn() };
+    const project = loadFixture();
+    const [first, next] = project.scenes;
+    if (!first || !next) throw new Error("Expected two scenes");
+    let activeSceneId = first.id;
+    const navigation = createPreviewNavigation({
+      snapshot: () => ({ project, activeSceneId }),
+      switchScene(id) {
+        activeSceneId = id;
+        return { ok: true };
+      },
+      showCamera: vi.fn(),
+      notice: vi.fn(),
+    });
+    navigation.start();
+    const viewpoint = vi.spyOn(navigation, "goToViewpoint");
     const runner = createActionRunner(navigation);
     const when =
       type === "visitor-clicks-hotspot"
@@ -126,7 +144,7 @@ it.each(["scene-starts", "time-elapsed", "visitor-clicks-hotspot"] as const)(
           : { type };
     const handler = createInteractionHandler(
       [
-        { when, do: { type: "navigate-scene", sceneId: "next" } },
+        { when, do: { type: "navigate-scene", sceneId: next.id } },
         { when, do: { type: "move-to-viewpoint", viewpointId: "old-view" } },
       ],
       [{ id: "hotspot", objectId: "object", position: [0, 0, 0] }],
@@ -135,7 +153,7 @@ it.each(["scene-starts", "time-elapsed", "visitor-clicks-hotspot"] as const)(
     if (type === "scene-starts") handler.sceneStarted();
     else if (type === "time-elapsed") handler.update(1);
     else handler.objectClicked("OBJECT");
-    expect(navigation.goToScene).toHaveBeenCalledExactlyOnceWith("next");
-    expect(navigation.goToViewpoint).not.toHaveBeenCalled();
+    expect(activeSceneId).toBe(next.id);
+    expect(viewpoint).not.toHaveBeenCalled();
   },
 );

@@ -7,7 +7,7 @@ import type {
   ProjectScene,
 } from "./project-types";
 import { validateCameraPose, validatePosition, validateTransform } from "./spatial-validation";
-import { checkFields, invalid, isRecord } from "./validation-helpers";
+import { checkFields, invalid, isRecord, readField } from "./validation-helpers";
 import type { ValidationResult } from "./validation-helpers";
 import { MAX_PROJECT_BYTES } from "./project-limits";
 import { validateContentStructure } from "./project-content-validation";
@@ -66,19 +66,19 @@ function validateObject(
   }
 
   // Read the text here; validateProject handles UUIDs and asset references
-  const id = readText(raw.id, `${path}.id`, budget);
+  const id = readText(readField(raw, "id"), `${path}.id`, budget);
   if (!id.ok) {
     return id;
   }
-  const name = readText(raw.name, `${path}.name`, budget);
+  const name = readText(readField(raw, "name"), `${path}.name`, budget);
   if (!name.ok) {
     return name;
   }
-  const assetId = readText(raw.assetId, `${path}.assetId`, budget);
+  const assetId = readText(readField(raw, "assetId"), `${path}.assetId`, budget);
   if (!assetId.ok) {
     return assetId;
   }
-  const transform = validateTransform(raw.transform, `${path}.transform`);
+  const transform = validateTransform(readField(raw, "transform"), `${path}.transform`);
   if (!transform.ok) {
     return transform;
   }
@@ -101,15 +101,15 @@ function validateHotspot(
     return fields;
   }
 
-  const id = readText(raw.id, `${path}.id`, budget);
+  const id = readText(readField(raw, "id"), `${path}.id`, budget);
   if (!id.ok) {
     return id;
   }
-  const objectId = readText(raw.objectId, `${path}.objectId`, budget);
+  const objectId = readText(readField(raw, "objectId"), `${path}.objectId`, budget);
   if (!objectId.ok) {
     return objectId;
   }
-  const position = validatePosition(raw.position, `${path}.position`);
+  const position = validatePosition(readField(raw, "position"), `${path}.position`);
   if (!position.ok) {
     return position;
   }
@@ -130,11 +130,11 @@ function validateTrigger(
   if (!Object.hasOwn(raw, "type")) {
     return invalid(`${path}.type`, "Required field is missing");
   }
-  switch (raw.type) {
+  switch (readField(raw, "type")) {
     case "visitor-clicks-hotspot": {
       const fields = checkFields(raw, ["type", "targetHotspotId"], path);
       if (!fields.ok) return fields;
-      const target = readText(raw.targetHotspotId, `${path}.targetHotspotId`, budget);
+      const target = readText(readField(raw, "targetHotspotId"), `${path}.targetHotspotId`, budget);
       if (!target.ok) return target;
       return {
         ok: true,
@@ -149,15 +149,16 @@ function validateTrigger(
     case "time-elapsed": {
       const fields = checkFields(raw, ["type", "seconds"], path);
       if (!fields.ok) return fields;
+      const seconds = readField(raw, "seconds");
       if (
-        typeof raw.seconds !== "number" ||
-        !Number.isFinite(raw.seconds) ||
-        raw.seconds <= 0 ||
-        raw.seconds > MAX_ELAPSED_SECONDS
+        typeof seconds !== "number" ||
+        !Number.isFinite(seconds) ||
+        seconds <= 0 ||
+        seconds > MAX_ELAPSED_SECONDS
       ) {
         return invalid(`${path}.seconds`, "Expected a positive number of seconds");
       }
-      return { ok: true, value: { type: "time-elapsed", seconds: raw.seconds } };
+      return { ok: true, value: { type: "time-elapsed", seconds } };
     }
     default:
       return invalid(`${path}.type`, "Unsupported trigger type");
@@ -176,11 +177,12 @@ function validateAction(
   if (!Object.hasOwn(raw, "type")) {
     return invalid(`${path}.type`, "Required field is missing");
   }
-  switch (raw.type) {
+  const type = readField(raw, "type");
+  switch (type) {
     case "open-link": {
       const fields = checkFields(raw, ["type", "url"], path);
       if (!fields.ok) return fields;
-      const url = readText(raw.url, `${path}.url`, budget);
+      const url = readText(readField(raw, "url"), `${path}.url`, budget);
       if (!url.ok) return url;
       if (!allowDraftLinks) {
         if (url.value.length > MAX_PORTABLE_URL_LENGTH) {
@@ -195,7 +197,7 @@ function validateAction(
     case "play-audio": {
       const fields = checkFields(raw, ["type", "url"], path);
       if (!fields.ok) return fields;
-      const url = readText(raw.url, `${path}.url`, budget);
+      const url = readText(readField(raw, "url"), `${path}.url`, budget);
       if (!url.ok) return url;
       if (!allowDraftLinks && url.value.length > MAX_PORTABLE_URL_LENGTH) {
         return invalid(`${path}.url`, `Text exceeds ${MAX_PORTABLE_URL_LENGTH} characters`);
@@ -204,17 +206,15 @@ function validateAction(
     }
     case "navigate-scene":
     case "move-to-viewpoint": {
-      const key = raw.type === "navigate-scene" ? "sceneId" : "viewpointId";
+      const key = type === "navigate-scene" ? "sceneId" : "viewpointId";
       const fields = checkFields(raw, ["type", key], path);
       if (!fields.ok) return fields;
-      const id = readText(raw[key], `${path}.${key}`, budget);
+      const id = readText(readField(raw, key), `${path}.${key}`, budget);
       if (!id.ok) return id;
       return {
         ok: true,
         value:
-          raw.type === "navigate-scene"
-            ? { type: raw.type, sceneId: id.value }
-            : { type: raw.type, viewpointId: id.value },
+          type === "navigate-scene" ? { type, sceneId: id.value } : { type, viewpointId: id.value },
       };
     }
     case "print-hi": {
@@ -240,9 +240,9 @@ function validateInteraction(
   if (!fields.ok) {
     return fields;
   }
-  const when = validateTrigger(raw.when, `${path}.when`, budget);
+  const when = validateTrigger(readField(raw, "when"), `${path}.when`, budget);
   if (!when.ok) return when;
-  const action = validateAction(raw.do, `${path}.do`, budget, allowDraftLinks);
+  const action = validateAction(readField(raw, "do"), `${path}.do`, budget, allowDraftLinks);
   if (!action.ok) return action;
   return { ok: true, value: { when: when.value, do: action.value } };
 }
@@ -268,22 +268,27 @@ function validateScene(
 
   // Check the count before walking the object list
   // An empty room is valid while the author is getting started
-  if (!Array.isArray(raw.objects) || raw.objects.length > MAX_OBJECTS_PER_SCENE) {
+  const rawObjects = readField(raw, "objects");
+  if (!Array.isArray(rawObjects) || rawObjects.length > MAX_OBJECTS_PER_SCENE) {
     return invalid(`${path}.objects`, "Objects must be an array with at most 200 entries");
   }
-  const id = readText(raw.id, `${path}.id`, budget);
+  const id = readText(readField(raw, "id"), `${path}.id`, budget);
   if (!id.ok) {
     return id;
   }
-  const name = readText(raw.name, `${path}.name`, budget);
+  const name = readText(readField(raw, "name"), `${path}.name`, budget);
   if (!name.ok) {
     return name;
   }
-  const environmentAssetId = readText(raw.environmentAssetId, `${path}.environmentAssetId`, budget);
+  const environmentAssetId = readText(
+    readField(raw, "environmentAssetId"),
+    `${path}.environmentAssetId`,
+    budget,
+  );
   if (!environmentAssetId.ok) {
     return environmentAssetId;
   }
-  const camera = validateCameraPose(raw.startCamera, `${path}.startCamera`);
+  const camera = validateCameraPose(readField(raw, "startCamera"), `${path}.startCamera`);
   if (!camera.ok) {
     return camera;
   }
@@ -291,7 +296,7 @@ function validateScene(
   // Build a separate list in the saved order
   // A later failure leaves the caller's scene untouched
   const objects: ProjectObject[] = [];
-  for (const [index, entry] of raw.objects.entries()) {
+  for (const [index, entry] of rawObjects.entries()) {
     const object = validateObject(entry, `${path}.objects[${index}]`, budget);
     if (!object.ok) {
       return object;
@@ -301,11 +306,12 @@ function validateScene(
 
   // Older project files have no hotspots and start with an empty list
   const hotspots: ProjectHotspot[] = [];
-  if (raw.hotspots !== undefined) {
-    if (!Array.isArray(raw.hotspots) || raw.hotspots.length > MAX_HOTSPOTS_PER_SCENE) {
+  const rawHotspots = readField(raw, "hotspots");
+  if (rawHotspots !== undefined) {
+    if (!Array.isArray(rawHotspots) || rawHotspots.length > MAX_HOTSPOTS_PER_SCENE) {
       return invalid(`${path}.hotspots`, "Hotspots must be an array with at most 200 entries");
     }
-    for (const [index, entry] of raw.hotspots.entries()) {
+    for (const [index, entry] of rawHotspots.entries()) {
       const hotspot = validateHotspot(entry, `${path}.hotspots[${index}]`, budget);
       if (!hotspot.ok) {
         return hotspot;
@@ -316,14 +322,15 @@ function validateScene(
 
   // Older project files have no interactions and start with an empty list
   const interactions: Interaction[] = [];
-  if (raw.interactions !== undefined) {
-    if (!Array.isArray(raw.interactions) || raw.interactions.length > MAX_INTERACTIONS_PER_SCENE) {
+  const rawInteractions = readField(raw, "interactions");
+  if (rawInteractions !== undefined) {
+    if (!Array.isArray(rawInteractions) || rawInteractions.length > MAX_INTERACTIONS_PER_SCENE) {
       return invalid(
         `${path}.interactions`,
         "Interactions must be an array with at most 200 entries",
       );
     }
-    for (const [index, entry] of raw.interactions.entries()) {
+    for (const [index, entry] of rawInteractions.entries()) {
       const interaction = validateInteraction(
         entry,
         `${path}.interactions[${index}]`,
@@ -366,10 +373,11 @@ export function validateProjectStructure(
     return invalid("project.schemaVersion", "Required field is missing");
   }
   // Dispatch v2 before the legacy exact-field checks so each released shape keeps its own rules
-  if (raw.schemaVersion === 2) {
+  const version = readField(raw, "schemaVersion");
+  if (version === 2) {
     return validateContentStructure(raw, options.allowDraftLinks === true);
   }
-  if (raw.schemaVersion !== 1) {
+  if (version !== 1) {
     return invalid(
       "project.schemaVersion",
       "Unsupported project format; M1 supports schemaVersion 1",
@@ -379,22 +387,23 @@ export function validateProjectStructure(
   if (!fields.ok) {
     return fields;
   }
-  if (!Array.isArray(raw.scenes) || raw.scenes.length !== 1) {
+  const scenes = readField(raw, "scenes");
+  if (!Array.isArray(scenes) || scenes.length !== 1) {
     return invalid("project.scenes", "M1 projects must contain exactly one scene");
   }
 
   // Share the text budget across the whole project
   const budget = { remaining: MAX_PROJECT_BYTES };
-  const projectId = readText(raw.projectId, "project.projectId", budget);
+  const projectId = readText(readField(raw, "projectId"), "project.projectId", budget);
   if (!projectId.ok) {
     return projectId;
   }
-  const title = readText(raw.title, "project.title", budget);
+  const title = readText(readField(raw, "title"), "project.title", budget);
   if (!title.ok) {
     return title;
   }
   const scene = validateScene(
-    raw.scenes[0],
+    scenes[0],
     "project.scenes[0]",
     budget,
     options.allowDraftLinks === true,

@@ -27,6 +27,7 @@ import {
   blankSourceProject,
   clearBlankSource,
   createBlankSource,
+  readBlankSource,
 } from "./blank-source";
 import "./assignment-screens.css";
 import {
@@ -84,8 +85,16 @@ function loadPending(userId: string): PendingAssignment | null {
     value.body === null
   )
     throw new Error("Pending assignment is unavailable.");
-  const body = value.body as Record<string, unknown>;
+  const body = value.body;
   if (
+    !("requestId" in body) ||
+    !("sourceProjectId" in body) ||
+    !("sourceRevision" in body) ||
+    !("dueAtUnixSeconds" in body) ||
+    !("title" in body) ||
+    !("description" in body) ||
+    !("instructions" in body) ||
+    !("studentIds" in body) ||
     typeof body.requestId !== "string" ||
     typeof body.sourceProjectId !== "string" ||
     typeof body.sourceRevision !== "number" ||
@@ -546,23 +555,7 @@ export function AssignmentCreationScreen({
           setup.session.userId,
           draft.title.trim(),
           "",
-          async (actorId, projectId) => {
-            try {
-              const before = await assignmentSession();
-              if (before.userId !== actorId || before.mustChangePassword) return { kind: "retry" };
-              const projects = await workspace.projects(false, undefined, actorId);
-              const after = await assignmentSession();
-              if (after.userId !== actorId || after.mustChangePassword) return { kind: "retry" };
-              const current = projects.find(
-                (project) => project.projectId.toLowerCase() === projectId.toLowerCase(),
-              );
-              return current?.permissions.canManage
-                ? { kind: "available", revision: current.revision }
-                : { kind: "unavailable" };
-            } catch {
-              return { kind: "retry" };
-            }
-          },
+          readBlankSource,
           image,
         );
         const record =

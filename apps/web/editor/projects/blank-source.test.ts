@@ -1,6 +1,8 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import {
   blankSourceKey,
+  blankSourceAttempt,
+  readBlankSource,
   historicalBlankSource,
   uncorrelatedBlankSource,
   selectedExistingSource,
@@ -11,35 +13,100 @@ import {
   clearBlankSource,
   createBlankSource as createGuardedBlankSource,
 } from "./blank-source";
-function createBlankSource(...args: Parameters<typeof createGuardedBlankSource>) {
-  const [store, write, actorId, title, environment, read, image] = args;
+import {
+  creatorId,
+  organizationId,
+  fillStorage,
+  profileStorage as storage,
+  serveCreation,
+  readyHead,
+} from "../../tests/creation-fixture";
+import { createExistingProjectClient } from "../home/existing-project";
+import type { EncodedProjectImage } from "./project-image";
+const projectId = "aefea67c-caca-4300-923c-937f1c785578";
+const created = {
+  projectId,
+  revision: 0,
+  updatedAt: "2026-11-05T00:00:00Z",
+  archived: false,
+};
+const image = { type: "cover" as const, contentType: "image/png", data: "aW1hZ2U=" };
+
+async function sourceApi(
+  options: {
+    actorId?: string;
+    projectId?: string;
+    revision?: number;
+    unavailable?: boolean;
+    readFailed?: boolean;
+    create?: () => Response;
+    head?: () => Response;
+    acknowledge?: () => Response;
+  } = {},
+) {
+  const server = await serveCreation({
+    ...(options.actorId ? { actorId: options.actorId } : {}),
+    ...(options.head ? { head: options.head } : {}),
+    write(path) {
+      return path.endsWith("/acknowledge")
+        ? (options.acknowledge?.() ?? new Response(null, { status: 204 }))
+        : (options.create?.() ?? Response.json(created));
+    },
+    read(path) {
+      if (!path.startsWith("/api/v1/projects?")) throw new Error("Unexpected source read");
+      if (options.readFailed) return new Response(null, { status: 503 });
+      return Response.json({
+        items: options.unavailable
+          ? []
+          : [
+              {
+                ...created,
+                projectId: options.projectId ?? projectId,
+                revision: options.revision ?? 0,
+                title: "Museum",
+                permissions: { canEdit: true, canManage: true, canPublish: true },
+              },
+            ],
+        nextCursor: null,
+      });
+    },
+  });
+  return {
+    ...server,
+    creates: () => server.writes.filter(({ path }) => path === "/api/v1/projects"),
+    readSource: (actorId: string, source: string) => readBlankSource(actorId, source, server.fetch),
+    verify: createExistingProjectClient(server.fetch).check,
+  };
+}
+
+type SourceApi = Awaited<ReturnType<typeof sourceApi>>;
+
+function createBlankSource(
+  store: ReturnType<typeof storage>,
+  server: SourceApi,
+  actorId: string,
+  title: string,
+  environment: string,
+  image?: EncodedProjectImage,
+) {
   return createGuardedBlankSource(
     store,
-    (account, path, method, body) =>
-      path.endsWith("/acknowledge")
-        ? Promise.resolve({ kind: "confirmed", value: null })
-        : write(account, path, method, body),
+    server.write,
     actorId,
     title,
     environment,
-    read,
+    server.readSource,
     image,
-    async () => ({ state: "ready", operationId: null, receipt: null }),
+    server.read,
   );
 }
-const readCurrent = async () => ({ kind: "available" as const, revision: 0 });
 
 it("keeps the form retryable when the browser cannot store the first source marker", async () => {
-  const store = {
-    getItem: () => null,
-    setItem: () => {
-      throw new DOMException("Storage full", "QuotaExceededError");
-    },
-    removeItem: vi.fn(),
-  };
-  const write = vi.fn();
-  const result = await createBlankSource(store, write, "teacher", "Museum", "", readCurrent);
-  expect(write).not.toHaveBeenCalled();
+  const store = storage();
+  const server = await sourceApi();
+  fillStorage();
+  const result = await createBlankSource(store, server, creatorId, "Museum", "");
+  expect(server.creates()).toHaveLength(0);
   expect(result).toEqual({
     kind: "rejected",
     message:
@@ -48,15 +115,10 @@ it("keeps the form retryable when the browser cannot store the first source mark
 });
 
 it("clears only the confirmed assignment's source and preserves a replacement receipt", async () => {
-  const actor = "teacher";
+  const actor = creatorId;
   const older = "aefea67c-caca-4300-923c-937f1c785578";
   const replacement = "15c0fbe1-a338-4030-9360-b04c494d6588";
-  const records = new Map<string, string>();
-  const store = {
-    getItem: (key: string) => records.get(key) ?? null,
-    setItem: (key: string, value: string) => records.set(key, value),
-    removeItem: (key: string) => records.delete(key),
-  };
+  const store = storage();
   const fresh = JSON.stringify({
     receipt: {
       projectId: replacement,
@@ -65,7 +127,7 @@ it("clears only the confirmed assignment's source and preserves a replacement re
       archived: false,
     },
   });
-  records.set(blankSourceKey(actor), fresh);
+  store.setItem(blankSourceKey(actor), fresh);
   expect(await clearBlankSource(store, actor, { projectId: older })).toBe(false);
   expect(store.getItem(blankSourceKey(actor))).toBe(fresh);
   expect(await clearBlankSource(store, actor, { projectId: replacement })).toBe(true);
@@ -81,16 +143,20 @@ it("rechecks a confirmed source and uses its current revision on retry", async (
       archived: false,
     },
   });
-  const store = { getItem: () => saved, setItem: vi.fn(), removeItem: vi.fn() };
-  const write = vi.fn();
-  const read = vi.fn(async () => ({ kind: "available" as const, revision: 3 }));
-  expect(await createBlankSource(store, write, "teacher", "Museum", "", read)).toEqual({
+  const store = storage();
+  store.setItem(blankSourceKey(creatorId), saved);
+  const server = await sourceApi({ revision: 3 });
+  expect(await createBlankSource(store, server, creatorId, "Museum", "")).toEqual({
     kind: "confirmed",
     projectId: "aefea67c-caca-4300-923c-937f1c785578",
     revision: 3,
   });
-  expect(read).toHaveBeenCalledWith("teacher", "aefea67c-caca-4300-923c-937f1c785578");
-  expect(write).not.toHaveBeenCalled();
+  expect(
+    server.requests
+      .find((request) => new URL(request.url).pathname === "/api/v1/projects")
+      ?.headers.get("X-Spatia-Account"),
+  ).toBe(creatorId);
+  expect(server.creates()).toHaveLength(0);
 });
 
 it("preserves the receipt and offers recovery when a source is no longer available", async () => {
@@ -102,14 +168,14 @@ it("preserves the receipt and offers recovery when a source is no longer availab
       archived: false,
     },
   });
-  const store = { getItem: () => saved, setItem: vi.fn(), removeItem: vi.fn() };
-  const write = vi.fn();
-  const read = vi.fn(async () => ({ kind: "unavailable" as const }));
-  expect(await createBlankSource(store, write, "teacher", "Museum", "", read)).toEqual({
+  const store = storage();
+  store.setItem(blankSourceKey(creatorId), saved);
+  const server = await sourceApi({ unavailable: true });
+  expect(await createBlankSource(store, server, creatorId, "Museum", "")).toEqual({
     kind: "source-unavailable",
   });
-  expect(store.removeItem).not.toHaveBeenCalled();
-  expect(write).not.toHaveBeenCalled();
+  expect(store.getItem(blankSourceKey(creatorId))).toBe(saved);
+  expect(server.creates()).toHaveLength(0);
 });
 
 it("keeps the receipt when the source cannot be checked temporarily", async () => {
@@ -121,192 +187,146 @@ it("keeps the receipt when the source cannot be checked temporarily", async () =
       archived: false,
     },
   });
-  const store = { getItem: () => saved, setItem: vi.fn(), removeItem: vi.fn() };
-  const write = vi.fn();
-  const read = vi.fn(async () => ({ kind: "retry" as const }));
-  expect(await createBlankSource(store, write, "teacher", "Museum", "", read)).toMatchObject({
+  const store = storage();
+  store.setItem(blankSourceKey(creatorId), saved);
+  const server = await sourceApi({ readFailed: true });
+  expect(await createBlankSource(store, server, creatorId, "Museum", "")).toMatchObject({
     kind: "rejected",
     message: expect.stringMatching(/could not be checked/i),
   });
-  expect(store.removeItem).not.toHaveBeenCalled();
-  expect(write).not.toHaveBeenCalled();
+  expect(store.getItem(blankSourceKey(creatorId))).toBe(saved);
+  expect(server.creates()).toHaveLength(0);
 });
 
 it("reuses the confirmed source after an assignment failure instead of creating another", async () => {
-  const storage = new Map<string, string>();
-  const store = {
-    getItem: (key: string) => storage.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      storage.set(key, value);
-    },
-    removeItem: (key: string) => {
-      storage.delete(key);
-    },
-  };
-  const write = vi.fn(async () => ({
-    kind: "confirmed" as const,
-    value: {
-      projectId: "aefea67c-caca-4300-923c-937f1c785578",
-      revision: 0,
-      updatedAt: "2026-11-05T00:00:00Z",
-      archived: false,
-    },
-  }));
-  const first = await createBlankSource(store, write, "teacher", "Museum", "space", readCurrent);
-  const second = await createBlankSource(store, write, "teacher", "Museum", "space", readCurrent);
+  const store = storage();
+  const server = await sourceApi();
+  const first = await createBlankSource(store, server, creatorId, "Museum", "space");
+  const second = await createBlankSource(store, server, creatorId, "Museum", "space");
   expect(first).toEqual({
     kind: "confirmed",
     projectId: "aefea67c-caca-4300-923c-937f1c785578",
     revision: 0,
   });
   expect(second).toEqual(first);
-  expect(write).toHaveBeenCalledOnce();
+  expect(server.creates()).toHaveLength(1);
 });
 
-it("never sends a duplicate when the source creation outcome is uncertain", async () => {
-  const storage = new Map<string, string>();
-  const store = {
-    getItem: (key: string) => storage.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      storage.set(key, value);
-    },
-    removeItem: (key: string) => {
-      storage.delete(key);
-    },
-  };
-  const write = vi.fn(async () => ({ kind: "unknown" as const }));
-  expect(await createBlankSource(store, write, "teacher", "Museum", "space", readCurrent)).toEqual({
+it("replays the stored source creation operation after an uncertain outcome", async () => {
+  const store = storage();
+  const server = await sourceApi({ create: () => Response.error() });
+  expect(await createBlankSource(store, server, creatorId, "Museum", "space")).toEqual({
     kind: "unknown",
   });
-  expect(await createBlankSource(store, write, "teacher", "Museum", "space", readCurrent)).toEqual({
+  const key = blankSourceKey(creatorId);
+  const stored = store.getItem(key);
+  const attempt = blankSourceAttempt(stored ?? "");
+  expect(attempt).toEqual({
+    operationId: expect.any(String),
+    creationGuard: { purpose: "assignment-source", previousOperationId: null },
+    title: "Museum",
+    environmentAssetId: "space",
+  });
+  expect(await createBlankSource(store, server, creatorId, "Museum", "space")).toEqual({
     kind: "unknown",
   });
-  expect(write).toHaveBeenCalledTimes(2);
-  expect(write.mock.calls[1]).toEqual(write.mock.calls[0]);
+  const write = { actorId: creatorId, path: "/api/v1/projects", method: "POST", body: attempt };
+  expect(server.creates()).toEqual([write, write]);
+  expect(store.getItem(key)).toBe(stored);
 });
 
 it("does not send creation if the recovery marker cannot be verified", async () => {
-  let reads = 0;
-  const store = {
-    getItem: () => (++reads === 1 ? null : "unexpected"),
-    setItem: () => {},
-    removeItem: () => {},
+  const store = storage();
+  const storageReplacesWrite = {
+    ...store,
+    setItem(key: string, value: string) {
+      store.setItem(key, value);
+      store.setItem(key, "unexpected");
+    },
   };
-  const write = vi.fn(async () => ({ kind: "unknown" as const }));
+  const server = await sourceApi();
   expect(
-    await createBlankSource(store, write, "teacher", "Museum", "space", readCurrent),
-  ).toMatchObject({
+    await createBlankSource(storageReplacesWrite, server, creatorId, "Museum", "space"),
+  ).toEqual({
     kind: "rejected",
+    message: "The browser could not save recovery information.",
   });
-  expect(write).not.toHaveBeenCalled();
+  expect(store.getItem(blankSourceKey(creatorId))).toBe("unexpected");
+  expect(server.creates()).toHaveLength(0);
 });
 
 it("creates an empty source without sending an environment asset", async () => {
-  const storage = new Map<string, string>();
-  const store = {
-    getItem: (key: string) => storage.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      storage.set(key, value);
-    },
-    removeItem: (key: string) => {
-      storage.delete(key);
-    },
-  };
-  const write = vi.fn(async () => ({
-    kind: "confirmed" as const,
-    value: {
-      projectId: "aefea67c-caca-4300-923c-937f1c785578",
-      revision: 0,
-      updatedAt: "2026-11-05T00:00:00Z",
-      archived: false,
-    },
-  }));
-  const result = await createBlankSource(store, write, "teacher", "Museum", "", readCurrent);
+  const store = storage();
+  const server = await sourceApi();
+  const result = await createBlankSource(store, server, creatorId, "Museum", "");
   expect(result.kind).toBe("confirmed");
-  expect(write).toHaveBeenCalledWith("teacher", "/api/v1/projects", "POST", {
-    title: "Museum",
-    operationId: expect.any(String),
-    creationGuard: { purpose: "assignment-source", previousOperationId: null },
+  expect(server.creates()[0]).toEqual({
+    actorId: creatorId,
+    path: "/api/v1/projects",
+    method: "POST",
+    body: {
+      title: "Museum",
+      operationId: expect.any(String),
+      creationGuard: { purpose: "assignment-source", previousOperationId: null },
+    },
   });
 });
 
 it("sends an image atomically and refuses to reuse a source with a different image", async () => {
-  let stored: string | null = null;
-  const store = {
-    getItem: () => stored,
-    setItem: (_key: string, value: string) => {
-      stored = value;
+  const store = storage();
+
+  const server = await sourceApi();
+  expect((await createBlankSource(store, server, creatorId, "Museum", "", image)).kind).toBe(
+    "confirmed",
+  );
+  expect(server.creates()[0]).toEqual({
+    actorId: creatorId,
+    path: "/api/v1/projects",
+    method: "POST",
+    body: {
+      operationId: expect.any(String),
+      creationGuard: { purpose: "assignment-source", previousOperationId: null },
+      title: "Museum",
+      image,
     },
-    removeItem: () => {
-      stored = null;
-    },
-  };
-  const write = vi.fn(async () => ({
-    kind: "confirmed" as const,
-    value: {
-      projectId: "aefea67c-caca-4300-923c-937f1c785578",
-      revision: 0,
-      updatedAt: "2026-11-05T00:00:00Z",
-      archived: false,
-    },
-  }));
-  const image = { type: "cover" as const, contentType: "image/png", data: "aW1hZ2U=" };
-  expect(
-    (await createBlankSource(store, write, "teacher", "Museum", "", readCurrent, image)).kind,
-  ).toBe("confirmed");
-  expect(write).toHaveBeenCalledWith("teacher", "/api/v1/projects", "POST", {
-    operationId: expect.any(String),
-    creationGuard: { purpose: "assignment-source", previousOperationId: null },
-    title: "Museum",
-    image,
   });
-  expect(
-    (await createBlankSource(store, write, "teacher", "Museum", "", readCurrent, image)).kind,
-  ).toBe("confirmed");
+  expect((await createBlankSource(store, server, creatorId, "Museum", "", image)).kind).toBe(
+    "confirmed",
+  );
   expect(
     (
-      await createBlankSource(store, write, "teacher", "Museum", "", readCurrent, {
+      await createBlankSource(store, server, creatorId, "Museum", "", {
         ...image,
         data: "ZGlmZmVyZW50",
       })
     ).kind,
   ).toBe("image-mismatch");
-  expect(write).toHaveBeenCalledOnce();
-  expect(stored).not.toContain(image.data);
+  expect(server.creates()).toHaveLength(1);
+  expect(store.getItem(blankSourceKey(creatorId))).not.toContain(image.data);
 });
 
 it("does not reuse an image-bearing source when a failed assignment is reopened without an image", async () => {
-  let stored: string | null = null;
-  const store = {
-    getItem: () => stored,
-    setItem: (_key: string, value: string) => {
-      stored = value;
-    },
-    removeItem: vi.fn(),
-  };
-  const write = vi.fn(async () => ({
-    kind: "confirmed" as const,
-    value: {
-      projectId: "aefea67c-caca-4300-923c-937f1c785578",
-      revision: 0,
-      updatedAt: "2026-11-05T00:00:00Z",
-      archived: false,
-    },
-  }));
-  const read = vi.fn(readCurrent);
-  const image = { type: "cover" as const, contentType: "image/png", data: "aW1hZ2U=" };
-  expect((await createBlankSource(store, write, "teacher", "Museum", "", read, image)).kind).toBe(
+  const store = storage();
+
+  const server = await sourceApi();
+  expect((await createBlankSource(store, server, creatorId, "Museum", "", image)).kind).toBe(
     "confirmed",
   );
   // A rejected assignment retains this confirmed source receipt for the next attempt.
-  const receipt = stored;
-  expect(await createBlankSource(store, write, "teacher", "Museum", "", read)).toEqual({
+  const readsBefore = server.requests.filter(
+    ({ url }) => new URL(url).pathname === "/api/v1/projects" && new URL(url).search,
+  ).length;
+  const receipt = store.getItem(blankSourceKey(creatorId));
+  expect(await createBlankSource(store, server, creatorId, "Museum", "")).toEqual({
     kind: "image-mismatch",
   });
-  expect(stored).toBe(receipt);
-  expect(store.removeItem).not.toHaveBeenCalled();
-  expect(read).not.toHaveBeenCalled();
-  expect(write).toHaveBeenCalledOnce();
+  expect(store.getItem(blankSourceKey(creatorId))).toBe(receipt);
+  expect(
+    server.requests.filter(
+      ({ url }) => new URL(url).pathname === "/api/v1/projects" && new URL(url).search,
+    ),
+  ).toHaveLength(readsBefore);
+  expect(server.creates()).toHaveLength(1);
 });
 
 it("retains legacy attempt markers without replaying an operation the server never received", async () => {
@@ -315,103 +335,77 @@ it("retains legacy attempt markers without replaying an operation the server nev
     title: "Museum",
     environmentAssetId: "",
   });
-  const write = vi.fn();
-  const store = { getItem: () => marker, setItem: vi.fn(), removeItem: vi.fn() };
-  expect(await createBlankSource(store, write, "teacher", "Museum", "", readCurrent)).toEqual({
+  const server = await sourceApi();
+  const store = storage();
+  store.setItem(blankSourceKey(creatorId), marker);
+  expect(await createBlankSource(store, server, creatorId, "Museum", "")).toEqual({
     kind: "unknown",
   });
-  expect(write).not.toHaveBeenCalled();
-  expect(store.removeItem).not.toHaveBeenCalled();
-  expect(store.setItem).not.toHaveBeenCalled();
+  expect(server.creates()).toHaveLength(0);
+  expect(store.getItem(blankSourceKey(creatorId))).toBe(marker);
 });
 
 it("replays a pending source only with identical title and image and keeps the image out of storage", async () => {
-  const records = new Map<string, string>();
-  const store = {
-    getItem: (key: string) => records.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      records.set(key, value);
-    },
-    removeItem: (key: string) => {
-      records.delete(key);
-    },
-  };
-  const write = vi.fn(async () => ({ kind: "unknown" as const }));
+  const store = storage();
+  const server = await sourceApi({ create: () => Response.error() });
   const image = { type: "cover" as const, contentType: "image/png", data: "secret image" };
-  await createBlankSource(store, write, "teacher", "Museum", "", readCurrent, image);
-  const marker = store.getItem(blankSourceKey("teacher"));
+  await createBlankSource(store, server, creatorId, "Museum", "", image);
+  const marker = store.getItem(blankSourceKey(creatorId));
   expect(marker).not.toContain(image.data);
-  expect(
-    (await createBlankSource(store, write, "teacher", "Changed", "", readCurrent, image)).kind,
-  ).toBe("rejected");
-  expect((await createBlankSource(store, write, "teacher", "Museum", "", readCurrent)).kind).toBe(
+  expect((await createBlankSource(store, server, creatorId, "Changed", "", image)).kind).toBe(
     "rejected",
   );
-  expect(write).toHaveBeenCalledOnce();
-  await createBlankSource(store, write, "teacher", "Museum", "", readCurrent, image);
-  expect(write.mock.calls[1]).toEqual(write.mock.calls[0]);
-  await createBlankSource(store, write, "other", "Museum", "", readCurrent, image);
-  expect(write.mock.calls[2]).not.toEqual(write.mock.calls[0]);
+  expect((await createBlankSource(store, server, creatorId, "Museum", "")).kind).toBe("rejected");
+  expect(server.creates()).toHaveLength(1);
+  await createBlankSource(store, server, creatorId, "Museum", "", image);
+  expect(server.creates()[1]).toEqual(server.creates()[0]);
+  const other = await sourceApi({ actorId: organizationId, create: () => Response.error() });
+  await createBlankSource(store, other, organizationId, "Museum", "", image);
+  expect(other.creates()).toHaveLength(1);
+  expect(other.creates()[0]!.body).not.toEqual(server.creates()[0]!.body);
 });
 
 it("does not dispatch or mint a source operation when generation discovery is unsupported", async () => {
-  const store = { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() };
-  const write = vi.fn();
-  const result = await createGuardedBlankSource(
-    store,
-    write,
-    "teacher",
-    "Museum",
-    "",
-    readCurrent,
-    undefined,
-    async () => {
-      throw new Error("Creation recovery is incompatible or unavailable");
-    },
-  );
+  const store = storage();
+  const server = await sourceApi({ head: () => new Response(null, { status: 404 }) });
+  const result = await createBlankSource(store, server, creatorId, "Museum", "");
   expect(result).toMatchObject({
     kind: "rejected",
     message: expect.stringMatching(/incompatible/),
   });
-  expect(write).not.toHaveBeenCalled();
-  expect(store.setItem).not.toHaveBeenCalled();
+  expect(server.creates()).toHaveLength(0);
+  expect(store.getItem(blankSourceKey(creatorId))).toBeNull();
 });
 
 it("replays a pre-generation keyed source exactly without attaching a new creation guard", async () => {
-  let raw: string | null = JSON.stringify({
-    operationId: "11111111-1111-4111-8111-111111111111",
-    title: "Museum",
-    environmentAssetId: "",
-  });
-  const store = {
-    getItem: () => raw,
-    setItem: (_key: string, value: string) => {
-      raw = value;
-    },
-    removeItem: () => {
-      raw = null;
-    },
-  };
-  const write = vi.fn(async () => ({ kind: "unknown" as const }));
-  await createGuardedBlankSource(
-    store,
-    write,
-    "teacher",
-    "Museum",
-    "",
-    readCurrent,
-    undefined,
-    async () => ({ state: "ready", operationId: null, receipt: null }),
+  const store = storage();
+  store.setItem(
+    blankSourceKey(creatorId),
+    JSON.stringify({
+      operationId: "11111111-1111-4111-8111-111111111111",
+      title: "Museum",
+      environmentAssetId: "",
+    }),
   );
-  expect(write).toHaveBeenCalledExactlyOnceWith("teacher", "/api/v1/projects", "POST", {
-    operationId: "11111111-1111-4111-8111-111111111111",
-    title: "Museum",
-  });
-  expect(raw).not.toContain("creationGuard");
+
+  const server = await sourceApi({ create: () => Response.error() });
+  await createBlankSource(store, server, creatorId, "Museum", "");
+  expect(server.creates()).toEqual([
+    {
+      actorId: creatorId,
+      path: "/api/v1/projects",
+      method: "POST",
+      body: {
+        operationId: "11111111-1111-4111-8111-111111111111",
+        title: "Museum",
+      },
+    },
+  ]);
+  expect(store.getItem(blankSourceKey(creatorId))).not.toContain("creationGuard");
 });
 
 it("durably adopts the verified source before acknowledgement and restores it without the image", async () => {
-  const actor = "11111111-1111-4111-8111-111111111111";
+  const actor = creatorId;
   const operationId = "22222222-2222-4222-8222-222222222222";
   const receipt = {
     projectId: "33333333-3333-4333-8333-333333333333",
@@ -419,75 +413,54 @@ it("durably adopts the verified source before acknowledgement and restores it wi
     archived: false,
     updatedAt: "2026-11-14T00:00:00Z",
   };
-  let record: string | null = null;
-  const store = {
-    getItem: () => record,
-    setItem: (_key: string, value: string) => {
-      record = value;
-    },
-    removeItem: () => {
-      record = null;
-    },
-  };
+  const store = storage();
+
   await adoptBlankSource(store, actor, null, operationId, receipt, {
     projectId: receipt.projectId,
     title: "Adopted source",
     revision: 4,
   });
-  expect(adoptedBlankSource(record!, actor)).toEqual({
+  const key = blankSourceKey(actor);
+  expect(adoptedBlankSource(store.getItem(key)!, actor)).toEqual({
     projectId: receipt.projectId,
     title: "Adopted source",
     revision: 4,
     operationId,
   });
-  expect(adoptedBlankSource(record!, operationId)).toBeNull();
-  const write = vi.fn(async () => ({ kind: "confirmed" as const, value: null }));
-  expect(
-    await createGuardedBlankSource(
-      store,
-      write,
-      actor,
-      "Assignment",
-      "",
-      readCurrent,
-      undefined,
-      async () => ({ state: "ready", operationId, receipt: null }),
-    ),
-  ).toMatchObject({ kind: "confirmed", projectId: receipt.projectId });
-  expect(write).toHaveBeenCalledExactlyOnceWith(
-    actor,
-    "/api/v1/creation-operations/assignment-source/" + operationId + "/acknowledge",
-    "POST",
-    {},
-  );
-  expect(record).not.toBeNull();
-  const preserved = record;
-  const outage = vi.fn(async () => ({ kind: "unknown" as const }));
-  expect(
-    await createGuardedBlankSource(
-      store,
-      outage,
-      actor,
-      "Assignment",
-      "",
-      readCurrent,
-      undefined,
-      async () => ({ state: "unacknowledged", operationId, receipt }),
-    ),
-  ).toEqual({ kind: "unknown" });
-  expect(outage).toHaveBeenCalledExactlyOnceWith(
-    actor,
-    "/api/v1/creation-operations/assignment-source/" + operationId + "/acknowledge",
-    "POST",
-    {},
-  );
-  expect(record).toBe(preserved);
-  expect(adoptedBlankSource(record!, actor)?.projectId).toBe(receipt.projectId);
+  expect(adoptedBlankSource(store.getItem(key)!, operationId)).toBeNull();
+  const server = await sourceApi({
+    projectId: receipt.projectId,
+    head: () => Response.json({ ...readyHead, operationId }),
+  });
+  expect(await createBlankSource(store, server, actor, "Assignment", "")).toMatchObject({
+    kind: "confirmed",
+    projectId: receipt.projectId,
+  });
+  const acknowledgement = {
+    actorId: actor,
+    path: "/api/v1/creation-operations/assignment-source/" + operationId + "/acknowledge",
+    method: "POST",
+    body: {},
+  };
+  expect(server.writes).toEqual([acknowledgement]);
+  const preserved = store.getItem(key);
+  expect(preserved).not.toBeNull();
+  const outage = await sourceApi({
+    projectId: receipt.projectId,
+    head: () => Response.json({ state: "unacknowledged", operationId, receipt }),
+    acknowledge: () => Response.error(),
+  });
+  expect(await createBlankSource(store, outage, actor, "Assignment", "")).toEqual({
+    kind: "unknown",
+  });
+  expect(outage.writes).toEqual([acknowledgement]);
+  expect(store.getItem(key)).toBe(preserved);
+  expect(adoptedBlankSource(store.getItem(key)!, actor)?.projectId).toBe(receipt.projectId);
   expect(await clearBlankSource(store, actor, { projectId: receipt.projectId })).toBe(true);
 });
 
 it("never overwrites a changed or different pending source during explicit adoption, and preserves storage failure", async () => {
-  const actor = "11111111-1111-4111-8111-111111111111";
+  const actor = creatorId;
   const operationId = "22222222-2222-4222-8222-222222222222";
   const receipt = {
     projectId: "33333333-3333-4333-8333-333333333333",
@@ -497,40 +470,42 @@ it("never overwrites a changed or different pending source during explicit adopt
   };
   const source = { projectId: receipt.projectId, title: "Source", revision: 0 };
   const original = JSON.stringify({ operationId: actor, title: "Different pending source" });
-  const store = { getItem: () => original, setItem: vi.fn(), removeItem: vi.fn() };
+  const store = storage();
+  store.setItem(blankSourceKey(actor), original);
   await expect(adoptBlankSource(store, actor, null, operationId, receipt, source)).rejects.toThrow(
     "changed in another tab",
   );
   await expect(
     adoptBlankSource(store, actor, original, operationId, receipt, source),
   ).rejects.toThrow("different source request");
-  expect(store.setItem).not.toHaveBeenCalled();
-  const unavailable = {
-    getItem: () => null,
-    setItem: () => {
-      throw new DOMException("Storage full", "QuotaExceededError");
-    },
-    removeItem: vi.fn(),
-  };
+  expect(store.getItem(blankSourceKey(actor))).toBe(original);
+  const unavailable = storage();
+  fillStorage();
   await expect(
     adoptBlankSource(unavailable, actor, null, operationId, receipt, source),
   ).rejects.toThrow("preserve the recovered source");
 });
 
 it("discards a source selection when its review expires while waiting for the storage lock", async () => {
-  const actor = "11111111-1111-4111-8111-111111111111";
+  const actor = creatorId;
   const operationId = "22222222-2222-4222-8222-222222222222";
   const projectId = "33333333-3333-4333-8333-333333333333";
   const receipt = { projectId, revision: 0, archived: false, updatedAt: "2026-11-14T00:00:00Z" };
-  const store = { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() };
+  const store = storage();
   const controller = new AbortController();
-  let releaseLock!: () => void;
-  const lock = new Promise<void>((resolve) => {
-    releaseLock = resolve;
+  let unlock!: () => void;
+  let acquired!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    acquired = resolve;
   });
-  vi.stubGlobal("navigator", {
-    locks: { request: (_key: string, action: () => Promise<void>) => lock.then(action) },
+  const gate = new Promise<void>((resolve) => {
+    unlock = resolve;
   });
+  const held = navigator.locks.request(blankSourceKey(actor), async () => {
+    acquired();
+    await gate;
+  });
+  await ready;
   const adoption = adoptBlankSource(
     store,
     actor,
@@ -541,9 +516,10 @@ it("discards a source selection when its review expires while waiting for the st
     controller.signal,
   );
   controller.abort();
-  releaseLock();
+  unlock();
+  await held;
   await expect(adoption).rejects.toMatchObject({ name: "AbortError" });
-  expect(store.setItem).not.toHaveBeenCalled();
+  expect(store.getItem(blankSourceKey(actor))).toBeNull();
 });
 
 it("distinguishes an uncorrelated historical attempt from a known receipt and never infers a resource from attemptId", () => {
@@ -577,118 +553,107 @@ it("distinguishes an uncorrelated historical attempt from a known receipt and ne
     expect(historicalBlankSource(value)).toBe(false);
 });
 it("persists explicit existing selection at current revision without creation provenance or ACK and preserves stale-choice failures", async () => {
-  const actor = "11111111-1111-4111-8111-111111111111";
+  const actor = creatorId;
   const source = {
     projectId: "22222222-2222-4222-8222-222222222222",
     title: "Equal title",
     revision: 7,
   };
-  let record: string | null = JSON.stringify({
-    attemptId: actor,
-    title: "Equal title",
-    environmentAssetId: "",
-  });
-  const original = record;
-  const store = {
-    getItem: () => record,
-    setItem: (_key: string, value: string) => {
-      record = value;
-    },
-    removeItem: () => {
-      record = null;
-    },
-  };
-  const verify = vi.fn(async () => {});
+  const store = storage();
+  store.setItem(
+    blankSourceKey(actor),
+    JSON.stringify({
+      attemptId: actor,
+      title: "Equal title",
+      environmentAssetId: "",
+    }),
+  );
+  const original = store.getItem(blankSourceKey(actor));
+
+  const server = await sourceApi({ projectId: source.projectId, revision: 7 });
+  const verify = () => server.verify(actor);
   const selected = await selectExistingSource(store, actor, original, source, verify);
   expect(JSON.parse(selected)).toEqual({ actorId: actor, selectedExisting: source });
   expect(selectedExistingSource(selected, actor)).toEqual(source);
   expect(selectedExistingSource(selected, source.projectId)).toBeNull();
   expect(verifySelectedSource(store, actor, selected, source)).toEqual(source);
-  const write = vi.fn();
-  expect(
-    await createBlankSource(store, write, actor, "Assignment", "", async () => ({
-      kind: "available",
-      revision: 7,
-    })),
-  ).toEqual({ kind: "confirmed", projectId: source.projectId, revision: 7 });
-  expect(
-    (
-      await createBlankSource(store, write, actor, "Assignment", "", async () => ({
-        kind: "available",
-        revision: 8,
-      }))
-    ).kind,
-  ).toBe("rejected");
-  expect(write).not.toHaveBeenCalled();
-  expect(record).toBe(selected);
-  record = JSON.stringify({ actorId: actor, selectedExisting: { ...source, revision: 8 } });
+  expect(await createBlankSource(store, server, actor, "Assignment", "")).toEqual({
+    kind: "confirmed",
+    projectId: source.projectId,
+    revision: 7,
+  });
+  const newer = await sourceApi({ projectId: source.projectId, revision: 8 });
+  expect((await createBlankSource(store, newer, actor, "Assignment", "")).kind).toBe("rejected");
+  expect(newer.writes).toHaveLength(0);
+  expect(server.creates()).toHaveLength(0);
+  expect(store.getItem(blankSourceKey(actor))).toBe(selected);
+  store.setItem(
+    blankSourceKey(actor),
+    JSON.stringify({ actorId: actor, selectedExisting: { ...source, revision: 8 } }),
+  );
   expect(() => verifySelectedSource(store, actor, selected, source)).toThrow(
     "changed or was removed",
   );
   await expect(selectExistingSource(store, actor, selected, source, verify)).rejects.toThrow(
     "changed in another tab",
   );
-  record = null;
+  store.removeItem(blankSourceKey(actor));
   expect(() => verifySelectedSource(store, actor, selected, source)).toThrow(
     "changed or was removed",
   );
 });
 it("never replaces a modern source operation or unreadable marker with an existing project choice", async () => {
-  const actor = "11111111-1111-4111-8111-111111111111";
+  const actor = creatorId;
   const source = {
     projectId: "22222222-2222-4222-8222-222222222222",
     title: "Source",
     revision: 7,
   };
+  const server = await sourceApi();
+  const verify = () => server.verify(actor);
   for (const record of [
     "{",
     JSON.stringify({ operationId: actor, title: "Pending", environmentAssetId: "" }),
   ]) {
-    const store = { getItem: () => record, setItem: vi.fn(), removeItem: vi.fn() };
-    await expect(
-      selectExistingSource(store, actor, record, source, async () => {}),
-    ).rejects.toThrow("existing saved source operation");
-    expect(store.setItem).not.toHaveBeenCalled();
+    const store = storage();
+    store.setItem(blankSourceKey(actor), record);
+    await expect(selectExistingSource(store, actor, record, source, verify)).rejects.toThrow(
+      "existing saved source operation",
+    );
+    expect(store.getItem(blankSourceKey(actor))).toBe(record);
   }
   const known = JSON.stringify({
     receipt: { projectId: actor, revision: 0, archived: false, updatedAt: "2026-11-14T00:00:00Z" },
   });
-  const knownStore = { getItem: () => known, setItem: vi.fn(), removeItem: vi.fn() };
-  await expect(
-    selectExistingSource(knownStore, actor, known, source, async () => {}),
-  ).rejects.toThrow("receipt identifies a different project");
-  expect(knownStore.setItem).not.toHaveBeenCalled();
+  const knownStore = storage();
+  knownStore.setItem(blankSourceKey(actor), known);
+  await expect(selectExistingSource(knownStore, actor, known, source, verify)).rejects.toThrow(
+    "receipt identifies a different project",
+  );
+  expect(knownStore.getItem(blankSourceKey(actor))).toBe(known);
 });
 
 it("allows explicit reselection from a valid same-actor manual choice while retaining exact-value CAS", async () => {
-  const actor = "11111111-1111-4111-8111-111111111111";
+  const actor = creatorId;
   const source = { projectId: "22222222-2222-4222-8222-222222222222", title: "First", revision: 7 };
   const replacement = {
     projectId: "33333333-3333-4333-8333-333333333333",
     title: "Second",
     revision: 4,
   };
-  let record: string | null = null;
-  const store = {
-    getItem: () => record,
-    setItem: (_key: string, value: string) => {
-      record = value;
-    },
-    removeItem: () => {
-      record = null;
-    },
-  };
-  const first = await selectExistingSource(store, actor, null, source, async () => {});
-  const second = await selectExistingSource(store, actor, first, replacement, async () => {});
+  const store = storage();
+
+  const server = await sourceApi();
+  const verify = () => server.verify(actor);
+  const first = await selectExistingSource(store, actor, null, source, verify);
+  const second = await selectExistingSource(store, actor, first, replacement, verify);
   expect(selectedExistingSource(second, actor)).toEqual(replacement);
-  await expect(selectExistingSource(store, actor, first, source, async () => {})).rejects.toThrow(
-    "Reload",
-  );
-  expect(record).toBe(second);
+  await expect(selectExistingSource(store, actor, first, source, verify)).rejects.toThrow("Reload");
+  expect(store.getItem(blankSourceKey(actor))).toBe(second);
   await expect(
     selectExistingSource(store, actor, second, source, async () => {
       throw new Error("Earlier assignment pending");
     }),
   ).rejects.toThrow("Earlier assignment pending");
-  expect(record).toBe(second);
+  expect(store.getItem(blankSourceKey(actor))).toBe(second);
 });

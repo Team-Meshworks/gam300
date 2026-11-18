@@ -54,13 +54,9 @@ try {
     .inputValue();
   assert.notEqual(target, first.id);
   await page.getByLabel("Interaction 1 destination scene", { exact: true }).blur();
-  const deadline = Date.now() + 15000;
-  while (
-    Date.now() < deadline &&
-    project.document().scenes[1]?.interactions[0]?.do.sceneId !== target
-  )
-    await page.waitForTimeout(100);
-  const saved = project.document();
+  const saved = await project.waitForDocument(
+    (doc) => doc.scenes[1]?.interactions[0]?.do.sceneId === target,
+  );
   assert.deepEqual(
     saved.scenes.map((scene) => scene.name),
     ["Second room", "First room"],

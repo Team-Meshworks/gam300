@@ -36,8 +36,7 @@ try {
     .click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await stage.click({ position: { x: 800, y: 500 } });
-  await page.waitForTimeout(1000);
-  await page.locator(".object-row").last().click();
+  await page.locator(".object-row").filter({ hasText: "Sample crate" }).click();
   const positionPanel = () => page.getByRole("button", { name: "Position", exact: true }).click();
   const tree = () => page.getByRole("button", { name: "Scene tree", exact: true }).click();
   const field = (axis, kind = "transform", unit = "m") =>
@@ -91,22 +90,16 @@ try {
   assert.deepEqual(await values(), beforeCase, "One undo restores the drag start");
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   assert.deepEqual(await values(), seated);
-  let saved;
-  const deadline = Date.now() + 12000;
-  while (Date.now() < deadline) {
-    saved = project.document();
-    const crate = saved?.scenes[0]?.objects.find((object) => object.assetId === "test-crate-v1");
-    if (
-      crate &&
-      Math.abs(crate.transform.position[0] - seated[0]) < 0.01 &&
-      Math.abs(crate.transform.position[2] - seated[2]) < 0.01 &&
-      Math.abs(crate.transform.position[1] - 0.2) < 0.01 &&
-      crate.parentId
-    )
-      break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  const savedObjects = saved?.scenes[0]?.objects;
+  const saved = await project.waitForDocument((doc) => {
+    const crate = doc.scenes[0]?.objects.find((object) => object.assetId === "test-crate-v1");
+    return (
+      crate?.parentId &&
+      crate.transform.position.every(
+        (coordinate, axis) => Math.abs(coordinate - seated[axis]) < 0.01,
+      )
+    );
+  });
+  const savedObjects = saved.scenes[0].objects;
   const savedCase = savedObjects?.find((object) => object.assetId === "display-full-glass-case-v1");
   const savedCrate = savedObjects?.find((object) => object.assetId === "test-crate-v1");
   assert.ok(savedCase && savedCrate, "Seated object is backed up");

@@ -290,7 +290,7 @@ export function scan(root = webRoot) {
     if (["virtual:asset-catalogue", "/@id/__x00__virtual:asset-catalogue"].includes(specifier)) {
       return "shared/asset-runtime/catalogue.ts";
     }
-    const clean = specifier.replace(/(?<=[^?#])[?#].*$/, "");
+    const clean = specifier.replace(/(?<=[^?#])[?#].*$/, "").replace(/^\/@id\/three$/, "three");
     const request = clean.startsWith("/") ? resolve(root, "editor", clean.slice(1)) : clean;
     const found = ts.resolveModuleName(
       request,

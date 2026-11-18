@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it } from "vitest";
+import { serveHttp, serveResponses } from "../../tests/http-fixture";
 import { createDirectoryClient, DirectoryWriteUnconfirmed } from "./directory-client";
 import { ImportRequestError } from "./bulk-import";
 
@@ -21,7 +22,6 @@ const values = [
     initialPassword: "returned-initial-value",
   },
 ];
-const records = new Map<string, string>();
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 function receipt(operationId: string) {
@@ -34,33 +34,29 @@ function receipt(operationId: string) {
     credentials: [{ userId: learner, userName: "created", password: values[1]!.initialPassword }],
   };
 }
-beforeEach(() => {
-  records.clear();
-  vi.stubGlobal("localStorage", {
-    getItem: (key: string) => records.get(key) ?? null,
-    setItem: (key: string, value: string) => records.set(key, value),
-    removeItem: (key: string) => records.delete(key),
-  });
-});
-afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => localStorage.clear());
+afterEach(() => localStorage.clear());
 
 it("discovers only scoped operation summaries and recovers a selected receipt without consuming the local pending one", async () => {
   let localId = "";
   const serverId = other;
   const expiresAt = "2026-11-15T10:00:00Z";
   const createdAt = "2026-11-14T10:00:00Z";
-  const request = vi.fn<typeof fetch>(async (url, init) => {
+  const request = await serveHttp((incoming) => {
+    const { pathname, search } = new URL(incoming.url);
+    const url = pathname + search;
+
     const path = String(url);
-    expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe(actor);
+    expect(incoming.headers.get("X-Spatia-Account")).toBe(actor);
     if (path.endsWith("/session")) return json(session);
     if (path.endsWith("/csrf")) return json({ requestToken: "csrf" });
-    if (init?.method === "PUT") {
+    if (incoming.method === "PUT") {
       localId = path.split("/").at(-1)!;
-      throw new TypeError("Request outcome unknown");
+      return Response.error();
     }
     if (path.endsWith("/acknowledge")) return new Response(null, { status: 204 });
     if (path.endsWith("/receipt")) return json(receipt(serverId));
-    expect(init?.method).toBeUndefined();
+    expect(incoming.method).toBe("GET");
     expect(path).toContain(`/organizations/${org}/bulk-imports?limit=20`);
     if (path.includes("cursor="))
       return json({
@@ -72,7 +68,7 @@ it("discovers only scoped operation summaries and recovers a selected receipt wi
       nextCursor: serverId,
     });
   });
-  const owner = createDirectoryClient(request, actor).bulkImport(org);
+  const owner = createDirectoryClient(request.fetch, actor).bulkImport(org);
   await expect(owner.start(values)).rejects.toThrow();
   const listed = await owner.discover();
   expect(listed).toEqual([
@@ -82,12 +78,15 @@ it("discovers only scoped operation summaries and recovers a selected receipt wi
   expect((await owner.load(listed[0]!.operationId)).available).toBe(1);
   await owner.acknowledge(serverId);
   expect(owner.pending()).toBe(localId);
-  expect(request.mock.calls.filter(([, init]) => init?.method === "PUT")).toHaveLength(1);
+  expect(request.requests.filter(({ method }) => method === "PUT")).toHaveLength(1);
 });
 
 it("discards a discovered list when the identity changes or a page cannot be verified", async () => {
   let malformed = false;
-  const request = vi.fn<typeof fetch>(async (url) => {
+  const request = await serveHttp((incoming) => {
+    const { pathname, search } = new URL(incoming.url);
+    const url = pathname + search;
+
     if (String(url).endsWith("/session")) return json({ ...session, userId: other });
     return json({
       items: [
@@ -101,7 +100,7 @@ it("discards a discovered list when the identity changes or a page cannot be ver
       nextCursor: null,
     });
   });
-  const owner = createDirectoryClient(request, actor).bulkImport(org);
+  const owner = createDirectoryClient(request.fetch, actor).bulkImport(org);
   await expect(owner.discover()).rejects.toThrow("account changed");
   malformed = true;
   await expect(owner.discover()).rejects.toThrow("list");
@@ -109,26 +108,29 @@ it("discards a discovered list when the identity changes or a page cannot be ver
 });
 
 it("keeps an import editable after a failed preflight or an authoritative first rejection", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({}, 503))
-    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
-    .mockResolvedValueOnce(json({ code: "invalid_account_input" }, 400));
-  const client = createDirectoryClient(request, actor).bulkImport(org);
+  const request = await serveResponses(
+    json({}, 503),
+    json({ requestToken: "csrf" }),
+    json({ code: "invalid_account_input" }, 400),
+  );
+  const client = createDirectoryClient(request.fetch, actor).bulkImport(org);
   await expect(client.start(values)).rejects.toThrow("could not be sent");
   expect(client.pending()).toBeNull();
   await expect(client.start(values)).rejects.toThrow("account details");
   expect(client.pending()).toBeNull();
-  expect(request.mock.calls.filter(([, init]) => init?.method === "PUT")).toHaveLength(1);
+  expect(request.requests.filter(({ method }) => method === "PUT")).toHaveLength(1);
 });
 
 it("does not confirm or release an uncertain handoff for an unexpected success payload", async () => {
-  const request = vi.fn<typeof fetch>(async (url) => {
+  const request = await serveHttp((incoming) => {
+    const { pathname, search } = new URL(incoming.url);
+    const url = pathname + search;
+
     if (url === "/api/v1/auth/csrf") return json({ requestToken: "csrf" });
     if (String(url).endsWith("/acknowledge")) return json(null, 200);
     return json({}, 503);
   });
-  const client = createDirectoryClient(request, actor).bulkImport(org);
+  const client = createDirectoryClient(request.fetch, actor).bulkImport(org);
   await expect(client.start(values)).rejects.toThrow();
   const operation = client.pending()!;
   await expect(client.acknowledge(operation)).rejects.toThrow();
@@ -139,23 +141,26 @@ it("persists only one opaque scoped ID before dispatch and recovers only its cre
   let operationId = "";
   let acknowledgeLost = true;
   let acknowledged = false;
-  const request = vi.fn<typeof fetch>(async (url, init) => {
-    expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe(actor);
+  const request = await serveHttp((incoming) => {
+    const { pathname, search } = new URL(incoming.url);
+    const url = pathname + search;
+
+    expect(incoming.headers.get("X-Spatia-Account")).toBe(actor);
     if (url === "/api/v1/auth/csrf") return json({ requestToken: "csrf" });
     if (url === "/api/v1/auth/session") return json(session);
-    expect(new Headers(init?.headers).get("X-CSRF-TOKEN")).toBe("csrf");
-    expect(init?.cache).toBe("no-store");
+    expect(incoming.headers.get("X-CSRF-TOKEN")).toBe("csrf");
     const path = String(url);
-    if (init?.method === "PUT") {
+    if (incoming.method === "PUT") {
       operationId = path.split("/").at(-1)!;
-      expect([...records.values()]).toEqual([operationId]);
-      throw new TypeError("Connection closed after commit");
+      expect(localStorage.length).toBe(1);
+      expect(localStorage.getItem(`spatia.bulk-import:${actor}:${org}`)).toBe(operationId);
+      return Response.error();
     }
     if (path.endsWith("/acknowledge")) {
       acknowledged = true;
       if (acknowledgeLost) {
         acknowledgeLost = false;
-        throw new TypeError("Lost acknowledgement");
+        return Response.error();
       }
       return new Response(null, { status: 204 });
     }
@@ -165,12 +170,13 @@ it("persists only one opaque scoped ID before dispatch and recovers only its cre
       ...(acknowledged ? { credentials: [] } : {}),
     });
   });
-  const first = createDirectoryClient(request, actor).bulkImport(org);
+  const first = createDirectoryClient(request.fetch, actor).bulkImport(org);
   await expect(first.start(values)).rejects.toBeInstanceOf(DirectoryWriteUnconfirmed);
-  const reopened = createDirectoryClient(request, actor).bulkImport(org);
+  expect(request.requests[1]?.cache).toBe("no-store");
+  const reopened = createDirectoryClient(request.fetch, actor).bulkImport(org);
   expect(reopened.pending()).toBe(operationId);
-  expect(createDirectoryClient(request, other).bulkImport(org).pending()).toBeNull();
-  expect(createDirectoryClient(request, actor).bulkImport(other).pending()).toBeNull();
+  expect(createDirectoryClient(request.fetch, other).bulkImport(org).pending()).toBeNull();
+  expect(createDirectoryClient(request.fetch, actor).bulkImport(other).pending()).toBeNull();
   await expect(reopened.start(values)).rejects.toThrow("previous");
   const recovered = await reopened.load(operationId);
   expect(recovered.created.map((account) => account.userId)).toEqual([learner]);
@@ -180,17 +186,20 @@ it("persists only one opaque scoped ID before dispatch and recovers only its cre
   expect(await reopened.load(operationId)).toMatchObject({ acknowledged: true, available: 0 });
   await reopened.acknowledge(operationId);
   expect(reopened.pending()).toBeNull();
-  expect(request.mock.calls.filter(([, init]) => init?.method === "PUT")).toHaveLength(1);
+  expect(request.requests.filter(({ method }) => method === "PUT")).toHaveLength(1);
 });
 
 it("retains a missing receipt until canceled and recognizes a commit that wins the cancel race", async () => {
   let committed = false;
   let operationId = "";
-  const request = vi.fn<typeof fetch>(async (url, init) => {
+  const request = await serveHttp((incoming) => {
+    const { pathname, search } = new URL(incoming.url);
+    const url = pathname + search;
+
     if (url === "/api/v1/auth/csrf") return json({ requestToken: "csrf" });
     if (url === "/api/v1/auth/session") return json(session);
     const path = String(url);
-    if (init?.method === "PUT") {
+    if (incoming.method === "PUT") {
       operationId = path.split("/").at(-1)!;
       return json({}, 503);
     }
@@ -200,7 +209,7 @@ it("retains a missing receipt until canceled and recognizes a commit that wins t
       ? json({ code: "bulk_import_committed" }, 409)
       : new Response(null, { status: 204 });
   });
-  const client = createDirectoryClient(request, actor).bulkImport(org);
+  const client = createDirectoryClient(request.fetch, actor).bulkImport(org);
   await expect(client.start(values)).rejects.toThrow();
   await expect(client.load(operationId)).rejects.toBeInstanceOf(ImportRequestError);
   expect(client.pending()).toBe(operationId);
@@ -216,16 +225,19 @@ it("retains a missing receipt until canceled and recognizes a commit that wins t
 
 it("shows the created rows without credentials after server expiry", async () => {
   let operationId = "";
-  const request = vi.fn<typeof fetch>(async (url, init) => {
+  const request = await serveHttp((incoming) => {
+    const { pathname, search } = new URL(incoming.url);
+    const url = pathname + search;
+
     if (url === "/api/v1/auth/csrf") return json({ requestToken: "token" });
     if (url === "/api/v1/auth/session") return json(session);
-    if (init?.method === "PUT") {
+    if (incoming.method === "PUT") {
       operationId = String(url).split("/").at(-1)!;
       return json({}, 503);
     }
     return json({ ...receipt(operationId), expiresAt: "2020-01-01T00:00:00Z", credentials: [] });
   });
-  const client = createDirectoryClient(request, actor).bulkImport(org);
+  const client = createDirectoryClient(request.fetch, actor).bulkImport(org);
   await expect(client.start(values)).rejects.toThrow();
   const result = await client.load(operationId);
   expect(result.created.map((account) => account.userName)).toEqual(["created"]);
@@ -237,18 +249,21 @@ it("shows the created rows without credentials after server expiry", async () =>
 it("refuses crossed receipts, uncreated credential rows and a changed post-response identity", async () => {
   let operationId = "";
   let changed = false;
-  let response: Record<string, unknown> = {};
-  const request = vi.fn<typeof fetch>(async (url, init) => {
+  let response: Partial<ReturnType<typeof receipt>> = {};
+  const request = await serveHttp((incoming) => {
+    const { pathname, search } = new URL(incoming.url);
+    const url = pathname + search;
+
     if (url === "/api/v1/auth/csrf") return json({ requestToken: "csrf" });
     if (url === "/api/v1/auth/session")
       return json({ ...session, userId: changed ? other : actor });
-    if (init?.method === "PUT") {
+    if (incoming.method === "PUT") {
       operationId = String(url).split("/").at(-1)!;
-      throw new TypeError("Receipt unavailable");
+      return Response.error();
     }
     return json({ ...receipt(operationId), ...response });
   });
-  const client = createDirectoryClient(request, actor).bulkImport(org);
+  const client = createDirectoryClient(request.fetch, actor).bulkImport(org);
   await expect(client.start(values)).rejects.toThrow();
   for (const invalid of [
     { operationId: other },
@@ -266,34 +281,25 @@ it("refuses crossed receipts, uncreated credential rows and a changed post-respo
 });
 
 it("retains the bulk operation when a dispatched write returns 401", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
-    .mockResolvedValueOnce(json({}, 401));
-  const client = createDirectoryClient(request, actor).bulkImport(org);
+  const request = await serveResponses(json({ requestToken: "csrf" }), json({}, 401));
+  const client = createDirectoryClient(request.fetch, actor).bulkImport(org);
   await expect(client.start(values)).rejects.toThrow();
   expect(client.pending()).not.toBeNull();
 });
 
 it.each([401, 403])("releases the bulk marker for a %s preflight denial", async (status) => {
-  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(json({}, status));
-  const client = createDirectoryClient(request, actor).bulkImport(org);
+  const request = await serveResponses(json({}, status));
+  const client = createDirectoryClient(request.fetch, actor).bulkImport(org);
   await expect(client.start(values)).rejects.toThrow("could not be sent");
   expect(client.pending()).toBeNull();
-  expect(request).toHaveBeenCalledTimes(1);
+  expect(request.requests).toHaveLength(1);
 });
 
 it("does not dispatch a bulk import when the recovery marker cannot be stored", async () => {
-  vi.stubGlobal("localStorage", {
-    getItem: () => null,
-    setItem: () => {
-      throw new Error("quota");
-    },
-    removeItem: () => {},
-  });
-  const request = vi.fn<typeof fetch>();
+  localStorage.setItem("q", "x".repeat(5 * 1024 * 1024 - 1));
+  const request = await serveResponses();
   await expect(
-    createDirectoryClient(request, actor).bulkImport(org).start(values),
+    createDirectoryClient(request.fetch, actor).bulkImport(org).start(values),
   ).rejects.toThrow();
-  expect(request).not.toHaveBeenCalled();
+  expect(request.requests).toHaveLength(0);
 });

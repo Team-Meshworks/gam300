@@ -210,13 +210,18 @@ describe("project IDs and asset references", () => {
     });
   });
 
-  it("runs the existing structure and spatial checks before checking references", () => {
+  it("reports an invalid scale before a missing asset reference", () => {
     const { project, object, assets } = sampleProject();
-    expect(validateProject(null, assets)).toMatchObject({ ok: false, error: { path: "project" } });
+    assets.delete(object.assetId);
     object.transform.scale[0] = 0;
     expect(validateProject(project, assets)).toMatchObject({
       ok: false,
       error: { path: "project.scenes[0].objects[0].transform.scale[0]" },
+    });
+    object.transform.scale[0] = 1;
+    expect(validateProject(project, assets)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].objects[0].assetId" },
     });
   });
 });

@@ -1,4 +1,5 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
+import { serveHttp, serveResponses } from "../../tests/http-fixture";
 import {
   editDeadline,
   supersededAssignment,
@@ -30,7 +31,6 @@ const session = () =>
     orgId: "school",
     mustChangePassword: false,
   });
-afterEach(() => vi.unstubAllGlobals());
 
 it("preserves the exact deadline when the date is unchanged", () => {
   expect(editDeadline("2033-05-18T10:20", "2033-05-18T10:20", 2_000_000_000)).toBe(2_000_000_000);
@@ -46,33 +46,32 @@ it("only permits recovery when the current revision supersedes the uncertain req
 });
 
 it("retries an uncertain edit with the same identity and body", async () => {
-  const fetcher = vi
-    .fn()
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
-    .mockResolvedValueOnce(session())
-    .mockRejectedValueOnce(new Error("lost response"))
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
-    .mockResolvedValueOnce(session())
-    .mockResolvedValueOnce(json({ assignmentId: "assignment", revision: 3 }))
-    .mockResolvedValueOnce(session());
-  vi.stubGlobal("fetch", fetcher);
-  expect(await submitAssignmentEdit(request, false)).toEqual({ kind: "unknown" });
-  expect(await submitAssignmentEdit(request, true)).toEqual({ kind: "confirmed" });
-  expect(fetcher.mock.calls[3]?.[1]?.body).toBe(fetcher.mock.calls[7]?.[1]?.body);
-  expect(JSON.parse(fetcher.mock.calls[3]?.[1]?.body)).toEqual(request.body);
+  const { fetch: fetcher, requests } = await serveResponses(
+    session(),
+    json({ requestToken: "csrf" }),
+    session(),
+    Response.error(),
+    session(),
+    json({ requestToken: "csrf" }),
+    session(),
+    json({ assignmentId: "assignment", revision: 3 }),
+    session(),
+  );
+  expect(await submitAssignmentEdit(request, false, fetcher)).toEqual({ kind: "unknown" });
+  expect(await submitAssignmentEdit(request, true, fetcher)).toEqual({ kind: "confirmed" });
+  const original = await requests[3]!.text();
+  expect(original).toBe(await requests[7]!.text());
+  expect(JSON.parse(original)).toEqual(request.body);
 });
 
 it("only unlocks a known first conflict; later denials cannot resolve an uncertain edit", async () => {
-  const fetcher = vi.fn(async (path: string) =>
-    path.endsWith("/session")
+  const { fetch: fetcher } = await serveHttp(({ url }) =>
+    new URL(url).pathname.endsWith("/session")
       ? session()
-      : path.endsWith("/csrf")
+      : new URL(url).pathname.endsWith("/csrf")
         ? json({ requestToken: "csrf" })
         : json({ code: "assignment_conflict" }, 409),
   );
-  vi.stubGlobal("fetch", fetcher);
-  expect((await submitAssignmentEdit(request, false)).kind).toBe("rejected");
-  expect((await submitAssignmentEdit(request, true)).kind).toBe("unknown");
+  expect((await submitAssignmentEdit(request, false, fetcher)).kind).toBe("rejected");
+  expect((await submitAssignmentEdit(request, true, fetcher)).kind).toBe("unknown");
 });

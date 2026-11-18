@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
+import { exhaustStorage } from "./local-storage-quota.mjs";
 
 const teacher = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const org = "ef580108-e406-4c8e-ac76-75cd41e9d2dc";
@@ -107,14 +108,7 @@ try {
   await dialog
     .getByRole("textbox", { name: /^Project description/ })
     .fill("Unsaved teacher changes");
-  await page.evaluate(() => {
-    const original = Storage.prototype.setItem;
-    Storage.prototype.setItem = function (key, value) {
-      if (key.startsWith("spatia.assignment.edit:"))
-        throw new DOMException("Quota exceeded", "QuotaExceededError");
-      return original.call(this, key, value);
-    };
-  });
+  const restoreStorage = await exhaustStorage(page);
   await dialog.getByRole("button", { name: "Save changes" }).click();
   await dialog
     .getByRole("alert")
@@ -130,6 +124,7 @@ try {
     true,
   );
   assert.equal(await dialog.getByRole("button", { name: "Retry same request" }).count(), 0);
+  await restoreStorage();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await dialog.waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "Edit Project Description" }).click();

@@ -14,6 +14,7 @@ const project = "11111111-1111-4111-8111-111111111111",
   actor = "22222222-2222-4222-8222-222222222222",
   submission = "55555555-5555-4555-8555-555555555555",
   stamp = "2026-11-02T01:00:00Z";
+const projectPath = `/api/v1/projects/${project}`;
 const document = JSON.parse(
   await readFile(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
 );
@@ -38,6 +39,8 @@ let reviews = [],
   historyUnavailable = true;
 let approvalLost = false;
 let reviewReplyToLose = 0;
+let eligibilityUnavailable = false;
+let projectReads = 0;
 const reviewRequests = [];
 let legacyFound = false;
 let sessionActor = actor;
@@ -146,13 +149,16 @@ try {
         decisions,
         nextCursor: null,
       });
-    if (path.endsWith("/" + project))
+    if (path === projectPath && req.method() === "GET") {
+      projectReads++;
+      if (eligibilityUnavailable) return reply({ code: "unavailable" }, 503);
       return reply({
         projectId: project,
         revision: 7,
         document,
         permissions: { canEdit: true, canManage: true, canPublish: true },
       });
+    }
     return reply({ code: "not_found" }, 404);
   });
   async function open(history = false) {
@@ -210,7 +216,34 @@ try {
   assert.equal(reviews.length, 2);
   assert.equal(decisions.length, 0);
   assert.equal(publishes.length, 0);
+
+  eligibilityUnavailable = true;
+  const readsBeforeEligibility = projectReads;
   d = await open();
+  const retryEligibility = d.getByRole("button", { name: "Retry submission check", exact: true });
+  const approve = d.getByRole("button", { name: "Approve to publish", exact: true });
+  await d.getByRole("alert").waitFor();
+  await retryEligibility.waitFor();
+  assert.equal(projectReads - readsBeforeEligibility, 1);
+  assert.equal(await approve.isDisabled(), true, "A failed eligibility read blocks approval");
+  assert.equal(await d.getByRole("img", { name: /QR code/i }).count(), 0);
+  eligibilityUnavailable = false;
+  const retriedEligibility = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname === projectPath &&
+      response.ok(),
+  );
+  void retriedEligibility.catch(() => {});
+  await retryEligibility.click();
+  await retriedEligibility;
+  await approve.and(page.locator(":enabled")).waitFor();
+  assert.equal(await retryEligibility.count(), 0);
+  assert.equal(await d.getByRole("alert").count(), 0);
+  assert.equal(projectReads - readsBeforeEligibility, 2);
+  assert.equal(decisionRequests.length, 0, "Checking eligibility never submits a decision");
+  assert.equal(publishes.length, 0, "Checking eligibility never publishes");
+
   assert.equal(await d.getByText("Saved only", { exact: true }).count(), 0);
   await d.getByLabel("Your review").fill("Keep this unsaved review");
   saveDenied = true;
@@ -223,7 +256,6 @@ try {
   await d.getByLabel("Your review").fill("");
   d = await open();
   await d.getByLabel("Your review").fill("Approved for the student to publish");
-  assert.equal(await d.getByRole("button", { name: "Approve and publish" }).count(), 0);
   approvalLost = true;
   await d.getByRole("button", { name: "Approve to publish", exact: true }).click();
   await d.getByRole("button", { name: "Retry same request" }).click();

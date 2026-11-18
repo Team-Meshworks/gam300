@@ -1,6 +1,7 @@
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import { blankProject, openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
+import { waitForStoredDraft } from "./stored-draft.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -35,10 +36,9 @@ async function add(page, name) {
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await placeAtRoomCenter(page);
 }
-async function backup(page, expectedUrl, count) {
-  const deadline = Date.now() + 12000;
-  while (Date.now() < deadline) {
-    const ready = await page.evaluate(
+function backup(page, expectedUrl, count) {
+  return waitForStoredDraft(page, () =>
+    page.evaluate(
       async ({ expectedUrl, count }) => {
         const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
         const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
@@ -46,21 +46,20 @@ async function backup(page, expectedUrl, count) {
           accountId: "00000000-0000-4000-8000-000000000001",
           projectId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
         });
-        const scene = result.ok && result.value?.document?.scenes[0];
-        return (
-          scene &&
-          scene.interactions.length === count &&
-          scene.interactions[0]?.do.url === expectedUrl
-        );
+        const document = result.ok ? result.value?.document : null;
+        const scene = document?.scenes[0];
+        return scene?.interactions.length === count && scene.interactions[0]?.do.url === expectedUrl
+          ? document
+          : null;
       },
       { expectedUrl, count },
+    ),
+  ).catch(async (cause) => {
+    throw new Error(
+      "Recovery did not reach expected URL/count: " + (await page.locator("body").innerText()),
+      { cause },
     );
-    if (ready) return;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error(
-    "Recovery did not reach expected URL/count: " + (await page.locator("body").innerText()),
-  );
+  });
 }
 try {
   for (const version of [1, 2]) {
@@ -132,18 +131,7 @@ try {
       await page.getByRole("button", { name: "Interaction", exact: true }).click();
     }
     await page.getByLabel("Interaction 1 do", { exact: true }).selectOption("open-link");
-    await backup(page, "", 1); // Wait past the actual two-second debounce, leaving the URL empty.
-    const restoredVersion = await page.evaluate(async () => {
-      const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
-      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-      return (
-        await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])), {
-          accountId: "00000000-0000-4000-8000-000000000001",
-          projectId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-        })
-      ).value.document.schemaVersion;
-    });
-    assert.equal(restoredVersion, version);
+    assert.equal((await backup(page, "", 1)).schemaVersion, version);
     await page.getByRole("button", { name: "Leave editor", exact: true }).click();
     const confirmation = page.getByRole("dialog");
     await confirmation.waitFor();
@@ -161,7 +149,7 @@ try {
       .fill("https://example.com/corrected");
     await backup(page, "https://example.com/corrected", 1);
     await page.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
-    await backup(page, "https://example.com/corrected", 2);
+    const recovered = await backup(page, "https://example.com/corrected", 2);
     await page.reload();
     await recover(page);
     await page.getByRole("button", { name: "Interaction", exact: true }).click();
@@ -171,17 +159,9 @@ try {
       "https://example.com/corrected",
     );
     if (version === 2) {
-      const mixed = await page.evaluate(async () => {
-        const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
-        const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-        const result = await loadRecoverySession(new Map(assets.map((a) => [a.id, a.kind])), {
-          accountId: "00000000-0000-4000-8000-000000000001",
-          projectId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-        });
-        return result.value.document;
-      });
-      mixed.scenes[0].hotspots[0].objectId = mixed.scenes[0].hotspots[0].objectId.toUpperCase();
-      server.setDocument(mixed);
+      const firstHotspot = recovered.scenes[0].hotspots[0];
+      firstHotspot.objectId = firstHotspot.objectId.toUpperCase();
+      server.setDocument(recovered);
       await page.reload();
       await openSavedProject(page);
       if (!(await targets.count()))
@@ -279,12 +259,8 @@ try {
   console.log("PASS: exact 5 MiB v2 server project opens and recovers an account-scoped edit");
 
   const context = await browser.newContext();
-  // Exercise the real scene loop at roughly four frames per second.
-  await context.addInitScript(() => {
-    const request = window.requestAnimationFrame.bind(window);
-    window.requestAnimationFrame = (callback) => setTimeout(() => request(callback), 250);
-  });
   const page = await context.newPage();
+  await page.clock.install({ time: new Date("2026-01-01T00:00:00Z") });
   const clockServer = await serveProject(page, url);
   await page.goto(clockServer.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
@@ -292,41 +268,40 @@ try {
   await page.getByRole("button", { name: "Interaction", exact: true }).click();
   await page.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
   await page.getByLabel("Interaction 1 when", { exact: true }).selectOption("time-elapsed");
-  await page.getByLabel("Interaction 1 after", { exact: true }).selectOption("2");
-  const started = Date.now();
-  const fired = page.waitForEvent("dialog", { timeout: 3500 });
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
-  const dialog = await fired;
-  const elapsed = Date.now() - started;
-  assert.equal(dialog.message(), "hi");
-  await dialog.accept();
-  assert.ok(elapsed >= 1800 && elapsed < 3500, `Two-second rule fired after ${elapsed} ms`);
-  await page.getByRole("button", { name: "Exit preview", exact: true }).click();
-  const hiddenAlerts = [];
+  const ruleMs = 2000;
+  await page.getByLabel("Interaction 1 after", { exact: true }).selectOption(String(ruleMs / 1000));
+  await page.clock.pauseAt(new Date("2026-01-02T00:00:00Z"));
+  const messages = [];
   page.on("dialog", async (dialog) => {
-    hiddenAlerts.push(Date.now());
+    messages.push(dialog.message());
     await dialog.accept();
   });
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
-  await new Promise((resolve) => setTimeout(resolve, 400));
+  await page.getByRole("button", { name: "Preview", exact: true }).dispatchEvent("click");
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Exhibition ready" })
+    .waitFor({ state: "attached" });
+  const frameMs = 250;
+  await page.clock.fastForward(frameMs);
+  assert.deepEqual(messages, []);
   await page.evaluate(() => {
-    Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
     document.dispatchEvent(new Event("visibilitychange"));
   });
-  await new Promise((resolve) => setTimeout(resolve, 2500));
-  assert.equal(hiddenAlerts.length, 0, "Hidden time must not advance the rule");
-  const resumed = Date.now();
+  await page.clock.fastForward(ruleMs * 2);
+  assert.deepEqual(messages, [], "Four seconds hidden must not fire the two-second rule");
   await page.evaluate(() => {
-    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    delete document.hidden;
     document.dispatchEvent(new Event("visibilitychange"));
   });
-  while (!hiddenAlerts.length && Date.now() - resumed < 2500)
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  assert.equal(hiddenAlerts.length, 1);
-  assert.ok(hiddenAlerts[0] - resumed >= 1300, "Visible time remaining is preserved");
+  for (let elapsed = 2 * frameMs; elapsed < ruleMs; elapsed += frameMs) {
+    await page.clock.fastForward(frameMs);
+    assert.deepEqual(messages, [], `The rule fired early after ${elapsed} ms`);
+  }
+  await page.clock.fastForward(frameMs);
+  assert.deepEqual(messages, ["hi"], "The rule resumes and fires after eight visible frames");
   await context.close();
-  console.log("PASS: real scene clock excludes simulated hidden intervals and resumes correctly");
-  console.log(`PASS: actual scene loop at 250-ms frames fired after ${elapsed} ms`);
+  console.log("PASS: elapsed interaction counts slow preview frames and excludes hidden time");
 } finally {
   await browser.close();
 }

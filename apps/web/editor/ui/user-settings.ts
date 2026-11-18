@@ -13,15 +13,13 @@ const storageKey = "spatia-user-settings";
 
 // Anything unknown or out of range falls back to the default
 export function readSettings(value: unknown): UserSettings {
-  const saved =
-    typeof value === "object" && value !== null
-      ? (value as Partial<Record<keyof UserSettings, unknown>>)
-      : {};
+  if (typeof value !== "object" || value === null) return { ...defaultSettings };
+  const volume = "volume" in value ? value.volume : undefined;
   return {
-    theme: saved.theme === "dark" ? "dark" : "light",
+    theme: "theme" in value && value.theme === "dark" ? "dark" : "light",
     volume:
-      typeof saved.volume === "number" && Number.isFinite(saved.volume)
-        ? Math.min(1, Math.max(0, saved.volume))
+      typeof volume === "number" && Number.isFinite(volume)
+        ? Math.min(1, Math.max(0, volume))
         : defaultSettings.volume,
   };
 }

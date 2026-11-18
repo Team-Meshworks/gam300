@@ -133,21 +133,14 @@ try {
     await page.getByRole("button", { name: "Third person", exact: true }).click();
     await page.getByRole("button", { name: "Rooms", exact: true }).click();
     const choice = page.getByRole("button", { name: "Approved room", exact: true });
-    if (method === "click") await choice.click();
-    else {
-      await page.evaluate(async (asset) => {
-        const { editorModelCache } = await import("/graphics/scene.ts");
-        const lease = await editorModelCache.acquire(asset, new AbortController().signal);
-        const prototype = Object.getPrototypeOf(Object.getPrototypeOf(lease.value.model));
-        const add = prototype.add;
-        prototype.add = function (...nodes) {
-          if (this.isScene)
-            for (const node of nodes)
-              if (node.name === "placement-preview") window.roomGhost = node;
-          return add.apply(this, nodes);
-        };
-        lease.release();
-      }, asset);
+    let place = () => choice.click();
+    if (method === "drag") {
+      await page.evaluate(async () => {
+        const { Scene } = await import("/@id/three");
+        Scene.prototype.addEventListener("childadded", ({ child }) => {
+          if (child.name === "placement-preview") window.roomGhost = child;
+        });
+      });
       const transfer = await page.evaluateHandle(() => new DataTransfer());
       await choice.dispatchEvent("dragstart", { dataTransfer: transfer });
       const stage = page.locator(".viewport-stage");
@@ -156,31 +149,44 @@ try {
           document.querySelector(".viewport-stage")?.getAttribute("data-dragging-asset") === id,
         assetId,
       );
-      let validDrop = false;
-      for (let i = 0; i < 150 && !validDrop; i++) {
-        await stage.dispatchEvent("dragover", {
-          clientX: 720,
-          clientY: 500,
-          dataTransfer: transfer,
-        });
-        validDrop = await page.evaluate(() => {
+      await page.waitForFunction(
+        (dataTransfer) => {
+          document.querySelector(".viewport-stage").dispatchEvent(
+            new DragEvent("dragover", {
+              bubbles: true,
+              cancelable: true,
+              clientX: 720,
+              clientY: 500,
+              dataTransfer,
+            }),
+          );
           let color;
           window.roomGhost?.traverse((node) => {
             if (node.isMesh) color = node.material.color.getHexString();
           });
           return window.roomGhost?.visible && color === "999999";
-        });
-        if (!validDrop) await page.waitForTimeout(100);
-      }
-      assert.ok(validDrop, "A first room has a valid drop preview");
-      await stage.dispatchEvent("drop", { clientX: 720, clientY: 500, dataTransfer: transfer });
-      await page
-        .locator('.room-picker .asset-card-pick[aria-label="Approved room"]')
-        .dispatchEvent("dragend", { dataTransfer: transfer });
+        },
+        transfer,
+        { timeout: 15000 },
+      );
+      place = async () => {
+        await stage.dispatchEvent("drop", { clientX: 720, clientY: 500, dataTransfer: transfer });
+        await page
+          .locator('.room-picker .asset-card-pick[aria-label="Approved room"]')
+          .dispatchEvent("dragend", { dataTransfer: transfer });
+        await transfer.dispose();
+      };
     }
-    const deadline = Date.now() + 10000;
-    while (document.scenes[0].environmentAssetId !== assetId && Date.now() < deadline)
-      await page.waitForTimeout(100);
+    const [write] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `/api/v1/projects/${fixture.projectId}` &&
+          response.request().method() === "PUT",
+        { timeout: 15000 },
+      ),
+      place(),
+    ]);
+    assert.ok(write.ok(), `The ${method} placement save must succeed`);
     assert.equal(
       document.scenes[0].environmentAssetId,
       assetId,
