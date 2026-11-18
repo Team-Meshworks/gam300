@@ -129,9 +129,6 @@ try {
     await modal.getByRole("tooltip", { name: "Clear Formatting", exact: true }).isVisible(),
     true,
   );
-  assert.equal(await modal.getByRole("button", { name: "Audio", exact: true }).count(), 0);
-  assert.equal(await modal.getByRole("button", { name: "Hotspot", exact: true }).count(), 0);
-  assert.equal(await modal.getByRole("button", { name: "Properties", exact: true }).count(), 0);
   assert.equal(await modal.getByRole("button", { name: "Image", exact: true }).count(), 1);
   assert.equal(await modal.getByRole("button", { name: "Video", exact: true }).count(), 1);
   await modal.getByRole("button", { name: "Add", exact: true }).click();

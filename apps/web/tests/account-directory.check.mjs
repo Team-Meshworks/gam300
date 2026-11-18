@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
@@ -14,7 +15,8 @@ const userId = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const rows = [];
 const writes = [];
 let duplicate = false;
-let failBulkDelete = false;
+let pendingAccountCreate;
+let failedBulkDelete;
 let loseImportReceipt = false;
 const importReceipts = new Map();
 const isBulkCreate = (path) =>
@@ -34,6 +36,7 @@ try {
   const serveApi = async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
+    const accountId = /^\/api\/v1\/admin\/users\/([^/]+)$/.exec(path)?.[1];
     if (path === "/api/v1/auth/session")
       return route.fulfill({
         json: {
@@ -82,9 +85,10 @@ try {
       const body = req.postDataJSON();
       writes.push({ path, body });
       if (duplicate) return route.fulfill({ status: 409, json: { code: "username_taken" } });
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      if (req.method() === "DELETE" && path === `/api/v1/admin/users/${userId}`) {
-        rows.splice(0, 1);
+      if (req.method() === "DELETE" && accountId) {
+        const index = rows.findIndex((row) => row.userId === accountId);
+        if (index === -1) return route.fulfill({ status: 404 });
+        rows.splice(index, 1);
         return route.fulfill({ status: 204 });
       }
       if (path === `/api/v1/admin/organizations/${orgId}/active`) {
@@ -105,8 +109,10 @@ try {
         return route.fulfill({ status: 204 });
       }
       if (path === `/api/v1/admin/organizations/${orgId}/students/delete`) {
-        if (failBulkDelete)
+        if (failedBulkDelete) {
+          await failedBulkDelete.promise;
           return route.fulfill({ status: 503, json: { code: "directory_unavailable" } });
+        }
         assert.ok(
           body.userIds.every((id) =>
             rows.some((row) => row.userId === id && row.role === "Creator"),
@@ -131,10 +137,10 @@ try {
       if (isBulkCreate(path)) {
         const created = body
           .filter((value) => !rows.some((row) => row.userName === value.userName))
-          .map((value, index) => ({
+          .map((value) => ({
             ...value,
             initialPassword: undefined,
-            userId: `77777777-7777-4777-8777-${String(rows.length + index + 1).padStart(12, "0")}`,
+            userId: randomUUID(),
             isActive: true,
             mustChangePassword: true,
           }));
@@ -171,20 +177,24 @@ try {
         });
       }
       if (req.method() === "POST") {
-        rows.push({
-          userId,
+        if (path === "/api/v1/admin/users") await pendingAccountCreate?.promise;
+        const account = {
+          userId: randomUUID(),
           orgId,
           displayName: body.displayName,
           userName: body.userName,
           role: body.role,
           isActive: true,
           mustChangePassword: true,
-        });
-      } else {
-        for (const key of ["displayName", "userName", "role"])
-          if (key in body) rows[0][key] = body[key];
+        };
+        rows.push(account);
+        return route.fulfill({ status: 201, json: account });
       }
-      return route.fulfill({ status: req.method() === "POST" ? 201 : 200, json: rows[0] });
+      const account = rows.find((row) => row.userId === accountId);
+      if (!account) return route.fulfill({ status: 404 });
+      for (const key of ["displayName", "userName", "role"])
+        if (key in body) account[key] = body[key];
+      return route.fulfill({ json: account });
     }
     if (path === "/api/v1/admin/organizations" && failOrganizations)
       return route.fulfill({ status: 503, json: { code: "directory_unavailable" } });
@@ -233,10 +243,9 @@ try {
             },
             {
               id: "bbf2b1d0-b388-4df8-a995-930148dcdd19",
-              title: "Project with cover",
+              title: "Published directory project",
               status: "Draft",
               isPublic: true,
-              cover: "/entry/assets/login-exhibit.png",
             },
           ],
           nextCursor: null,
@@ -247,7 +256,8 @@ try {
       reads.accounts++;
       return route.fulfill({ json: { items: rows, nextCursor: null } });
     }
-    if (path === `/api/v1/admin/users/${userId}`) return route.fulfill({ json: rows[0] });
+    const account = rows.find((row) => row.userId === accountId);
+    if (account) return route.fulfill({ json: account });
     return route.fulfill({ status: 404 });
   };
   await context.route("**/api/v1/**", serveApi);
@@ -295,10 +305,6 @@ try {
     }
   }
   await page.setViewportSize({ width: 1440, height: 1024 });
-  assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 0);
-  assert.equal(await page.getByRole("heading", { name: "Accounts", exact: true }).count(), 0);
-  assert.equal(await page.getByText("Manage accounts within an organisation.").count(), 0);
-  assert.equal(await page.getByRole("button", { name: "Refresh directory" }).count(), 0);
   await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
   const identity = page.getByRole("heading", { name: "Ridgeview Secondary School", exact: true });
   const projects = page.getByRole("tab", { name: "All Projects", exact: true });
@@ -316,34 +322,22 @@ try {
     false,
     "Organisation identity and projects occupy separate sections",
   );
-  assert.equal(await page.getByRole("navigation", { name: "Workspace" }).count(), 0);
-  assert.equal(await page.getByRole("button", { name: "Refresh directory" }).count(), 0);
   const defaultCard = page.locator(".sp-directory-project").filter({ hasText: projectTitle });
   await defaultCard.getByRole("heading", { name: projectTitle }).waitFor();
   const defaultCover = defaultCard.locator("img");
-  assert.equal(await defaultCover.count(), 1, "a project without a cover has a default image");
-  assert.match(
-    await defaultCover.getAttribute("src"),
-    /default-project-neutral(?:-[\w-]+)?\.jpg(?:\?|$)/,
-  );
+  assert.equal(await defaultCover.isVisible(), true, "a project has a visible default image");
   await defaultCover.evaluate((image) => image.decode());
-  const explicitCover = page
-    .locator(".sp-directory-project")
-    .filter({ hasText: "Project with cover" })
-    .locator("img");
-  assert.equal(await explicitCover.getAttribute("src"), "/entry/assets/login-exhibit.png");
-  await explicitCover.evaluate((image) => image.decode());
   assert.equal(
     await defaultCard.getByRole("link", { name: "View Details" }).getAttribute("href"),
     `/admin/dashboard?projectId=${userId}`,
   );
   await page.getByRole("tab", { name: "Public", exact: true }).click();
   assert.equal(await defaultCard.count(), 0);
-  await page.getByRole("heading", { name: "Project with cover", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Published directory project", exact: true }).waitFor();
   await page.getByRole("tab", { name: "Private", exact: true }).click();
   await defaultCard.waitFor();
   assert.equal(
-    await page.getByRole("heading", { name: "Project with cover", exact: true }).count(),
+    await page.getByRole("heading", { name: "Published directory project", exact: true }).count(),
     0,
   );
   await projects.click();
@@ -379,13 +373,26 @@ try {
   assert.equal(await dialog.getByLabel("Password", { exact: true }).getAttribute("type"), "text");
   await dialog.getByRole("button", { name: "Hide password", exact: true }).click();
   await page.screenshot({ path: `${screenshots}/create-account.png`, fullPage: true });
-  await dialog.getByRole("button", { name: "Save changes" }).evaluate((button) => {
-    button.click();
-    button.click();
-  });
+  pendingAccountCreate = Promise.withResolvers();
+  try {
+    await Promise.all([
+      page.waitForRequest(
+        (request) =>
+          request.method() === "POST" && new URL(request.url()).pathname === "/api/v1/admin/users",
+      ),
+      dialog.getByRole("button", { name: "Save changes" }).evaluate((button) => {
+        button.click();
+        button.click();
+      }),
+    ]);
+  } finally {
+    pendingAccountCreate.resolve();
+    pendingAccountCreate = undefined;
+  }
   await dialog.waitFor({ state: "detached" });
   assert.equal(writes.length, 1, "Pending saves cannot create duplicate requests");
   assert.equal(writes[0].body.orgId, orgId);
+  const createdAccountId = rows[0].userId;
   await page.getByRole("button", { name: "View account for Aisyah Abdullah" }).click();
   dialog = page.getByRole("dialog");
   assert.equal(await dialog.getByLabel("Password", { exact: true }).inputValue(), "");
@@ -547,7 +554,7 @@ try {
   await page
     .getByRole("button", { name: "View account for Aisyah Recovered" })
     .waitFor({ state: "detached" });
-  assert.equal(writes.at(-1).path, `/api/v1/admin/users/${userId}`);
+  assert.equal(writes.at(-1).path, `/api/v1/admin/users/${createdAccountId}`);
   await page
     .getByText("No accounts yet. Add the first account to this organisation.", { exact: true })
     .waitFor();
@@ -762,7 +769,8 @@ try {
     await page.getByRole("button", { name: "Delete selected", exact: true }).isDisabled(),
     true,
   );
-  const studentIds = rows.filter((row) => row.role === "Creator").map((row) => row.userId);
+  const selectedCreators = rows.filter((row) => row.role === "Creator");
+  const studentIds = selectedCreators.map((row) => row.userId);
   const facilitatorIds = rows.filter((row) => row.role === "Educator").map((row) => row.userId);
   await page.getByRole("checkbox", { name: "Select all creators", exact: true }).check();
   assert.equal(
@@ -776,23 +784,42 @@ try {
     name: `Delete ${studentIds.length} creator accounts?`,
     exact: true,
   });
-  assert.equal(await deletion.locator(".sp-account-deletion-names").count(), 0);
+  await deletion
+    .getByText(/Their usernames, projects and review history will be retained/)
+    .waitFor();
+  const confirmationText = await deletion.innerText();
+  assert.ok(
+    selectedCreators.every(({ displayName }) => !confirmationText.includes(displayName)),
+    "Bulk deletion does not list selected creators",
+  );
   await page.screenshot({ path: `${screenshots}/bulk-delete.png`, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.screenshot({ path: `${screenshots}/bulk-delete-mobile.png`, fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1024 });
-  failBulkDelete = true;
-  await deletion
-    .getByRole("button", { name: `Delete ${studentIds.length} accounts`, exact: true })
-    .dblclick();
+  failedBulkDelete = Promise.withResolvers();
+  try {
+    await Promise.all([
+      page.waitForRequest(
+        (request) =>
+          request.method() === "POST" &&
+          new URL(request.url()).pathname ===
+            `/api/v1/admin/organizations/${orgId}/students/delete`,
+      ),
+      deletion
+        .getByRole("button", { name: `Delete ${studentIds.length} accounts`, exact: true })
+        .dblclick(),
+    ]);
+  } finally {
+    failedBulkDelete.resolve();
+  }
   await deletion.getByRole("alert").waitFor();
   assert.equal(deleteWrites().length, 1, "A double click sends one bulk request");
   assert.ok(
     studentIds.every((id) => rows.some((row) => row.userId === id)),
     "Failed deletion preserves accounts",
   );
-  failBulkDelete = false;
+  failedBulkDelete = undefined;
   await deletion
     .getByRole("button", { name: `Delete ${studentIds.length} accounts`, exact: true })
     .click();

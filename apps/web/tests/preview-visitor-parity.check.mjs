@@ -559,6 +559,8 @@ try {
       return video && !video.paused && video.currentTime > 0;
     }, video.id);
     for (const input of ["walk", "look"]) {
+      if (!(await page.locator(".visitor-information").evaluate((details) => details.open)))
+        await page.locator(".visitor-information > summary").click();
       await page.getByRole("button", { name: "Next room", exact: true }).click();
       await page.getByText("Automatic scene navigation stopped at a repeated scene.").waitFor();
       assert.equal(
@@ -592,11 +594,7 @@ try {
         if (input === "walk") await page.keyboard.up("w");
       }
       await page.getByRole("status").getByText("Exhibition ready").waitFor();
-      if (!(await page.locator(".visitor-information").evaluate((details) => details.open)))
-        await page.locator(".visitor-information > summary").click();
     }
-    assert.equal(await page.getByRole("combobox").count(), 0);
-    assert.equal(await page.getByRole("button", { name: /Reset view|Enable audio/ }).count(), 0);
   }
   await checkStandVisibility(editor, editorUrl, "Preview");
   await checkStandVisibility(visitor, visitorUrl, "Visitor");

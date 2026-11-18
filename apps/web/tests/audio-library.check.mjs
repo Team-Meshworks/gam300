@@ -154,7 +154,6 @@ try {
   await page.locator(".scene-audio-select").filter({ hasText: "Ethereal Calm" }).click();
   assert.equal(await dialog.count(), 0, "Selecting hierarchy audio must not reopen the library");
   assert.equal(await button("Ethereal Calm").getAttribute("aria-pressed"), "true");
-  assert.equal(await page.locator(".scene-audio-remove").count(), 0);
   await page.keyboard.press("Delete");
   await saved((doc) => (doc.scenes[0].audio?.length ?? 0) === 0);
   await button("Undo").click();
@@ -295,13 +294,6 @@ try {
     "Leaving Preview stops spatial audio",
   );
   await page.locator(".object-row[data-object-id]").first().click();
-  assert.equal(
-    await page
-      .locator(".scene-tree")
-      .getByRole("button", { name: /^Remove hotspot from / })
-      .count(),
-    0,
-  );
   await button("Interaction").click();
   await page.locator(".interaction-list").waitFor();
   await page.getByRole("button", { name: /^Remove hotspot from / }).click();

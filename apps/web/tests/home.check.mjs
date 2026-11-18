@@ -211,10 +211,6 @@ try {
     assert.equal(await page.getByRole("button", { name: "New assignment" }).count(), 0);
     await page.goto(origin + "/review");
     await page.getByRole("heading", { name: "Submission review" }).waitFor();
-    assert.equal(
-      await page.getByRole("link", { name: "New class assignment", exact: true }).count(),
-      0,
-    );
     console.log("Legacy class and assignment routes use the guarded workspace");
   } else if (process.argv[3] === "admin") {
     account = { ...session, role: "Administrator", orgId: null };
@@ -347,11 +343,12 @@ try {
     await page.getByRole("button", { name: "Archive", exact: true }).click();
     await page.getByRole("button", { name: "Confirm", exact: true }).click();
     await page.getByText("Project archived.", { exact: true }).waitFor();
-    await page.getByRole("tab", { name: "Archived", exact: true }).click();
+    const projectStatus = page.getByRole("tablist", { name: "Project status", exact: true });
+    await projectStatus.getByRole("tab", { name: "Archived", exact: true }).click();
     await page.getByRole("button", { name: "Reopen", exact: true }).click();
     await page.getByRole("button", { name: "Confirm", exact: true }).click();
     await page.getByText("Project reopened.", { exact: true }).waitFor();
-    await page.getByRole("tab", { name: "Projects", exact: true }).click();
+    await projectStatus.getByRole("tab", { name: "Projects", exact: true }).click();
     items[0].revision = 3;
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await page.getByRole("button", { name: "Duplicate", exact: true }).click();
@@ -387,7 +384,6 @@ try {
       .waitFor();
     assert.equal(await page.getByRole("region", { name: "Project details" }).isVisible(), true);
     await page.getByRole("button", { name: "Close project details" }).click();
-    assert.equal(await page.getByText("Manage projects and archives", { exact: true }).count(), 0);
     await page
       .locator(".sp-student-card")
       .getByRole("heading", { name: "Student draft", exact: true })

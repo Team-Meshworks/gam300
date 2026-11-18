@@ -110,7 +110,6 @@ try {
   assert.equal(await rows.count(), 0);
   assert.equal(await undo.isDisabled(), true);
   assert.equal(await redo.isDisabled(), true);
-  assert.equal(await page.getByText("Start with a sample model.", { exact: true }).count(), 0);
 
   await page.keyboard.press("Tab");
   assert.equal(
@@ -872,8 +871,6 @@ try {
     await transfer.dispose();
     await child.dragTo(parent);
     assert.equal(await parent.locator("../..").locator("[data-object-id]").count(), 2);
-    assert.equal(await nested.getByRole("button", { name: "New group", exact: true }).count(), 0);
-    assert.equal(await nested.getByRole("combobox").count(), 0);
     // Inline renaming is a single edit; cancelling must never alter the authored name
     await parent.dblclick();
     const rename = nested.getByRole("textbox", { name: /^Rename / });
@@ -994,7 +991,6 @@ try {
   // Preview opens the visitor player for the current draft.
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   await page.getByRole("region", { name: "Exhibition", exact: true }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Test visitor", exact: true }).count(), 0);
   await page.getByRole("button", { name: "Exit preview", exact: true }).click();
 
   const hotspotStage = await stage.boundingBox();

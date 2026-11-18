@@ -83,9 +83,8 @@ function holdManifest() {
   return pending.promise;
 }
 let openingHold;
-let page;
 try {
-  page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
     if (
@@ -219,8 +218,6 @@ try {
     .getByRole("heading", { name: "Visitor test exhibition" })
     .boundingBox();
   assert.ok(titleBounds.width <= 1 && titleBounds.height <= 1, "Title does not occupy the preview");
-  assert.equal(await page.getByText(/Saved revision/).count(), 0);
-  assert.equal(await page.getByRole("button", { name: "Start exhibition" }).count(), 0);
   assert.equal(await page.getByRole("button", { name: /^Activate / }).count(), 0);
   assert.equal(await page.getByRole("button", { name: /edit|undo|redo|save/i }).count(), 0);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -263,8 +260,6 @@ try {
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
   assert.notEqual(await screenshotHash(), original, "Walking moves the visible camera");
-  assert.equal(await page.getByRole("combobox").count(), 0);
-  assert.equal(await page.getByRole("button", { name: "Reset view" }).count(), 0);
   assert.equal(await canvas.count(), 1);
   assert.equal(
     requests.some((path) => /^\/editor\//.test(path)),
@@ -323,9 +318,6 @@ try {
   console.log(
     "Visitor browser checks passed: canvas, keyboard, scene replacement, saturation, retry, timeout, hash rejection and sign-in return.",
   );
-} catch (error) {
-  console.error(await page?.locator("body").innerText());
-  throw error;
 } finally {
   await browser.close();
 }

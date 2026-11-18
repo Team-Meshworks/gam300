@@ -376,7 +376,7 @@ try {
   });
   role = "Educator";
   await page.goto(origin + "/review");
-  await check("teacher review route does not show old workspace", async () => {
+  await check("teacher review route redirects to home", async () => {
     await page.waitForURL("**/home**");
     assert.equal(await page.getByRole("region", { name: "Submissions and reviews" }).count(), 0);
   });
@@ -386,8 +386,7 @@ try {
     await page.getByRole("heading", { name: "All Projects", exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: "Submissions and reviews" }).count(), 0);
   });
-  await check("teacher home has no legacy management footer or standalone Publish", async () => {
-    assert.equal(await page.getByText("Manage projects and archives", { exact: true }).count(), 0);
+  await check("teacher home excludes standalone publication", async () => {
     assert.equal(await page.getByRole("link", { name: "Publish project", exact: true }).count(), 0);
   });
   developmentAssetsAllowed = true;

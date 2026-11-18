@@ -33,7 +33,6 @@ it("identifies a saved view with the same pose without adding a wire-format fiel
 });
 it("uses the saved camera when there are no viewpoints", () => {
   assert.equal(getStartingCamera({ ...scene, viewpoints: [] }), camera);
-  const { viewpoints, ...legacy } = scene;
-  assert.lengthOf(viewpoints!, 2);
+  const { viewpoints: _viewpoints, ...legacy } = scene;
   assert.equal(getStartingCamera(legacy), camera);
 });

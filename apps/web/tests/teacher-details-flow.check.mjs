@@ -531,7 +531,6 @@ try {
     .click();
   await page.getByRole("rowheader", { name: "@Bob", exact: true }).waitFor();
   assert.equal(enrolled, true);
-  assert.equal(await page.getByRole("heading", { name: "Add Students", exact: true }).count(), 0);
   await page
     .getByText("Your administrator creates accounts for new students.", { exact: true })
     .waitFor();

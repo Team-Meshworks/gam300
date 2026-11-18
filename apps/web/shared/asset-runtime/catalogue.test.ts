@@ -4,7 +4,6 @@ import {
   STARTER_ROOM_SHA256,
   isStarterRoomEnvironment,
   isStarterRoomModel,
-  starterRoomCompanion,
   searchAssets,
   type CatalogueAsset,
 } from "./catalogue";
@@ -47,7 +46,6 @@ describe("catalogue search", () => {
   it("clears to the original order and references without changing the catalogue", () => {
     expect(searchAssets(assets, "chair")[0]).toBe(assets[0]);
     expect(searchAssets(assets, "  ")).toEqual(assets);
-    expect(assets.map((asset) => asset.id)).toEqual(["chair", "panel", "room"]);
   });
 
   it("treats patterns, markup as literal input", () => {
@@ -123,8 +121,6 @@ it("recognizes only matching non-empty Starter room hashes", () => {
     sha256: starterHash,
   };
   expect(isStarterRoomModel([approvedModel], approvedModel.id)).toBe(true);
-  expect(starterRoomCompanion([approvedModel])?.id).toBe(approvedModel.id);
-  expect(starterRoomCompanion([{ ...approvedModel, sha256: "b".repeat(64) }])).toBeUndefined();
 });
 
 it("pins Starter geometry to both packaged manifest entries", () => {

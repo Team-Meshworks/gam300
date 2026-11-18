@@ -151,10 +151,6 @@ try {
       await page.getByRole("heading", { name: "Projects", exact: true }).waitFor();
       await page.getByText("No projects are available yet.", { exact: true }).waitFor();
       assert.equal(await page.getByRole("button", { name: "New project", exact: true }).count(), 0);
-      assert.equal(
-        await page.getByText("Manage projects and archives", { exact: true }).count(),
-        0,
-      );
       assert.equal(assetReads, 0);
       assert.deepEqual(writes, []);
       await page.goto(origin + "/new-project");

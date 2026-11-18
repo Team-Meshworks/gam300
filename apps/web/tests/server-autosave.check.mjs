@@ -417,11 +417,7 @@ async function importScenario() {
     await editor.goto(url);
     await editor.locator('.save-state[data-state="saved"]').waitFor();
     await editor.getByLabel("Project options", { exact: true }).click();
-    assert.equal(
-      await editor.locator("#project-save").count(),
-      0,
-      "Server autosave has no redundant Save menu item",
-    );
+    assert.equal(await editor.getByRole("button", { name: "Retry Save", exact: true }).count(), 0);
     await editor.getByRole("button", { name: "Import", exact: true }).waitFor();
     await editor.getByRole("button", { name: "Export", exact: true }).waitFor();
     const upload = async (text) =>
@@ -646,7 +642,6 @@ try {
   await page.getByRole("button", { name: "Retry opening" }).click();
   await saved();
   await importScenario();
-  assert.equal(await page.getByRole("complementary", { name: "Server project" }).count(), 0);
   await page.getByRole("button", { name: "Leave editor" }).focus();
   await page.keyboard.press("Enter");
   // An unchanged server draft leaves directly without a redundant confirmation

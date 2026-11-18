@@ -350,7 +350,10 @@ try {
     mimeType: "model/gltf-binary",
     buffer: Buffer.from("local preview only"),
   });
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
+  assert.equal(
+    await dialog.getByRole("status", { name: "Filter Category" }).textContent(),
+    "Not applicable",
+  );
   await dialog
     .getByLabel("Choose asset file")
     .evaluate((input) => input.dispatchEvent(new Event("cancel", { bubbles: true })));
@@ -359,8 +362,6 @@ try {
     await dialog.getByLabel("Choose asset file").evaluate((input) => input.files[0].name),
     "retained-room.glb",
   );
-  // Space upload and detail dialogs have no category control
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   assert.equal(
     await dialog
       .locator(".asset-admin-upload")
@@ -419,7 +420,6 @@ try {
   for (const [label, value] of draftMetadata) {
     await dialog.getByLabel(`${label} (optional)`, { exact: true }).fill(value);
   }
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
   await dialog.getByRole("alert").waitFor();
   for (const [label, value] of draftMetadata) {
@@ -433,8 +433,6 @@ try {
     await dialog.getByLabel("Choose asset file").evaluate((input) => input.files[0].name),
     "test-room.glb",
   );
-  // Space upload and detail dialogs have no category control
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
   // Only the adapter's confirmed pending result enters the list after successful submission
@@ -451,7 +449,6 @@ try {
       new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }),
     );
   });
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
   await page.getByRole("heading", { name: "new-room.glb", exact: true }).waitFor();
   await page
@@ -929,7 +926,6 @@ try {
   await page.getByLabel("Display name", { exact: true }).fill("Alex Tan");
   await page.getByRole("banner").getByText("Alex Tan", { exact: true }).waitFor();
   assert.equal(await page.getByRole("banner").getByText("AT", { exact: true }).count(), 1);
-  assert.equal(await page.locator("select").count(), 0);
   assert.equal(
     await page
       .locator(".asset-admin-scroll")

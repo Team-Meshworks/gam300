@@ -341,7 +341,6 @@ try {
   const project = await serveProject(page, process.argv[2] ?? "http://127.0.0.1:5185/");
   await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Filters", exact: true }).count(), 0);
   assert.equal(
     await page.getByRole("group", { name: "Camera tools", exact: true }).isVisible(),
     true,

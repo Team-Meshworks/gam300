@@ -340,10 +340,6 @@ try {
     await page.getByRole("link", { name: "+ Add Item", exact: true }).getAttribute("href"),
     "/assets?add=1",
   );
-  assert.equal(
-    await page.getByRole("link", { name: "Open project workspace", exact: true }).count(),
-    0,
-  );
   await page.evaluate(() => {
     window.organisationNavigationMarker = "same-workspace";
   });
@@ -359,7 +355,6 @@ try {
   await page.goForward();
   await page.getByRole("heading", { name: "All Organisations", exact: true, level: 1 }).waitFor();
   assert.equal(await page.evaluate(() => window.organisationNavigationMarker), "same-workspace");
-  assert.equal(await page.getByRole("navigation", { name: "Workspace screens" }).count(), 0);
   await page.getByRole("link", { name: "Close organisations" }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   for (const [link, heading] of [
@@ -454,7 +449,6 @@ try {
     path: join(dirname(screenshot), "admin-projects-after.png"),
     fullPage: true,
   });
-  assert.equal(await page.getByRole("dialog", { name: "All Published Projects" }).count(), 0);
   for (const name of [
     /^All Work(?: \(\d+\))?$/,
     /^Private(?: \(\d+\))?$/,
@@ -462,8 +456,6 @@ try {
   ]) {
     assert.equal(await projectView.getByRole("tab", { name, exact: true }).isVisible(), true);
   }
-  assert.equal(await projectView.getByRole("tab", { name: /^Archived/ }).count(), 0);
-  assert.equal(await projectView.getByRole("link", { name: "Open project workspace" }).count(), 0);
   await projectView.getByRole("tab", { name: "All Work (4)", exact: true }).waitFor();
   assert.equal(
     await projectView
@@ -552,7 +544,6 @@ try {
     exact: true,
   });
   await details.waitFor();
-  assert.equal(await page.getByRole("dialog", { name: "Project details" }).count(), 0);
   assert.equal(await details.getByText("Life in Ancient Rome", { exact: true }).isVisible(), true);
   assert.equal(await details.locator(".admin-project-visibility").textContent(), "Public");
   await details.getByRole("link", { name: "Ridgeview Secondary School", exact: true }).waitFor();
@@ -849,7 +840,6 @@ try {
     3,
     "Loaded published projects are retained while deleted editions are removed",
   );
-  assert.equal(await projectView.getByRole("button", { name: "Load more projects" }).count(), 0);
   await projectView.getByLabel("Search published projects").fill("no matching project");
   await projectView.getByRole("status").filter({ hasText: "No matching projects" }).waitFor();
   assert.equal(

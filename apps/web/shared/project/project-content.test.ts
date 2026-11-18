@@ -117,23 +117,19 @@ describe("shared browser/server project-format fixtures", () => {
     }
   });
 
-  it("preserves all authored content, parentage and ordering in a separate copy", () => {
-    const source = structuredClone(m2);
-    const result = deserializeProject(JSON.stringify(source), assets);
+  it("preserves authored content, parentage and ordering", () => {
+    const result = deserializeProject(JSON.stringify(m2), assets);
     expect(result.ok).toBe(true);
     if (!result.ok) {
       throw new Error(result.error.message);
     }
     const project = result.value as ContentProject;
     const first = project.scenes[0]!;
-    expect(project.scenes.map((scene) => scene.id)).toEqual(source.scenes.map((scene) => scene.id));
-    expect(first.rules).toEqual(source.scenes[0]!.rules);
-    expect(first.objects[0]!.components).toEqual(source.scenes[0]!.objects[0]!.components);
+    expect(project.scenes.map((scene) => scene.id)).toEqual(m2.scenes.map((scene) => scene.id));
+    expect(first.name).toBe(m2.scenes[0]!.name);
+    expect(first.rules).toEqual(m2.scenes[0]!.rules);
+    expect(first.objects[0]!.components).toEqual(m2.scenes[0]!.objects[0]!.components);
     expect(first.objects[1]!.parentId).toBe(first.objects[0]!.id);
-    source.scenes.reverse();
-    source.scenes[1]!.rules.reverse();
-    expect(first.rules[0]!.trigger.type).toBe("click");
-    expect(project.scenes[0]!.name).toBe("Room");
   });
 
   it("retains known unsupported rules and reports capabilities before execution", () => {

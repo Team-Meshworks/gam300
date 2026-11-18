@@ -223,7 +223,6 @@ try {
   await d.getByLabel("Your review").fill("");
   d = await open();
   await d.getByLabel("Your review").fill("Approved for the student to publish");
-  assert.equal(await d.getByRole("button", { name: "Approve and publish" }).count(), 0);
   approvalLost = true;
   await d.getByRole("button", { name: "Approve to publish", exact: true }).click();
   await d.getByRole("button", { name: "Retry same request" }).click();

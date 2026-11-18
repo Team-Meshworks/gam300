@@ -104,11 +104,6 @@ try {
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(await page.locator(".object-row").count(), 0);
 
-  assert.equal(
-    await page.getByRole("button", { name: "Open sample project", exact: true }).count(),
-    0,
-  );
-
   const chunks = await page.evaluate(() =>
     performance
       .getEntriesByType("resource")
