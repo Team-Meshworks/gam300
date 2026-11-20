@@ -198,3 +198,33 @@ it("keeps acquired resources beyond idle expiry and closes a shared bitmap exact
   expect(bitmap.close).toHaveBeenCalledTimes(1);
   expect(loaded.disposed.every((dispose) => dispose.mock.calls.length === 1)).toBe(true);
 });
+
+it("reuses verified parses without issuing a second request or changing the template pivot", async () => {
+  const loaded = model();
+  const parseVerified = vi.fn(async () => loaded.scene);
+  const descriptor = { ...asset, placement: "bottom-center" as const };
+  const signal = new AbortController().signal;
+  const first = await cache.acquire(descriptor, signal, parseVerified);
+  first.release();
+  const second = await cache.acquire(descriptor, signal, parseVerified);
+  expect(second.value.model).toBe(loaded.scene);
+  expect(second.value.model.position.y).toBe(0.5);
+  expect(parseVerified).toHaveBeenCalledTimes(1);
+  expect(fetchModel).not.toHaveBeenCalled();
+  second.release();
+});
+
+it("evicts large idle models by decoded size and never evicts an active borrower", async () => {
+  const large = [model(), model(), model()];
+  for (const item of large) {
+    item.texture.image = { width: 4096, height: 4096 };
+    parse.mockResolvedValueOnce(item.gltf);
+  }
+  const active = await acquire();
+  (await acquire({ ...asset, id: "old" })).release();
+  (await acquire({ ...asset, id: "recent" })).release();
+  expect(large[1]!.disposed.every((dispose) => dispose.mock.calls.length === 1)).toBe(true);
+  expect(large[0]!.disposed.every((dispose) => dispose.mock.calls.length === 0)).toBe(true);
+  expect(large[2]!.disposed.every((dispose) => dispose.mock.calls.length === 0)).toBe(true);
+  active.release();
+});

@@ -1664,13 +1664,6 @@ html:has(.sp-shell--facilitator) {
   min-height: 132px;
 }
 
-.sp-shell--facilitator .sp-image-options label[data-active="false"] {
-  font-weight: 400;
-}
-.sp-shell--facilitator .sp-image-options .sp-gallery-button[aria-pressed="true"] {
-  font-weight: 600;
-}
-
 .sp-shell--facilitator .sp-search svg,
 .sp-shell--facilitator .sp-teacher-heading .sp-search svg {
   width: 24px;

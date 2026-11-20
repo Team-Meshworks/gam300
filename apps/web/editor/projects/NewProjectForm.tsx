@@ -81,7 +81,6 @@ export function NewProjectForm({
   const [selectorReset, setSelectorReset] = useState(0);
   const [selected, setSelected] = useState<readonly string[]>([]);
   const [coverImage, setCoverImage] = useState<File | null>(null);
-  const [gallerySelected, setGallerySelected] = useState(false);
   const dirty =
     phase === "editing" &&
     (JSON.stringify(form) !== JSON.stringify(initialForm) ||
@@ -254,7 +253,6 @@ export function NewProjectForm({
                         <Button
                           key={type}
                           className="sp-gallery-button"
-                          aria-pressed={gallerySelected}
                           onClick={() => {
                             coverInputRef.current?.click();
                           }}
@@ -263,16 +261,13 @@ export function NewProjectForm({
                           <span>Gallery</span>
                         </Button>
                       ) : (
-                        <label key={type} data-active={!gallerySelected && form.imageType === type}>
+                        <label key={type}>
                           <input
                             type="radio"
                             name="image-type"
                             value={type}
                             checked={form.imageType === type}
-                            onChange={() => {
-                              setGallerySelected(false);
-                              update("imageType", type);
-                            }}
+                            onChange={() => update("imageType", type)}
                           />
                           <Icon icon={imageIcon} aria-hidden="true" />
                           <span>{type}</span>
@@ -281,17 +276,14 @@ export function NewProjectForm({
                     )}
                   </div>
                   <p className="sp-hint">
-                    Choose the type of image students will use for this project. You can change this
-                    later.
+                    Choose Cover image or 360°, then use Gallery to select an image from your
+                    device. A 360° image must be twice as wide as it is high.
                   </p>
                 </fieldset>
                 <CoverImagePicker
                   key={selectorReset}
                   file={coverImage}
-                  onChange={(file) => {
-                    setCoverImage(file);
-                    setGallerySelected(file !== null);
-                  }}
+                  onChange={setCoverImage}
                   inputRef={coverInputRef}
                 />
               </>

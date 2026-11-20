@@ -352,10 +352,10 @@ try {
       await video.evaluate((node) => node.paused),
       "Returning to a tab preserves an explicit pause",
     );
-    const oldCanvas = await page.locator(".visitor-canvas canvas").elementHandle();
+    const oldVisit = await page.locator(".visitor-viewer").elementHandle();
     await page.locator(".visitor-information > summary").click();
     await page.getByRole("button", { name: revisit.label }).click();
-    await page.waitForFunction((canvas) => !canvas.isConnected, oldCanvas);
+    await page.waitForFunction((viewer) => !viewer.isConnected, oldVisit);
     await page.getByRole("status").getByText("Exhibition ready").waitFor();
     await waitForStand(page, true);
     assert.equal(
