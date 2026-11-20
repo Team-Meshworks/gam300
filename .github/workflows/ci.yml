@@ -343,16 +343,24 @@ jobs:
           # Test files from the actual image, including the separate private catalogue root.
           # The Caddy harness first proves anonymous byte denial, then provides a synthetic
           # full session for the existing authoring browser checks.
-          mkdir -p test-results/packaged-public test-results/packaged-restricted
+          mkdir -p test-results "$RUNNER_TEMP/packaged-public" "$RUNNER_TEMP/packaged-restricted"
           web=$(docker compose -f ../../compose.yaml -p vthere-ci ps -q web)
-          docker cp "$web:/srv/." test-results/packaged-public/
-          docker cp "$web:/srv-restricted/." test-results/packaged-restricted/
+          docker cp "$web:/srv/." "$RUNNER_TEMP/packaged-public/"
+          docker cp "$web:/srv-restricted/." "$RUNNER_TEMP/packaged-restricted/"
           docker run --rm --entrypoint /bin/cat caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b /usr/bin/caddy > "$RUNNER_TEMP/spatia-caddy"
           chmod +x "$RUNNER_TEMP/spatia-caddy"
           CADDY_BINARY="$RUNNER_TEMP/spatia-caddy" node ../../deploy/gateway.check.mjs
-          CADDY_BINARY="$RUNNER_TEMP/spatia-caddy" node ../../deploy/restricted-assets.check.mjs test-results/packaged-public test-results/packaged-restricted --browser
-          mkdir -p dist/editor
-          docker cp "$(docker compose -f ../../compose.yaml -p vthere-ci ps -q web):/srv/." dist/editor/
+          CADDY_BINARY="$RUNNER_TEMP/spatia-caddy" node ../../deploy/restricted-assets.check.mjs \
+            "$RUNNER_TEMP/packaged-public" "$RUNNER_TEMP/packaged-restricted" --browser \
+            2>&1 | tee test-results/packaged-catalogue.log
+      - name: Retain the verified public web build for review
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: web-${{ github.sha }}
+          path: ${{ runner.temp }}/packaged-public/
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true
       - name: Check the editor API and database together
         env:
           APP_IMAGE: vthere-ci:${{ github.sha }}
@@ -374,7 +382,9 @@ jobs:
           curl --fail --silent --show-error --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/
           curl --fail --silent --show-error --retry 12 --retry-delay 1 --retry-connrefused --max-time 5 --retry-max-time 60 --cacert test-results/server-root.crt --output /dev/null https://localhost:8444/api/v1/auth/csrf
           test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' https://localhost:8444/api/v1/auth/session)" = 401
-          model=$(node -e "console.log(require('node:fs').readdirSync('test-results/packaged-restricted').find(name => name.endsWith('.glb')))")
+          models=("$RUNNER_TEMP"/packaged-restricted/*.glb)
+          test -f "${models[0]}"
+          model=$(basename "${models[0]}")
           test "$(curl --silent --show-error --cacert test-results/server-root.crt --output /dev/null --write-out '%{http_code}' "https://localhost:8444/restricted-assets/$model")" = 401
           migrations=$("${stack[@]}" exec -T postgres psql -U spatia -d spatia -tAc 'SELECT count(*) FROM public."__EFMigrationsHistory"')
           test "$migrations" -ge 2
@@ -393,14 +403,18 @@ jobs:
           extra=()
           if [[ -f ../../.env ]]; then extra=(--env-file ../../.env -f ../../compose.server.yaml); fi
           docker compose -f ../../compose.yaml "${extra[@]}" -p vthere-ci logs --no-color --tail 100 > test-results/containers.log 2>&1 || true
-      - name: Retain test evidence and runnable web files
+      - name: Retain test diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: checks-${{ github.sha }}
           path: |
-            apps/web/test-results/
-            apps/web/dist/editor/
+            apps/web/test-results/*.log
+            apps/web/test-results/unit.xml
+            apps/web/test-results/packaged-asset-validation.json
+            apps/web/test-results/server-root.crt
+            apps/web/test-results/*.png
+            apps/web/test-results/scrum168/*.png
             docs/architecture-graph.json
             docs/architecture-graph.md
           retention-days: 14
