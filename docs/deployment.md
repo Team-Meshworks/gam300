@@ -260,7 +260,7 @@ Test a publish-only retry with an earlier producer attempt and keep staging data
 for at least the current two-day retry window. Deployment continues to use the manual
 environment gate, current branch head, selected CI run and release-package digests.
 
-To roll back the archive layout, revert the cleanup commit through review and rerun CI.
+To roll back the archive layout, revert this workflow change through review and rerun CI.
 That restores both public copies and the raw restricted catalogue to future private
 diagnostic archives.
 
