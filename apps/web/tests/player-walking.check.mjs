@@ -34,6 +34,7 @@ const room = {
 };
 const doorway = scene("Doorway", [room]);
 const project = { ...blankProject, scenes: [doorway] };
+
 const server = await createServer({
   configFile: fileURLToPath(new URL("../vite.config.ts", import.meta.url)),
   server: { host: "127.0.0.1", port: 0 },
@@ -135,7 +136,29 @@ try {
     await page.bringToFront();
     await page.getByRole("status").getByText("Exhibition ready").waitFor();
     await page.waitForFunction(() => !!window.walkCamera);
-    await page.locator('canvas[aria-label="Exhibition view"]').click();
+    const canvas = page.getByLabel("Exhibition view", { exact: true });
+    await canvas.focus();
+    await page.keyboard.down("w");
+    await page.waitForFunction(() => window.walkCamera.position.x > 0.35);
+    // SCRUM-204: the exhibit panel opens during a walk and consumes the W release.
+    await page.locator("[data-exhibition-scene]").dispatchEvent("exhibit-show-panel");
+    const summary = page.getByText("Exhibit information", { exact: true });
+    assert.ok(await summary.evaluate((node) => document.activeElement === node));
+    await summary.evaluate((node) =>
+      node.addEventListener("keyup", (event) => event.stopPropagation(), { once: true }),
+    );
+    await page.keyboard.up("w");
+    await canvas.focus();
+    const [start, end] = await page.evaluate(async () => {
+      const start = window.walkCamera.position.x;
+      for (let frame = 0; frame < 12; frame++) await new Promise(requestAnimationFrame);
+      return [start, window.walkCamera.position.x];
+    });
+    assert.ok(
+      start < 10 && Math.abs(end - start) < 1e-5,
+      `${name}: drift on open floor ${start} to ${end}`,
+    );
+    await canvas.click();
     await page.keyboard.down("w");
     await page.waitForFunction(() => window.walkCamera.position.x > 5.5);
     const through = await page.evaluate(() => window.walkCamera.position.toArray());
@@ -156,7 +179,9 @@ try {
       `${name}: should reach the wall and stop inside it, got ${blocked}`,
     );
   }
-  console.log("Preview and visitor walk through connected doorways and stop at solid walls.");
+  console.log(
+    "Preview and visitor stop on release or input loss, resume walking and respect walls.",
+  );
 } finally {
   await browser?.close();
   await server.close();
