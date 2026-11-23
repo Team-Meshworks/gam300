@@ -8,9 +8,37 @@ import { blankProject, serveProject } from "./authoring-project-fixture.mjs";
 
 const id = "11111111-1111-4111-8111-111111111112";
 const moduleId = "11111111-1111-4111-8111-111111111113";
+const caseId = "11111111-1111-4111-8111-111111111114";
 const pub = "11111111-1111-4111-8111-111111111111";
 const bytes = readFileSync(new URL("../../../assets/delivery/test-room.glb", import.meta.url));
 const sha256 = createHash("sha256").update(bytes).digest("hex");
+const caseBytes = readFileSync(
+  new URL(
+    "../../../assets/delivery/stands-displays/display-full-glass-case-v1.glb",
+    import.meta.url,
+  ),
+);
+const models = [
+  { id, name: "Room", kind: "environment", sha256 },
+  { id: moduleId, name: "Room module", kind: "model", sha256 },
+  {
+    id: caseId,
+    name: "Glass case",
+    kind: "model",
+    sha256: createHash("sha256").update(caseBytes).digest("hex"),
+  },
+];
+const assetRows = (basePath) =>
+  models.map((model) => ({
+    ...model,
+    url: basePath + "/" + model.id + "/bytes",
+    category: null,
+    thumbnail: null,
+  }));
+const assetResponse = (path) => ({
+  contentType: "model/gltf-binary",
+  body: path.endsWith("/" + caseId + "/bytes") ? caseBytes : bytes,
+});
 const base = blankProject.scenes[0];
 const scene = (name, objects) => ({
   ...structuredClone(base),
@@ -32,7 +60,22 @@ const room = {
   visible: true,
   components: [],
 };
-const doorway = scene("Doorway", [room]);
+const display = {
+  ...room,
+  id: "55555555-5555-4555-8555-555555555556",
+  name: "Glass case",
+  assetId: caseId,
+  transform: { position: [8, 0.2, 0], rotation: [0, 0, 0, 1], scale: [2, 1, 1] },
+};
+const doorway = scene("Doorway", [room, display]);
+doorway.rules = [
+  {
+    id: "55555555-5555-4555-8555-555555555557",
+    enabled: true,
+    trigger: { type: "click", targetId: display.id },
+    actions: [{ type: "setVisible", objectId: display.id, visible: false }],
+  },
+];
 const project = { ...blankProject, scenes: [doorway] };
 const server = await createServer({
   configFile: fileURLToPath(new URL("../vite.config.ts", import.meta.url)),
@@ -63,29 +106,8 @@ try {
   await editor.route(`**${projectAssets}**`, (route) => {
     const path = new URL(route.request().url()).pathname;
     return path === projectAssets
-      ? route.fulfill({
-          json: [
-            {
-              id,
-              name: "room",
-              kind: "environment",
-              sha256,
-              url: `${projectAssets}/${id}/bytes`,
-              category: null,
-              thumbnail: null,
-            },
-            {
-              id: moduleId,
-              name: "room",
-              kind: "model",
-              sha256,
-              url: `${projectAssets}/${moduleId}/bytes`,
-              category: null,
-              thumbnail: null,
-            },
-          ],
-        })
-      : route.fulfill({ contentType: "model/gltf-binary", body: bytes });
+      ? route.fulfill({ json: assetRows(projectAssets) })
+      : route.fulfill(assetResponse(path));
   });
   await editor.goto(saved.url);
   await editor
@@ -100,28 +122,14 @@ try {
   await observe(visitor);
   await visitor.route("**/api/v1/publications/**", (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/bytes"))
-      return route.fulfill({ contentType: "model/gltf-binary", body: bytes });
+    if (path.endsWith("/bytes")) return route.fulfill(assetResponse(path));
     return route.fulfill({
       json: path.endsWith("/manifest")
         ? {
             publicationId: pub,
             projectId: project.projectId,
             sourceRevision: 1,
-            assets: [
-              {
-                id,
-                kind: "environment",
-                sha256,
-                url: `/api/v1/publications/${pub}/assets/${id}/bytes`,
-              },
-              {
-                id: moduleId,
-                kind: "model",
-                sha256,
-                url: `/api/v1/publications/${pub}/assets/${moduleId}/bytes`,
-              },
-            ],
+            assets: assetRows(`/api/v1/publications/${pub}/assets`),
           }
         : project,
     });
@@ -139,6 +147,17 @@ try {
     await page.keyboard.down("w");
     await page.waitForFunction(() => window.walkCamera.position.x > 5.5);
     const through = await page.evaluate(() => window.walkCamera.position.toArray());
+    // The scaled case begins at x=7.4. The visitor's 22 cm radius should stop the camera at 7.18.
+    await page.waitForFunction(() => window.walkCamera.position.x > 7.14);
+    await page.evaluate(async () => {
+      for (let frame = 0; frame < 12; frame++) await new Promise(requestAnimationFrame);
+    });
+    const atCase = await page.evaluate(() => window.walkCamera.position.x);
+    assert.ok(
+      atCase > 7.14 && atCase <= 7.181,
+      `${name}: should stop at the glass case, got ${atCase}`,
+    );
+    await page.locator('canvas[aria-label="Exhibition view"]').click();
     await page.waitForFunction(() => window.walkCamera.position.x > 14.4);
     // Keep walking into the wall for simulation frames, including on slow software renderers.
     await page.evaluate(async () => {
@@ -146,7 +165,7 @@ try {
     });
     await page.keyboard.up("w");
     const blocked = await page.evaluate(() => window.walkCamera.position.toArray());
-    outcomes.push({ name, through, blocked });
+    outcomes.push({ name, through, atCase, blocked });
   }
   console.log(JSON.stringify(outcomes));
   for (const { name, through, blocked } of outcomes) {
@@ -156,7 +175,9 @@ try {
       `${name}: should reach the wall and stop inside it, got ${blocked}`,
     );
   }
-  console.log("Preview and visitor walk through connected doorways and stop at solid walls.");
+  console.log(
+    "Preview and visitor cross the doorway, stop at the display case, then reach the far wall after it is hidden.",
+  );
 } finally {
   await browser?.close();
   await server.close();

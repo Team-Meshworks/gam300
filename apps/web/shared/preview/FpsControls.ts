@@ -226,6 +226,14 @@ export class FpsControls {
     if (this.engaged) this.sync();
   }
 
+  refreshWalkObstacles(): void {
+    if (
+      this.engaged &&
+      (this.walkingUnavailable || this.walkSpace?.insideProp(this.physicsPosition))
+    )
+      this.sync();
+  }
+
   // A viewpoint or saved camera just moved the camera, carry on from exactly that pose
   syncFromCamera(): void {
     this.clearInput();

@@ -6,7 +6,7 @@ import {
   ROOM_TRANSFORM,
 } from "../../shared/project/selection-transform";
 import { createRoomEntrances } from "../../shared/asset-runtime/room-entrances";
-import { createWalkSpace } from "../../shared/preview/walk-space";
+import { createWalkSpace, type WalkProp } from "../../shared/preview/walk-space";
 import { visibleModelBounds, visibleRaycastHit, nearestExhibitHit } from "./visible-model-bounds";
 import { textSurfacePlacement } from "./text-placement";
 import {
@@ -318,16 +318,19 @@ export function initScene(
   }
   function syncWalkSpace() {
     const rooms = environment ? [environment] : [];
+    const props: WalkProp[] = [];
     for (const object of objects) {
       const instance = instances.get(object.id);
-      if (
-        instance?.visible &&
-        (object as Partial<ContentObject>).visible !== false &&
-        isCatalogueRoomModel(assets, object.assetId)
-      )
-        rooms.push(instance);
+      if (!instance?.visible || (object as Partial<ContentObject>).visible === false) continue;
+      if (isRoomModel(object.assetId)) rooms.push(instance);
+      else {
+        const body = bodyFor(object.id, object.assetId, object.transform);
+        if (body && !body.bounds.isEmpty()) props.push({ root: instance, bounds: body.bounds });
+      }
     }
-    fpsControls.setWalkSpace(rooms.length ? createWalkSpace(rooms) : undefined);
+    fpsControls.setWalkSpace(
+      rooms.length || props.length ? createWalkSpace(rooms, props) : undefined,
+    );
   }
   const displays = createDisplayContent(assets, render, models);
   const spatialAudio = createSceneAudio(camera, assets, (message) =>
