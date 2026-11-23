@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { SkeletonBox } from "skullet/react";
 import { Button } from "../../shared/ui/Button";
 import { Icon } from "@iconify/react/offline";
 import lock from "@iconify-icons/lucide/lock-keyhole";
@@ -45,6 +46,7 @@ export function PublishStatus({
   onClose,
   closeLabel,
   locked = false,
+  loading = false,
   actions,
   children,
 }: {
@@ -53,6 +55,7 @@ export function PublishStatus({
   onClose: () => void;
   closeLabel: string;
   locked?: boolean;
+  loading?: boolean;
   actions: ReactNode;
   children?: ReactNode;
 }) {
@@ -81,6 +84,22 @@ export function PublishStatus({
         </header>
         <h2 id={titleId}>{current.title}</h2>
         <p className="publish-status-description">{current.description}</p>
+        {loading && (
+          <div
+            className="publish-status-requirements"
+            role="status"
+            aria-label="Checking publishing requirements"
+            aria-busy="true"
+          >
+            {["completion", "approval"].map((requirement) => (
+              <div key={requirement} className="publish-status-row" aria-hidden="true">
+                <SkeletonBox width={28} height={28} radius={14} />
+                <SkeletonBox width="min(140px, 80%)" height={15} radius={4} />
+                <SkeletonBox width={65} height={24} radius={12} />
+              </div>
+            ))}
+          </div>
+        )}
         {state !== "checking" && (
           <>
             <div className="publish-status-requirements" aria-label="Publishing requirements">

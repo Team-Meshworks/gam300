@@ -66,7 +66,14 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
     [session.userId],
   );
   if (session.role === "Educator" && location.pathname.replace(/\/$/, "") === "/review")
-    return <EducatorReviewLink session={session} />;
+    return (
+      <WorkspaceShell
+        variant="facilitator"
+        header={{ account: session, homeHref: "/home", onSignOut }}
+      >
+        <EducatorReviewLink session={session} />
+      </WorkspaceShell>
+    );
   const screen = screens.find((item) => `/${item.id}` === path);
   const permitted = screens.filter((item) => item.roles.includes(session.role));
   const fallback =

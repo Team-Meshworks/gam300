@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { Icon } from "@iconify/react/offline";
 import check from "@iconify-icons/lucide/check";
 import { useEffect, useRef, useState } from "react";
@@ -375,6 +376,7 @@ export function PublicationPage({
                 ? "pending"
                 : "approved"
         }
+        loading={loading}
         titleId="creator-publish-title"
         closeLabel="Close publish project"
         onClose={onCancel}
@@ -405,11 +407,6 @@ export function PublicationPage({
           </>
         }
       >
-        {loading && (
-          <p role="status" className="publish-status-loading">
-            Preparing your saved project…
-          </p>
-        )}
         {(error ||
           readinessError ||
           (readiness && readiness.state !== "Ready") ||
@@ -435,7 +432,7 @@ export function PublicationPage({
           change this published edition.
         </p>
       )}
-      {loading && <p role="status">Loading saved project…</p>}
+      {loading && <LoadingSkeleton label="Loading saved project" />}
       {error && <p role="alert">{error}</p>}
       {saved && (
         <>
@@ -526,13 +523,13 @@ export function PublicationPage({
               <fieldset disabled={phase !== "ready" || viewersLoading}>
                 <legend>Publication audience</legend>
                 <div className="sp-publication-audience-field">
-                  {onCancel ? (
+                  {onCancel || session.role === "Creator" ? (
                     <Select
                       label="Who can open this publication"
                       value={audience}
-                      className="creator-publication-select"
+                      className="sp-admin-select creator-publication-select"
                       showSelectedIcon={false}
-                      menuClassName="creator-publication-options"
+                      menuClassName="sp-admin-select-menu creator-publication-options"
                       options={[
                         { value: "Authenticated", label: "Permitted signed-in accounts" },
                         { value: "Unlisted", label: "Anyone with the link" },
@@ -573,7 +570,7 @@ export function PublicationPage({
                 {audience === "Authenticated" && (
                   <>
                     {!onCancel && <p>Choose up to 100 viewers.</p>}
-                    {viewersLoading && <p role="status">Loading viewers…</p>}
+                    {viewersLoading && <LoadingSkeleton label="Loading viewers" />}
                     {viewersError && (
                       <p>Viewers could not be loaded. You can publish for yourself only.</p>
                     )}
