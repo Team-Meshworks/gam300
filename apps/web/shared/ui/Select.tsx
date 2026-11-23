@@ -1,8 +1,9 @@
 import { Icon as UiIcon } from "@iconify/react/offline";
 import chevronDown from "@iconify-icons/lucide/chevron-down";
 import check from "@iconify-icons/lucide/check";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
+import "./admin-select.css";
 
 type Props = {
   label: string;
@@ -16,6 +17,7 @@ type Props = {
   menuClassName?: string;
   leading?: ReactNode;
   trailing?: ReactNode;
+  footerLink?: { label: string; href: string };
 };
 
 // Keep menus in the top layer so dialog clipping cannot hide their options
@@ -32,6 +34,7 @@ export function Select({
   menuClassName = "asset-admin-select-menu",
   leading,
   trailing,
+  footerLink,
 }: Props) {
   const id = useId();
   const button = useRef<HTMLButtonElement>(null);
@@ -46,7 +49,7 @@ export function Select({
     }
     // Open towards the side with usable room and keep the menu attached to its field
     const bounds = button.current!.getBoundingClientRect();
-    const height = Math.min(options.length * 36 + 18, 200);
+    const height = Math.min(options.length * 36 + 18 + (footerLink ? 45 : 0), 245);
     const below = innerHeight - bounds.bottom - 12;
     const above = bounds.top - 12;
     const upwards = below < height && above > below;
@@ -68,13 +71,41 @@ export function Select({
   }
 
   // Native popovers supply outside-click dismissal without an extra overlay or document listener
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (open) {
-      menu.current?.showPopover();
+      const popup = menu.current;
+      popup?.showPopover();
+      const triggerBounds = button.current?.getBoundingClientRect();
+      const popupBounds = popup?.getBoundingClientRect();
+      if (popup && triggerBounds && popupBounds) {
+        const height = Math.min(popup.scrollHeight + popup.offsetHeight - popup.clientHeight, 245);
+        const below = innerHeight - triggerBounds.bottom - 12;
+        const above = triggerBounds.top - 12;
+        const upwards = below < height && above > below;
+        const maxHeight = Math.max(0, Math.min(height, upwards ? above : below));
+        const top = upwards ? triggerBounds.top - maxHeight : triggerBounds.bottom;
+        setPosition((current) =>
+          current.top === top && current.maxHeight === maxHeight
+            ? current
+            : { ...current, top, maxHeight },
+        );
+      }
     } else if (menu.current?.matches(":popover-open")) {
       menu.current.hidePopover();
     }
   }, [open]);
+
+  useEffect(() => {
+    const popup = menu.current;
+    const option = document.getElementById(`${id}-${active}`);
+    if (!open || !popup || !option) return;
+    const bounds = popup.getBoundingClientRect();
+    const optionBounds = option.getBoundingClientRect();
+    const top = optionBounds.top - bounds.top - popup.clientTop;
+    const bottom = optionBounds.bottom - bounds.top - popup.clientTop;
+    if (top < 0) popup.scrollTop += top;
+    else if (bottom > popup.clientHeight) popup.scrollTop += bottom - popup.clientHeight;
+  }, [active, id, open]);
 
   // Dismiss on surrounding scroll or resize rather than leaving the menu detached from its field
   useEffect(() => {
@@ -107,6 +138,11 @@ export function Select({
 
   function keyDown(event: KeyboardEvent<HTMLButtonElement>) {
     if (event.key === "Tab") {
+      if (open && footerLink && !event.shiftKey) {
+        event.preventDefault();
+        menu.current?.querySelector<HTMLAnchorElement>(".sp-select-footer a")?.focus();
+        return;
+      }
       setOpen(false);
       return;
     }
@@ -172,11 +208,11 @@ export function Select({
       {trailing}
       <div
         ref={menu}
-        id={`${id}-menu`}
+        id={footerLink ? `${id}-popup` : `${id}-menu`}
         popover="auto"
-        role="listbox"
+        role={footerLink ? undefined : "listbox"}
         aria-labelledby={`${id}-label`}
-        className={menuClassName}
+        className={`${menuClassName} sp-select-menu`}
         style={position}
         onToggle={(event) => {
           if (event.newState === "closed") {
@@ -184,26 +220,64 @@ export function Select({
           }
         }}
       >
-        {options.map((option, index) => (
-          <button
-            id={`${id}-${index}`}
-            key={option.value}
-            type="button"
-            role="option"
-            tabIndex={-1}
-            aria-selected={value === option.value}
-            data-active={active === index}
-            onMouseDown={(event) => event.preventDefault()}
-            onPointerMove={() => setActive(index)}
-            onClick={() => choose(index)}
-          >
-            {option.label}
-            {showSelectedIcon && value === option.value && (
-              <UiIcon icon={check} width={16} height={16} aria-hidden="true" />
-            )}
-          </button>
-        ))}
+        <SelectOptions footer={!!footerLink} label={`${id}-label`} id={`${id}-menu`}>
+          {options.map((option, index) => (
+            <button
+              id={`${id}-${index}`}
+              key={option.value}
+              type="button"
+              role="option"
+              tabIndex={-1}
+              aria-selected={value === option.value}
+              data-active={active === index}
+              onMouseDown={(event) => event.preventDefault()}
+              onPointerMove={() => setActive(index)}
+              onClick={() => choose(index)}
+            >
+              {option.label}
+              {showSelectedIcon && value === option.value && (
+                <UiIcon icon={check} width={16} height={16} aria-hidden="true" />
+              )}
+            </button>
+          ))}
+        </SelectOptions>
+        {footerLink && (
+          <div className="sp-select-footer">
+            <a
+              href={footerLink.href}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" || (event.key === "Tab" && event.shiftKey)) {
+                  event.preventDefault();
+                  if (event.key === "Escape") setOpen(false);
+                  button.current?.focus();
+                } else if (event.key === "Tab") setOpen(false);
+              }}
+            >
+              {footerLink.label}
+            </a>
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function SelectOptions({
+  footer,
+  label,
+  id,
+  children,
+}: {
+  footer: boolean;
+  label: string;
+  id: string;
+  children: ReactNode;
+}) {
+  return footer ? (
+    <div id={id} className="sp-select-options" role="listbox" aria-labelledby={label}>
+      {children}
+    </div>
+  ) : (
+    <>{children}</>
   );
 }
