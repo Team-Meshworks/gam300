@@ -63,8 +63,6 @@ export function ProjectProgress({
       : undefined;
   async function refreshSelected(action: "hide" | "show" | "delete") {
     setBulkError("");
-    setSelected([]);
-    if (action === "delete") setSelecting(false);
     try {
       const states = await client.publicationStates(
         assignment.details.projects.map((row) => row.projectId),
@@ -75,6 +73,8 @@ export function ProjectProgress({
         "Publication visibility could not be refreshed. Reload before making another change.",
       );
     }
+    setSelected([]);
+    if (action === "delete") setSelecting(false);
   }
   return (
     <section className="admin-progress" aria-label="Published student projects">
