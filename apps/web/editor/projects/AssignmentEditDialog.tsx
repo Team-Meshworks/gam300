@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
@@ -282,9 +283,7 @@ export function AssignmentEditDialog({
   const content = (
     <>
       {message && <p role="alert">{message}</p>}
-      {phase === "loading" && (
-        <p role="status">{inline ? "Checking details…" : "Loading students…"}</p>
-      )}
+      {phase === "loading" && !inline && <LoadingSkeleton label="Loading students" />}
       {phase === "error" && (
         <Button
           onClick={() => {
@@ -400,7 +399,13 @@ export function AssignmentEditDialog({
   );
   // Reuse the same request and recovery controls in either presentation
   return inline ? (
-    <div ref={inlineRoot} className="sp-assignment-inline" role="group" aria-label={heading}>
+    <div
+      ref={inlineRoot}
+      className="sp-assignment-inline"
+      role="group"
+      aria-label={heading}
+      aria-busy={phase === "loading"}
+    >
       {content}
     </div>
   ) : (

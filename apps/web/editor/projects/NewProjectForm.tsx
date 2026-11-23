@@ -36,12 +36,17 @@ export function NewProjectForm({
   showImageOptions = true,
   initialClassId = "",
   dateOnly = false,
+  customClassSelect = dateOnly,
   onClassChange,
   onSubmit,
   onCreated,
   onPreview,
   onCancel,
   onNavigationStateChange,
+  rosterMessage = "",
+  manageClassesUrl,
+  onRefreshClasses,
+  classesMessage = "",
 }: {
   organizationName: string;
   creatorName: string;
@@ -50,12 +55,17 @@ export function NewProjectForm({
   showImageOptions?: boolean;
   initialClassId?: string;
   dateOnly?: boolean;
+  customClassSelect?: boolean;
   onClassChange?: (classId: string) => void;
   onSubmit?: (draft: NewProjectDraft) => Promise<ProjectCreationResult>;
   onCreated?: (projectId: string) => void;
   onPreview?: (draft: NewProjectDraft) => void;
   onCancel?: () => void;
   onNavigationStateChange?: (state: FormNavigationState) => void;
+  rosterMessage?: string | null;
+  manageClassesUrl?: string;
+  onRefreshClasses?: () => void;
+  classesMessage?: string;
 }) {
   const [phase, setPhase] = useState<"editing" | "pending" | "created" | "unknown">("editing");
   const [error, setError] = useState("");
@@ -217,7 +227,7 @@ export function NewProjectForm({
             </Field>
             <div className="sp-form-row">
               <ClassSelect
-                custom={dateOnly}
+                custom={customClassSelect}
                 id="project-class"
                 classes={classes}
                 value={form.classId}
@@ -244,6 +254,42 @@ export function NewProjectForm({
                 </div>
               </Field>
             </div>
+            {manageClassesUrl && (
+              <div className="sp-project-class-help">
+                {!classes.length && (
+                  <p className="sp-hint">
+                    No classes yet. Create a class and enrol students, then return here and refresh
+                    classes. Your project details stay here.
+                  </p>
+                )}
+                {classes.length > 0 &&
+                  form.classId &&
+                  !students.length &&
+                  rosterMessage !== null && (
+                    <p className="sp-hint">
+                      Manage this class to enrol existing student accounts, then refresh here.
+                    </p>
+                  )}
+                <div className="sp-project-class-tools">
+                  <a
+                    href={`${manageClassesUrl}${!classes.length ? "&create=1" : form.classId ? `&classId=${encodeURIComponent(form.classId)}` : ""}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {!classes.length ? "Create a class" : "Manage classes & students"}
+                    <span className="sp-sr-only"> (opens in a new tab)</span> ↗
+                  </a>
+                  <Button variant="quiet" onClick={onRefreshClasses}>
+                    Refresh classes
+                  </Button>
+                </div>
+                {classesMessage && (
+                  <p className="sp-hint" role="status">
+                    {classesMessage}
+                  </p>
+                )}
+              </div>
+            )}
             {showImageOptions && (
               <>
                 <fieldset className="sp-image-options">
@@ -323,7 +369,7 @@ export function NewProjectForm({
               />
             </Field>
             <p className="sp-hint sp-project-edit-hint">
-              <span title="Project details, students and the due date can be edited later.">
+              <span title="Project details, students and the due date can be edited later">
                 <Icon icon={infoIcon} width={14} height={14} aria-hidden="true" />
               </span>{" "}
               {dateOnly
@@ -334,6 +380,7 @@ export function NewProjectForm({
           <StudentSelector
             key={selectorReset}
             students={available}
+            statusMessage={rosterMessage}
             emptyMessage={
               form.classId
                 ? "No enrolled students are available in this class."
