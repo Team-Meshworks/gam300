@@ -13,9 +13,11 @@ namespace Spatia.Server.Tests;
 public sealed class AccountDirectoryTests
 {
     [Test]
-    [Arguments("delete")]
-    [Arguments("hide")]
-    public async Task BulkStudentModeration_IsAtomicAndRestrictedToCreatorsInOneOrganisation(string action)
+    [Arguments("delete", false)]
+    [Arguments("hide", false)]
+    [Arguments("delete", true)]
+    [Arguments("hide", true)]
+    public async Task BulkAccountModeration_IsAtomicAndRestrictedToManagedRolesInOneOrganisation(string action, bool includeFacilitators)
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();
         var administrator = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
@@ -38,8 +40,9 @@ public sealed class AccountDirectoryTests
             stamp = user.SecurityStamp!;
             username = user.UserName!;
         }
-        var path = $"/api/v1/admin/organizations/{orgId:D}/students/{action}";
-        foreach (var invalid in new[] { new[] { first, educator }, new[] { first, outsider }, Array.Empty<Guid>() })
+        var path = $"/api/v1/admin/organizations/{orgId:D}/{(includeFacilitators ? "accounts" : "students")}/{action}";
+        var protectedUser = includeFacilitators ? administrator : educator;
+        foreach (var invalid in new[] { new[] { first, protectedUser }, new[] { first, outsider }, Array.Empty<Guid>() })
         {
             using var response = await AuthTestRequests.PostAsync(fixture, path, new { userIds = invalid });
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
@@ -50,9 +53,10 @@ public sealed class AccountDirectoryTests
             await Assert.That(await database.Users.AnyAsync(row => row.Id == first && row.IsDeleted)).IsFalse();
             await Assert.That(await database.Users.AnyAsync(row => row.Id == first && row.IsActive)).IsTrue();
         }
-        using var deleted = await AuthTestRequests.PostAsync(fixture, path, new { userIds = new[] { first, second } });
+        var selection = includeFacilitators ? new[] { first, second, educator } : new[] { first, second };
+        using var deleted = await AuthTestRequests.PostAsync(fixture, path, new { userIds = selection });
         await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
-        using var repeated = await AuthTestRequests.PostAsync(fixture, path, new { userIds = new[] { first, second } });
+        using var repeated = await AuthTestRequests.PostAsync(fixture, path, new { userIds = selection });
         await Assert.That(repeated.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         await using (var scope = fixture.Database.Services.CreateAsyncScope())
         {
@@ -63,7 +67,9 @@ public sealed class AccountDirectoryTests
             await Assert.That(retained.SecurityStamp == stamp).IsFalse();
             await Assert.That(retained.UserName).IsEqualTo(username);
             await Assert.That(await database.Users.AnyAsync(row => row.Id == second && !row.IsActive && row.IsDeleted == (action == "delete"))).IsTrue();
-            await Assert.That(await database.Users.AnyAsync(row => (row.Id == educator || row.Id == outsider) && row.IsDeleted)).IsFalse();
+            await Assert.That(await database.Users.AnyAsync(row => row.Id == outsider && !row.IsActive)).IsFalse();
+            await Assert.That(await database.Users.AnyAsync(row => row.Id == educator && !row.IsActive)).IsEqualTo(includeFacilitators);
+            await Assert.That(await database.Users.AnyAsync(row => row.Id == educator && row.IsDeleted)).IsEqualTo(includeFacilitators && action == "delete");
         }
     }
 
@@ -138,7 +144,7 @@ public sealed class AccountDirectoryTests
         await Assert.That(organizations.GetProperty("items").GetArrayLength()).IsEqualTo(1);
         await Assert.That(organizations.GetProperty("items")[0].GetProperty("id").GetGuid()).IsEqualTo(orgId);
         var totals = organizations.GetProperty("items")[0];
-        await Assert.That(totals.GetProperty("projectCount").GetInt32()).IsEqualTo(1);
+        await Assert.That(totals.GetProperty("projectCount").GetInt32()).IsEqualTo(0);
         await Assert.That(totals.GetProperty("facilitatorCount").GetInt32()).IsEqualTo(1);
         await Assert.That(totals.GetProperty("creatorCount").GetInt32()).IsEqualTo(1);
 
@@ -307,8 +313,11 @@ public sealed class AccountDirectoryTests
         }
         using var deletion = await DeleteAsync(fixture, target);
         await Assert.That((int)deletion.StatusCode).IsEqualTo(status);
-        using var bulk = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/organizations/{Guid.NewGuid():D}/students/delete", new { userIds = new[] { target } });
-        await Assert.That((int)bulk.StatusCode).IsEqualTo(status);
+        foreach (var route in new[] { "students/delete", "accounts/delete", "accounts/hide" })
+        {
+            using var bulk = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/organizations/{Guid.NewGuid():D}/{route}", new { userIds = new[] { target } });
+            await Assert.That((int)bulk.StatusCode).IsEqualTo(status);
+        }
     }
 
     private static async Task<HttpResponseMessage> DeleteAsync(HttpsApplicationFixture fixture, Guid id)

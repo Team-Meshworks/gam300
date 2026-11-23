@@ -111,7 +111,7 @@ public static partial class AccountDirectoryEndpoints
         {
             return ApiProblems.Create(context, 404, "organization_not_found", "The organization was not found.");
         }
-        var query = database.Projects.AsNoTracking().Where(row => row.OrganizationId == id);
+        var query = ProjectAccessService.PublishedProjects(database).Where(row => row.OrganizationId == id);
         if (page.Cursor is { } cursor) { query = query.Where(row => row.Id.CompareTo(cursor) > 0); }
         var rows = await query.OrderBy(row => row.Id).Take(page.Limit + 1).ToListAsync(cancellationToken);
         // Resolve anonymous visibility once for the bounded organisation project page
@@ -127,14 +127,21 @@ public static partial class AccountDirectoryEndpoints
                                           && !retired.Contains(edition.Id)
                                       select edition.Id).Any()
                                select project.Id).ToListAsync(cancellationToken);
+        var editions = await database.Publications.AsNoTracking().Where(edition => pageIds.Contains(edition.ProjectId)
+            && !retired.Contains(edition.Id)
+            && !database.PublicationAccess.Any(state => state.PublicationId == edition.Id && state.Deleted))
+            .GroupBy(edition => edition.ProjectId)
+            .Select(group => group.OrderByDescending(edition => edition.CreatedAt).ThenByDescending(edition => edition.Id).First())
+            .ToDictionaryAsync(edition => edition.ProjectId, cancellationToken);
         var items = new List<object>();
         foreach (var row in rows.Take(page.Limit))
         {
-            var document = documents.ReadStored(row.Id, row.SchemaVersion, row.DocumentJson);
+            var edition = editions[row.Id];
+            var document = documents.ReadStored(row.Id, edition.SchemaVersion, edition.DocumentJson);
             if (!document.Ok) { return ApiProblems.Create(context, 503, "project_unavailable", "Project details could not be loaded."); }
             var title = document.Value!.Title;
             if (title.Length > 256) { title = title[..(char.IsHighSurrogate(title[254]) ? 254 : 255)] + "…"; }
-            items.Add(new { id = row.Id, title, status = row.IsArchived ? "Archived" : "Draft", isPublic = publicIds.Contains(row.Id) });
+            items.Add(new { id = row.Id, title, status = "Published", isPublic = publicIds.Contains(row.Id) });
         }
         return await CompleteAsync(context, transaction, Results.Ok(new
         {
