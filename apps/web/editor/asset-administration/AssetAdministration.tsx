@@ -1,3 +1,6 @@
+import { Button } from "../../shared/ui/Button";
+import { Tabs } from "../../shared/ui/Tabs";
+import { Skeleton, SkeletonBox } from "skullet/react";
 import { Icon as UiIcon } from "@iconify/react/offline";
 import eyeIcon from "@iconify-icons/lucide/eye";
 import eyeOffIcon from "@iconify-icons/lucide/eye-off";
@@ -26,7 +29,7 @@ type Props = {
   initialUpload?: boolean;
   onClose: () => void;
 };
-type Notice = { kind: "denied" | "unavailable" | "invalid"; message: string };
+type Notice = { kind: "denied" | "unavailable" | "invalid" | "unknown"; message: string };
 type Selection = { kind: "upload" } | { kind: "detail"; id: string } | null;
 
 // Mount after resolving the current account in the admin shell
@@ -41,7 +44,9 @@ export function AssetAdministration(props: Props) {
       <section className="asset-admin asset-admin-denied" role="alert">
         <h1>Access denied</h1>
         <p>Sign in with an unrestricted admin account to manage assets.</p>
-        <button onClick={props.onClose}>Back</button>
+        <Button onClick={props.onClose}>
+          <span className="sp-button-label">Back</span>
+        </Button>
       </section>
     );
   }
@@ -73,10 +78,12 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const [audioPreviewError, setAudioPreviewError] = useState(false);
   const [category, setCategory] = useState("");
   const [busy, setBusy] = useState(false);
+  const [uncertainWrite, setUncertainWrite] = useState(false);
+  const locked = busy || uncertainWrite;
   const [outcome, setOutcome] = useState("");
   const [confirmation, setConfirmation] = useState(false);
   const [review, setReview] = useState({ source: "", license: "", reviewNotes: "" });
-  const dialog = useModal(selection !== null);
+  const dialog = useModal(selection !== null, confirmation);
   const operation = useRef<AbortController | null>(null);
   const [previews, setPreviews] = useState<Readonly<Record<string, string>>>({});
   const previewCache = useRef(new Set<string>());
@@ -122,7 +129,17 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         }
         if (result.ok) {
           setData(result.value);
-          if (initialUpload) setCategory(result.value.policy.categories[kind]?.[0] ?? "");
+          setUncertainWrite(false);
+          if (initialUpload) {
+            const upload =
+              kind === "model" &&
+              !(result.value.policy.canSubmitByKind?.model ?? result.value.policy.canSubmit) &&
+              result.value.policy.canSubmitByKind?.audio
+                ? "audio"
+                : kind;
+            setUploadKind(upload);
+            setCategory(result.value.policy.categories[upload]?.[0] ?? "");
+          }
           setNotice(null);
         } else {
           setNotice(result);
@@ -166,6 +183,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   );
   const selected =
     selection?.kind === "detail" ? items.find((asset) => asset.id === selection.id) : null;
+  const loadingDialog = Boolean(selection && loading && !data);
   const title = kind === "environment" ? "All 3D Spaces" : "All Assets";
   const noun = kind === "environment" ? "3D spaces" : "assets";
   const filtered = query.trim().length > 0 || tab !== "all";
@@ -182,6 +200,10 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       ? (data?.policy.canSubmitByKind?.model ?? data?.policy.canSubmit) ||
         (data?.policy.canSubmitByKind?.audio ?? false)
       : (data?.policy.canSubmitByKind?.[kind] ?? data?.policy.canSubmit);
+  const validationUnavailable =
+    data && !(data.policy.canSubmitByKind?.[kind] ?? data.policy.canSubmit);
+  const uploadAvailabilityMessage =
+    "3D uploads are unavailable because the server's validation service is not configured. Restore asset validation in the server deployment, then check availability again.";
   const audioEnabled =
     data?.policy.extensions.includes(".m4a") && !!data.policy.categories.audio?.length;
 
@@ -213,10 +235,12 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
 
   // Start each upload with fresh fields while keeping the loaded catalogue intact
   function openUpload() {
-    setUploadKind(kind);
+    if (uncertainWrite) return;
+    const upload = kind === "model" && validationUnavailable && canOpenUpload ? "audio" : kind;
+    setUploadKind(upload);
     setFile(null);
     setReview({ source: "", license: "", reviewNotes: "" });
-    setCategory(data?.policy.categories[kind]?.[0] ?? "");
+    setCategory(data?.policy.categories[upload]?.[0] ?? "");
     setNotice(null);
     setConfirmation(false);
     setSelection({ kind: "upload" });
@@ -228,6 +252,10 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       return;
     }
     // Cancel the destructive step first so the same asset details remain open
+    if (uncertainWrite) {
+      setSelection(null);
+      return;
+    }
     if (confirmation) {
       setConfirmation(false);
       setNotice(null);
@@ -240,9 +268,17 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     setConfirmation(false);
   }
 
+  function checkLibrary() {
+    setSelection(null);
+    setQuery("");
+    setTab("all");
+    setLoading(true);
+    setReload((value) => value + 1);
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (selection?.kind !== "upload" || busy || !data || !canSubmit) {
+    if (selection?.kind !== "upload" || locked || !data || !canSubmit) {
       return;
     }
     // Client checks provide immediate feedback; the intake endpoint must repeat validation on bytes
@@ -270,7 +306,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
 
   // Offer only actions permitted for this record and require a second step for deletion
   async function changeAvailability(action: "hide" | "show" | "delete" | "remove") {
-    if (!selected?.actions.includes(action) || busy) {
+    if (!selected?.actions.includes(action) || locked) {
       return;
     }
     if ((action === "delete" || action === "remove") && !confirmation) {
@@ -286,6 +322,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     send: (signal: AbortSignal) => ReturnType<AssetAdministrationService["changeAvailability"]>,
   ) {
     // Bind this request to the mounted screen; account changes abort it before a stale result can apply
+    if (uncertainWrite || (operation.current && !operation.current.signal.aborted)) return;
     const controller = new AbortController();
     operation.current = controller;
     setBusy(true);
@@ -298,6 +335,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       }
       if (!result.ok) {
         setNotice(result);
+        if (result.kind === "unknown") setUncertainWrite(true);
         return;
       }
       // Replace only the confirmed record; failed mutations leave the list and form unchanged
@@ -338,6 +376,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       }
     } finally {
       // Only the active screen clears its pending state after a completed or failed request
+      if (operation.current === controller) operation.current = null;
       if (!controller.signal.aborted) {
         setBusy(false);
       }
@@ -345,10 +384,11 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   }
 
   async function downloadSelected() {
-    if (!selected || busy) {
+    if (!selected || locked) {
       return;
     }
     const asset = selected;
+    if (uncertainWrite || (operation.current && !operation.current.signal.aborted)) return;
     const controller = new AbortController();
     operation.current = controller;
     setBusy(true);
@@ -377,6 +417,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         setNotice({ kind: "unavailable", message: "Download failed. Please try again" });
       }
     } finally {
+      if (operation.current === controller) operation.current = null;
       if (!controller.signal.aborted) {
         setBusy(false);
       }
@@ -411,13 +452,17 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
 
   return (
     <section
-      className={`asset-admin ${kind === "model" ? "asset-admin-models" : ""}`}
+      className={`sp-panel-surface asset-admin ${kind === "model" ? "asset-admin-models" : ""}`}
       aria-labelledby="asset-admin-heading"
     >
       <div className="asset-admin-heading sp-admin-page-heading">
         <div>
           <h1 id="asset-admin-heading">{title}</h1>
-          <p>Review published experiences and control what visitors can explore.</p>
+          <p>
+            {kind === "environment"
+              ? "Review 3D spaces and control what creators can use."
+              : "Review assets and control what creators can use."}
+          </p>
         </div>
         <div className="asset-admin-search">
           <SearchField
@@ -436,8 +481,12 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         </button>
       </div>
       <div className="asset-admin-toolbar">
-        <div className="asset-admin-tabs" aria-label="Asset visibility">
-          {(
+        <Tabs
+          id="asset-visibility"
+          label="Asset visibility"
+          value={tab}
+          onChange={setTab}
+          items={(
             [
               [
                 "all",
@@ -448,28 +497,72 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
               ["hidden", "Private", items.filter((a) => !a.deleted && a.hidden).length],
               ["deleted", "Deleted", items.filter((a) => a.deleted).length],
             ] as const
-          ).map(([value, label, count]) => (
-            <button key={value} aria-pressed={tab === value} onClick={() => setTab(value)}>
-              {label} ({count})
-            </button>
-          ))}
-        </div>
-        <button
+          ).map(([value, label, count]) => ({
+            value,
+            label: data ? `${label} (${count})` : label,
+            measureLabel: `${label} (${data ? count : "00"})`,
+          }))}
+        />
+        <Button
           className="asset-admin-primary"
-          disabled={!canOpenUpload || loading || notice?.kind === "denied"}
+          disabled={!canOpenUpload || loading || uncertainWrite || notice?.kind === "denied"}
           onClick={openUpload}
         >
-          + Add {kind === "environment" ? "3D Space" : "Assets"}
-        </button>
+          <span className="sp-button-label">
+            + Add {kind === "environment" ? "3D Space" : "Assets"}
+          </span>
+        </Button>
       </div>
+      {!loading && validationUnavailable && notice?.kind !== "denied" && (
+        <div className="sp-hint" role="status">
+          <p>{uploadAvailabilityMessage}</p>
+          {kind === "model" && canOpenUpload && <p>Audio uploads are still available.</p>}
+          <Button
+            onClick={() => {
+              setLoading(true);
+              setReload((value) => value + 1);
+            }}
+          >
+            Check upload availability
+          </Button>
+        </div>
+      )}
       <p className="asset-admin-sr" role="status">
         {outcome}
       </p>
-      <div className="asset-admin-scroll" tabIndex={0} role="region" aria-label={`${noun} list`}>
+      <div
+        id="asset-visibility-panel"
+        className="asset-admin-scroll"
+        tabIndex={0}
+        role="region"
+        aria-label={`${noun} list`}
+      >
         {loading ? (
-          <div className="asset-admin-grid" role="status" aria-label="Loading assets">
-            {[0, 1, 2].map((id) => (
-              <div key={id} className="asset-admin-skeleton" />
+          <div
+            className="asset-admin-grid"
+            role="status"
+            aria-label={`Loading ${noun.toLowerCase()}`}
+            aria-busy="true"
+          >
+            {Array.from({ length: kind === "environment" ? 3 : 4 }, (_, index) => (
+              <div
+                className="asset-admin-card asset-admin-loading-card"
+                key={index}
+                aria-hidden="true"
+              >
+                <div className="asset-admin-thumbnail">
+                  <SkeletonBox width="100%" height="100%" radius={0} />
+                </div>
+                <div className="asset-admin-card-content">
+                  <div>
+                    <SkeletonBox width="65%" height={16} radius={4} />
+                    <SkeletonBox width={52} height={14} radius={4} />
+                  </div>
+                  <div className="asset-admin-loading-action">
+                    <SkeletonBox width={110} height={40} radius={20} />
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         ) : notice && !selection ? (
@@ -477,18 +570,17 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
             <h2>
               {notice.kind === "denied"
                 ? "Access denied"
-                : `${kind === "environment" ? "Spaces" : "Assets"} unavailable`}
+                : uncertainWrite
+                  ? "Check the library"
+                  : `${kind === "environment" ? "Spaces" : "Assets"} unavailable`}
             </h2>
             <p>{notice.message}</p>
             {notice.kind !== "denied" && (
-              <button
-                onClick={() => {
-                  setLoading(true);
-                  setReload((n) => n + 1);
-                }}
-              >
-                Try Again
-              </button>
+              <Button onClick={checkLibrary}>
+                <span className="sp-button-label">
+                  {uncertainWrite ? "Check library" : "Try Again"}
+                </span>
+              </Button>
             )}
           </div>
         ) : (
@@ -517,8 +609,9 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                           : asset.status}
                     </span>
                   </div>
-                  <button
-                    className="asset-admin-primary"
+                  <Button
+                    variant="primary"
+                    className="sp-catalogue-action"
                     onClick={() => {
                       setNotice(null);
                       setConfirmation(false);
@@ -527,10 +620,12 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                       setSelection({ kind: "detail", id: asset.id });
                     }}
                   >
-                    View{" "}
-                    {kind === "environment" && asset.status === "approved" ? "Model" : "details"}
+                    <span className="sp-button-label">
+                      View{" "}
+                      {kind === "environment" && asset.status === "approved" ? "Model" : "details"}
+                    </span>
                     <span className="asset-admin-sr">: {asset.name}</span>
-                  </button>
+                  </Button>
                 </div>
               </article>
             ))}
@@ -540,19 +635,23 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                 <p>
                   {filtered
                     ? "Try another name or visibility filter."
-                    : kind === "environment"
-                      ? "Add a 3D space to submit it for validation."
-                      : "Add an asset to submit it for validation."}
+                    : !canOpenUpload
+                      ? "Uploads will be available after the server's validation service is restored."
+                      : validationUnavailable
+                        ? "Add an audio asset while 3D validation is unavailable."
+                        : kind === "environment"
+                          ? "Add a 3D space to submit it for validation."
+                          : "Add an asset to submit it for validation."}
                 </p>
                 {(query || tab !== "all") && (
-                  <button
+                  <Button
                     onClick={() => {
                       setQuery("");
                       setTab("all");
                     }}
                   >
-                    Reset Search
-                  </button>
+                    <span className="sp-button-label">Reset Search</span>
+                  </Button>
                 )}
               </div>
             )}
@@ -585,7 +684,11 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                   ? "Delete Permanently?"
                   : "Delete asset?"
                 : (selected?.name ??
-                  (kind === "environment" ? "Upload 3D Space" : "Upload Assets"))}
+                  (selection?.kind === "detail"
+                    ? "Asset Details"
+                    : kind === "environment"
+                      ? "Upload 3D Space"
+                      : "Upload Assets"))}
             </h2>
             <button
               type="button"
@@ -597,361 +700,458 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
               <UiIcon icon={faXmark} aria-hidden="true" />
             </button>
           </div>
-          {!confirmation && (
-            <>
-              {selection?.kind === "upload" ? (
-                <label
-                  className="asset-admin-upload"
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = busy ? "none" : "copy";
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    if (busy) return;
-                    const files = event.dataTransfer.files;
-                    if (files.length !== 1) {
-                      setNotice({ kind: "invalid", message: "Drop one file at a time." });
-                      return;
-                    }
-                    const chosen = files.item(0);
-                    if (chosen) {
-                      setFile(chosen);
-                      setNotice(null);
-                    }
-                  }}
-                >
-                  <span className="asset-admin-upload-symbol" aria-hidden="true">
-                    <svg
-                      viewBox="0 0 48 48"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M4 26v13c0 4 2 5 6 5h28c4 0 6-1 6-5V26"
-                        fill="var(--aa-upload-tray)"
-                      />
-                      <path d="M24 33V5m-10 9 8-8q2-2 4 0l8 8" />
-                    </svg>
-                  </span>
-                  <span>
-                    {file?.name ??
-                      `Drop a ${uploadKind === "audio" ? "M4A" : "GLB"} file here or choose a file`}
-                  </span>
-                  <span className="asset-admin-help">
-                    {data
-                      ? `${extensions.join(" / ")} files, up to ${Math.floor(data.policy.maxBytes / 1024 / 1024)} MB`
-                      : ""}
-                  </span>
-                  <input
-                    aria-label="Choose asset file"
-                    type="file"
-                    key={uploadKind}
-                    accept={extensions.join(",")}
-                    disabled={busy}
-                    onChange={(e) => {
-                      // Keep the last selection when closing the file chooser without choosing a new file
-                      const chosen = e.target.files?.[0];
-                      if (chosen) {
-                        setFile(chosen);
-                        setNotice(null);
-                      }
-                    }}
-                  />
-                </label>
-              ) : (
-                selected && (
-                  <div className="asset-admin-detail-preview">
-                    {thumbnail(selected)}
-                    {selected.kind === "audio" &&
-                      selected.status === "approved" &&
-                      selected.inspectionUrl &&
-                      (audioPreview ? (
-                        <audio
-                          controls
-                          preload="metadata"
-                          src={audioPreview}
-                          aria-label={`Preview ${selected.name}`}
-                          onError={() => setAudioPreviewError(true)}
-                        />
-                      ) : (
-                        !audioPreviewError && <p>Loading audio preview…</p>
-                      ))}
-                    {audioPreviewError && (
-                      <p role="alert">
-                        Audio preview is unavailable. You can download the file instead.
-                      </p>
-                    )}
-                  </div>
-                )
-              )}
+          {loadingDialog ? (
+            <Skeleton
+              loading
+              label={
+                selection?.kind === "upload" ? "Loading upload options" : "Loading asset details"
+              }
+            >
+              <div
+                className={
+                  selection?.kind === "upload" ? "asset-admin-upload" : "asset-admin-detail-preview"
+                }
+              />
               <h3>Asset Details</h3>
-              {selection && (
-                <div className="asset-admin-fields">
-                  {/* All Assets accepts models and audio; the Spaces screen stays fixed */}
-                  {selection?.kind === "upload" && kind === "model" && (
-                    <AssetSelect
-                      label="Asset Type"
-                      value={uploadKind}
-                      disabled={busy}
-                      options={[
-                        { value: "model", label: "3D Model" },
-                        ...(audioEnabled ? [{ value: "audio", label: "Audio" }] : []),
-                      ]}
-                      onChange={(value) => {
-                        const nextKind = value === "audio" ? "audio" : "model";
-                        setUploadKind(nextKind);
-                        setFile(null);
-                        setCategory(data?.policy.categories[nextKind]?.[0] ?? "");
-                        setNotice(null);
+              <div className="asset-admin-fields">
+                {["Asset Type", "Filter Category"].map((label) => (
+                  <div className="asset-admin-select" key={label}>
+                    <span>{label}</span>
+                    <output>Loading</output>
+                  </div>
+                ))}
+              </div>
+              <div className="asset-admin-actions">
+                {selection?.kind === "detail" && (
+                  <span className="asset-admin-text-link">Download File</span>
+                )}
+                {selection?.kind === "upload" && (
+                  <details className="asset-admin-metadata">
+                    <summary>Additional Details</summary>
+                  </details>
+                )}
+                <Button type="button" disabled>
+                  <span className="sp-button-label">Cancel</span>
+                </Button>
+                <Button type="button" disabled>
+                  <span className="sp-button-label">
+                    {selection?.kind === "upload" ? "Save Changes" : "Hide"}
+                  </span>
+                </Button>
+                {selection?.kind === "detail" && (
+                  <Button type="button" disabled>
+                    <span className="sp-button-label">Delete</span>
+                  </Button>
+                )}
+              </div>
+            </Skeleton>
+          ) : (
+            <>
+              {!confirmation && (
+                <>
+                  {selection?.kind === "upload" ? (
+                    <label
+                      className="asset-admin-upload"
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = locked ? "none" : "copy";
                       }}
-                    />
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        if (locked) return;
+                        const files = event.dataTransfer.files;
+                        if (files.length !== 1) {
+                          setNotice({ kind: "invalid", message: "Drop one file at a time." });
+                          return;
+                        }
+                        const chosen = files.item(0);
+                        if (chosen) {
+                          setFile(chosen);
+                          setNotice(null);
+                        }
+                      }}
+                    >
+                      <span className="asset-admin-upload-symbol" aria-hidden="true">
+                        <svg
+                          viewBox="0 0 48 48"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M4 26v13c0 4 2 5 6 5h28c4 0 6-1 6-5V26"
+                            fill="var(--aa-upload-tray)"
+                          />
+                          <path d="M24 33V5m-10 9 8-8q2-2 4 0l8 8" />
+                        </svg>
+                      </span>
+                      <span>
+                        {file?.name ??
+                          `Drop a ${uploadKind === "audio" ? "M4A" : "GLB"} file here or choose a file`}
+                      </span>
+                      <span className="asset-admin-help">
+                        {data
+                          ? `${extensions.join(" / ")} files, up to ${Math.floor(data.policy.maxBytes / 1024 / 1024)} MB`
+                          : ""}
+                      </span>
+                      <input
+                        aria-label="Choose asset file"
+                        type="file"
+                        key={uploadKind}
+                        accept={extensions.join(",")}
+                        disabled={locked}
+                        onChange={(e) => {
+                          // Keep the last selection when closing the file chooser without choosing a new file
+                          const chosen = e.target.files?.[0];
+                          if (chosen) {
+                            setFile(chosen);
+                            setNotice(null);
+                          }
+                        }}
+                      />
+                    </label>
+                  ) : (
+                    selected && (
+                      <div className="asset-admin-detail-preview">
+                        {thumbnail(selected)}
+                        {selected.kind === "audio" &&
+                          selected.status === "approved" &&
+                          selected.inspectionUrl &&
+                          (audioPreview ? (
+                            <audio
+                              controls
+                              preload="metadata"
+                              src={audioPreview}
+                              aria-label={`Preview ${selected.name}`}
+                              onError={() => setAudioPreviewError(true)}
+                            />
+                          ) : (
+                            !audioPreviewError && (
+                              <div
+                                className="asset-admin-audio-loading"
+                                role="status"
+                                aria-label="Loading audio preview…"
+                                aria-busy="true"
+                              >
+                                <SkeletonBox width="100%" height={54} radius={27} />
+                              </div>
+                            )
+                          ))}
+                        {audioPreviewError && (
+                          <p role="alert">
+                            Audio preview is unavailable. You can download the file instead.
+                          </p>
+                        )}
+                      </div>
+                    )
                   )}
-                  {(selection?.kind === "detail" || kind === "environment") && (
-                    <div className="asset-admin-select">
-                      <span id="asset-admin-type-label">Asset Type</span>
-                      <output aria-labelledby="asset-admin-type-label">
-                        {selected?.kind === "audio"
-                          ? "Audio"
-                          : kind === "environment"
-                            ? "3D Space"
-                            : "3D Model"}
-                      </output>
+                  {selection?.kind === "upload" && data && !canSubmit && (
+                    <p role="status">
+                      {uploadKind === "audio"
+                        ? "Audio uploads are unavailable. Close this dialog and check upload availability again."
+                        : uploadAvailabilityMessage}
+                      {kind === "model" &&
+                        uploadKind !== "audio" &&
+                        canOpenUpload &&
+                        " Select Audio to upload an audio asset."}
+                    </p>
+                  )}
+                  <h3>Asset Details</h3>
+                  {selection && (
+                    <div className="asset-admin-fields">
+                      {/* All Assets accepts models and audio; the Spaces screen stays fixed */}
+                      {selection?.kind === "upload" && kind === "model" && (
+                        <AssetSelect
+                          label="Asset Type"
+                          value={uploadKind}
+                          disabled={locked}
+                          options={[
+                            { value: "model", label: "3D Model" },
+                            ...(audioEnabled ? [{ value: "audio", label: "Audio" }] : []),
+                          ]}
+                          onChange={(value) => {
+                            const nextKind = value === "audio" ? "audio" : "model";
+                            setUploadKind(nextKind);
+                            setFile(null);
+                            setCategory(data?.policy.categories[nextKind]?.[0] ?? "");
+                            setNotice(null);
+                          }}
+                        />
+                      )}
+                      {(selection?.kind === "detail" || kind === "environment") && (
+                        <div className="asset-admin-select">
+                          <span id="asset-admin-type-label">Asset Type</span>
+                          <output aria-labelledby="asset-admin-type-label">
+                            {selected?.kind === "audio"
+                              ? "Audio"
+                              : kind === "environment"
+                                ? "3D Space"
+                                : "3D Model"}
+                          </output>
+                        </div>
+                      )}
+                      {kind === "environment" && (
+                        <div className="asset-admin-select">
+                          <span id="asset-admin-category-label">Filter Category</span>
+                          <output aria-labelledby="asset-admin-category-label">
+                            Not applicable
+                          </output>
+                        </div>
+                      )}
+                      {kind === "model" && selection?.kind === "detail" && (
+                        <div className="asset-admin-select">
+                          <span id="asset-admin-category-label">Filter Category</span>
+                          <output aria-labelledby="asset-admin-category-label">
+                            {selected?.category ?? "Not configured"}
+                          </output>
+                        </div>
+                      )}
+                      {kind === "model" && selection?.kind === "upload" && (
+                        <AssetSelect
+                          label="Filter Category"
+                          disabled={
+                            locked || selection?.kind !== "upload" || categoryChoices === null
+                          }
+                          value={selected ? (selected.category ?? "") : category}
+                          options={(selected?.category
+                            ? [selected.category]
+                            : (categoryChoices ?? [])
+                          ).map((value) => ({ value, label: value }))}
+                          placeholder="Not configured"
+                          onChange={setCategory}
+                        />
+                      )}
                     </div>
                   )}
-                  {kind === "environment" && (
-                    <div className="asset-admin-select">
-                      <span id="asset-admin-category-label">Filter Category</span>
-                      <output aria-labelledby="asset-admin-category-label">Not applicable</output>
-                    </div>
+                  {/* Keep review statements separate from technical validation and retain them after a failed request */}
+                  {selected &&
+                    !selected.deleted &&
+                    selected.status === "pending" &&
+                    !confirmation && (
+                      <fieldset className="asset-admin-review" disabled={locked}>
+                        <legend>Approval review</legend>
+                        <p>These details are optional. You can approve without filling them in.</p>
+                        {(
+                          [
+                            ["source", "Source or provenance"],
+                            ["license", "Redistribution licence"],
+                            ["reviewNotes", "Content review notes"],
+                          ] as const
+                        ).map(([field, label]) => (
+                          <label className="asset-admin-select" key={field}>
+                            <span>{label} (optional)</span>
+                            <input
+                              value={review[field]}
+                              maxLength={2000}
+                              onChange={(event) =>
+                                setReview((current) => ({
+                                  ...current,
+                                  [field]: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                        ))}
+                        <Button
+                          type="button"
+                          className="asset-admin-primary"
+                          onClick={() => {
+                            void mutate((signal) => service.review(selected.id, review, signal));
+                          }}
+                        >
+                          <span className="sp-button-label">Approve</span>
+                        </Button>
+                      </fieldset>
+                    )}
+                  {selected &&
+                    (selected.status !== "approved" || selected.validation.length > 0) && (
+                      <div className="asset-admin-validation">
+                        <p>
+                          Status: <strong>{selected.status}</strong>
+                        </p>
+                        {selected.validation.length > 0 && (
+                          <ul aria-label="Validation results">
+                            {selected.validation.map((message, i) => (
+                              <li key={i}>{message}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                </>
+              )}
+              {notice && (
+                <p className="asset-admin-message" role="alert">
+                  {notice.message}
+                </p>
+              )}
+              {confirmation && (
+                <div className="asset-admin-confirmation-content">
+                  <p role="alert">
+                    <strong>{selected?.name}</strong>
+                    {selected?.deleted
+                      ? " will be removed from every project that uses it."
+                      : " will move to Deleted and disappear from the student library."}
+                  </p>
+                  {!selected?.deleted && (
+                    <p className="asset-admin-confirmation-hint">
+                      Existing projects and exhibitions keep this asset.
+                    </p>
                   )}
-                  {kind === "model" && selection?.kind === "detail" && (
-                    <div className="asset-admin-select">
-                      <span id="asset-admin-category-label">Filter Category</span>
-                      <output aria-labelledby="asset-admin-category-label">
-                        {selected?.category ?? "Not configured"}
-                      </output>
-                    </div>
-                  )}
-                  {kind === "model" && selection?.kind === "upload" && (
-                    <AssetSelect
-                      label="Filter Category"
-                      disabled={busy || selection?.kind !== "upload" || categoryChoices === null}
-                      value={selected ? (selected.category ?? "") : category}
-                      options={(selected?.category
-                        ? [selected.category]
-                        : (categoryChoices ?? [])
-                      ).map((value) => ({ value, label: value }))}
-                      placeholder="Not configured"
-                      onChange={setCategory}
-                    />
+                  {selected?.deleted && (
+                    <p className="asset-admin-confirmation-warning" role="alert">
+                      All published exhibitions using this asset will become permanently
+                      unavailable. Their links and QR codes will stop working. This cannot be
+                      undone.
+                    </p>
                   )}
                 </div>
               )}
               {selected?.status === "approved" &&
+                !confirmation &&
                 (selected.source || selected.license || selected.reviewNotes) && (
-                  <dl className="asset-admin-review">
-                    <div>
-                      <dt>Source or provenance</dt>
-                      <dd>{selected.source || "Not provided"}</dd>
-                    </div>
-                    <div>
-                      <dt>Redistribution licence</dt>
-                      <dd>{selected.license || "Not provided"}</dd>
-                    </div>
-                    <div>
-                      <dt>Content review notes</dt>
-                      <dd>{selected.reviewNotes || "Not provided"}</dd>
-                    </div>
-                  </dl>
+                  <details className="asset-admin-metadata">
+                    <summary>Additional Details</summary>
+                    <dl className="asset-admin-review">
+                      <div>
+                        <dt>Source or provenance</dt>
+                        <dd>{selected.source || "Not provided"}</dd>
+                      </div>
+                      <div>
+                        <dt>Redistribution licence</dt>
+                        <dd>{selected.license || "Not provided"}</dd>
+                      </div>
+                      <div>
+                        <dt>Content review notes</dt>
+                        <dd>{selected.reviewNotes || "Not provided"}</dd>
+                      </div>
+                    </dl>
+                  </details>
                 )}
-              {/* Keep review statements separate from technical validation and retain them after a failed request */}
-              {selected && !selected.deleted && selected.status === "pending" && !confirmation && (
-                <fieldset className="asset-admin-review" disabled={busy}>
-                  <legend>Approval review</legend>
-                  <p>These details are optional. You can approve without filling them in.</p>
-                  {(
-                    [
-                      ["source", "Source or provenance"],
-                      ["license", "Redistribution licence"],
-                      ["reviewNotes", "Content review notes"],
-                    ] as const
-                  ).map(([field, label]) => (
-                    <label className="asset-admin-select" key={field}>
-                      <span>{label} (optional)</span>
-                      <input
-                        value={review[field]}
-                        maxLength={2000}
-                        onChange={(event) =>
-                          setReview((current) => ({ ...current, [field]: event.target.value }))
-                        }
-                      />
-                    </label>
-                  ))}
-                  <button
-                    type="button"
-                    className="asset-admin-primary"
-                    onClick={() => {
-                      void mutate((signal) => service.review(selected.id, review, signal));
-                    }}
-                  >
-                    Approve
-                  </button>
-                </fieldset>
-              )}
-              {selected?.deleted && (
+              {selected?.deleted && !confirmation && (
                 <p className="asset-admin-retired-status">
                   {selected.removedFromProjects
                     ? "Removed from projects. Affected published exhibitions are permanently unavailable."
-                    : "Deleted from library; still kept in existing projects and exhibitions."}
+                    : "Deleted from library. Kept in existing projects and exhibitions."}
                 </p>
               )}
-              {selected && (selected.status !== "approved" || selected.validation.length > 0) && (
-                <div className="asset-admin-validation">
-                  <p>
-                    Status: <strong>{selected.status}</strong>
-                  </p>
-                  {selected.validation.length > 0 && (
-                    <ul aria-label="Validation results">
-                      {selected.validation.map((message, i) => (
-                        <li key={i}>{message}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+              {selection?.kind === "upload" && (
+                <details className="asset-admin-metadata">
+                  <summary>Additional Details</summary>
+                  <fieldset className="asset-admin-review" disabled={locked}>
+                    <legend className="asset-admin-sr">Optional asset details</legend>
+                    {(
+                      [
+                        ["source", "Source or provenance"],
+                        ["license", "Redistribution licence"],
+                        ["reviewNotes", "Content review notes"],
+                      ] as const
+                    ).map(([field, label]) => (
+                      <label className="asset-admin-select" key={field}>
+                        <span>{label} (optional)</span>
+                        <input
+                          value={review[field]}
+                          maxLength={2000}
+                          onChange={(event) =>
+                            setReview((current) => ({ ...current, [field]: event.target.value }))
+                          }
+                        />
+                      </label>
+                    ))}
+                  </fieldset>
+                </details>
               )}
-            </>
-          )}
-          {notice && (
-            <p className="asset-admin-message" role="alert">
-              {notice.message}
-            </p>
-          )}
-          {confirmation && (
-            <div className="asset-admin-confirmation-content">
-              <p role="alert">
-                <strong>{selected?.name}</strong>
-                {selected?.deleted
-                  ? " will be removed from every project that uses it."
-                  : " will move to Deleted and disappear from the student library."}
-              </p>
-              {!selected?.deleted && (
-                <p className="asset-admin-confirmation-hint">
-                  Existing projects and exhibitions keep this asset.
-                </p>
-              )}
-              {selected?.deleted && (
-                <p className="asset-admin-confirmation-warning" role="alert">
-                  All published exhibitions using this asset will become permanently unavailable.
-                  Their links and QR codes will stop working. This cannot be undone.
-                </p>
-              )}
-            </div>
-          )}
-          <div className="asset-admin-actions">
-            {selection?.kind === "upload" && (
-              <details className="asset-admin-metadata">
-                <summary>Additional Details</summary>
-                <fieldset className="asset-admin-review" disabled={busy}>
-                  <legend className="asset-admin-sr">Optional asset details</legend>
-                  {(
-                    [
-                      ["source", "Source or provenance"],
-                      ["license", "Redistribution licence"],
-                      ["reviewNotes", "Content review notes"],
-                    ] as const
-                  ).map(([field, label]) => (
-                    <label className="asset-admin-select" key={field}>
-                      <span>{label} (optional)</span>
-                      <input
-                        value={review[field]}
-                        maxLength={2000}
-                        onChange={(event) =>
-                          setReview((current) => ({ ...current, [field]: event.target.value }))
-                        }
-                      />
-                    </label>
-                  ))}
-                </fieldset>
-              </details>
-            )}
-            {selected?.inspectionUrl && !confirmation && (
-              <a
-                className="asset-admin-text-link"
-                href={selected.inspectionUrl}
-                download
-                aria-disabled={busy}
-                onClick={(event) => {
-                  event.preventDefault();
-                  void downloadSelected();
-                }}
-              >
-                {busy ? "Please Wait…" : "Download File"}
-              </a>
-            )}
-            <button type="button" disabled={busy} onClick={closeDialog}>
-              Cancel
-            </button>
-            {selection?.kind === "upload" ? (
-              <button
-                className="asset-admin-primary"
-                disabled={busy || !file || !canSubmit}
-                type="submit"
-              >
-                {busy ? "Submitting…" : "Save Changes"}
-              </button>
-            ) : (
-              selected?.actions
-                .filter(
-                  (action) =>
-                    (action !== "remove" || data?.policy.canForceRemove) &&
-                    (!confirmation || action === "delete" || action === "remove"),
-                )
-                .map((action) => (
-                  <button
-                    key={action}
-                    type="button"
-                    className={
-                      action === "delete" || action === "remove" ? "asset-admin-danger" : ""
-                    }
-                    disabled={busy || (action === "remove" && !data?.policy.canForceRemove)}
-                    onClick={() => {
-                      void changeAvailability(action);
+              <div className="asset-admin-actions">
+                {uncertainWrite && <Button onClick={checkLibrary}>Check library</Button>}
+                {selected?.inspectionUrl && !confirmation && (
+                  <a
+                    className="asset-admin-text-link"
+                    href={selected.inspectionUrl}
+                    download
+                    aria-disabled={locked}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      void downloadSelected();
                     }}
                   >
-                    <UiIcon
-                      icon={
-                        action === "delete" || action === "remove"
-                          ? trashIcon
-                          : action === "show"
-                            ? eyeIcon
-                            : eyeOffIcon
-                      }
-                      width={18}
-                      height={18}
-                      aria-hidden="true"
-                    />
-                    {busy
-                      ? "Saving…"
-                      : action === "remove"
-                        ? confirmation
-                          ? "Delete Permanently"
-                          : "Delete Permanently"
-                        : action === "delete"
-                          ? confirmation
-                            ? "Confirm Delete"
-                            : "Delete"
-                          : action === "hide"
-                            ? "Hide"
-                            : "Show"}
-                  </button>
-                ))
-            )}
-          </div>
+                    <span className="sp-button-label">
+                      {busy ? "Please Wait…" : "Download File"}
+                    </span>
+                  </a>
+                )}
+                <Button type="button" disabled={busy} onClick={closeDialog}>
+                  <span className="sp-button-label">Cancel</span>
+                </Button>
+                {selection?.kind === "upload" ? (
+                  <Button
+                    className="asset-admin-primary"
+                    disabled={
+                      locked ||
+                      !file ||
+                      !canSubmit ||
+                      (categoryChoices !== null && !categoryChoices.includes(category))
+                    }
+                    type="submit"
+                  >
+                    <span className="sp-button-label">{busy ? "Submitting…" : "Save Changes"}</span>
+                  </Button>
+                ) : (
+                  selected?.actions
+                    .filter(
+                      (action) =>
+                        (action !== "remove" || data?.policy.canForceRemove) &&
+                        (!confirmation || action === "delete" || action === "remove"),
+                    )
+                    .map((action) => (
+                      <button
+                        key={action}
+                        type="button"
+                        className={
+                          action === "delete" || action === "remove"
+                            ? "asset-admin-danger"
+                            : "asset-admin-visibility"
+                        }
+                        disabled={locked || (action === "remove" && !data?.policy.canForceRemove)}
+                        onClick={() => {
+                          void changeAvailability(action);
+                        }}
+                      >
+                        <UiIcon
+                          icon={
+                            action === "delete" || action === "remove"
+                              ? trashIcon
+                              : action === "show"
+                                ? eyeIcon
+                                : eyeOffIcon
+                          }
+                          width={18}
+                          height={18}
+                          aria-hidden="true"
+                        />
+                        <span className="sp-button-label">
+                          {busy
+                            ? "Saving…"
+                            : action === "remove"
+                              ? confirmation
+                                ? "Delete Permanently"
+                                : "Delete Permanently"
+                              : action === "delete"
+                                ? confirmation
+                                  ? "Confirm Delete"
+                                  : "Delete"
+                                : action === "hide"
+                                  ? "Hide"
+                                  : "Show"}
+                        </span>
+                      </button>
+                    ))
+                )}
+              </div>
+            </>
+          )}
         </form>
       </dialog>
     </section>
