@@ -1,26 +1,25 @@
 /* Restore the approved panel surfaces while retaining project cards, routes and actions */
 :root {
-  --admin-panel: #f7f7f7;
+  --admin-panel: #fefefe;
   --admin-search-border: 1px solid var(--sp-search-edge);
   --admin-search-shadow: 0 0 0 1px #fff, inset 0 3px 7px rgb(0 0 0 / 7%);
   --admin-person-row-gap: 24px;
   --admin-search-tabs-gap: 20px;
   --admin-tabs-bottom-padding: 12px;
   --admin-roster-header-height: 134px;
-  --admin-scroll-thumb: #8f8981;
-  --admin-scroll-track: transparent;
-  --admin-scroll-hover: #6f6961;
-  --admin-panel-shadow: inset 4px 5px 14px rgb(57 43 29 / 4%);
+  --admin-panel-shadow:
+    inset -2px -2px 2px rgb(255 255 255 / 85%), inset -7px -7px 16px rgb(255 255 255 / 60%),
+    inset 2px 2px 5px rgb(41 39 35 / 3%), inset 5px 6px 16px rgb(41 39 35 / 6%);
+  --admin-panel-edge-light: rgb(255 255 255 / 92%);
+  --admin-panel-edge-mid: rgb(255 255 255 / 12%);
+  --admin-panel-edge-right: rgb(255 255 255 / 85%);
   --admin-organisation-card-paper: #fff;
   --admin-panel-tint: transparent;
-  --admin-projects-background: linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint));
-  --admin-organisations-background: linear-gradient(
-    var(--admin-panel-tint),
-    var(--admin-panel-tint)
-  );
-  --admin-assets-background: linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint));
-  --admin-workspace-background: linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint));
-  --admin-search-background: url("./assets/workspace-search.png");
+  --admin-projects-background: url("./assets/dashboard-projects.png");
+  --admin-organisations-background: url("./assets/dashboard-organisations.png");
+  --admin-assets-background: url("./assets/dashboard-assets.png");
+  --admin-workspace-background: url("./assets/workspace-panel.png");
+  --admin-search-background: none;
   --admin-search-inset: rgb(41 39 35 / 9%);
   --admin-search-keyline: rgb(255 255 255 / 95%);
   --admin-panel-border: rgb(255 255 255 / 85%);
@@ -40,6 +39,10 @@
   border-radius: 0;
   background: none;
   padding: 35px 0 0;
+}
+.sp-shell--dashboard:has(.admin-greeting) {
+  --admin-panel: #faf8f6;
+  --sp-workspace-bottom-space: clamp(24px, min(5.903vw, 7.013dvh), 85px);
 }
 .admin-greeting {
   margin-bottom: 50px;
@@ -94,7 +97,7 @@
     linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
     var(--admin-projects-background);
   background-size: 100% 100%;
-  padding: 40px 38px 36px;
+  padding: 40px 38px 37px;
   margin-bottom: 20px;
 }
 .admin-section-heading {
@@ -122,10 +125,6 @@
   justify-content: center;
   align-items: center;
 }
-.admin-dashboard .sp-close-button {
-  min-height: 40px;
-  padding: 0;
-}
 .admin-dashboard a.sp-button:not(.sp-button--primary) {
   color: var(--sp-ink);
 }
@@ -135,6 +134,7 @@
 .admin-dashboard .admin-projects > .admin-section-heading > .sp-button {
   align-self: flex-start;
   margin-top: 5px;
+  min-height: 40px;
   padding-inline: 20px;
 }
 .admin-project-grid {
@@ -166,8 +166,15 @@
   gap: 12px;
 }
 .admin-project-info h3 {
+  line-height: 20px;
   font-size: 15px;
   overflow-wrap: anywhere;
+}
+.admin-projects .admin-project-info {
+  gap: var(--sp-preview-card-gap);
+}
+.admin-projects .admin-project-title {
+  min-height: 40px;
 }
 .admin-project-title {
   display: flex;
@@ -175,7 +182,7 @@
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  min-height: 40px;
+  min-height: 36px;
 }
 .admin-project-status {
   flex-shrink: 0;
@@ -184,8 +191,6 @@
   color: var(--admin-status-ink);
   font-size: 12px;
   padding: 4px 9px;
-}
-.admin-project-status {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -199,7 +204,9 @@
   line-height: 1.2;
   color: var(--sp-muted);
 }
-.admin-project-info .sp-button {
+.admin-dashboard .admin-project-info .sp-button {
+  min-width: 110px;
+  min-height: 40px;
   margin-top: auto;
 }
 .admin-projects:has(> p.admin-project-state) {
@@ -235,6 +242,23 @@
   min-height: 412px;
   background-size: 100% 100%;
 }
+@media (min-width: 1200px) {
+  .admin-projects {
+    padding-top: 44px;
+  }
+  .admin-projects > .admin-section-heading {
+    margin-bottom: 16px;
+  }
+  .admin-management-grid > .admin-panel {
+    padding-bottom: 31px;
+  }
+  .admin-management-grid > .admin-panel:last-child {
+    padding-inline: 55px 37px;
+  }
+  .admin-management-grid .admin-section-heading {
+    margin-bottom: 15px;
+  }
+}
 .admin-management-grid > .admin-panel:first-child {
   background-image:
     linear-gradient(var(--admin-panel-tint), var(--admin-panel-tint)),
@@ -268,7 +292,7 @@
 .admin-entry-identity p {
   font-size: 12px;
   color: var(--sp-muted);
-  margin-top: 5px;
+  margin-top: 4px;
 }
 .admin-entry-symbol {
   display: grid;
@@ -289,10 +313,13 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 12px;
 }
 .admin-entry-actions .sp-button {
-  padding-inline: 16px;
+  width: 160px;
+  max-width: 100%;
+  min-height: 40px;
+  padding-inline: 12px;
 }
 .admin-upload-note {
   font-size: 12px;
@@ -336,10 +363,14 @@
   padding-inline: 0;
 }
 .admin-project-browser .admin-project-info {
-  gap: 10px;
+  gap: 12px;
 }
 .admin-project-browser .admin-project-title {
-  min-height: 38px;
+  min-height: 36px;
+  align-items: center;
+}
+.admin-project-browser .admin-project-organization {
+  line-height: 16px;
 }
 .admin-project-browser .admin-project-grid {
   gap: 10px;
@@ -378,8 +409,6 @@
 .admin-project-view-heading .sp-search {
   flex: 1.4;
   max-width: 606px;
-}
-.admin-project-view-heading .sp-search {
   min-height: 45px;
   border: 1px solid var(--admin-search-keyline);
   background-image:
@@ -419,7 +448,6 @@
   background: var(--admin-progress-background);
 }
 .admin-progress-controls {
-  min-height: var(--admin-roster-header-height);
   padding: 20px 20px var(--admin-tabs-bottom-padding);
   border-bottom: 1px solid var(--sp-border);
 }
@@ -471,7 +499,7 @@
   background: var(--sp-avatar-surface);
   color: var(--sp-avatar-ink);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--sp-weight-emphasis);
 }
 .admin-student-identity strong {
   display: block;
@@ -488,12 +516,10 @@
   overflow-wrap: anywhere;
 }
 .admin-student-status {
-  align-self: center;
   justify-self: end;
   width: 124px;
   max-width: 148px;
   grid-column: 2;
-  grid-row: span 2;
   display: grid;
   align-content: start;
   gap: 10px;
@@ -506,7 +532,7 @@
 }
 .admin-student-status dd {
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: var(--sp-weight-emphasis);
   margin: 0;
   font-size: 13px;
   line-height: 18px;
@@ -555,11 +581,16 @@
 }
 .admin-project-metadata a {
   color: var(--sp-ink);
-  font-weight: 600;
+  font-weight: var(--sp-weight-emphasis);
   text-underline-offset: 2px;
 }
 .admin-project-metadata dd {
+  min-width: 0;
   margin: 0;
+  overflow-wrap: anywhere;
+}
+.admin-project-metadata select {
+  max-width: 100%;
 }
 .admin-asset-cover {
   width: 100%;
@@ -589,9 +620,6 @@
   .admin-project-view-heading .sp-search {
     flex-basis: 100%;
     order: 1;
-  }
-  .admin-detail-columns {
-    grid-template-columns: minmax(0, 1fr);
   }
   .admin-progress {
     height: auto;
@@ -632,6 +660,9 @@
   }
   .admin-entry-actions {
     flex-direction: column;
+  }
+  .admin-entry-actions .sp-button {
+    width: 100%;
   }
   .admin-greeting p {
     font-size: 14px;
@@ -684,7 +715,7 @@
 .admin-student-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--sp-admin-action-gap, 10px);
   align-items: center;
 }
 .admin-project-moderation {
@@ -701,11 +732,16 @@
 .admin-student-actions .sp-button {
   min-height: 32px;
   height: 32px;
-  font-weight: 500;
+  font-weight: var(--sp-weight-emphasis);
   gap: 6px;
   padding: 0 14px;
 }
 .admin-publication-delete {
+  color: var(--sp-ink);
+  border-color: var(--sp-selection-border);
+  background: var(--sp-soft);
+}
+.admin-project-moderation .admin-publication-delete {
   color: var(--admin-moderation-danger-ink);
   border-color: var(--admin-moderation-danger-border);
   background: var(--admin-moderation-danger-surface);
@@ -738,13 +774,22 @@
 .admin-assignment-select {
   width: 100%;
   max-width: 100%;
-  min-height: 32px;
   margin: -6px 0;
-  padding: 5px 10px;
-  border: 1px solid var(--sp-border);
+}
+.admin-assignment-select > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.sp-shell[data-account-role="Administrator"] .admin-assignment-select > button {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 10px;
   border-radius: 10px;
-  background: var(--sp-surface);
-  font-size: inherit;
 }
 
 .admin-progress.admin-progress-empty {
@@ -768,16 +813,24 @@
 /* The progress-row reference uses neutral actions; the project-level Delete stays red */
 .admin-student-actions .sp-button:not(.sp-button--primary) {
   color: #515151;
-  border-color: #e7e2dc;
+  border-color: var(--sp-selection-border);
   background: #f7f5f2;
 }
 .admin-dashboard .sp-button--primary {
-  background: #332e2a;
-  border-color: #332e2a;
+  --sp-primary-hover: color-mix(
+    in srgb,
+    var(--sp-admin-primary-surface),
+    var(--sp-hover-light) var(--sp-hover-strength)
+  );
+  background: var(--sp-admin-primary-surface);
+  border-color: var(--sp-admin-primary-surface);
 }
 
-.admin-student-actions .sp-button:not(.sp-button--primary):hover:not(:disabled) {
-  background: #eee8e1;
+.admin-student-actions
+  .sp-button:not(.sp-button--primary, .admin-publication-delete, .sp-hide-action):hover:not(
+    :disabled
+  ) {
+  background: var(--sp-hover);
 }
 
 .admin-progress-controls .sp-search svg {
@@ -829,14 +882,11 @@
 }
 
 /* Make hover visible across the complete control without changing selected tabs. */
-.admin-dashboard .sp-tabs button {
-  border-radius: 8px;
-}
 .admin-dashboard .sp-tabs button:hover:not(:disabled) {
-  background: #eae5df;
+  background: var(--sp-hover);
 }
 .admin-dashboard .sp-tabs button[aria-selected="true"]:hover:not(:disabled) {
-  background: #eae5df;
+  background: var(--sp-hover);
 }
 .admin-project-metadata a {
   display: inline-flex;
@@ -848,13 +898,13 @@
   cursor: pointer;
 }
 .admin-project-metadata a:hover {
-  background: #eae5df;
+  background: var(--sp-hover);
 }
 .admin-dashboard .sp-close-button:hover:not(:disabled) {
-  background: #e4e5e7;
+  background: var(--sp-close-hover);
 }
 .admin-project-moderation .admin-publication-delete:hover:not(:disabled) {
-  background: #fbe2dd;
+  background: var(--sp-danger-hover);
 }
 
 /* Keep navigation, names and content larger than metadata and hints. */
@@ -868,9 +918,33 @@
   line-height: 20px;
 }
 
-/* Match facilitator: washes cross the panel surface, beneath its content and edge. */
+/* Preserve the administrator panel tint beneath the shared workspace lighting */
 .sp-shell[data-account-role="Administrator"] > .sp-wash {
-  z-index: 1;
+  z-index: -1;
+  filter: none;
+}
+.sp-shell[data-account-role="Administrator"]:not(
+    :has(.admin-greeting, .admin-home-session-loading)
+  ) {
+  --sp-panel-tint: transparent;
+}
+.sp-shell[data-account-role="Administrator"] .sp-panel-surface {
+  background-color: var(--admin-panel);
+  background-blend-mode: multiply;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+.sp-shell[data-account-role="Administrator"] .asset-admin {
+  background-image: var(--admin-workspace-background);
+}
+.sp-shell[data-account-role="Administrator"] .asset-admin-models {
+  background-image: url("./assets/asset-library.webp");
+}
+@media (max-width: 800px) {
+  .sp-shell[data-account-role="Administrator"] .sp-panel-surface {
+    background-size: cover;
+    background-position: center;
+  }
 }
 .sp-shell[data-account-role="Administrator"] > .sp-account-header,
 .admin-greeting,
@@ -887,7 +961,6 @@
   position: absolute;
   inset: 0;
   z-index: 2;
-  border: 1px solid var(--admin-panel-border);
   border-radius: inherit;
   pointer-events: none;
 }
@@ -899,8 +972,15 @@
 .admin-project-detail .admin-project-view-heading h1,
 .admin-project-detail .admin-detail-columns > div > h2 {
   font-size: 25px;
-  font-weight: 700;
+  font-weight: var(--sp-weight-emphasis);
   line-height: normal;
+}
+.admin-project-detail .admin-detail-columns > div > h2 {
+  margin-block: 20px 17px;
+  line-height: 34px;
+}
+.admin-project-detail .admin-detail-columns > div > .admin-project-moderation {
+  margin-block-end: 23px;
 }
 .admin-project-detail .admin-project-view-heading p {
   margin-top: 7px;
@@ -915,7 +995,7 @@
   margin-bottom: 0;
 }
 .admin-project-detail .admin-project-metadata dd:not(.admin-project-visibility) {
-  font-weight: 600;
+  font-weight: var(--sp-weight-emphasis);
 }
 .admin-project-detail .admin-project-visibility {
   font-family: var(--sp-font);
@@ -927,15 +1007,15 @@
 .admin-project-detail .admin-assignment-description h3 {
   margin: var(--admin-project-section-gap) 0 8px;
   font-size: 20px;
-  font-weight: 700;
-  line-height: normal;
+  font-weight: var(--sp-weight-emphasis);
+  line-height: 27px;
 }
 .admin-project-detail .admin-assignment-description p {
   margin: 0;
   color: #515151;
   font-size: 15px;
-  font-weight: 400;
-  line-height: normal;
+  font-weight: var(--sp-weight-body);
+  line-height: 20px;
 }
 .admin-project-detail .admin-assignment-description .admin-project-empty-value {
   color: #77716a;
@@ -943,11 +1023,11 @@
   line-height: 18px;
 }
 .admin-project-detail .sp-close-button {
-  background: #e4e1dc;
+  background: var(--sp-close-surface);
   color: #292723;
 }
 .admin-project-detail .sp-close-button:hover:not(:disabled) {
-  background: #d7d2cb;
+  background: var(--sp-close-hover);
 }
 
 .admin-dashboard :is(button, input, select, textarea) {
@@ -966,7 +1046,7 @@
 }
 .admin-dashboard .sp-tabs button[aria-selected="true"] {
   background: transparent;
-  font-weight: 600;
+  font-weight: var(--sp-weight-emphasis);
 }
 .admin-project-metadata a {
   text-decoration: underline;
@@ -980,9 +1060,12 @@
   align-self: stretch;
   contain: size;
 }
-@media (max-width: 800px) {
+@media (max-width: 1024px) {
   .admin-project-detail .admin-progress {
     contain: none;
+  }
+  .admin-detail-columns .admin-project-cover {
+    max-height: 180px;
   }
 }
 @media (max-width: 520px) {
@@ -991,58 +1074,13 @@
   }
 }
 
-.admin-project-detail .admin-project-view-heading {
-  min-height: 57px;
-}
-
 .admin-add-organisation-dialog .sp-dialog-body {
   margin-bottom: 0;
 }
 
 /* Trim the heading's invisible font space so equal padding also looks equal. */
 .sp-dialog.admin-add-organisation-dialog {
-  width: min(440px, calc(100% - 32px));
-  padding-block: 28px;
-}
-.admin-add-organisation-dialog > h2 {
-  text-box-trim: trim-start;
-  text-box-edge: cap alphabetic;
-}
-
-:is(.admin-progress-list, .sp-directory--administration .sp-account-rows) {
-  scrollbar-width: thin;
-  scrollbar-color: var(--admin-scroll-thumb) var(--admin-scroll-track);
-}
-:is(.admin-progress-list, .sp-directory--administration .sp-account-rows)::-webkit-scrollbar {
-  width: 6px;
-}
-:is(.admin-progress-list, .sp-directory--administration .sp-account-rows)::-webkit-scrollbar-track {
-  background: var(--admin-scroll-track);
-}
-:is(.admin-progress-list, .sp-directory--administration .sp-account-rows)::-webkit-scrollbar-thumb {
-  background: var(--admin-scroll-thumb);
-  border: 0;
-  border-radius: 999px;
-}
-:is(
-  .admin-progress-list,
-  .sp-directory--administration .sp-account-rows
-)::-webkit-scrollbar-button {
-  display: none;
-  height: 0;
-}
-
-:is(
-    .admin-progress-list,
-    .sp-directory--administration .sp-account-rows
-  )::-webkit-scrollbar-thumb:hover {
-  background: var(--admin-scroll-hover);
-}
-@supports selector(::-webkit-scrollbar) {
-  :is(.admin-progress-list, .sp-directory--administration .sp-account-rows) {
-    scrollbar-width: auto;
-    scrollbar-color: auto;
-  }
+  width: min(400px, calc(100% - 32px));
 }
 
 .sp-shell--dashboard :is(.admin-project-browser, .admin-project-detail):not([hidden]) {
@@ -1056,8 +1094,8 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 0 10px 8px 0;
-  margin-right: -10px;
+  scrollbar-gutter: stable;
+  padding: 5px 0 8px;
 }
 .sp-shell--dashboard .admin-project-browser > :is(.admin-project-view-heading, .sp-tabs) {
   flex: none;
@@ -1067,10 +1105,11 @@
   min-height: 0;
 }
 .sp-shell--dashboard .admin-detail-columns > :first-child {
+  min-width: 0;
   min-height: 0;
-  overflow: auto;
-  padding-right: 10px;
-  margin-right: -10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
 }
 .sp-shell--dashboard .admin-detail-columns > .admin-progress {
   height: 100%;
@@ -1079,7 +1118,7 @@
 
 :is(.admin-progress-list, .sp-directory--administration .sp-account-rows) {
   border: solid transparent;
-  border-width: 0 6px 6px 0;
+  border-width: 0 0 var(--sp-scroll-inset);
 }
 
 .sp-shell--dashboard .admin-dashboard:not(:has(> .admin-greeting)) {
@@ -1097,7 +1136,7 @@
   color: #292723;
 }
 .admin-project-browser .admin-project-view-heading .sp-close-button:hover:not(:disabled) {
-  background: #d6d0c8;
+  background: var(--sp-close-hover);
 }
 
 .sp-shell--dashboard .admin-project-browser > [role="tabpanel"]:has(> .admin-project-empty),
@@ -1118,29 +1157,11 @@
   align-items: center;
   gap: 12px;
   margin-top: var(--admin-search-tabs-gap);
-  min-height: 36px;
 }
 .admin-progress-controls .admin-project-selection-toolbar .sp-tabs {
   margin-top: 0;
   flex: 1;
   min-width: 0;
-}
-.admin-select-projects.sp-button {
-  margin: 0;
-  width: 24px;
-  height: 24px;
-  min-height: 24px;
-  padding: 3px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-}
-.admin-select-projects svg {
-  width: 18px;
-  height: 18px;
-}
-.admin-select-projects:hover:not(:disabled) {
-  background: var(--sp-soft);
 }
 .admin-project-selection {
   display: flex;
@@ -1148,26 +1169,23 @@
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  min-height: 36px;
   font: 500 13px/20px var(--sp-font);
 }
 .admin-project-selection > label {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   white-space: nowrap;
 }
 .admin-selection-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
 }
 .admin-progress-controls .admin-selection-actions .sp-button {
   gap: 6px;
   margin: 0;
   min-height: 32px;
   padding: 0 10px;
-  font: 500 13px/20px var(--sp-font);
+  font: 600 13px/20px var(--sp-font);
   white-space: nowrap;
 }
 
@@ -1183,10 +1201,6 @@
 
 .admin-project-selection-toolbar {
   margin-inline: 4px;
-  min-height: 44px;
-}
-.admin-progress-controls .admin-project-selection-toolbar .sp-tabs > button:first-child {
-  margin-left: -10px;
 }
 .admin-project-selection {
   min-height: 44px;
@@ -1196,8 +1210,233 @@
   min-height: 32px;
   gap: 12px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: var(--sp-weight-emphasis);
 }
 .admin-progress-controls .admin-selection-actions .sp-button {
   font-size: 15px;
+}
+
+.admin-student-status {
+  align-self: start;
+  grid-row: 1;
+}
+.admin-progress {
+  position: relative;
+}
+.admin-progress-list {
+  padding-bottom: 0;
+}
+.admin-progress:has(> .sp-admin-selection-bar) .admin-progress-list {
+  border-bottom-width: 0;
+  padding-bottom: var(--sp-selection-bar-height, 0px);
+}
+.admin-student-identity {
+  position: relative;
+}
+
+.admin-student-action-slot {
+  grid-column: 1 / -1;
+  position: relative;
+}
+.admin-student-actions {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.admin-student-actions a[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+.admin-selection-count {
+  color: var(--sp-muted);
+  font: 400 12px/18px var(--sp-font);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.admin-project-selection.sp-admin-selection-bar {
+  width: auto;
+  justify-content: start;
+  font-size: 13px;
+}
+.admin-selection-actions {
+  margin-left: auto;
+  gap: var(--sp-admin-action-gap);
+}
+.admin-project-selection .admin-selection-actions .sp-button {
+  min-height: 32px;
+  padding: 0 10px;
+  font: 600 13px/20px var(--sp-font);
+}
+
+.admin-project-selection .admin-project-moderation {
+  margin: 0;
+  gap: var(--sp-admin-action-gap);
+}
+.admin-project-selection .admin-selection-actions .sp-button {
+  gap: 6px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .admin-project-selection .admin-selection-actions {
+    flex-wrap: nowrap;
+  }
+  .admin-project-selection .admin-selection-actions .sp-button {
+    padding-inline: 5px;
+    font-size: 12px;
+    gap: 4px;
+  }
+}
+.admin-project-selection-toolbar {
+  min-height: 36px;
+}
+
+.admin-project-detail .admin-project-view-heading {
+  min-height: 0;
+}
+.admin-project-detail .admin-project-view-heading h1 {
+  margin: 0;
+}
+.admin-project-detail .admin-project-view-heading p {
+  margin: 20px 0 0;
+  position: relative;
+  top: -6px;
+}
+.admin-project-detail .admin-detail-columns {
+  margin-top: 23px;
+}
+.sp-shell[data-account-role="Administrator"] .admin-project-metadata a:hover {
+  background: var(--sp-hover);
+}
+
+.admin-project-detail .admin-project-view-heading :is(h1, p) {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-dashboard, .sp-directory--administration)
+  .sp-tabs
+  button:hover:not(:disabled) {
+  background: var(--sp-admin-hover);
+}
+
+.admin-progress-controls {
+  min-height: 0;
+  padding-bottom: 4px;
+}
+.admin-progress-controls .admin-project-selection-toolbar .sp-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.admin-progress-controls .admin-project-selection-toolbar .sp-tabs > button {
+  flex: 0 0 auto;
+  padding-inline: 5px;
+}
+.admin-progress-controls .admin-project-selection-toolbar .sp-tabs > button:first-child {
+  margin-left: -5px;
+}
+
+.admin-progress-controls .admin-project-selection-toolbar .sp-tabs {
+  gap: var(--sp-selection-tab-gap);
+}
+
+.sp-shell[data-account-role="Administrator"] :is(.admin-panel, .sp-directory--administration) {
+  border-color: transparent;
+}
+:is(.admin-panel, .sp-directory--administration)::after {
+  border: 0;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    var(--admin-panel-edge-light),
+    var(--admin-panel-edge-mid) 45%,
+    var(--admin-panel-edge-right)
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+/* Edge lighting sits above the ambient artwork, with content above both. */
+.sp-shell[data-account-role="Administrator"] :is(.admin-panel, .sp-directory--administration) {
+  box-shadow: none;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-panel, .sp-directory--administration)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--admin-panel-shadow);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.admin-project-browser > .sp-tabs button[aria-selected="true"],
+.admin-project-browser > .sp-tabs .sp-tab-measure,
+.admin-dashboard .admin-progress-controls .sp-tabs button[aria-selected="true"],
+.admin-dashboard .admin-progress-controls .sp-tabs .sp-tab-measure {
+  font-weight: var(--sp-weight-emphasis);
+}
+
+@media (max-width: 1024px) {
+  .sp-shell--dashboard .admin-detail-columns {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: max-content max-content;
+    row-gap: var(--admin-project-section-gap);
+    align-content: start;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .sp-shell--dashboard .admin-detail-columns > :first-child {
+    overflow: visible;
+    padding-right: 0;
+    margin-right: 0;
+  }
+  .sp-shell--dashboard .admin-detail-columns > .admin-progress {
+    height: auto;
+  }
+  .admin-project-detail .admin-progress-list {
+    flex: none;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-project-detail .admin-progress-row {
+    grid-template-columns: minmax(0, 1fr) 104px;
+    column-gap: 12px;
+    padding-inline: 16px;
+  }
+  .admin-project-detail .admin-student-status {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* Use the shared label box without changing the metadata row's reserved height */
+.admin-project-metadata a {
+  min-height: calc(1lh + 4px);
+}
+.admin-project-metadata .sp-plain-label {
+  text-box-edge: cap text;
+}
+
+.admin-project-placeholder-title {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.admin-project-detail .admin-project-moderation > .sp-hide-action {
+  border: 1px solid var(--sp-selection-border);
 }
