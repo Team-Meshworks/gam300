@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { useId, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faUsers } from "@fortawesome/free-solid-svg-icons";
@@ -13,11 +14,13 @@ export function StudentSelector({
   selected,
   onChange,
   emptyMessage = "No matching students.",
+  statusMessage = "",
 }: {
   students: readonly EligibleStudent[];
   selected: readonly string[];
   onChange: (ids: readonly string[]) => void;
   emptyMessage?: string;
+  statusMessage?: string | null;
 }) {
   const id = useId();
   const [query, setQuery] = useState("");
@@ -29,6 +32,8 @@ export function StudentSelector({
       (student.name + " " + student.account).toLowerCase().includes(search) &&
       (tab === "all" || selectedIds.has(student.id)),
   );
+  const visibleIds = new Set(visible.map((student) => student.id));
+  const allSelected = visible.length > 0 && visible.every((student) => selectedIds.has(student.id));
   return (
     <section className="sp-students" aria-labelledby={`${id}-heading`}>
       <div className="sp-students-header">
@@ -60,10 +65,14 @@ export function StudentSelector({
             variant="quiet"
             disabled={!visible.length}
             onClick={() =>
-              onChange([...new Set([...selected, ...visible.map((student) => student.id)])])
+              onChange(
+                allSelected
+                  ? selected.filter((id) => !visibleIds.has(id))
+                  : [...new Set([...selected, ...visibleIds])],
+              )
             }
           >
-            Select all
+            {allSelected ? "Clear all" : "Select all"}
           </Button>
         </div>
       </div>
@@ -78,6 +87,7 @@ export function StudentSelector({
             <li key={student.id}>
               <label className="sp-person-row">
                 <input
+                  aria-label={`Select ${student.name}`}
                   type="checkbox"
                   checked={selectedIds.has(student.id)}
                   onChange={(event) =>
@@ -97,13 +107,15 @@ export function StudentSelector({
             </li>
           ))}
         </ul>
-        {!visible.length && (
+        {statusMessage === null && <LoadingSkeleton label="Loading enrolled students…" />}
+        {statusMessage !== null && !visible.length && (
           <p className="sp-list-empty" role="status">
-            {tab === "selected" && !selected.length
-              ? "No students selected yet."
-              : search
-                ? "No matching students."
-                : emptyMessage}
+            {statusMessage ||
+              (tab === "selected" && !selected.length
+                ? "No students selected yet."
+                : search
+                  ? "No matching students."
+                  : emptyMessage)}
           </p>
         )}
       </div>

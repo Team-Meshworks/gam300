@@ -1,13 +1,16 @@
+import { AddOrganizationDialog } from "../directory/AddOrganizationDialog";
+import { PublishedProjectsHeading } from "./PublishedProjectsHeading";
+import { requestedProjectId } from "../projects/progress-navigation";
+import { PublishedProjectsLoading, PublishedStudentsLoading } from "./PublishedProjectsLoading";
 import { Icon as UiIcon } from "@iconify/react/offline";
 import faGlobe from "@iconify-icons/lucide/globe";
 import faLock from "@iconify-icons/lucide/lock";
 import faXmark from "@iconify-icons/lucide/x";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Skeleton } from "skullet/react";
+import { useCallback, useEffect, useState } from "react";
+import { Skeleton, SkeletonBox } from "skullet/react";
 import { Button } from "../../shared/ui/Button";
-import { Dialog } from "../../shared/ui/Dialog";
-import { Field } from "../../shared/ui/Field";
 import { SearchField } from "../../shared/ui/SearchField";
+import { Select } from "../../shared/ui/Select";
 import { Tabs } from "../../shared/ui/Tabs";
 import type { AccountSession } from "../accounts/account-client";
 import {
@@ -44,34 +47,63 @@ function ProjectCards({
   projects,
   onView,
   browser = false,
+  loading = false,
 }: {
   projects: readonly DashboardProject[];
   onView: (project: DashboardProject) => void;
   browser?: boolean;
+  loading?: boolean;
 }) {
   return (
     <div className="admin-project-grid">
       {projects.map((project) => (
         <article className="admin-project-card" key={project.projectId}>
-          <img className="admin-project-cover" src={defaultProjectImage} alt="" />
+          {loading ? (
+            <div className="admin-project-cover">
+              <SkeletonBox width="100%" height="100%" radius={0} />
+            </div>
+          ) : (
+            <img className="admin-project-cover" src={defaultProjectImage} alt="" />
+          )}
           <div className="admin-project-info">
             <div className="admin-project-title">
-              <h3>{project.title}</h3>
-              <span
-                className={`admin-project-status admin-project-status--${project.isPublic ? "public" : "private"}`}
-              >
-                <UiIcon icon={project.isPublic ? faGlobe : faLock} aria-hidden="true" />
-                {project.isPublic ? "Public" : "Private"}
-              </span>
+              {loading ? (
+                <div className="admin-project-placeholder-title">
+                  <SkeletonBox width="76%" height={16} radius={4} />
+                  <SkeletonBox width="44%" height={16} radius={4} />
+                </div>
+              ) : (
+                <h3>{project.title}</h3>
+              )}
+              {loading ? (
+                <SkeletonBox width={68} height={22} radius={11} />
+              ) : (
+                <span
+                  className={`admin-project-status admin-project-status--${project.isPublic ? "public" : "private"}`}
+                >
+                  <UiIcon icon={project.isPublic ? faGlobe : faLock} aria-hidden="true" />
+                  {project.isPublic ? "Public" : "Private"}
+                </span>
+              )}
             </div>
-            {browser && <p className="admin-project-organization">{project.organizationName}</p>}
-            <Button
-              variant="secondary"
-              aria-label={`View Details for ${project.title}`}
-              onClick={() => onView(project)}
-            >
-              View Details
-            </Button>
+            {browser &&
+              (loading ? (
+                <SkeletonBox width="44%" height={16} radius={4} />
+              ) : (
+                <p className="admin-project-organization">{project.organizationName}</p>
+              ))}
+            {loading ? (
+              <SkeletonBox width={110} height={40} radius={20} />
+            ) : (
+              <Button
+                variant={browser ? "primary" : "secondary"}
+                className="sp-catalogue-action"
+                aria-label={`View Details for ${project.title}`}
+                onClick={() => onView(project)}
+              >
+                View Details
+              </Button>
+            )}
           </div>
         </article>
       ))}
@@ -95,6 +127,12 @@ function ProjectDetails({
   const [attempt, setAttempt] = useState(0);
   const [assignmentIndex, setAssignmentIndex] = useState(0);
   const assignment = details?.assignments[assignmentIndex];
+  const loadingDetails = !details && !detailsError;
+  const pendingField = loadingDetails ? (
+    <SkeletonBox width="min(105px, 90%)" height={14} radius={4} />
+  ) : (
+    "Unavailable"
+  );
   const [publicationStates, setPublicationStates] = useState<
     Record<string, ProjectPublicationState>
   >({});
@@ -158,12 +196,11 @@ function ProjectDetails({
     };
   }, [client, details, project.projectId, publicationAttempt, onPublicationChanged]);
   return (
-    <section className="admin-panel admin-project-detail" aria-label="Project details">
-      <div className="admin-project-view-heading sp-admin-page-heading">
-        <div>
-          <h1>Project Details</h1>
-          <p>Review published experiences and control what visitors can explore.</p>
-        </div>
+    <section
+      className="sp-panel-surface admin-panel admin-project-detail"
+      aria-label="Project details"
+    >
+      <PublishedProjectsHeading detail>
         <Button
           className="sp-close-button"
           aria-label="Back"
@@ -172,13 +209,14 @@ function ProjectDetails({
         >
           <UiIcon icon={faXmark} aria-hidden="true" />
         </Button>
-      </div>
+      </PublishedProjectsHeading>
       <div className="admin-detail-columns">
         <div>
           <img className="admin-project-cover" src={defaultProjectImage} alt="" />
           <h2>{project.title}</h2>
           <div className="admin-project-moderation" aria-label="Project publication controls">
             <ProjectModeration
+              showLoadingDialog
               projectId={project.projectId}
               client={client}
               state={currentPublication}
@@ -198,41 +236,47 @@ function ProjectDetails({
               </Button>
             </div>
           )}
-          <dl className="admin-project-metadata">
+          <dl className="admin-project-metadata" aria-busy={loadingDetails}>
             <dt>Organisation</dt>
             <dd>
               {details ? (
-                <a href="/organisations">{details.organization.name}</a>
+                <a
+                  href={`/organisations?${new URLSearchParams({
+                    returnProjectId: project.projectId,
+                    returnView: new URLSearchParams(location.search).get("view") ?? "",
+                  })}`}
+                >
+                  <span className="sp-plain-label">{details.organization.name}</span>
+                </a>
               ) : (
-                <span role={detailsError ? "alert" : "status"}>
-                  {detailsError || "Loading project details…"}
-                </span>
+                project.organizationName || pendingField
               )}
             </dd>
             <>
               <dt>Created by</dt>
               <dd>
-                {assignment?.details.creatorUserName
-                  ? `@${assignment.details.creatorUserName}`
-                  : "Username unavailable"}
+                {details
+                  ? assignment?.details.creatorUserName
+                    ? `@${assignment.details.creatorUserName}`
+                    : "Username unavailable"
+                  : pendingField}
               </dd>
               <dt>Class</dt>
               <dd>
                 {details && details.assignments.length > 1 ? (
-                  <select
-                    className="admin-assignment-select"
-                    aria-label="Class Assignment"
-                    value={assignmentIndex}
-                    onChange={(event) => setAssignmentIndex(Number(event.target.value))}
-                  >
-                    {details.assignments.map((item, index) => (
-                      <option key={item.details.assignmentId} value={index}>
-                        {item.className} — {item.details.title}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    label="Class Assignment"
+                    className="sp-admin-select admin-assignment-select"
+                    menuClassName="sp-admin-select-menu"
+                    value={String(assignmentIndex)}
+                    onChange={(value) => setAssignmentIndex(Number(value))}
+                    options={details.assignments.map((item, index) => ({
+                      value: String(index),
+                      label: `${item.className} — ${item.details.title}`,
+                    }))}
+                  />
                 ) : (
-                  (assignment?.className ?? (details ? "No class assigned" : "Loading…"))
+                  (assignment?.className ?? (details ? "No class assigned" : pendingField))
                 )}
               </dd>
             </>
@@ -244,13 +288,13 @@ function ProjectDetails({
               {isPublic ? "Public" : "Private"}
             </dd>
           </dl>
-          <div className="admin-assignment-description">
+          <div className="admin-assignment-description" aria-busy={loadingDetails}>
             <h3>Project Description</h3>
             <p
               className={!assignment?.details.description ? "admin-project-empty-value" : undefined}
             >
               {assignment?.details.description ||
-                (details ? "No description provided." : "Loading…")}
+                (details ? "No description provided." : pendingField)}
             </p>
             <h3>Project Instructions</h3>
             <p
@@ -259,7 +303,7 @@ function ProjectDetails({
               }
             >
               {assignment?.details.instructions ||
-                (details ? "No instructions provided." : "Loading…")}
+                (details ? "No instructions provided." : pendingField)}
             </p>
           </div>
         </div>
@@ -271,14 +315,16 @@ function ProjectDetails({
             publicationStates={publicationStates}
             onPublicationChanged={publicationChanged}
           />
+        ) : loadingDetails ? (
+          <PublishedStudentsLoading />
         ) : (
-          <section className="admin-progress admin-progress-empty" aria-label="Student progress">
-            <h2>Student Progress</h2>
+          <section
+            className="admin-progress admin-progress-empty"
+            aria-label="Published student projects"
+          >
+            <h2>Published Projects</h2>
             <p role={detailsError ? "alert" : "status"}>
-              {detailsError ||
-                (details
-                  ? "No class assignments are linked to this project."
-                  : "Loading student progress…")}
+              {detailsError || "No published student projects are linked to this project."}
             </p>
             {detailsError && (
               <Button
@@ -386,7 +432,13 @@ function ProjectResults({
           if (requested) {
             setDetail(requested);
           } else {
-            setError("This project is unavailable to your account.");
+            // Ignore a stale return link after deletion; keep the authorised list usable.
+            const url = new URL(location.href);
+            if (url.searchParams.get("projectId")?.toLowerCase() === initialProjectId) {
+              url.searchParams.delete("projectId");
+              url.searchParams.set("view", "projects");
+              history.replaceState(history.state, "", url);
+            }
           }
         }
       } catch (reason) {
@@ -406,18 +458,15 @@ function ProjectResults({
       project.title.toLowerCase().includes(query.trim().toLowerCase()) &&
       (filter === "all" || project.isPublic === (filter === "public")),
   );
+  if (initialProjectId && loading && !detail) return <PublishedProjectsLoading detail />;
   return (
     <>
       <section
-        className="admin-panel admin-project-browser"
+        className="sp-panel-surface admin-panel admin-project-browser"
         aria-label="All Published Projects"
         hidden={detail !== null}
       >
-        <div className="admin-project-view-heading sp-admin-page-heading">
-          <div>
-            <h1>All Published Projects</h1>
-            <p>Review published experiences and control what visitors can explore.</p>
-          </div>
+        <PublishedProjectsHeading>
           <SearchField
             label="Search published projects"
             value={query}
@@ -432,7 +481,7 @@ function ProjectResults({
           >
             <UiIcon icon={faXmark} aria-hidden="true" />
           </Button>
-        </div>
+        </PublishedProjectsHeading>
         <Tabs
           id="admin-project-filter"
           label="Project visibility"
@@ -441,15 +490,15 @@ function ProjectResults({
           items={[
             {
               value: "all",
-              label: !loading && !error ? `All Work (${projects.length})` : "All Work",
-            },
-            {
-              value: "private",
-              label: !loading && !error ? `Private (${privateCount})` : "Private",
+              label: !loading && !error ? `All Published (${projects.length})` : "All Published",
             },
             {
               value: "public",
               label: !loading && !error ? `Public (${publicCount})` : "Public",
+            },
+            {
+              value: "private",
+              label: !loading && !error ? `Private (${privateCount})` : "Private",
             },
           ]}
         />
@@ -476,6 +525,9 @@ function ProjectResults({
                 loading={loading && projects.length === 0}
                 label="Loading projects"
                 className="admin-project-loading"
+                skeleton={
+                  <ProjectCards projects={loadingProjects} onView={() => {}} browser loading />
+                }
               >
                 <ProjectCards
                   projects={loading && projects.length === 0 ? loadingProjects : visible}
@@ -522,119 +574,6 @@ function ProjectResults({
   );
 }
 
-function AddOrganization({
-  client,
-  onClose,
-  onDirectory,
-}: {
-  client: Client;
-  onClose: () => void;
-  onDirectory: (organizationId?: string) => void;
-}) {
-  const [recovery, setRecovery] = useState(() => {
-    try {
-      return { attempt: client.pendingOrganization(), error: "" };
-    } catch (reason) {
-      return { attempt: null, error: errorMessage(reason) };
-    }
-  });
-  const [name, setName] = useState("");
-  const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
-  const busy = useRef(false);
-  async function submit() {
-    if (busy.current || !name.trim()) return;
-    busy.current = true;
-    setPending(true);
-    setError("");
-    try {
-      const id = await client.createOrganization(name);
-      onDirectory(id);
-    } catch (reason) {
-      setError(errorMessage(reason));
-      try {
-        setRecovery({ attempt: client.pendingOrganization(), error: "" });
-      } catch (failure) {
-        setRecovery({ attempt: null, error: errorMessage(failure) });
-      }
-    } finally {
-      busy.current = false;
-      setPending(false);
-    }
-  }
-  return (
-    <Dialog
-      title="Add Organisation"
-      variant="admin"
-      className="admin-add-organisation-dialog"
-      onClose={() => {
-        if (!busy.current) onClose();
-      }}
-    >
-      {recovery.attempt || recovery.error ? (
-        <div className="admin-organisation-form">
-          <p role="alert">
-            {recovery.attempt
-              ? recovery.attempt.name
-                ? `Creation of “${recovery.attempt.name}” could not be confirmed. Check the directory before creating another organisation.`
-                : "The previous organisation request could not be read. Check the directory before creating another organisation."
-              : recovery.error}
-          </p>
-          <Button onClick={() => onDirectory()}>Check organisation directory</Button>
-          {recovery.attempt && (
-            <Button
-              disabled={pending}
-              onClick={async () => {
-                if (!recovery.attempt || busy.current) return;
-                busy.current = true;
-                setPending(true);
-                try {
-                  await client.acknowledgeOrganization(recovery.attempt);
-                  setRecovery({ attempt: null, error: "" });
-                  setName("");
-                  setError("");
-                } catch (reason) {
-                  setError(errorMessage(reason));
-                } finally {
-                  busy.current = false;
-                  setPending(false);
-                }
-              }}
-            >
-              I checked the directory
-            </Button>
-          )}
-          {error && <p role="status">{error}</p>}
-        </div>
-      ) : (
-        <form
-          className="admin-organisation-form"
-          aria-busy={pending}
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
-          <Field id="organisation-name" label="Organisation name">
-            <input
-              id="organisation-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              maxLength={256}
-              required
-              disabled={pending}
-            />
-          </Field>
-          {error && <p role="alert">{error}</p>}
-          <Button type="submit" variant="primary" disabled={pending || !name.trim()}>
-            {pending ? "Creating…" : "Create Organisation"}
-          </Button>
-        </form>
-      )}
-    </Dialog>
-  );
-}
-
 export function AdminDashboard({
   session,
   onOpenOrganisations,
@@ -651,12 +590,7 @@ export function AdminDashboard({
   const [loading, setLoading] = useState(initialProjects === undefined);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
-  const [initialProjectId] = useState(() => {
-    const requested = new URLSearchParams(location.search).get("projectId");
-    return requested && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(requested)
-      ? requested.toLowerCase()
-      : undefined;
-  });
+  const [initialProjectId] = useState(requestedProjectId);
   const [modal, setModal] = useState<"projects" | "organisation" | null>(
     initialProjectId || new URLSearchParams(location.search).get("view") === "projects"
       ? "projects"
@@ -743,7 +677,10 @@ export function AdminDashboard({
         <h1>Welcome Back, {session.displayName}</h1>
         <p>Manage what gets shared, who has access and the assets creators use.</p>
       </div>
-      <section className="admin-panel admin-projects" aria-labelledby="admin-projects-heading">
+      <section
+        className="sp-panel-surface admin-panel admin-projects"
+        aria-labelledby="admin-projects-heading"
+      >
         <div className="admin-section-heading">
           <div>
             <h2 id="admin-projects-heading">All Published Projects</h2>
@@ -762,7 +699,12 @@ export function AdminDashboard({
           </Button>
         </div>
         {loading ? (
-          <Skeleton loading label="Loading projects" className="admin-project-loading">
+          <Skeleton
+            loading
+            label="Loading projects"
+            className="admin-project-loading"
+            skeleton={<ProjectCards projects={loadingProjects} onView={() => {}} loading />}
+          >
             <ProjectCards projects={loadingProjects} onView={() => {}} />
           </Skeleton>
         ) : error ? (
@@ -795,7 +737,10 @@ export function AdminDashboard({
         )}
       </section>
       <div className="admin-management-grid">
-        <section className="admin-panel" aria-labelledby="admin-organisations-heading">
+        <section
+          className="sp-panel-surface admin-panel"
+          aria-labelledby="admin-organisations-heading"
+        >
           <div className="admin-section-heading">
             <div>
               <h2 id="admin-organisations-heading">Organisations &amp; Accounts</h2>
@@ -839,7 +784,7 @@ export function AdminDashboard({
             </div>
           </div>
         </section>
-        <section className="admin-panel" aria-labelledby="admin-assets-heading">
+        <section className="sp-panel-surface admin-panel" aria-labelledby="admin-assets-heading">
           <div className="admin-section-heading">
             <div>
               <h2 id="admin-assets-heading">Assets</h2>
@@ -894,7 +839,7 @@ export function AdminDashboard({
         </section>
       </div>
       {modal === "organisation" && (
-        <AddOrganization
+        <AddOrganizationDialog
           client={client}
           onClose={() => setModal(null)}
           onDirectory={onOpenOrganisations}

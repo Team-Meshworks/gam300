@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Spatia.Server.Hosting;
 using Spatia.Server.Persistence;
+using Spatia.Server.Projects;
 using Spatia.Server.Security;
 
 namespace Spatia.Server.Accounts;
@@ -31,6 +32,8 @@ public static partial class AccountDirectoryEndpoints
         group.MapPost("/organizations/{id:guid}/deletion", DeleteOrganizationAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapDelete("/organizations/{id:guid}", DeleteOrganizationAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapDelete("/users/{id:guid}", DeleteAccountAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
+        group.MapPost("/organizations/{id:guid}/accounts/hide", HideAccountsAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
+        group.MapPost("/organizations/{id:guid}/accounts/delete", DeleteAccountsAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPost("/organizations/{id:guid}/students/hide", HideStudentsAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPost("/organizations/{id:guid}/students/delete", DeleteStudentsAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPatch("/users/{id:guid}", UpdateUserAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
@@ -242,7 +245,7 @@ public static partial class AccountDirectoryEndpoints
                 row.Id,
                 row.Name,
                 row.IsActive,
-                ProjectCount = database.Projects.Count(project => project.OrganizationId == row.Id),
+                ProjectCount = ProjectAccessService.PublishedProjects(database).Count(project => project.OrganizationId == row.Id),
                 FacilitatorCount = database.OrganizationMemberships.Count(member => member.OrganizationId == row.Id
                     && member.RoleId == ApplicationRoles.EducatorId
                     && database.Users.Any(user => user.Id == member.UserId && !user.IsDeleted)),

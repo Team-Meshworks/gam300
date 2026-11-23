@@ -61,17 +61,18 @@ try {
 
   await page.goto(origin + "/classes");
   const classList = page.getByRole("combobox", { name: "Class", exact: true });
+  await classList.click();
   for (const id of [classroom, otherClass]) {
-    const option = classList.getByRole("option").filter({ hasText: id });
+    const option = page.getByRole("option").filter({ hasText: id });
     await option.waitFor({ state: "attached" });
     assert.match(await option.textContent(), /Recovered class/);
   }
-  assert.equal(await classList.inputValue(), "");
+  assert.equal(await page.getByRole("option", { selected: true }).count(), 0);
   const [roster] = await Promise.all([
     page.waitForResponse(
       (res) => new URL(res.url()).pathname === "/api/v1/classes/" + classroom + "/roster",
     ),
-    classList.selectOption(classroom),
+    page.getByRole("option", { name: new RegExp(classroom) }).click(),
   ]);
   assert.equal(roster.status(), 200);
   const members = (await roster.json()).items;

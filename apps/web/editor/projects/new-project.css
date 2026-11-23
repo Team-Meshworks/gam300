@@ -146,7 +146,7 @@
   cursor: pointer;
 }
 .sp-person-row:hover {
-  background: var(--sp-soft);
+  background: var(--sp-hover);
 }
 .sp-person-row input {
   width: 18px;
@@ -381,4 +381,60 @@
 .sp-cover-remove:focus-visible {
   outline: 2px solid var(--sp-focus);
   outline-offset: 2px;
+}
+
+:root {
+  --sp-student-tab-size: 13px;
+  --sp-student-action-size: 12px;
+  --sp-student-tab-gap: 22px;
+}
+.sp-shell[data-account-role] .sp-students .sp-student-filters {
+  align-items: center;
+  min-height: 32px;
+}
+.sp-shell[data-account-role] .sp-students .sp-student-filters .sp-tabs {
+  gap: var(--sp-student-tab-gap);
+}
+.sp-shell[data-account-role] .sp-students .sp-student-filters .sp-tabs button {
+  height: 32px;
+  min-height: 32px;
+  margin: 0;
+  padding: 7px 0;
+  font-size: var(--sp-student-tab-size);
+  line-height: 18px;
+}
+.sp-shell[data-account-role] .sp-students .sp-student-filters > .sp-button {
+  min-height: 32px;
+  height: 32px;
+  padding: 7px 0;
+  font-size: var(--sp-student-action-size);
+  font-weight: 600;
+  line-height: 18px;
+}
+.sp-shell[data-account-role] .sp-students .sp-students-header {
+  padding-inline: 20px;
+  padding-bottom: 12px;
+}
+
+.sp-project-class-help {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.sp-project-class-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  font-size: 12px;
+}
+.sp-project-class-tools > a {
+  color: var(--sp-muted);
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .sp-shell[data-account-role="Administrator"] .sp-assignment-create .sp-form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

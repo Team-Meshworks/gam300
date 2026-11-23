@@ -1,7 +1,8 @@
+import { SelectionToggle } from "../../shared/ui/SelectionToggle";
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { Icon } from "@iconify/react/offline";
 import { SkeletonBox } from "skullet/react";
 import commentIcon from "@iconify-icons/lucide/message-square";
-import selectIcon from "@iconify-icons/lucide/square-check";
 import closeIcon from "@iconify-icons/lucide/x";
 import pencilIcon from "@iconify-icons/lucide/pencil-line";
 import checkIcon from "@iconify-icons/lucide/circle-check";
@@ -13,6 +14,7 @@ import { Avatar } from "../../shared/ui/Avatar";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
+import { SelectionBar } from "../../shared/ui/SelectionBar";
 import { SearchField } from "../../shared/ui/SearchField";
 import { Tabs } from "../../shared/ui/Tabs";
 import { allPages, createReviewClient } from "../reviews/review-client";
@@ -59,7 +61,7 @@ export function TeacherStandaloneDetails({
   onOpen: () => void;
 }) {
   return (
-    <section className="sp-teacher-detail">
+    <section className="sp-panel-surface sp-teacher-detail">
       <div className="sp-teacher-detail-head">
         <div>
           <h1>Project Details</h1>
@@ -87,6 +89,7 @@ export function TeacherProjectDetails({
   actorId,
   onUpdated,
   onRemoved,
+  onOpenOrganisation,
 }: {
   item: Item;
   onBack: () => void;
@@ -94,6 +97,7 @@ export function TeacherProjectDetails({
   actorId?: string;
   onUpdated?: (details: AssignmentDetails) => void;
   onRemoved?: () => void;
+  onOpenOrganisation?: (href: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const [openingProject, setOpeningProject] = useState<string | null>(null);
@@ -302,7 +306,7 @@ export function TeacherProjectDetails({
   const selectedIds = selectedProjects.filter((id) => selectableIds.includes(id));
   const allSelected = selectableIds.length > 0 && selectedIds.length === selectableIds.length;
   return (
-    <section className="sp-teacher-detail">
+    <section className="sp-panel-surface sp-teacher-detail">
       <div className="sp-teacher-detail-head">
         <div>
           <h1>Project Details</h1>
@@ -367,8 +371,21 @@ export function TeacherProjectDetails({
                   <a
                     className="sp-teacher-organisation-link"
                     href={`/classes?organisation=1&classId=${encodeURIComponent(item.classId)}&assignmentId=${encodeURIComponent(details.assignmentId)}`}
+                    onClick={(event) => {
+                      if (
+                        !onOpenOrganisation ||
+                        event.button !== 0 ||
+                        event.metaKey ||
+                        event.ctrlKey ||
+                        event.shiftKey ||
+                        event.altKey
+                      )
+                        return;
+                      event.preventDefault();
+                      onOpenOrganisation(event.currentTarget.href);
+                    }}
                   >
-                    {details.organizationName}
+                    <span className="sp-plain-label">{details.organizationName}</span>
                   </a>
                 </dd>
               </>
@@ -398,7 +415,7 @@ export function TeacherProjectDetails({
                 aria-label="Edit Due Date"
               >
                 <Icon icon={pencilIcon} aria-hidden="true" />
-                <span>Edit</span>
+                <span className="sp-button-label">Edit</span>
               </Button>
             )}
           </div>
@@ -416,7 +433,7 @@ export function TeacherProjectDetails({
                 aria-label="Edit Project Description"
               >
                 <Icon icon={pencilIcon} aria-hidden="true" />
-                <span>Edit</span>
+                <span className="sp-button-label">Edit</span>
               </Button>
             )}
           </div>
@@ -434,7 +451,7 @@ export function TeacherProjectDetails({
                 aria-label="Edit Project Instructions"
               >
                 <Icon icon={pencilIcon} aria-hidden="true" />
-                <span>Edit</span>
+                <span className="sp-button-label">Edit</span>
               </Button>
             )}
           </div>
@@ -463,81 +480,32 @@ export function TeacherProjectDetails({
             }}
           />
           <div className="sp-teacher-student-toolbar">
-            {selectingProjects ? (
-              <div
-                className="sp-teacher-project-selection"
-                role="group"
-                aria-label="Student project selection"
-              >
-                <label>
-                  <input
-                    type="checkbox"
-                    aria-label="Select all visible projects"
-                    checked={allSelected}
-                    ref={(input) => {
-                      if (input) input.indeterminate = selectedIds.length > 0 && !allSelected;
-                    }}
-                    onChange={() => setSelectedProjects(allSelected ? [] : selectableIds)}
-                  />
-                  <span>Select all</span>
-                </label>
-                <div className="sp-teacher-selection-actions">
-                  <Button
-                    onClick={() => {
-                      setSelectingProjects(false);
-                      setSelectedProjects([]);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <ProjectModeration
-                    projectId={details.assignmentId}
-                    projectIds={selectedIds}
-                    client={moderation}
-                    state={aggregateState(selectedIds)}
-                    selection
-                    requiresFreshApproval
-                    onChanged={() => {}}
-                    onCompleted={async () => {
-                      const states = await moderation.publicationStates(selectedIds);
-                      await refreshAssignment();
-                      setPublicationStates((current) => ({ ...current, ...states }));
-                      if (selectedIds.every((id) => states[id.toLowerCase()]!.removed)) {
-                        setSelectingProjects(false);
-                        setSelectedProjects([]);
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <>
-                <Tabs
-                  id="teacher-student-status"
-                  label="Student project status"
-                  value={studentTab}
-                  onChange={(value) => {
-                    setStudentTab(value);
-                    setSelectedProjects([]);
-                  }}
-                  items={[
-                    { value: "all", label: "All Students" },
-                    { value: "progress", label: "In Progress" },
-                    { value: "awaiting", label: "Awaiting Approval" },
-                  ]}
-                />
-                {actorId && (
-                  <Button
-                    className="sp-teacher-select-projects"
-                    aria-label="Select student projects"
-                    title="Select student projects"
-                    disabled={!selectableIds.length}
-                    onClick={() => setSelectingProjects(true)}
-                  >
-                    <Icon icon={selectIcon} aria-hidden="true" />
-                  </Button>
-                )}
-              </>
+            <Tabs
+              id="teacher-student-status"
+              label="Student project status"
+              value={studentTab}
+              onChange={(value) => {
+                setStudentTab(value);
+                setSelectedProjects([]);
+              }}
+              items={[
+                { value: "all", label: "All Students" },
+                { value: "progress", label: "In Progress" },
+                { value: "awaiting", label: "Awaiting Approval" },
+              ]}
+            />
+            {actorId && (
+              <SelectionToggle
+                className="sp-teacher-select-projects"
+                selected={selectingProjects}
+                label="Select student projects"
+                title="Select student projects"
+                disabled={!selectingProjects && !selectableIds.length}
+                onClick={() => {
+                  setSelectingProjects(!selectingProjects);
+                  setSelectedProjects([]);
+                }}
+              />
             )}
           </div>
           <div
@@ -547,24 +515,30 @@ export function TeacherProjectDetails({
             aria-labelledby={`teacher-student-status-${studentTab}`}
           >
             {visibleStudents.map((p) => (
-              <div className="sp-teacher-student" key={p.projectId}>
+              <article className="sp-teacher-student" key={p.projectId}>
+                {selectingProjects && (
+                  <input
+                    className="sp-row-select-input"
+                    type="checkbox"
+                    aria-label={`Select ${p.studentName ?? "student"}'s project`}
+                    disabled={!selectableIds.includes(p.projectId)}
+                    checked={selectedIds.includes(p.projectId)}
+                    onChange={(event) =>
+                      setSelectedProjects((current) =>
+                        event.target.checked
+                          ? [...current, p.projectId]
+                          : current.filter((id) => id !== p.projectId),
+                      )
+                    }
+                  />
+                )}
+
                 <div className="sp-teacher-student-identity">
-                  {selectingProjects && (
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${p.studentName ?? "student"}'s project`}
-                      disabled={!selectableIds.includes(p.projectId)}
-                      checked={selectedIds.includes(p.projectId)}
-                      onChange={(event) =>
-                        setSelectedProjects((current) =>
-                          event.target.checked
-                            ? [...current, p.projectId]
-                            : current.filter((id) => id !== p.projectId),
-                        )
-                      }
-                    />
+                  {selectingProjects ? (
+                    <span className="sp-selection-marker" aria-hidden="true" />
+                  ) : (
+                    <Avatar name={p.studentName ?? "Student"} />
                   )}
-                  <Avatar name={p.studentName ?? "Student"} />
                   <div>
                     <strong>{p.studentName ?? "Student name unavailable"}</strong>
                     {p.studentUserName && (
@@ -631,16 +605,13 @@ export function TeacherProjectDetails({
                     </strong>
                   </p>
                 </div>
-                <div className="sp-teacher-student-actions">
+                <fieldset className="sp-teacher-student-actions" disabled={selectingProjects}>
                   <Button
                     variant="primary"
                     disabled={!p.studentName || openingProject !== null}
                     onClick={() => void viewProject(p)}
                   >
-                    {(publicationStates[p.projectId.toLowerCase()]?.publicationCount ??
-                      (p.published ? 1 : 0)) > 0
-                      ? "View Project"
-                      : "View Progress"}
+                    View Progress
                   </Button>
                   {actorId && (
                     <Button
@@ -662,8 +633,8 @@ export function TeacherProjectDetails({
                       requiresFreshApproval
                     />
                   )}
-                </div>
-              </div>
+                </fieldset>
+              </article>
             ))}
             {!visibleStudents.length && (
               <p className="sp-teacher-students-empty" role="status">
@@ -673,6 +644,44 @@ export function TeacherProjectDetails({
               </p>
             )}
           </div>
+          {selectingProjects && (
+            <SelectionBar className="sp-teacher-bulk-bar" label="Student project selection">
+              <div className="sp-selection-summary">
+                <span role="status">
+                  {selectedIds.length ? `${selectedIds.length} selected` : "Select projects"}
+                </span>
+                <button
+                  type="button"
+                  className="sp-select-all-action"
+                  disabled={!selectableIds.length}
+                  onClick={() => setSelectedProjects(allSelected ? [] : selectableIds)}
+                >
+                  <span className="sp-plain-label">{allSelected ? "Clear all" : "Select all"}</span>
+                </button>
+              </div>
+              <div className="sp-teacher-selection-actions">
+                <ProjectModeration
+                  projectId={details.assignmentId}
+                  projectIds={selectedIds}
+                  client={moderation}
+                  state={aggregateState(selectedIds)}
+                  selection
+                  showSelectionCount={false}
+                  requiresFreshApproval
+                  onChanged={() => {}}
+                  onCompleted={async () => {
+                    const states = await moderation.publicationStates(selectedIds);
+                    await refreshAssignment();
+                    setPublicationStates((current) => ({ ...current, ...states }));
+                    if (selectedIds.every((id) => states[id.toLowerCase()]!.removed)) {
+                      setSelectingProjects(false);
+                      setSelectedProjects([]);
+                    }
+                  }}
+                />
+              </div>
+            </SelectionBar>
+          )}
           <p className="sp-teacher-students-note">
             <Icon icon={lockIcon} aria-hidden="true" />
             Only completed, submitted and teacher-approved work can be published.
@@ -687,10 +696,12 @@ export function TeacherProjects({
   session,
   listVersion,
   renderWorkspace,
+  onOpenOrganisation,
 }: {
   session: AccountSession;
   listVersion: number;
   renderWorkspace: RenderWorkspace;
+  onOpenOrganisation?: (href: string) => void;
 }) {
   const [items, setItems] = useState<Item[] | null>(null);
   const [availableClasses, setAvailableClasses] = useState<{ id: string; name: string }[]>([]);
@@ -850,7 +861,7 @@ export function TeacherProjects({
         onDetails: () => {
           lastSelected.current = id;
           history.replaceState(
-            null,
+            history.state,
             "",
             `/home?${new URLSearchParams({
               classId: item.classId,
@@ -870,7 +881,7 @@ export function TeacherProjects({
       onDetails: () => {
         lastSelected.current = project.projectId;
         history.replaceState(
-          null,
+          history.state,
           "",
           `/home?${new URLSearchParams({ projectId: project.projectId })}`,
         );
@@ -888,7 +899,7 @@ export function TeacherProjects({
       {selected && error && <p role="alert">{error}</p>}
       {openingDetails ? (
         <section
-          className="sp-teacher-detail"
+          className="sp-panel-surface sp-teacher-detail"
           aria-busy="true"
           aria-label="Loading project details"
         >
@@ -900,8 +911,12 @@ export function TeacherProjects({
           </div>
           <div className="sp-teacher-columns" aria-hidden="true">
             <div className="sp-teacher-info">
-              <SkeletonBox width="100%" height={102} radius={16} />
-              <SkeletonBox width="70%" height={20} radius={6} />
+              <div className="sp-teacher-project-identity">
+                <div className="sp-teacher-detail-cover">
+                  <SkeletonBox width="100%" height="100%" radius={24} />
+                </div>
+                <SkeletonBox width="60%" height={30} radius={6} />
+              </div>
               <SkeletonBox width="100%" height={180} radius={12} />
             </div>
             <SkeletonBox width="100%" height={300} radius={16} />
@@ -912,7 +927,7 @@ export function TeacherProjects({
           project={selectedStandalone}
           onBack={() => {
             setSelectedStandalone(null);
-            history.replaceState(null, "", "/home");
+            history.replaceState(history.state, "", "/home");
           }}
           onOpen={() =>
             location.assign(`/?projectId=${encodeURIComponent(selectedStandalone.projectId)}`)
@@ -921,6 +936,7 @@ export function TeacherProjects({
       ) : selected ? (
         <TeacherProjectDetails
           item={selected}
+          {...(onOpenOrganisation ? { onOpenOrganisation } : {})}
           actorId={session.userId}
           onUpdated={(details) => applyAssignment(selected.classId, details)}
           onRemoved={() => {
@@ -936,7 +952,7 @@ export function TeacherProjects({
             if (guard.pending || (guard.dirty && !window.confirm("Discard your unsaved feedback?")))
               return;
             setSelected(null);
-            history.replaceState(null, "", "/home");
+            history.replaceState(history.state, "", "/home");
           }}
           onProgress={(context) => location.assign(progressEditorUrl(context))}
         />
@@ -956,7 +972,7 @@ export function TeacherProjects({
       )}
       {showReview &&
         reviewRevision === null &&
-        (error ? <p role="alert">{error}</p> : <p role="status">Loading reviews…</p>)}
+        (error ? <p role="alert">{error}</p> : <LoadingSkeleton label="Loading reviews" />)}
       {showReview && reviewProject && selected && reviewRevision !== null && (
         <ProgressReviews
           projectId={reviewProject.projectId}
@@ -975,7 +991,7 @@ export function TeacherProjects({
           onClose={() => {
             setShowReview(false);
             void refreshAssignment(selected);
-            history.replaceState(null, "", "/home");
+            history.replaceState(history.state, "", "/home");
           }}
         />
       )}

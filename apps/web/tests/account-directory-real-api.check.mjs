@@ -45,7 +45,7 @@ try {
   );
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
   await page.getByLabel("Organisation name", { exact: true }).fill("Museum Studies Studio");
-  await page.getByRole("button", { name: "Create Organisation", exact: true }).click();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
   await page.waitForURL(/\/organisations\?organisation=[a-f0-9-]{36}$/);
   await page.getByRole("heading", { name: "Museum Studies Studio", exact: true }).waitFor();
   await page.getByText("No accounts yet.", { exact: false }).waitFor();
@@ -59,8 +59,23 @@ try {
     }
   }
   await page.getByRole("button", { name: "Close organisation", exact: true }).click();
+  await page.getByRole("button", { name: "Add Organisation", exact: true }).click();
+  await page.getByLabel("Organisation name", { exact: true }).fill("Directory Studio");
+  const created = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/v1/admin/organizations" &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  const receipt = await (await created).json();
+  await page.waitForURL(origin + "/organisations?organisation=" + receipt.id);
+  await page.getByRole("heading", { name: "Directory Studio", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Add Accounts", exact: true }).click();
+  await page.getByRole("dialog", { name: "Account Creation" }).waitFor();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Close organisation", exact: true }).click();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
-  await page.getByRole("button", { name: "+ Add Accounts" }).click();
+  await page.getByRole("button", { name: "Add Accounts" }).click();
   let dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name", { exact: true }).fill("Browser Created");
   await dialog.getByLabel("Username", { exact: true }).fill("browser.created");
@@ -126,7 +141,7 @@ try {
     importOrganizationId = new URL(route.request().url()).pathname.split("/").at(-3);
     await route.abort("failed");
   });
-  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  await page.getByRole("button", { name: "Add Accounts", exact: true }).click();
   let importer = page.getByRole("dialog", { name: "Account Creation", exact: true });
   const picker = page.waitForEvent("filechooser");
   await importer.getByRole("button", { name: "Upload CSV", exact: true }).click();

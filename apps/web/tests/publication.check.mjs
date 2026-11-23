@@ -106,6 +106,11 @@ try {
   await page.goto(`${origin}/publish?projectId=${projectId}`);
   await page.getByRole("heading", { name: "Publish project" }).waitFor();
   await page.getByText("Saved exhibition", { exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole("listbox").isVisible(),
+    false,
+    "Collapsed audience options stay hidden",
+  );
   const qr = page.getByRole("img", { name: /QR code/i });
   assert.equal(await qr.count(), 0, "No QR code before publication succeeds");
   assert.equal(await page.getByText(/revision 4/i).isVisible(), true);
@@ -267,9 +272,15 @@ try {
   // Anonymous audience choices carry no stale named viewers and require fresh confirmation
   for (const audience of ["Public", "Unlisted"]) {
     await page.reload();
+    assert.equal(await page.getByRole("listbox").isVisible(), false);
+    await page.getByRole("combobox", { name: "Who can open this publication" }).click();
     await page
-      .getByRole("combobox", { name: "Who can open this publication" })
-      .selectOption(audience);
+      .getByRole("option", {
+        name: audience === "Public" ? "Anyone without signing in" : "Anyone with the link",
+        exact: true,
+      })
+      .click();
+    assert.equal(await page.getByRole("listbox").isVisible(), false);
     assert.equal(await page.getByRole("checkbox", { name: "Student 1", exact: true }).count(), 0);
     await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
     outcome = "conflict";

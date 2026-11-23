@@ -15,7 +15,7 @@ export function createAssetAdministrationService(
   const unknownWrite = {
     ok: false,
     kind: "unknown",
-    message: "The change may have been applied. Check the asset list before trying again.",
+    message: "The change may have completed. Check the library before trying again.",
   } as const;
   async function requestLocked<T>(
     path: string,

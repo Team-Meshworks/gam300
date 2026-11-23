@@ -3,6 +3,7 @@
   --login-redirect-surface: #fff;
 }
 .entry-page {
+  width: 100vw;
   color: #1f1b17;
   background: #fffdfa;
 }
@@ -129,7 +130,6 @@
 .landing-hero h1 {
   font-size: 72px;
   line-height: 82px;
-  letter-spacing: -2px;
 }
 .landing-hero-copy > p {
   font-size: 20px;
@@ -188,7 +188,6 @@
 .landing-section-heading h2 {
   font-size: 44px;
   line-height: 52px;
-  letter-spacing: -1px;
 }
 .landing-section-heading > p:not(.entry-eyebrow) {
   font-size: 18px;
@@ -409,7 +408,6 @@
 .login-welcome h1 {
   font-size: 48px;
   line-height: 56px;
-  letter-spacing: -1px;
 }
 .login-welcome > p:last-child {
   font-size: 16px;
@@ -653,7 +651,6 @@
   .landing-hero h1 {
     font-size: 44px;
     line-height: 52px;
-    letter-spacing: -1px;
   }
   .landing-hero-visual {
     height: 580px;

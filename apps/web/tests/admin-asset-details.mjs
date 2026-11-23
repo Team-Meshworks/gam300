@@ -85,7 +85,7 @@ export async function checkAdminAssets(page, origin) {
     await dialog.getByRole("button", { name: "Confirm Delete", exact: true }).click();
     await dialog.waitFor({ state: "hidden" });
   }
-  await page.getByRole("button", { name: "Deleted (3)", exact: true }).click();
+  await page.getByRole("tab", { name: "Deleted (3)", exact: true }).click();
   const select = (name) => page.getByRole("checkbox", { name: "Select " + name, exact: true });
   await select("all visible assets").check();
   await select("Gallery Soundtrack").uncheck();
@@ -112,7 +112,7 @@ export async function checkAdminAssets(page, origin) {
   assert.notEqual(removals[0], removals[1]);
   assert.equal(removals[1], removals[2]);
   await page.reload();
-  await page.getByRole("button", { name: "Deleted (3)", exact: true }).click();
+  await page.getByRole("tab", { name: "Deleted (3)", exact: true }).click();
   await card("Handling Crate").getByText("Permanently deleted", { exact: true }).waitFor();
   await card("North Gallery Bench").getByText("Permanently deleted", { exact: true }).waitFor();
   assert.ok(await select("Gallery Soundtrack").isEnabled());

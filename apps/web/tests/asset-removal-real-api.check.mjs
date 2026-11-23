@@ -93,7 +93,7 @@ try {
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   await page.goto(origin + "/spaces");
-  await page.getByRole("button", { name: /^Deleted \(/ }).click();
+  await page.getByRole("tab", { name: /^Deleted\b/ }).click();
   const card = page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: "Receipt race room", exact: true }) });
@@ -123,7 +123,7 @@ try {
     "Catalogue GET really completed before commit",
   );
   await page.goto(origin + "/spaces");
-  await page.getByRole("button", { name: /^Deleted \(/ }).click();
+  await page.getByRole("tab", { name: /^Deleted\b/ }).click();
   const path = await Promise.race([
     reconciling,
     card
@@ -134,7 +134,7 @@ try {
       }),
   ]);
   assert.equal(path, `/api/v1/admin/assets/${assetId}/removals/${operationId}/reconcile`);
-  await page.getByRole("status", { name: "Loading assets" }).waitFor();
+  await page.getByRole("status", { name: "Loading 3d spaces" }).waitFor();
   assert.equal(await card.getByRole("button").count(), 0);
   assert.equal(removals, 1, "No fresh removal may be sent before the first outcome is resolved");
   await writeFile(join(sync, "release"), "release");
@@ -143,7 +143,7 @@ try {
   assert.equal(result.preference, "spatia-created-status");
   assert.equal(result.operation, operationId);
   await page.reload();
-  await page.getByRole("button", { name: /^Deleted \(/ }).click();
+  await page.getByRole("tab", { name: /^Deleted\b/ }).click();
   await card.getByRole("button").click();
   await dialog
     .getByText("Removed from projects. Affected published exhibitions are permanently unavailable.")

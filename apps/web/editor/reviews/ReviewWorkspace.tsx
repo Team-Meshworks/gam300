@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { useEffect, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
@@ -97,9 +98,7 @@ export function ReviewWorkspace({
           </div>
         )}
         {loading ? (
-          <p className="sp-list-empty" role="status">
-            Loading your classes…
-          </p>
+          <LoadingSkeleton label="Loading your classes" layout="cards" />
         ) : !error && classes.length === 0 ? (
           <p className="sp-list-empty" role="status">
             No classes are available to your account.
@@ -210,7 +209,7 @@ function ClassReviews({
       : (students.find((s) => s.userId === studentId)?.userName ?? "Student " + studentId);
   return (
     <div className="sp-reviews">
-      {loading && <p role="status">Loading assignments…</p>}
+      {loading && <LoadingSkeleton label="Loading assignments" />}
       {!loading && !error && projectId && !selectedProject && (
         <p role="alert">This project is no longer available in the selected assignment.</p>
       )}

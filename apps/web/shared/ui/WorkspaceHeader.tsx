@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { SkeletonBox } from "skullet/react";
 import { Icon } from "@iconify/react/offline";
 import landmark from "@iconify-icons/lucide/landmark";
 import { Avatar } from "./Avatar";
@@ -55,8 +56,19 @@ export function WorkspaceHeader({
         <span className="sp-header-mark">
           <Icon icon={landmark} width={22} aria-hidden="true" />
         </span>
-        Spatia
+        <span className="sp-header-wordmark">Spatia</span>
       </a>
+      {!account && locked && (
+        <div className="sp-header-account" aria-hidden="true">
+          <SkeletonBox
+            width="var(--header-account-size)"
+            height="var(--header-account-size)"
+            radius={16}
+          />
+          <SkeletonBox width="clamp(36px, 8vw, 90px)" height={14} radius={4} />
+          <SkeletonBox width={68} height="var(--header-account-size)" radius={8} />
+        </div>
+      )}
       {account && (
         <div className="sp-header-account">
           <Avatar
