@@ -1,9 +1,8 @@
+import "../../shared/ui/inter-font.css";
 import { createRoot } from "react-dom/client";
-import {
-  AssignmentCreationScreen,
-  AssignmentDetailsScreen,
-  AssignmentListScreen,
-} from "../projects/AssignmentScreens";
+import { AssignmentCreationScreen } from "../projects/AssignmentCreationScreen";
+import { AssignmentDetailsScreen } from "../projects/AssignmentDetailsScreen";
+import { AssignmentListScreen } from "../projects/AssignmentListScreen";
 import "../../shared/ui/foundation.css";
 
 const parameters = new URLSearchParams(location.search);

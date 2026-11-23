@@ -1,14 +1,16 @@
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { useEffect, useRef, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
-import { AssignmentListScreen } from "../projects/AssignmentScreens";
+import { AssignmentListScreen } from "../projects/AssignmentListScreen";
 import { Icon } from "@iconify/react/offline";
 import closeIcon from "@iconify-icons/lucide/x";
+import plusIcon from "@iconify-icons/lucide/plus";
+import refreshIcon from "@iconify-icons/lucide/refresh-cw";
 import { Select } from "../../shared/ui/Select";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { Dialog } from "../../shared/ui/Dialog";
-import { PageState } from "../../shared/ui/PageState";
 import { Table } from "../../shared/ui/Table";
 import {
   classroom,
@@ -58,7 +60,13 @@ export function ClassHome({
   const [organizationError, setOrganizationError] = useState("");
   const [dialog, setDialog] = useState<
     "create" | { userId: string; name: string; enrolled: boolean } | null
-  >(null);
+  >(() =>
+    session.role === "Educator" &&
+    session.orgId &&
+    new URLSearchParams(location.search).get("create") === "1"
+      ? "create"
+      : null,
+  );
   const [phase, setPhase] = useState<"ready" | "pending" | "unknown">("ready");
   const [notice, setNotice] = useState("");
   const busy = useRef(false);
@@ -199,18 +207,8 @@ export function ClassHome({
   return (
     <section
       aria-label="Classes"
-      className={`sp-class-home${organisationView ? " sp-organisation-view" : ""}`}
+      className={`sp-class-home${organisationView ? " sp-organisation-view sp-panel-surface" : ""}`}
     >
-      {organisationView && (
-        <Button
-          className="sp-close-button sp-organisation-close"
-          aria-label="Close organisation"
-          disabled={phase === "pending"}
-          onClick={onClose}
-        >
-          <Icon icon={closeIcon} aria-hidden="true" />
-        </Button>
-      )}
       <div className="sp-page-heading sp-between">
         <div>
           <h1>{organisationView ? "Organisation Details" : "Classes"}</h1>
@@ -220,7 +218,17 @@ export function ClassHome({
               : "Find your class, assignments and instructions."}
           </p>
         </div>
-        {manager && (
+        {organisationView && (
+          <Button
+            className="sp-close-button sp-organisation-close"
+            aria-label="Close organisation"
+            disabled={phase === "pending"}
+            onClick={onClose}
+          >
+            <Icon icon={closeIcon} aria-hidden="true" />
+          </Button>
+        )}
+        {manager && !organisationView && (
           <div className="sp-actions">
             <Button
               variant="primary"
@@ -243,15 +251,39 @@ export function ClassHome({
         </div>
       )}
       <div className="sp-home-toolbar">
-        {organisationView ? (
+        {session.role === "Educator" ? (
           <Select
             label="Class"
             value={classId}
-            placeholder="Select a class"
+            placeholder={
+              classes === null
+                ? error
+                  ? "Unavailable"
+                  : "Loading…"
+                : classes.length
+                  ? "Select a class"
+                  : "No classes"
+            }
             options={classes?.map((row) => ({ value: row.id, label: row.name })) ?? []}
             disabled={!classes?.length}
             className="sp-organisation-class-select"
-            menuClassName="sp-organisation-class-menu"
+            menuClassName={`sp-organisation-class-menu${organisationView ? "" : " sp-legacy-class-menu"}`}
+            onChange={(value) => {
+              setClassId(value);
+              setRosterError("");
+            }}
+          />
+        ) : session.role === "Administrator" ? (
+          <Select
+            label="Class"
+            className="sp-field sp-admin-select"
+            menuClassName="sp-admin-select-menu"
+            value={classId}
+            disabled={!classes?.length}
+            options={[
+              { value: "", label: "Choose a class" },
+              ...(classes?.map((row) => ({ value: row.id, label: row.name })) ?? []),
+            ]}
             onChange={(value) => {
               setClassId(value);
               setRosterError("");
@@ -276,22 +308,54 @@ export function ClassHome({
             </select>
           </Field>
         )}
-        {organisationView && <Button onClick={openClassForm}>New Class</Button>}
+        {(organisationView || session.role === "Educator") && (
+          <Button
+            variant="primary"
+            className="sp-class-create-action"
+            disabled={session.role === "Educator" && !session.orgId}
+            onClick={openClassForm}
+          >
+            <Icon icon={plusIcon} width={16} aria-hidden="true" />
+            <span className="sp-button-label">New Class</span>
+          </Button>
+        )}
         <Button
+          variant="secondary"
+          className="sp-class-refresh-action"
           onClick={() => {
             setRosterError("");
             setRefresh((value) => value + 1);
           }}
         >
-          {organisationView ? "Refresh" : "Refresh classes"}
+          <Icon icon={refreshIcon} width={16} aria-hidden="true" />
+          <span className="sp-button-label">
+            {organisationView ? "Refresh" : "Refresh classes"}
+          </span>
         </Button>
       </div>
       {error ? (
         <p role="alert">{error}</p>
       ) : !classes ? (
-        <PageState state="loading" onRetry={() => {}} />
+        organisationView ? (
+          <>
+            <div className="sp-class-assignments">
+              <LoadingSkeleton label="Loading class projects" />
+            </div>
+            <div className="sp-card">
+              <LoadingSkeleton label="Loading class members" />
+            </div>
+          </>
+        ) : (
+          <LoadingSkeleton label="Loading classes" />
+        )
       ) : classes.length === 0 ? (
-        <p role="status">No classes are available for your account.</p>
+        <p role="status">
+          {session.role === "Educator" && !session.orgId
+            ? "Your account is not assigned to an organisation. Ask your administrator to assign one before creating a class."
+            : session.role === "Educator"
+              ? "No classes yet. Choose New Class to create one, then add existing students."
+              : "No classes are available for your account."}
+        </p>
       ) : null}
       {notice && !dialog && (
         <p role="status" className="sp-home-notice">
@@ -301,6 +365,22 @@ export function ClassHome({
       {classId && classes?.some((row) => row.id === classId) && (
         <>
           <div className="sp-class-assignments">
+            {organisationView && (
+              <div className="sp-class-project-heading">
+                <h2>Class Projects</h2>
+                {manager && (
+                  <Button
+                    className="sp-class-project-create"
+                    onClick={() =>
+                      location.assign(`/new-project?${new URLSearchParams({ classId })}`)
+                    }
+                  >
+                    <Icon icon={plusIcon} width={16} aria-hidden="true" />
+                    <span className="sp-button-label">New Project</span>
+                  </Button>
+                )}
+              </div>
+            )}
             <AssignmentListScreen
               key={`${classId}:${refresh}`}
               classId={classId}
@@ -326,7 +406,7 @@ export function ClassHome({
               {rosterError ? (
                 <p role="alert">{rosterError}</p>
               ) : !currentRoster ? (
-                <p role="status">Loading roster…</p>
+                <LoadingSkeleton label="Loading roster" />
               ) : (
                 <>
                   <Table
@@ -430,8 +510,14 @@ export function ClassHome({
       )}
       {dialog && active && (
         <Dialog
-          {...(organisationView
-            ? { variant: "admin" as const, className: "sp-organisation-dialog" }
+          {...(organisationView || (session.role === "Educator" && dialog === "create")
+            ? {
+                variant: "admin" as const,
+                className:
+                  dialog === "create"
+                    ? "sp-class-form-dialog sp-dialog--form"
+                    : "sp-organisation-dialog",
+              }
             : {})}
           title={
             dialog === "create"
@@ -494,7 +580,7 @@ export function ClassHome({
                       (organizationError ? (
                         <p role="alert">{organizationError}</p>
                       ) : organizations === null ? (
-                        <p role="status">Loading organisations…</p>
+                        <LoadingSkeleton label="Loading organisations" />
                       ) : !organizations.length ? (
                         <p role="status">No active organisations are available.</p>
                       ) : null)}
@@ -507,33 +593,35 @@ export function ClassHome({
                   </p>
                 )}
                 {notice && <p role="alert">{notice}</p>}
-                {organisationView && (
+                <div className="sp-actions sp-form-dialog-actions">
+                  {(organisationView || (session.role === "Educator" && dialog === "create")) && (
+                    <Button
+                      disabled={phase === "pending"}
+                      onClick={() => {
+                        setDialog(null);
+                        setPhase("ready");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
                   <Button
-                    disabled={phase === "pending"}
-                    onClick={() => {
-                      setDialog(null);
-                      setPhase("ready");
-                    }}
+                    type="submit"
+                    variant="primary"
+                    disabled={
+                      dialog === "create" &&
+                      (!name.trim() || (session.role === "Administrator" && !organizationId))
+                    }
                   >
-                    Cancel
+                    {phase === "pending"
+                      ? "Saving…"
+                      : organisationView
+                        ? dialog === "create"
+                          ? "Create Class"
+                          : "Add to Class"
+                        : "Confirm"}
                   </Button>
-                )}
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={
-                    dialog === "create" &&
-                    (!name.trim() || (session.role === "Administrator" && !organizationId))
-                  }
-                >
-                  {phase === "pending"
-                    ? "Saving…"
-                    : organisationView
-                      ? dialog === "create"
-                        ? "Create Class"
-                        : "Add to Class"
-                      : "Confirm"}
-                </Button>
+                </div>
               </fieldset>
             </form>
           )}
