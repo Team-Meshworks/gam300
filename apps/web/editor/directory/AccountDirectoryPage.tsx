@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { AddOrganizationDialog } from "./AddOrganizationDialog";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createDashboardClient } from "../admin/dashboard-client";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
@@ -20,8 +21,8 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
   const [publications] = useState(() => createDashboardClient(accountId));
   const [organizations, setOrganizations] = useState<ManagedOrganization[] | null>(null);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(() =>
-    new URLSearchParams(window.location.search).get("organisation"),
+  const [selected, setSelected] = useState(
+    () => new URLSearchParams(window.location.search).get("organisation")?.toLowerCase() ?? null,
   );
   const [accounts, setAccounts] = useState<ManagedAccount[]>([]);
   const [projects, setProjects] = useState<ManagedProject[]>([]);
@@ -31,18 +32,42 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
   const [detailError, setDetailError] = useState("");
   const [projectError, setProjectError] = useState("");
   const [notice, setNotice] = useState("");
-  const [hidingStudents, setHidingStudents] = useState<ManagedAccount[]>([]);
-  const [deletingStudents, setDeletingStudents] = useState<ManagedAccount[]>([]);
+  const [hidingAccounts, setHidingAccounts] = useState<ManagedAccount[]>([]);
+  const [deletingAccounts, setDeletingAccounts] = useState<ManagedAccount[]>([]);
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState<ManagedAccount | "create" | null>(null);
+  const [addingOrganization, setAddingOrganization] = useState(false);
   const [preview, setPreview] = useState<{ title: string; body: ReactNode } | null>(null);
   const [toggle, setToggle] = useState<ManagedAccount | null>(null);
   const [deletingAccount, setDeletingAccount] = useState<ManagedAccount | null>(null);
   const [toggleOrganization, setToggleOrganization] = useState<ManagedOrganization | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const pending = useRef(false);
-  const selection = useRef(selected);
+  const select = useCallback((id: string | null) => {
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set("organisation", id);
+    else url.searchParams.delete("organisation");
+    window.history.replaceState(window.history.state, "", url);
+    // Returning from organisation details refreshes totals after any account changes
+    if (id === null) {
+      setLoading(true);
+      setAttempt((value) => value + 1);
+    }
+    setSelected(id);
+    setAccounts([]);
+    setProjects([]);
+    setDetailLoading(Boolean(id));
+    setDetailError("");
+    setProjectError("");
+    setNotice("");
+    setModal(null);
+    setToggle(null);
+    setDeleting(null);
+    setToggleOrganization(null);
+    setDeletingAccount(null);
+    setDeletingAccounts([]);
+  }, []);
   useEffect(() => {
     let disposed = false;
 
@@ -55,6 +80,15 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
               setOrganizations(items);
               setError("");
               setLoading(false);
+              const requested = new URLSearchParams(window.location.search).get("organisation");
+              if (
+                requested &&
+                !query.trim() &&
+                !items.some((row) => row.id.toLowerCase() === requested.toLowerCase())
+              ) {
+                select(null);
+                setNotice("This organisation is no longer available. Showing all organisations.");
+              }
             }
           },
           (reason) => {
@@ -71,7 +105,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
       disposed = true;
       window.clearTimeout(timer);
     };
-  }, [attempt, client, query]);
+  }, [attempt, client, query, select]);
   useEffect(() => {
     if (!selected) return;
     let disposed = false;
@@ -99,31 +133,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
       disposed = true;
     };
   }, [selected, attempt, client, publications]);
-  function select(id: string | null) {
-    const url = new URL(window.location.href);
-    if (id) url.searchParams.set("organisation", id);
-    else url.searchParams.delete("organisation");
-    window.history.replaceState(window.history.state, "", url);
-    // Returning from organisation details refreshes totals after any account changes
-    if (id === null) {
-      setLoading(true);
-      setAttempt((value) => value + 1);
-    }
-    selection.current = id;
-    setSelected(id);
-    setAccounts([]);
-    setProjects([]);
-    setDetailLoading(Boolean(id));
-    setDetailError("");
-    setProjectError("");
-    setNotice("");
-    setModal(null);
-    setToggle(null);
-    setDeleting(null);
-    setToggleOrganization(null);
-    setDeletingAccount(null);
-    setDeletingStudents([]);
-  }
+
   function refresh() {
     setError("");
     setDetailError("");
@@ -131,22 +141,6 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
     setDetailLoading(Boolean(selected));
     if (!selected) setLoading(true);
     setAttempt((value) => value + 1);
-  }
-  async function view(id: string) {
-    if (pending.current) return;
-    pending.current = true;
-    setBusy(true);
-    setNotice("");
-    const orgId = selected;
-    try {
-      const account = await client.getAccount(id);
-      if (selection.current === orgId && account.orgId === orgId) setModal(account);
-    } catch (reason) {
-      setNotice(message(reason));
-    } finally {
-      pending.current = false;
-      setBusy(false);
-    }
   }
   async function save(values: NewAccount | AccountChanges) {
     if (!selected || !modal) return;
@@ -202,18 +196,18 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
       setBusy(false);
     }
   }
-  async function hideStudents() {
-    if (!selected || !hidingStudents.length || pending.current) return;
+  async function hideAccounts() {
+    if (!selected || !hidingAccounts.length || pending.current) return;
     pending.current = true;
     setBusy(true);
     setNotice("");
     try {
-      const ids = hidingStudents.map((account) => account.userId);
-      await client.hideStudents(selected, ids);
+      const ids = hidingAccounts.map((account) => account.userId);
+      await client.hideAccounts(selected, ids);
       setAccounts((rows) =>
         rows.map((row) => (ids.includes(row.userId) ? { ...row, isActive: false } : row)),
       );
-      setHidingStudents([]);
+      setHidingAccounts([]);
     } catch (reason) {
       setNotice(message(reason));
     } finally {
@@ -221,16 +215,16 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
       setBusy(false);
     }
   }
-  async function deleteStudents() {
-    if (!selected || !deletingStudents.length || pending.current) return;
+  async function deleteAccounts() {
+    if (!selected || !deletingAccounts.length || pending.current) return;
     pending.current = true;
     setBusy(true);
     setNotice("");
     try {
-      const ids = deletingStudents.map((account) => account.userId);
-      await client.deleteStudents(selected, ids);
+      const ids = deletingAccounts.map((account) => account.userId);
+      await client.deleteAccounts(selected, ids);
       setAccounts((rows) => rows.filter((row) => !ids.includes(row.userId)));
-      setDeletingStudents([]);
+      setDeletingAccounts([]);
     } catch (reason) {
       setNotice(message(reason));
     } finally {
@@ -265,7 +259,6 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
     }
   }
   const organization = organizations?.find((row) => row.id === selected);
-  if (loading && organizations === null) return <p role="status">Loading organisations…</p>;
   if (error && organizations === null)
     return (
       <div>
@@ -278,6 +271,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
       {notice && <p role="status">{notice}</p>}
       <OrganizationDirectory
         administration
+        onCreate={() => setAddingOrganization(true)}
         searchQuery={query}
         onSearch={(value) => {
           if (value === query) {
@@ -289,6 +283,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
         }}
         searching={loading}
         searchError={error}
+        onRetrySearch={refresh}
         organizations={(organizations ?? []).map((row) => ({
           id: row.id,
           name: row.name,
@@ -324,26 +319,23 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
         onPreview={(title, body) => setPreview({ title, body })}
         accountActions={{
           onCreate: () => setModal("create"),
-          onView: (id) => void view(id),
+          onView: (id) => {
+            setNotice("");
+            setModal(accounts.find((account) => account.userId === id) ?? null);
+          },
           onToggleActive: (id) => {
             setNotice("");
             setToggle(accounts.find((row) => row.userId === id) ?? null);
           },
-          onHideStudents: (ids) => {
+          onHideAccounts: (ids) => {
             if (pending.current) return;
             setNotice("");
-            setHidingStudents(
-              accounts.filter(
-                (row) => row.role === "Creator" && row.isActive && ids.includes(row.userId),
-              ),
-            );
+            setHidingAccounts(accounts.filter((row) => row.isActive && ids.includes(row.userId)));
           },
-          onDeleteStudents: (ids) => {
+          onDeleteAccounts: (ids) => {
             if (pending.current) return;
             setNotice("");
-            setDeletingStudents(
-              accounts.filter((row) => row.role === "Creator" && ids.includes(row.userId)),
-            );
+            setDeletingAccounts(accounts.filter((row) => ids.includes(row.userId)));
           },
           onDelete: (id) => {
             setNotice("");
@@ -353,10 +345,25 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
           canCreate: organization?.isActive === true,
         }}
       />
-      {(detailError || projectError) && <Button onClick={refresh}>Retry organisation</Button>}
+      {organization && (detailError || projectError) && (
+        <Button onClick={refresh}>Retry organisation</Button>
+      )}
+      {addingOrganization && (
+        <AddOrganizationDialog
+          client={publications}
+          onClose={() => setAddingOrganization(false)}
+          onCreated={(name) => {
+            setAddingOrganization(false);
+            setQuery("");
+            refresh();
+            setNotice(`${name} created. Open the organisation to add its first account.`);
+          }}
+        />
+      )}
       {deleting && (
         <DeleteOrganizationDialog
           organizationId={deleting}
+          organizationName={organization?.name ?? "this organisation"}
           client={client}
           onClose={() => setDeleting(null)}
           onDeleted={(name) => {
@@ -369,6 +376,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
       {modal && organization && (
         <AccountDialog
           account={modal === "create" ? undefined : modal}
+          loadAccount={client.getAccount}
           organizationName={organization.name}
           onClose={() => setModal(null)}
           onSave={save}
@@ -385,13 +393,13 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
           {preview.body}
         </Dialog>
       )}
-      {hidingStudents.length > 0 && (
+      {hidingAccounts.length > 0 && (
         <Dialog
-          title={`Hide ${hidingStudents.length} creator account${hidingStudents.length === 1 ? "" : "s"}?`}
+          title={`Hide ${hidingAccounts.length} account${hidingAccounts.length === 1 ? "" : "s"}?`}
           variant="admin"
           className="sp-account-confirmation"
           onClose={() => {
-            if (!pending.current) setHidingStudents([]);
+            if (!pending.current) setHidingAccounts([]);
           }}
         >
           <p>
@@ -399,23 +407,23 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
             kept. You can show the accounts again later.
           </p>
           <div className="sp-actions sp-confirmation-actions">
-            <Button disabled={busy} onClick={() => setHidingStudents([])}>
+            <Button disabled={busy} onClick={() => setHidingAccounts([])}>
               Cancel
             </Button>
-            <Button variant="primary" disabled={busy} onClick={() => void hideStudents()}>
+            <Button variant="primary" disabled={busy} onClick={() => void hideAccounts()}>
               {busy ? "Hiding…" : "Hide Accounts"}
             </Button>
           </div>
           {notice && <p role="alert">{notice}</p>}
         </Dialog>
       )}
-      {deletingStudents.length > 0 && (
+      {deletingAccounts.length > 0 && (
         <Dialog
-          title={`Delete ${deletingStudents.length} creator account${deletingStudents.length === 1 ? "" : "s"}?`}
+          title={`Delete ${deletingAccounts.length} account${deletingAccounts.length === 1 ? "" : "s"}?`}
           variant="admin"
           className="sp-account-confirmation"
           onClose={() => {
-            if (!pending.current) setDeletingStudents([]);
+            if (!pending.current) setDeletingAccounts([]);
           }}
         >
           <p>
@@ -423,17 +431,17 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
             history will be retained.
           </p>
           <div className="sp-actions sp-confirmation-actions">
-            <Button disabled={busy} onClick={() => setDeletingStudents([])}>
+            <Button disabled={busy} onClick={() => setDeletingAccounts([])}>
               Cancel
             </Button>
             <Button
               className="sp-button--danger"
               disabled={busy}
-              onClick={() => void deleteStudents()}
+              onClick={() => void deleteAccounts()}
             >
               {busy
                 ? "Deleting…"
-                : `Delete ${deletingStudents.length} account${deletingStudents.length === 1 ? "" : "s"}`}
+                : `Delete ${deletingAccounts.length} account${deletingAccounts.length === 1 ? "" : "s"}`}
             </Button>
           </div>
           {notice && <p role="alert">{notice}</p>}

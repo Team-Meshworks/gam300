@@ -249,16 +249,16 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
     },
     update: async (userId: string, values: AccountChanges) =>
       account(await write(`/api/v1/admin/users/${encodeURIComponent(userId)}`, "PATCH", values)),
-    hideStudents: (orgId: string, userIds: string[]) =>
+    hideAccounts: (orgId: string, userIds: string[]) =>
       write(
-        `/api/v1/admin/organizations/${encodeURIComponent(orgId)}/students/hide`,
+        `/api/v1/admin/organizations/${encodeURIComponent(orgId)}/accounts/hide`,
         "POST",
         { userIds },
         90000,
       ),
-    deleteStudents: (orgId: string, userIds: string[]) =>
+    deleteAccounts: (orgId: string, userIds: string[]) =>
       write(
-        `/api/v1/admin/organizations/${encodeURIComponent(orgId)}/students/delete`,
+        `/api/v1/admin/organizations/${encodeURIComponent(orgId)}/accounts/delete`,
         "POST",
         { userIds },
         90000,

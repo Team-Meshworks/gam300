@@ -1,11 +1,14 @@
+import { SelectionToggle } from "../../shared/ui/SelectionToggle";
+import addAccountIcon from "@iconify-icons/lucide/user-plus";
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { Icon as UiIcon } from "@iconify/react/offline";
 import closeIcon from "@iconify-icons/lucide/x";
 import faEye from "@iconify-icons/lucide/eye";
 import faEyeSlash from "@iconify-icons/lucide/eye-off";
 import faTrashCan from "@iconify-icons/lucide/trash-2";
-import selectAccountsIcon from "@iconify-icons/lucide/square-check";
 import { useState, type ReactNode } from "react";
 import { Avatar } from "../../shared/ui/Avatar";
+import { SelectionBar } from "../../shared/ui/SelectionBar";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
 import { Tabs } from "../../shared/ui/Tabs";
@@ -16,8 +19,8 @@ export interface AccountActions {
   onView: (id: string) => void;
   onToggleActive: (id: string) => void;
   onDelete?: (id: string) => void;
-  onDeleteStudents?: (ids: string[]) => void;
-  onHideStudents?: (ids: string[]) => void;
+  onDeleteAccounts?: (ids: string[]) => void;
+  onHideAccounts?: (ids: string[]) => void;
   busy: boolean;
   canCreate: boolean;
 }
@@ -42,25 +45,25 @@ export function AccountList({
 }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [accountCount, setAccountCount] = useState(accounts.length);
   const [selecting, setSelecting] = useState(false);
-  const [selectionHeight, setSelectionHeight] = useState(36);
   const [role, setRole] = useState<"All" | "Students" | "Teachers">("All");
   const visible = accounts.filter(
     (account) =>
       (role === "All" || account.role === role) &&
       `${account.name} ${account.account}`.toLowerCase().includes(query.trim().toLowerCase()),
   );
-  const students = visible.filter((account) => account.role === "Students");
-  const picked = students.filter((account) => selected.includes(account.id));
-  const allSelected = students.length > 0 && picked.length === students.length;
-  const selectionAvailable = administration && Boolean(actions?.onDeleteStudents);
+  const selectable = visible;
+  const picked = selectable.filter((account) => selected.includes(account.id));
+  const allSelected = selectable.length > 0 && picked.length === selectable.length;
+  const selectionAvailable = administration && Boolean(actions?.onDeleteAccounts);
   const canSelect = selectionAvailable && selecting;
-  if (
-    selected.length > 0 &&
-    selected.every((id) => !accounts.some((account) => account.id === id))
-  ) {
-    setSelected([]);
-    setSelecting(false);
+  if (accountCount !== accounts.length) {
+    setAccountCount(accounts.length);
+    if (accounts.length < accountCount) {
+      setSelected([]);
+      setSelecting(false);
+    }
   }
   function clearSelection() {
     setSelected([]);
@@ -93,7 +96,7 @@ export function AccountList({
             </Button>
           )}
         </div>
-        <div className="sp-account-list-toolbar" hidden={canSelect}>
+        <div className="sp-account-list-toolbar">
           <Tabs
             id="account-tabs"
             label="Account roles"
@@ -103,50 +106,33 @@ export function AccountList({
               clearSelection();
             }}
             items={[
-              { value: "All", label: actions ? `All Accounts (${accounts.length})` : "All" },
+              {
+                value: "All",
+                label: actions
+                  ? `All Accounts${loading || error ? "" : ` (${accounts.length})`}`
+                  : "All",
+              },
               {
                 value: "Students",
                 label: actions
-                  ? `Creators (${accounts.filter((row) => row.role === "Students").length})`
+                  ? `Creators${loading || error ? "" : ` (${accounts.filter((row) => row.role === "Students").length})`}`
                   : "Students",
               },
               {
                 value: "Teachers",
                 label: actions
-                  ? `Facilitators (${accounts.filter((row) => row.role === "Teachers").length})`
+                  ? `Facilitators${loading || error ? "" : ` (${accounts.filter((row) => row.role === "Teachers").length})`}`
                   : "Teachers",
               },
             ]}
           />
           {actions && (
             <div className="sp-account-toolbar-actions">
-              {selectionAvailable && (
-                <Button
-                  className="sp-account-select-action"
-                  aria-pressed={selecting}
-                  aria-label={selecting ? "Done" : "Select accounts"}
-                  title={selecting ? "Done selecting accounts" : "Select accounts"}
-                  disabled={
-                    loading ||
-                    Boolean(error) ||
-                    actions.busy ||
-                    (!selecting && students.length === 0)
-                  }
-                  onClick={(event) => {
-                    setSelectionHeight(
-                      event.currentTarget
-                        .closest(".sp-account-list-toolbar")
-                        ?.getBoundingClientRect().height ?? 36,
-                    );
-                    setSelecting(true);
-                    clearSelection();
-                  }}
-                >
-                  <UiIcon icon={selecting ? closeIcon : selectAccountsIcon} aria-hidden="true" />
-                </Button>
-              )}
               <Button
-                variant="primary"
+                variant="quiet"
+                className="sp-account-add"
+                aria-label="Add Accounts"
+                title="Add accounts"
                 disabled={loading || Boolean(error) || actions.busy || !actions.canCreate}
                 onClick={() => {
                   setSelecting(false);
@@ -154,79 +140,34 @@ export function AccountList({
                   actions.onCreate();
                 }}
               >
-                + Add Accounts
+                <UiIcon icon={addAccountIcon} aria-hidden="true" width={20} height={20} />
               </Button>
+              {selectionAvailable && (
+                <SelectionToggle
+                  selected={selecting}
+                  label="Select accounts"
+                  title="Select multiple accounts"
+                  disabled={
+                    loading ||
+                    Boolean(error) ||
+                    actions.busy ||
+                    (!selecting && selectable.length === 0)
+                  }
+                  onClick={() => {
+                    setSelecting(!selecting);
+                    clearSelection();
+                  }}
+                />
+              )}
             </div>
           )}
-        </div>
-        <div
-          className="sp-account-selection sp-account-selection-toolbar"
-          hidden={!canSelect}
-          style={{ minHeight: selectionHeight }}
-          role="group"
-          aria-label="Account selection"
-        >
-          <label>
-            <input
-              type="checkbox"
-              className="sp-selection-checkbox"
-              aria-label="Select all creators"
-              checked={allSelected}
-              ref={(input) => {
-                if (input) input.indeterminate = picked.length > 0 && !allSelected;
-              }}
-              disabled={actions?.busy || students.length === 0}
-              onChange={() => setSelected(allSelected ? [] : students.map((account) => account.id))}
-            />
-            <span>Select all</span>
-          </label>
-          <div className="sp-account-selection-actions">
-            <Button
-              disabled={actions?.busy}
-              onClick={() => {
-                setSelecting(false);
-                clearSelection();
-              }}
-            >
-              Cancel
-            </Button>
-            {actions?.onHideStudents && (
-              <Button
-                className="sp-account-bulk-hide"
-                disabled={
-                  actions.busy ||
-                  picked.length === 0 ||
-                  picked.every((account) => account.status !== "Active")
-                }
-                onClick={() =>
-                  actions.onHideStudents?.(
-                    picked
-                      .filter((account) => account.status === "Active")
-                      .map((account) => account.id),
-                  )
-                }
-              >
-                <UiIcon icon={faEyeSlash} aria-hidden="true" />
-                <span>Hide selected{picked.length > 0 ? ` (${picked.length})` : ""}</span>
-              </Button>
-            )}
-            <Button
-              className="sp-button--danger sp-account-bulk-delete"
-              disabled={actions?.busy || picked.length === 0}
-              onClick={() => actions?.onDeleteStudents?.(picked.map((account) => account.id))}
-            >
-              <UiIcon icon={faTrashCan} aria-hidden="true" />
-              <span>Delete selected{picked.length > 0 ? ` (${picked.length})` : ""}</span>
-            </Button>
-          </div>
         </div>
       </div>
       <div
         className="sp-account-rows"
-        role={canSelect ? "region" : "tabpanel"}
+        role="tabpanel"
         id="account-tabs-panel"
-        aria-label={canSelect ? "Select creator accounts" : undefined}
-        aria-labelledby={canSelect ? undefined : `account-tabs-${role}`}
+        aria-labelledby={`account-tabs-${role}`}
         tabIndex={0}
       >
         {error ? (
@@ -234,36 +175,36 @@ export function AccountList({
             {error}
           </p>
         ) : loading ? (
-          <p className="sp-list-empty" role="status">
-            Loading accounts…
-          </p>
+          <LoadingSkeleton label="Loading accounts" />
         ) : (
           visible.map((account) => (
             <article
               className={`sp-account-row${canSelect ? " sp-account-row--selectable" : ""}${picked.some((row) => row.id === account.id) ? " is-selected" : ""}`}
               key={account.id}
             >
-              {canSelect && account.role === "Students" && (
-                <label className="sp-account-selection-check">
-                  <input
-                    className="sp-account-select-row sp-selection-checkbox"
-                    type="checkbox"
-                    aria-label={`Select creator ${account.name} (${account.account})`}
-                    checked={selected.includes(account.id)}
-                    disabled={actions?.busy}
-                    onChange={(event) =>
-                      setSelected((current) =>
-                        event.target.checked
-                          ? [...current, account.id]
-                          : current.filter((id) => id !== account.id),
-                      )
-                    }
-                  />
-                </label>
+              {canSelect && (
+                <input
+                  className="sp-row-select-input"
+                  type="checkbox"
+                  aria-label={`Select ${account.role === "Students" ? "creator" : "facilitator"} ${account.name} (${account.account})`}
+                  checked={selected.includes(account.id)}
+                  disabled={actions?.busy}
+                  onChange={(event) =>
+                    setSelected((current) =>
+                      event.target.checked
+                        ? [...current, account.id]
+                        : current.filter((id) => id !== account.id),
+                    )
+                  }
+                />
               )}
               <div className="sp-account-row-top">
                 <div className="sp-account">
-                  <Avatar name={account.name} />
+                  {canSelect ? (
+                    <span className="sp-selection-marker" aria-hidden="true" />
+                  ) : (
+                    <Avatar name={account.name} />
+                  )}
                   <span className="sp-person-name">
                     <strong>{account.name}</strong>
                     <small>{account.account}</small>
@@ -278,7 +219,7 @@ export function AccountList({
                 )}
               </div>
               <div className="sp-account-row-bottom">
-                <div className="sp-actions">
+                <fieldset className="sp-actions" disabled={canSelect}>
                   <Button
                     variant="primary"
                     disabled={actions?.busy}
@@ -307,8 +248,9 @@ export function AccountList({
                   >
                     View Account
                   </Button>
-                  {actions && !canSelect && (
+                  {actions && (
                     <Button
+                      className={administration ? "sp-hide-action" : undefined}
                       disabled={actions.busy}
                       aria-label={`${administration ? (account.status === "Active" ? "Hide" : "Show") : account.status === "Active" ? "Disable" : "Enable"} account for ${account.name}`}
                       onClick={() => actions.onToggleActive(account.id)}
@@ -330,9 +272,10 @@ export function AccountList({
                       </span>
                     </Button>
                   )}
-                  {administration && actions?.onDelete && !canSelect && (
+                  {administration && actions?.onDelete && (
                     <Button
                       disabled={actions.busy}
+                      className="sp-destructive-action"
                       aria-label={`Delete account for ${account.name}`}
                       onClick={() => actions.onDelete?.(account.id)}
                     >
@@ -340,7 +283,7 @@ export function AccountList({
                       <span className="sp-button-label">Delete</span>
                     </Button>
                   )}
-                </div>
+                </fieldset>
                 {!administration && (
                   <span className="sp-hint">
                     {account.role === "Students" ? "Creator" : "Facilitator"}
@@ -366,12 +309,69 @@ export function AccountList({
         )}
         {!loading && !error && !visible.length && (
           <p className="sp-list-empty" role="status">
-            {accounts.length
-              ? "No matching accounts. Try another name."
-              : "No accounts yet. Add the first account to this organisation."}
+            {accounts.length === 0 && administration && actions && !actions.canCreate
+              ? "This organisation is hidden. Show the organisation before adding accounts."
+              : accounts.length
+                ? query.trim() || role === "All"
+                  ? "No matching accounts. Try another name."
+                  : role === "Teachers"
+                    ? "No facilitators in this organisation yet."
+                    : "No creators in this organisation yet."
+                : "No accounts yet. Add the first account to this organisation."}
           </p>
         )}
       </div>
+      <SelectionBar
+        className="sp-account-selection sp-account-selection-toolbar"
+
+        hidden={!canSelect}
+
+        label="Account selection"
+      >
+        <div className="sp-selection-summary">
+          <span role="status">
+            {picked.length ? `${picked.length} selected` : "Select accounts"}
+          </span>
+          <button
+            type="button"
+            className="sp-select-all-action"
+            disabled={actions?.busy || selectable.length === 0}
+            onClick={() => setSelected(allSelected ? [] : selectable.map((account) => account.id))}
+          >
+            <span className="sp-plain-label">{allSelected ? "Clear all" : "Select all"}</span>
+          </button>
+        </div>
+        <div className="sp-account-selection-actions">
+          {actions?.onHideAccounts && (
+            <Button
+              className="sp-account-bulk-hide"
+              disabled={
+                actions.busy ||
+                picked.length === 0 ||
+                picked.every((account) => account.status !== "Active")
+              }
+              onClick={() =>
+                actions.onHideAccounts?.(
+                  picked
+                    .filter((account) => account.status === "Active")
+                    .map((account) => account.id),
+                )
+              }
+            >
+              <UiIcon icon={faEyeSlash} aria-hidden="true" />
+              <span className="sp-button-label">Hide selected</span>
+            </Button>
+          )}
+          <Button
+            className="sp-button--danger sp-account-bulk-delete"
+            disabled={actions?.busy || picked.length === 0}
+            onClick={() => actions?.onDeleteAccounts?.(picked.map((account) => account.id))}
+          >
+            <UiIcon icon={faTrashCan} aria-hidden="true" />
+            <span className="sp-button-label">Delete selected</span>
+          </Button>
+        </div>
+      </SelectionBar>
     </section>
   );
 }
