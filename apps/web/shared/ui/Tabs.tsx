@@ -7,7 +7,7 @@ export function Tabs<T extends string>({
 }: {
   id: string;
   label: string;
-  items: readonly { value: T; label: string }[];
+  items: readonly { value: T; label: string; measureLabel?: string | undefined }[];
   value: T;
   onChange: (value: T) => void;
 }) {
@@ -38,10 +38,23 @@ export function Tabs<T extends string>({
             if (!selected) return;
             event.preventDefault();
             onChange(selected.value);
-            document.getElementById(`${id}-${selected.value}`)?.focus();
+            const target = document.getElementById(`${id}-${selected.value}`);
+            target?.focus();
+            const strip = event.currentTarget.parentElement;
+            if (target && strip) {
+              const tab = target.getBoundingClientRect();
+              const bounds = strip.getBoundingClientRect();
+              if (tab.left < bounds.left) strip.scrollLeft += tab.left - bounds.left;
+              else if (tab.right > bounds.right) strip.scrollLeft += tab.right - bounds.right;
+            }
           }}
         >
-          {item.label}
+          <span className="sp-tab-content">
+            <span>{item.label}</span>
+            <span className="sp-tab-measure" aria-hidden="true">
+              {item.measureLabel ?? item.label}
+            </span>
+          </span>
         </button>
       ))}
     </div>

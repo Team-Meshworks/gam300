@@ -1,0 +1,36 @@
+/* Reserve selected-label width so changing tabs keeps their neighbours in place */
+.sp-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+}
+.sp-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--sp-muted);
+}
+.sp-tabs button[aria-selected="true"] {
+  color: var(--sp-ink);
+  font-weight: 600;
+  border-bottom-color: var(--sp-ink);
+}
+.sp-tab-content {
+  display: inline-grid;
+  min-block-size: 1lh;
+  align-items: center;
+  text-align: left;
+}
+.sp-tab-content > span {
+  grid-area: 1 / 1;
+  font-kerning: normal;
+  text-box-trim: trim-both;
+  text-box-edge: cap text;
+}
+.sp-tab-content > .sp-tab-measure {
+  font-weight: 600;
+  visibility: hidden;
+  pointer-events: none;
+}
