@@ -13,6 +13,7 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
     signal: AbortSignal,
     init?: RequestInit,
   ): Promise<AssetAdministrationResult<T>> {
+    let dispatched = false;
     try {
       const headers = new Headers(init?.headers);
       headers.set("X-Spatia-Account", actorId);
@@ -45,8 +46,11 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
       }
 
       // Send the bounded write only after obtaining a token; reads use the same account-bound origin
+      dispatched = !!init?.method;
       const response = await fetch(path, { ...init, credentials: "same-origin", headers, signal });
       if (!response.ok) {
+        if (dispatched && response.status >= 500 && response.status !== 503)
+          return unknownOutcome();
         return failure(response.status);
       }
       // Treat confirmed responses as untrusted until their lifecycle fields pass validation
@@ -54,6 +58,7 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
 
       // Check the HTTP boundary before a malformed record can enable destructive controls
       if (!(init?.method ? isCandidate(value) : isAdministrationData(value))) {
+        if (dispatched) return unknownOutcome();
         return { ok: false, kind: "unavailable", message: "Asset service returned invalid data" };
       }
       return { ok: true, value: value as T };
@@ -63,12 +68,21 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
       if (signal.aborted) {
         throw error;
       }
+      if (dispatched) return unknownOutcome();
       return {
         ok: false,
         kind: "unavailable",
         message: "The change could not be confirmed. Reload before retrying",
       };
     }
+  }
+
+  function unknownOutcome(): AssetAdministrationResult<never> {
+    return {
+      ok: false,
+      kind: "unknown",
+      message: "The change may have completed. Check the library before trying again.",
+    };
   }
 
   // Translate server failures without claiming that an unacknowledged write succeeded

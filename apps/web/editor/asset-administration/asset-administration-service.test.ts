@@ -276,3 +276,69 @@ it.each([true, "yes"])("validates per-kind upload availability %j", async (audio
   expect(result.ok).toBe(typeof audio === "boolean");
   if (result.ok) expect(result.value.policy.canSubmitByKind?.audio).toBe(true);
 });
+
+it.each(["network", "invalid-json", "invalid-record", 500, 502, 504])(
+  "keeps a dispatched upload outcome unknown after %s acknowledgement failure",
+  async (failure) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/v1/auth/csrf") return Response.json({ requestToken: "token" });
+        if (failure === "network") throw new TypeError("Response lost");
+        if (typeof failure === "number") return new Response(null, { status: failure });
+        return failure === "invalid-json"
+          ? new Response("{", { status: 201 })
+          : Response.json({ name: "Unverified record" }, { status: 201 });
+      }),
+    );
+    const result = await createAssetAdministrationService(actor).submit(
+      {
+        file: new File(["model"], "crate.glb"),
+        kind: "model",
+        category: "Objects",
+        review: { source: "", license: "", reviewNotes: "" },
+      },
+      new AbortController().signal,
+    );
+    expect(result).toMatchObject({ ok: false, kind: "unknown" });
+  },
+);
+
+it("keeps a failed CSRF read retryable before any upload is dispatched", async () => {
+  const request = vi.fn(async () => {
+    throw new TypeError("Token unavailable");
+  });
+  vi.stubGlobal("fetch", request);
+  const result = await createAssetAdministrationService(actor).submit(
+    {
+      file: new File(["model"], "crate.glb"),
+      kind: "model",
+      category: "Objects",
+      review: { source: "", license: "", reviewNotes: "" },
+    },
+    new AbortController().signal,
+  );
+  expect(result).toMatchObject({ ok: false, kind: "unavailable" });
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a rejected unavailable intake retryable", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) =>
+      url === "/api/v1/auth/csrf"
+        ? Response.json({ requestToken: "token" })
+        : new Response(null, { status: 503 }),
+    ),
+  );
+  const result = await createAssetAdministrationService(actor).submit(
+    {
+      file: new File(["model"], "crate.glb"),
+      kind: "model",
+      category: "Objects",
+      review: { source: "", license: "", reviewNotes: "" },
+    },
+    new AbortController().signal,
+  );
+  expect(result).toMatchObject({ ok: false, kind: "unavailable" });
+});
