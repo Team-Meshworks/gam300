@@ -118,7 +118,7 @@ try {
     importOrganizationId = new URL(route.request().url()).pathname.split("/").at(-3);
     await route.abort("failed");
   });
-  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  await page.getByRole("button", { name: "Add Accounts", exact: true }).click();
   let importer = page.getByRole("dialog", { name: "Account Creation", exact: true });
   const picker = page.waitForEvent("filechooser");
   await importer.getByRole("button", { name: "Upload CSV", exact: true }).click();

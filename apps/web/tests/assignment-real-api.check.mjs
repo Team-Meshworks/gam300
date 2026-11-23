@@ -177,9 +177,7 @@ try {
   assert.equal((await editedDetail.json()).projects.length, 1);
   await page.reload();
   await page.goto(`${origin}/classes`);
-  await page
-    .getByRole("combobox", { name: "Class", exact: true })
-    .selectOption(process.env.SPATIA_TEST_CLASS);
+  await chooseProjectClass(page);
   await page.getByRole("button", { name: "Live class assignment", exact: true }).click();
   await page
     .getByRole("button", {

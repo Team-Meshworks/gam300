@@ -170,9 +170,8 @@ try {
   if (unavailable) {
     await student.getByText(/assets are (?:not available|unavailable) for publication/).waitFor();
   } else {
-    await student
-      .getByRole("combobox", { name: "Who can open this publication" })
-      .selectOption("Unlisted");
+    await student.getByRole("combobox", { name: "Who can open this publication" }).click();
+    await student.getByRole("option", { name: "Anyone with the link", exact: true }).click();
     await student.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
     await student.getByRole("button", { name: "Publish", exact: true }).click();
     await student.getByRole("textbox", { name: "Publication link" }).waitFor();
