@@ -19,6 +19,10 @@ let organizationActive = true;
 let organizationName = "Ridgeview Secondary School";
 let emptyProjects = false;
 let failOrganizations = false;
+let releaseOrganizations;
+let organizationGate = new Promise((resolve) => {
+  releaseOrganizations = resolve;
+});
 let projectTitle = "The Silk Road: A Journey Through History";
 const reads = { accounts: 0, projects: 0 };
 try {
@@ -72,21 +76,21 @@ try {
         rows.find((row) => row.userId === path.split("/").at(-2)).isActive = body.isActive;
         return route.fulfill({ status: 204 });
       }
-      if (path === `/api/v1/admin/organizations/${orgId}/students/hide`) {
+      if (path === `/api/v1/admin/organizations/${orgId}/accounts/hide`) {
         assert.ok(
           body.userIds.every((id) =>
-            rows.some((row) => row.userId === id && row.role === "Creator"),
+            rows.some((row) => row.userId === id && ["Creator", "Educator"].includes(row.role)),
           ),
         );
         for (const row of rows) if (body.userIds.includes(row.userId)) row.isActive = false;
         return route.fulfill({ status: 204 });
       }
-      if (path === `/api/v1/admin/organizations/${orgId}/students/delete`) {
+      if (path === `/api/v1/admin/organizations/${orgId}/accounts/delete`) {
         if (failBulkDelete)
           return route.fulfill({ status: 503, json: { code: "directory_unavailable" } });
         assert.ok(
           body.userIds.every((id) =>
-            rows.some((row) => row.userId === id && row.role === "Creator"),
+            rows.some((row) => row.userId === id && ["Creator", "Educator"].includes(row.role)),
           ),
         );
         for (let index = rows.length - 1; index >= 0; index--)
@@ -125,6 +129,7 @@ try {
     if (path === "/api/v1/admin/organizations" && failOrganizations)
       return route.fulfill({ status: 503, json: { code: "directory_unavailable" } });
     if (path === "/api/v1/admin/organizations") {
+      if (organizationGate) await organizationGate;
       const query = (new URL(req.url()).searchParams.get("q") ?? "").toLowerCase();
       const matches =
         organizationName.toLowerCase().includes(query) ||
@@ -188,6 +193,25 @@ try {
   });
   await page.goto(`${origin}/organisations`);
   await page.getByRole("heading", { name: "All Organisations", level: 1, exact: true }).waitFor();
+  await page.getByRole("searchbox", { name: "Search organisations" }).waitFor();
+  await page.getByRole("status", { name: "Loading organisations" }).waitFor();
+  releaseOrganizations();
+  organizationGate = null;
+  await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).waitFor();
+  organizationGate = new Promise((resolve) => {
+    releaseOrganizations = resolve;
+  });
+  await page.goto(`${origin}/organisations?organisation=${orgId}`);
+  await page.getByRole("status", { name: "Loading organisation", exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole("heading", { name: "All Organisations", exact: true }).count(),
+    0,
+  );
+  releaseOrganizations();
+  organizationGate = null;
+  await page.getByRole("heading", { name: "Ridgeview Secondary School" }).waitFor();
+  await page.goto(`${origin}/organisations`);
+  await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).waitFor();
   const screenshots = process.env.CHECK_SCREENSHOTS ?? "../../.artifacts/account-directory";
   await mkdir(screenshots, { recursive: true });
   for (const width of [1440, 1024, 768, 390]) {
@@ -236,7 +260,7 @@ try {
   assert.equal(await page.getByRole("button", { name: "Refresh directory" }).count(), 0);
   await page.getByRole("button", { name: "Open Ridgeview Secondary School" }).click();
   const identity = page.getByRole("heading", { name: "Ridgeview Secondary School", exact: true });
-  const projects = page.getByRole("tab", { name: "All Projects", exact: true });
+  const projects = page.getByRole("tab", { name: "All Published", exact: true });
   await projects.waitFor();
   assert.equal(
     await identity.evaluate((node) =>
@@ -286,14 +310,14 @@ try {
   await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
   await page.getByRole("button", { name: "Show", exact: true }).waitFor();
   assert.equal(
-    await page.getByRole("button", { name: "+ Add Accounts", exact: true }).isDisabled(),
+    await page.getByRole("button", { name: "Add Accounts", exact: true }).isDisabled(),
     true,
   );
   await page.getByRole("button", { name: "Show", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
   await page.getByRole("button", { name: "Hide", exact: true }).waitFor();
   writes.length = 0;
-  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).focus();
+  await page.getByRole("button", { name: "Add Accounts", exact: true }).focus();
   await page.keyboard.press("Enter");
   let dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name", { exact: true }).focus();
@@ -435,7 +459,10 @@ try {
   await page.getByLabel("Search organisations").fill("aisyah.tan");
   const overviewCard = page.locator(".sp-organization-card");
   await overviewCard.getByText("1 Facilitator", { exact: true }).waitFor();
-  assert.equal(await overviewCard.getByText("2 Projects", { exact: true }).isVisible(), true);
+  assert.equal(
+    await overviewCard.getByText("2 Published Projects", { exact: true }).isVisible(),
+    true,
+  );
   assert.equal(await overviewCard.getByText("0 Creators", { exact: true }).isVisible(), true);
   assert.equal(
     await overviewCard.getByRole("button", { name: "Open Ridgeview Secondary School" }).isVisible(),
@@ -488,13 +515,15 @@ try {
     "Sengkang Secondary School with an exceptionally long organisation name for accessible zoom verification";
   await page.reload();
   await page.getByRole("button", { name: "Close organisation", exact: true }).waitFor();
-  await page.getByText("No projects in this organisation.", { exact: true }).waitFor();
+  await page.getByText("No published projects in this organisation.", { exact: true }).waitFor();
   const emptyAccounts = page.getByText(
     "No accounts yet. Add the first account to this organisation.",
     { exact: true },
   );
   await emptyAccounts.waitFor();
-  const emptyProjectsText = page.getByText("No projects in this organisation.", { exact: true });
+  const emptyProjectsText = page.getByText("No published projects in this organisation.", {
+    exact: true,
+  });
   assert.equal(await emptyAccounts.evaluate((node) => getComputedStyle(node).fontSize), "13px");
   assert.equal(await emptyProjectsText.evaluate((node) => getComputedStyle(node).fontSize), "13px");
   for (const [width, zoom] of [
@@ -543,7 +572,7 @@ try {
     });
   }
   await page.setViewportSize({ width: 1440, height: 1024 });
-  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  await page.getByRole("button", { name: "Add Accounts", exact: true }).click();
   const csvDialog = page.getByRole("dialog", { name: "Account Creation", exact: true });
   const csvSizes = new Map();
   for (const width of [1440, 390]) {
@@ -603,7 +632,7 @@ try {
     batch[0].body.map((value) => value.role),
     ["Creator", "Educator"],
   );
-  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  await page.getByRole("button", { name: "Add Accounts", exact: true }).click();
   const repeated = page.getByRole("dialog", { name: "Account Creation", exact: true });
   const repeatedChooser = page.waitForEvent("filechooser");
   await repeated.getByRole("button", { name: "Upload CSV", exact: true }).click();
@@ -628,11 +657,8 @@ try {
   await page
     .getByRole("button", { name: "View account for CSV Fresh Learner", exact: true })
     .waitFor();
-  const deleteWrites = () => writes.filter((write) => write.path.endsWith("/students/delete"));
-  assert.equal(
-    await page.getByRole("checkbox", { name: "Select all creators", exact: true }).count(),
-    0,
-  );
+  const deleteWrites = () => writes.filter((write) => write.path.endsWith("/accounts/delete"));
+  assert.equal(await page.getByRole("button", { name: "Select all", exact: true }).count(), 0);
   const toolbarHeight = await page
     .locator(".sp-account-list-header")
     .evaluate((node) => node.getBoundingClientRect().height);
@@ -652,56 +678,70 @@ try {
     0,
     "Organisation projects exclude unpublished drafts",
   );
-  assert.equal(await page.getByRole("button", { name: /^Hide account for / }).count(), 0);
-  assert.equal(await page.getByRole("button", { name: /^Delete account for / }).count(), 0);
+  assert.ok((await page.getByRole("button", { name: /^Hide account for / }).count()) > 0);
+  assert.ok((await page.getByRole("button", { name: /^Delete account for / }).count()) > 0);
   assert.ok((await page.getByRole("button", { name: /^View account for / }).count()) > 0);
   const searchAccounts = page.getByRole("searchbox", { name: "Search accounts", exact: true });
   await searchAccounts.fill("CSV Fresh Learner");
-  await page.getByRole("checkbox", { name: "Select all creators", exact: true }).check();
-  await page.getByRole("button", { name: "Hide selected (1)", exact: true }).click();
-  const hideSelected = page.getByRole("dialog", { name: "Hide 1 creator account?", exact: true });
+  await page.getByRole("button", { name: "Select all", exact: true }).click();
+  await page.getByRole("button", { name: "Hide selected", exact: true }).click();
+  const hideSelected = page.getByRole("dialog", { name: "Hide 1 account?", exact: true });
   await hideSelected.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.equal(rows.find((row) => row.displayName === "CSV Fresh Learner")?.isActive, true);
-  await page.getByRole("button", { name: "Hide selected (1)", exact: true }).click();
+  await page.getByRole("button", { name: "Hide selected", exact: true }).click();
   await page
-    .getByRole("dialog", { name: "Hide 1 creator account?", exact: true })
+    .getByRole("dialog", { name: "Hide 1 account?", exact: true })
     .getByRole("button", { name: "Hide Accounts", exact: true })
     .click();
   await page
-    .getByRole("dialog", { name: "Hide 1 creator account?", exact: true })
+    .getByRole("dialog", { name: "Hide 1 account?", exact: true })
     .waitFor({ state: "detached" });
   assert.equal(rows.find((row) => row.displayName === "CSV Fresh Learner")?.isActive, false);
-  await page.getByRole("button", { name: "Delete selected (1)", exact: true }).click();
-  let deletion = page.getByRole("dialog", { name: "Delete 1 creator account?", exact: true });
+  await page.getByRole("button", { name: "Delete selected", exact: true }).click();
+  let deletion = page.getByRole("dialog", { name: "Delete 1 account?", exact: true });
   await deletion.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.equal(deleteWrites().length, 0, "Cancelling bulk deletion sends no request");
+  await page.getByRole("button", { name: "Delete selected", exact: true }).click();
   await page
-    .getByRole("group", { name: "Account selection", exact: true })
-    .getByRole("button", { name: "Cancel", exact: true })
+    .getByRole("dialog", { name: "Delete 1 account?", exact: true })
+    .getByRole("button", { name: "Delete 1 account", exact: true })
     .click();
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  await page.getByRole("button", { name: "Select accounts", exact: true }).waitFor();
   assert.equal(await page.getByRole("checkbox", { name: /^Select creator / }).count(), 0);
+  assert.equal(
+    await page.getByRole("button", { name: "Cancel selection", exact: true }).count(),
+    0,
+    "Deleting a subset of accounts exits selection mode",
+  );
+  assert.equal(
+    await searchAccounts.inputValue(),
+    "CSV Fresh Learner",
+    "Deletion preserves the search",
+  );
+  await searchAccounts.fill("");
+  await page.getByRole("button", { name: "Select accounts", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel selection", exact: true }).click();
   assert.ok(
     (await page.locator(".sp-account-row-bottom").count()) > 0,
     "Cancelling restores individual actions",
   );
   await page.getByRole("button", { name: "Select accounts", exact: true }).click();
-  await searchAccounts.fill("");
   assert.equal(
     await page.getByRole("button", { name: "Delete selected", exact: true }).isDisabled(),
     true,
   );
+  const selectedIds = rows.map((row) => row.userId);
   const studentIds = rows.filter((row) => row.role === "Creator").map((row) => row.userId);
   const facilitatorIds = rows.filter((row) => row.role === "Educator").map((row) => row.userId);
-  await page.getByRole("checkbox", { name: "Select all creators", exact: true }).check();
+  await page.getByRole("button", { name: "Select all", exact: true }).click();
   assert.equal(
     await page.getByRole("checkbox", { name: /^Select creator / }).count(),
     studentIds.length,
   );
-  await page
-    .getByRole("button", { name: `Delete selected (${studentIds.length})`, exact: true })
-    .click();
+  await page.getByRole("button", { name: "Delete selected", exact: true }).click();
   deletion = page.getByRole("dialog", {
-    name: `Delete ${studentIds.length} creator accounts?`,
+    name: `Delete ${selectedIds.length} accounts?`,
     exact: true,
   });
   assert.equal(await deletion.locator(".sp-account-deletion-names").count(), 0);
@@ -710,25 +750,30 @@ try {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.screenshot({ path: `${screenshots}/bulk-delete-mobile.png`, fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1024 });
+  const deletionWritesBeforeFailure = deleteWrites().length;
   failBulkDelete = true;
   await deletion
-    .getByRole("button", { name: `Delete ${studentIds.length} accounts`, exact: true })
+    .getByRole("button", { name: `Delete ${selectedIds.length} accounts`, exact: true })
     .dblclick();
   await deletion.getByRole("alert").waitFor();
-  assert.equal(deleteWrites().length, 1, "A double click sends one bulk request");
+  assert.equal(
+    deleteWrites().length,
+    deletionWritesBeforeFailure + 1,
+    "A double click sends one bulk request",
+  );
   assert.ok(
-    studentIds.every((id) => rows.some((row) => row.userId === id)),
+    selectedIds.every((id) => rows.some((row) => row.userId === id)),
     "Failed deletion preserves accounts",
   );
   failBulkDelete = false;
   await deletion
-    .getByRole("button", { name: `Delete ${studentIds.length} accounts`, exact: true })
+    .getByRole("button", { name: `Delete ${selectedIds.length} accounts`, exact: true })
     .click();
   await deletion.waitFor({ state: "detached" });
-  assert.deepEqual(deleteWrites().at(-1).body.userIds.sort(), studentIds.sort());
+  assert.deepEqual(deleteWrites().at(-1).body.userIds.sort(), selectedIds.sort());
   assert.ok(
-    facilitatorIds.every((id) => rows.some((row) => row.userId === id)),
-    "Facilitators remain untouched",
+    facilitatorIds.every((id) => !rows.some((row) => row.userId === id)),
+    "Bulk deletion includes selected facilitators",
   );
   assert.equal(await page.getByRole("checkbox", { name: /^Select creator / }).count(), 0);
   await page.getByRole("button", { name: "Select accounts", exact: true }).waitFor();

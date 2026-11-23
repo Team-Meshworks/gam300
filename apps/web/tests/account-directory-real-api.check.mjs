@@ -58,13 +58,13 @@ try {
   await page
     .getByLabel("Organisation name", { exact: true })
     .fill("Dashboard browser organisation");
-  await page.getByRole("button", { name: "Create Organisation", exact: true }).click();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
   await page.waitForURL(origin + "/organisations");
   await page
     .getByRole("button", { name: "Open Dashboard browser organisation", exact: true })
     .waitFor();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
-  await page.getByRole("button", { name: "+ Add Accounts" }).click();
+  await page.getByRole("button", { name: "Add Accounts" }).click();
   let dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name", { exact: true }).fill("Browser Created");
   await dialog.getByLabel("Username", { exact: true }).fill("browser.created");
