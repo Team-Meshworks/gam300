@@ -7,11 +7,8 @@ import { createClassroomClient } from "../home/classroom-api";
 import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
-import {
-  readServerAssets,
-  readServerProject,
-  type OpenedServerProject,
-} from "../persistence/server-project-read";
+import { readServerAssets } from "../persistence/server-assets";
+import { readServerProject, type OpenedServerProject } from "../persistence/server-project-read";
 import { readAssignment } from "../projects/assignment-api";
 import {
   adminPublishedReturnUrl,
@@ -242,6 +239,14 @@ export function FacilitatorProjectView({
         <h1>
           {loaded?.opened.document.title ?? (published ? "Published project" : "Student project")}
         </h1>
+        {session.role === "Educator" && published && context && (
+          <a
+            className="sp-button facilitator-project-review facilitator-submission-link"
+            href={reviewReturnUrl(new URLSearchParams(location.search))}
+          >
+            Review current submission
+          </a>
+        )}
         {session.role === "Educator" && !published && (
           <Button
             className="facilitator-project-review"
@@ -362,7 +367,14 @@ export function ProjectEntry({
     (session?.role === "Administrator" || (session?.role === "Educator" && published)) &&
     !session.mustChangePassword
   )
-    return <FacilitatorProjectView session={session} projectId={projectId} published />;
+    return (
+      <FacilitatorProjectView
+        session={session}
+        projectId={projectId}
+        {...(context && { context })}
+        published
+      />
+    );
   if (session?.role === "Educator" && !session.mustChangePassword)
     return context ? (
       <FacilitatorProjectView session={session} context={context} />

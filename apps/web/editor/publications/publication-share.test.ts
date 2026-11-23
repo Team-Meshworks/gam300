@@ -3,21 +3,17 @@ import { createElement } from "react";
 import jsQR from "jsqr";
 import { describe, expect, it } from "vitest";
 import { PublicationShare } from "./PublicationShare";
+import { PublishStatus } from "./PublishStatus";
 
 describe("publication sharing", () => {
-  it("shows the committed link and an accessible QR code", () => {
-    const url = "https://spatia.example/p/22222222-2222-4222-8222-222222222222";
+  it.each([
+    "https://spatia.example/p/22222222-2222-4222-8222-222222222222",
+    `https://${"a".repeat(63)}.${"b".repeat(63)}.example/p/22222222-2222-4222-8222-222222222222`,
+  ])("shows the publication URL and a decodable, accessible QR: %s", (url) => {
     const markup = renderToStaticMarkup(createElement(PublicationShare, { url }));
     expect(markup).toContain(`value="${url}"`);
     expect(markup).toMatch(/role="img"[^>]*aria-label="[^"]*QR code/i);
     expect(markup).toContain("Copy link");
-  });
-
-  it.each([
-    "https://spatia.example/p/22222222-2222-4222-8222-222222222222",
-    `https://${"a".repeat(63)}.${"b".repeat(63)}.example/p/22222222-2222-4222-8222-222222222222`,
-  ])("encodes the exact publication URL in a decodable QR: %s", (url) => {
-    const markup = renderToStaticMarkup(createElement(PublicationShare, { url }));
     const size = Number(markup.match(/viewBox="0 0 (\d+) \d+"/)?.[1]);
     const path = markup.match(/<path fill="#000000" d="([^"]+)"/)?.[1];
     expect(size).toBeGreaterThan(0);
@@ -43,10 +39,7 @@ describe("publication sharing", () => {
 });
 
 // Pending reads cannot display an approval claim before the server confirms it.
-it("keeps unverified publication requirements neutral", async () => {
-  const { createElement } = await import("react");
-  const { renderToStaticMarkup } = await import("react-dom/server");
-  const { PublishStatus } = await import("./PublishStatus");
+it("keeps unverified publication requirements neutral", () => {
   const html = renderToStaticMarkup(
     createElement(PublishStatus, {
       state: "checking",

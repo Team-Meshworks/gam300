@@ -1,7 +1,7 @@
 // Compatibility reader for scene-branch files only. Never use this for server validation.
 import type { ProjectDocument, ProjectObject, ProjectScene } from "./legacy-scene-types";
 import { validateCameraPose, validateTransform } from "./spatial-validation";
-import { checkFields, invalid, isRecord } from "./validation-helpers";
+import { checkFields, invalid, isRecord, readField } from "./validation-helpers";
 import type { ValidationResult } from "./validation-helpers";
 import { MAX_PROJECT_BYTES } from "./project-limits";
 
@@ -39,19 +39,19 @@ function validateObject(
   }
 
   // Read the text here; validateProject handles UUIDs and asset references
-  const id = readText(raw.id, `${path}.id`, budget);
+  const id = readText(readField(raw, "id"), `${path}.id`, budget);
   if (!id.ok) {
     return id;
   }
-  const name = readText(raw.name, `${path}.name`, budget);
+  const name = readText(readField(raw, "name"), `${path}.name`, budget);
   if (!name.ok) {
     return name;
   }
-  const assetId = readText(raw.assetId, `${path}.assetId`, budget);
+  const assetId = readText(readField(raw, "assetId"), `${path}.assetId`, budget);
   if (!assetId.ok) {
     return assetId;
   }
-  const transform = validateTransform(raw.transform, `${path}.transform`);
+  const transform = validateTransform(readField(raw, "transform"), `${path}.transform`);
   if (!transform.ok) {
     return transform;
   }
@@ -87,51 +87,54 @@ function validateScene(
   }
   // Check the count before walking the object list
   // An empty room is valid while the author is getting started
-  if (!Array.isArray(raw.objects) || raw.objects.length > MAX_OBJECTS_PER_SCENE) {
+  const rawObjects = readField(raw, "objects");
+  if (!Array.isArray(rawObjects) || rawObjects.length > MAX_OBJECTS_PER_SCENE) {
     return invalid(`${path}.objects`, "Objects must be an array with at most 200 entries");
   }
-  const id = readText(raw.id, `${path}.id`, budget);
+  const id = readText(readField(raw, "id"), `${path}.id`, budget);
   if (!id.ok) {
     return id;
   }
-  const name = readText(raw.name, `${path}.name`, budget);
+  const name = readText(readField(raw, "name"), `${path}.name`, budget);
   if (!name.ok) {
     return name;
   }
   const environmentAssetId =
-    raw.environmentAssetId === null
+    readField(raw, "environmentAssetId") === null
       ? { ok: true as const, value: null }
-      : readText(raw.environmentAssetId, `${path}.environmentAssetId`, budget);
+      : readText(readField(raw, "environmentAssetId"), `${path}.environmentAssetId`, budget);
   if (!environmentAssetId.ok) {
     return environmentAssetId;
   }
-  const camera = validateCameraPose(raw.startCamera, `${path}.startCamera`);
+  const camera = validateCameraPose(readField(raw, "startCamera"), `${path}.startCamera`);
   if (!camera.ok) {
     return camera;
   }
 
   const viewpoints: NonNullable<ProjectScene["viewpoints"]>[number][] = [];
   if (Object.hasOwn(raw, "viewpoints")) {
-    if (!Array.isArray(raw.viewpoints) || raw.viewpoints.length > 100)
+    const rawViewpoints = readField(raw, "viewpoints");
+    if (!Array.isArray(rawViewpoints) || rawViewpoints.length > 100)
       return invalid(`${path}.viewpoints`, "Use at most 100 named viewpoints per scene");
-    for (const [i, view] of raw.viewpoints.entries()) {
+    for (const [i, view] of rawViewpoints.entries()) {
       const at = `${path}.viewpoints[${i}]`;
       if (!isRecord(view)) return invalid(at, "Viewpoint must be an object");
       const fields = checkFields(view, ["id", "name", "camera"], at);
       if (!fields.ok) return fields;
-      const id = readText(view.id, `${at}.id`, budget);
+      const id = readText(readField(view, "id"), `${at}.id`, budget);
       if (!id.ok) return id;
-      const name = readText(view.name, `${at}.name`, budget);
+      const name = readText(readField(view, "name"), `${at}.name`, budget);
       if (!name.ok) return name;
       if (!name.value.trim() || name.value.length > 120)
         return invalid(`${at}.name`, "Enter a viewpoint name between 1 and 120 characters");
-      const camera = validateCameraPose(view.camera, `${at}.camera`);
+      const camera = validateCameraPose(readField(view, "camera"), `${at}.camera`);
       if (!camera.ok) return camera;
       viewpoints.push({ id: id.value, name: name.value, camera: camera.value });
     }
   }
+  const startViewpointId = readField(raw, "startViewpointId");
   if (Object.hasOwn(raw, "startViewpointId")) {
-    const chosen = viewpoints.find((v) => v.id === raw.startViewpointId);
+    const chosen = viewpoints.find((v) => v.id === startViewpointId);
     if (!chosen)
       return invalid(`${path}.startViewpointId`, "Starting view must belong to this scene");
     if (JSON.stringify(chosen.camera) !== JSON.stringify(camera.value))
@@ -140,7 +143,7 @@ function validateScene(
   // Build a separate list in the saved order
   // A later failure leaves the caller's scene untouched
   const objects: ProjectObject[] = [];
-  for (const [index, entry] of raw.objects.entries()) {
+  for (const [index, entry] of rawObjects.entries()) {
     const object = validateObject(entry, `${path}.objects[${index}]`, budget);
     if (!object.ok) {
       return object;
@@ -154,9 +157,7 @@ function validateScene(
       name: name.value,
       environmentAssetId: environmentAssetId.value,
       startCamera: camera.value,
-      ...(typeof raw.startViewpointId === "string"
-        ? { startViewpointId: raw.startViewpointId }
-        : {}),
+      ...(typeof startViewpointId === "string" ? { startViewpointId } : {}),
       ...(Object.hasOwn(raw, "viewpoints") ? { viewpoints } : {}),
       objects,
     },
@@ -174,7 +175,7 @@ export function validateProjectStructure(raw: unknown): ValidationResult<Project
   if (!Object.hasOwn(raw, "schemaVersion")) {
     return invalid("project.schemaVersion", "Required field is missing");
   }
-  if (raw.schemaVersion !== 1) {
+  if (readField(raw, "schemaVersion") !== 1) {
     return invalid(
       "project.schemaVersion",
       "Unsupported project format; M1 supports schemaVersion 1",
@@ -184,22 +185,23 @@ export function validateProjectStructure(raw: unknown): ValidationResult<Project
   if (!fields.ok) {
     return fields;
   }
-  if (!Array.isArray(raw.scenes) || raw.scenes.length < 1 || raw.scenes.length > 20) {
+  const rawScenes = readField(raw, "scenes");
+  if (!Array.isArray(rawScenes) || rawScenes.length < 1 || rawScenes.length > 20) {
     return invalid("project.scenes", "Projects must contain between 1 and 20 scenes");
   }
 
   // Share the text budget across the whole project
   const budget = { remaining: MAX_PROJECT_BYTES };
-  const projectId = readText(raw.projectId, "project.projectId", budget);
+  const projectId = readText(readField(raw, "projectId"), "project.projectId", budget);
   if (!projectId.ok) {
     return projectId;
   }
-  const title = readText(raw.title, "project.title", budget);
+  const title = readText(readField(raw, "title"), "project.title", budget);
   if (!title.ok) {
     return title;
   }
   const scenes: ProjectScene[] = [];
-  for (const [index, rawScene] of raw.scenes.entries()) {
+  for (const [index, rawScene] of rawScenes.entries()) {
     const checked = validateScene(rawScene, `project.scenes[${index}]`, budget);
     if (!checked.ok) return checked;
     scenes.push(checked.value);

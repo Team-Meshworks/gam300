@@ -29,7 +29,7 @@ it("does not infer publication eligibility for a visible project without an assi
   );
 });
 
-it("shows the selected student's project details and opens that project", () => {
+it("shows the selected student's project details and open control", () => {
   const html = renderToStaticMarkup(
     createElement(StudentProjectDetails, {
       row: {
@@ -97,12 +97,11 @@ it("offers Start Editing for a project with no saved revisions", () => {
   expect(html).not.toContain('aria-label="Reviews"');
 });
 
-// A completed submission must update the visible badge before the list request settles.
 it.each([
   ["pending", "Awaiting Approval"],
   ["approved", "Approved"],
 ] as const)(
-  "shows the confirmed %s state while refreshing project rows",
+  "shows confirmed %s approval ahead of stale assignment data",
   (submittedState, label) => {
     const html = renderToStaticMarkup(
       createElement(CreatorApproval, {
@@ -115,12 +114,22 @@ it.each([
             archived: false,
             permissions: { canEdit: true, canManage: false, canPublish: false },
           },
-          assignment: null,
+          assignment: {
+            className: "History",
+            details: {
+              assignmentId: "assignment",
+              title: "Exhibit",
+              description: "Explore trade",
+              instructions: "Build a museum",
+              dueAtUnixSeconds: 1900000000,
+              projects: [{ studentId: "student", projectId: "project", reviewState: "returned" }],
+            },
+          },
         },
         submittedState,
       }),
     );
     expect(html).toContain(label);
-    expect(html).not.toContain("No review listed");
+    expect(html).not.toContain("Not Approved");
   },
 );

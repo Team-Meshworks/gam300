@@ -1,10 +1,9 @@
 import { validProjectImage, type ProjectImage } from "../projects/project-image";
 import { combineAbortSignals } from "../../shared/network/abort-signals";
+import { isRecord, readField } from "../../shared/project/validation-helpers";
 import { createAccountClient } from "../accounts/account-client";
 
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-export const isId = (value: unknown): value is string =>
+export const isId = <T>(value: T): value is T & string =>
   typeof value === "string" &&
   /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value) &&
   value !== "00000000-0000-0000-0000-000000000000";
@@ -57,6 +56,8 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
       );
       if (
         !isRecord(page) ||
+        !("items" in page) ||
+        !("nextCursor" in page) ||
         !Array.isArray(page.items) ||
         !(page.nextCursor === null || isId(page.nextCursor))
       )
@@ -68,31 +69,62 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
     } while (cursor);
     return items;
   }
-  async function projects(archived: boolean, signal?: AbortSignal): Promise<ProjectSummary[]> {
-    const rows = await pages(`/api/v1/projects?archived=${archived}`, signal);
+  async function projects(
+    archived: boolean,
+    signal?: AbortSignal,
+    actorId?: string,
+  ): Promise<ProjectSummary[]> {
+    const rows = await pages(`/api/v1/projects?archived=${archived}`, signal, actorId);
     const ids = new Set<string>();
     return rows.map((row) => {
+      if (!isRecord(row)) throw new Error("The project list could not be verified.");
+      const image = readField(row, "image");
+      const isClassProject = readField(row, "isClassProject");
       if (
-        !isRecord(row) ||
+        !("projectId" in row) ||
+        !("title" in row) ||
+        !("revision" in row) ||
+        !("updatedAt" in row) ||
+        !("archived" in row) ||
+        !("permissions" in row) ||
         !isId(row.projectId) ||
         ids.has(row.projectId) ||
         typeof row.title !== "string" ||
+        typeof row.revision !== "number" ||
         !Number.isSafeInteger(row.revision) ||
-        (row.revision as number) < 0 ||
+        row.revision < 0 ||
         typeof row.updatedAt !== "string" ||
         !Number.isFinite(Date.parse(row.updatedAt)) ||
-        (row.isClassProject !== undefined && typeof row.isClassProject !== "boolean") ||
+        (isClassProject !== undefined && typeof isClassProject !== "boolean") ||
         typeof row.archived !== "boolean" ||
         row.archived !== archived ||
-        !validProjectImage(row.image) ||
+        !validProjectImage(image) ||
         !isRecord(row.permissions) ||
-        ["canEdit", "canManage", "canPublish"].some(
-          (key) => typeof (row.permissions as Record<string, unknown>)[key] !== "boolean",
-        )
+        !("canEdit" in row.permissions) ||
+        !("canManage" in row.permissions) ||
+        !("canPublish" in row.permissions) ||
+        typeof row.permissions.canEdit !== "boolean" ||
+        typeof row.permissions.canManage !== "boolean" ||
+        typeof row.permissions.canPublish !== "boolean"
       )
         throw new Error("The project list could not be verified.");
       ids.add(row.projectId);
-      return row as unknown as ProjectSummary;
+      return {
+        ...row,
+        projectId: row.projectId,
+        title: row.title,
+        revision: row.revision,
+        updatedAt: row.updatedAt,
+        archived: row.archived,
+        ...(image === undefined ? {} : { image }),
+        ...(isClassProject === undefined ? {} : { isClassProject }),
+        permissions: {
+          ...row.permissions,
+          canEdit: row.permissions.canEdit,
+          canManage: row.permissions.canManage,
+          canPublish: row.permissions.canPublish,
+        },
+      };
     });
   }
   async function write(
@@ -107,7 +139,12 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
       if ((await accounts.getSession())?.userId !== actorId)
         return { kind: "rejected", message: "The account changed. Reload before continuing." };
       const token = await read("/api/v1/auth/csrf");
-      if (!isRecord(token) || typeof token.requestToken !== "string" || !token.requestToken)
+      if (
+        !isRecord(token) ||
+        !("requestToken" in token) ||
+        typeof token.requestToken !== "string" ||
+        !token.requestToken
+      )
         throw new Error("Missing request token");
       const current = await accounts.getSession();
       if (current?.userId !== actorId || current.mustChangePassword)
@@ -127,15 +164,11 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
       });
       if ([400, 409, 422, 429].includes(response.status)) {
         const problem: unknown = await response.json().catch(() => null);
-        const detail =
-          isRecord(problem) && typeof problem.code === "string"
-            ? problemMessages[problem.code]
-            : undefined;
+        const code = isRecord(problem) ? readField(problem, "code") : undefined;
+        const detail = typeof code === "string" ? problemMessages[code] : undefined;
         return {
           kind: "rejected",
-          ...(detail && isRecord(problem) && typeof problem.code === "string"
-            ? { code: problem.code }
-            : {}),
+          ...(typeof code === "string" ? { code } : {}),
           message:
             detail ??
             (response.status === 409
@@ -147,7 +180,10 @@ export function createWorkspaceClient(request: typeof fetch = fetch) {
       }
       // Authentication can expire after a commit; a missing acknowledgement must not invite a duplicate.
       if (![200, 201, 204].includes(response.status)) return { kind: "unknown" };
+      if (response.status === 204 && response.headers.get("X-Spatia-Write-Outcome") === "committed")
+        return { kind: "unknown" };
       const value: unknown = response.status === 204 ? null : await response.json();
+      if (response.status !== 204 && value === null) return { kind: "unknown" };
       if ((await accounts.getSession())?.userId !== actorId) return { kind: "unknown" };
       return { kind: "confirmed", value };
     } catch {
@@ -166,10 +202,15 @@ export function projectReceipt(
   value: unknown,
   original?: ProjectSummary,
   archived?: boolean,
-): boolean {
+): value is Pick<ProjectSummary, "projectId" | "revision" | "updatedAt" | "archived"> {
   return (
     isRecord(value) &&
+    "projectId" in value &&
+    "revision" in value &&
+    "updatedAt" in value &&
+    "archived" in value &&
     isId(value.projectId) &&
+    typeof value.revision === "number" &&
     Number.isSafeInteger(value.revision) &&
     typeof value.updatedAt === "string" &&
     Number.isFinite(Date.parse(value.updatedAt)) &&

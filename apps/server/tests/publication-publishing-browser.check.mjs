@@ -128,7 +128,8 @@ try {
   await viewer.getByRole("status").getByText("Exhibition ready").waitFor({ timeout: 30000 });
   assert.equal(await viewer.locator("canvas[aria-label='Exhibition view']").count(), 1);
   // Open the server-captured audio, then activate its hotspot without restarting the same track
-  await viewer.getByRole("button", { name: "Enable audio", exact: true }).click();
+  await viewer.getByLabel("Exhibition view", { exact: true }).click();
+  await viewer.evaluate(() => document.exitPointerLock());
   await viewer.waitForFunction(() => {
     const track = document.querySelector("audio");
     return track && !track.paused && track.currentTime > 0;

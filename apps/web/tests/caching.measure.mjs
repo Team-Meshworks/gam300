@@ -105,26 +105,14 @@ try {
         }
         return asset;
       });
-      const originalFetch = window.fetch;
       const originalParse = GLTFLoader.prototype.parseAsync;
       const originalImage = HTMLCanvasElement.prototype.toDataURL;
       const counts = {
-        fetches: 0,
         parses: 0,
         thumbnails: 0,
-        fetchMs: 0,
         parseMs: 0,
         thumbnailEncodeMs: 0,
         renderMs: 0,
-      };
-      window.fetch = function (url, ...args) {
-        if (!String(url).split("?")[0].endsWith(".glb"))
-          return originalFetch.call(this, url, ...args);
-        counts.fetches++;
-        const started = performance.now();
-        return originalFetch.call(this, url, ...args).finally(() => {
-          counts.fetchMs += performance.now() - started;
-        });
       };
       GLTFLoader.prototype.parseAsync = function (...args) {
         counts.parses++;
@@ -186,18 +174,24 @@ try {
         try {
           await promise;
           if (counts.renderMs === 0) throw new Error("Renderer timing probe missed render calls");
+          const modelTransfers = performance
+            .getEntriesByType("resource")
+            .filter((entry) => new URL(entry.name).pathname.endsWith(".glb"));
           return {
             readyMs: performance.now() - started,
             setupMs,
             ...counts,
-            resources: performance
-              .getEntriesByType("resource")
-              .filter((entry) => new URL(entry.name).pathname.endsWith(".glb"))
-              .map((entry) => ({
-                transferBytes: entry.transferSize,
-                decodedBytes: entry.decodedBodySize,
-                durationMs: entry.duration,
-              })),
+            fetches: modelTransfers.length,
+            fetchMs: modelTransfers.reduce(
+              (total, entry) =>
+                total + (entry.responseStart || entry.responseEnd) - entry.startTime,
+              0,
+            ),
+            resources: modelTransfers.map((entry) => ({
+              transferBytes: entry.transferSize,
+              decodedBytes: entry.decodedBodySize,
+              durationMs: entry.duration,
+            })),
           };
         } finally {
           handle.dispose();

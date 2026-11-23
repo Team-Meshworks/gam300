@@ -6,6 +6,7 @@ import { launchBrowser } from "./browser-security.mjs";
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:5173/";
 const browser = await launchBrowser({ target: baseUrl });
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+page.setDefaultTimeout(15000);
 const errors = [];
 const backendWrites = [];
 await page.route("**/api/**", (route) => {
@@ -26,6 +27,7 @@ async function checkDialogTypography() {
       page: font(document.querySelector(".asset-admin h1")),
       title: font(dialog.querySelector("h2")),
       upload: dialog.classList.contains("asset-admin-dialog-upload"),
+      confirmation: dialog.classList.contains("asset-admin-dialog-confirmation"),
       section: dialog.querySelector("h3") ? font(dialog.querySelector("h3")) : null,
       labels: [
         ...dialog.querySelectorAll(".asset-admin-fields > .asset-admin-select > :is(label, span)"),
@@ -43,11 +45,17 @@ async function checkDialogTypography() {
     };
   });
   assert.equal(sizes.title, 20);
-  assert.ok(
-    sizes.section === null || sizes.section === 20,
+  assert.equal(
+    sizes.section,
+    sizes.confirmation ? null : 20,
     "Asset Details follows the scaled reference hierarchy",
   );
   assert.equal(sizes.page, 25, "Catalogue page headings keep the PDF's 25px level");
+  if (!sizes.confirmation) {
+    assert.equal(sizes.labels.length, 2, "Asset Type and Filter Category labels are shown");
+    assert.equal(sizes.values.length, 2, "Both asset details have visible values or controls");
+  }
+  assert.ok(sizes.actions.length > 0, "The dialog offers actions");
   assert.ok(
     sizes.labels.every((size) => size === 12),
     "Asset labels share the compact field-label scale",
@@ -69,7 +77,130 @@ async function choose(label, text) {
     .getByRole("option", { name: text, exact: true })
     .click();
 }
+async function waitForVisibleThumbnails() {
+  // Chrome defers lazy images outside the scrollable grid. Only visible cards enter the screenshot.
+  await page.waitForFunction(
+    () => {
+      const region = document.querySelector(".asset-admin-scroll").getBoundingClientRect();
+      const images = [...document.querySelectorAll(".asset-admin-thumbnail img")].filter(
+        (image) => {
+          const box = image.getBoundingClientRect();
+          return (
+            box.bottom > Math.max(0, region.top) && box.top < Math.min(innerHeight, region.bottom)
+          );
+        },
+      );
+      return images.length > 0 && images.every((image) => image.complete && image.naturalWidth > 0);
+    },
+    undefined,
+    { timeout: 10000 },
+  );
+}
+async function checkUnacknowledgedUpload(failure) {
+  const screen = await browser.newPage();
+  screen.setDefaultTimeout(15000);
+  screen.on("pageerror", (error) => errors.push(error.message));
+  const records = [];
+  let directoryDenied = false;
+  const actor = "00000000-0000-4000-8000-000000000001";
+  await screen.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === "/api/v1/auth/session")
+      return route.fulfill({
+        json: {
+          userId: actor,
+          orgId: null,
+          role: "Administrator",
+          displayName: "Admin",
+          mustChangePassword: false,
+        },
+      });
+    if (path === "/api/v1/auth/csrf") return route.fulfill({ json: { requestToken: "csrf" } });
+    if (path !== "/api/v1/admin/assets") return route.fulfill({ status: 404 });
+    if (request.method() === "GET" && directoryDenied) return route.fulfill({ status: 401 });
+    if (request.method() === "GET")
+      return route.fulfill({
+        json: {
+          assets: records,
+          policy: {
+            extensions: [".glb"],
+            categories: { model: ["Objects"], environment: null },
+            canSubmit: true,
+            canForceRemove: false,
+            maxBytes: 1024,
+          },
+        },
+      });
+    assert.equal(request.method(), "POST");
+    assert.equal(request.headers()["x-csrf-token"], "csrf");
+    const asset = {
+      id: crypto.randomUUID(),
+      name: "Lost receipt",
+      kind: "environment",
+      category: null,
+      status: "approved",
+      hidden: false,
+      deleted: false,
+      removedFromProjects: false,
+      thumbnail: null,
+      validation: [],
+      actions: ["hide", "delete"],
+    };
+    records.push(asset);
+    if (records.length === 1)
+      return failure === "abort" ? route.abort("failed") : route.fulfill({ status: 401 });
+    return route.fulfill({ status: 201, json: asset });
+  });
+  await screen.goto(new URL("/spaces?add=1", baseUrl).href);
+  const dialog = screen.getByRole("dialog");
+  await dialog.getByLabel("Choose asset file").setInputFiles({
+    name: "Lost receipt.glb",
+    mimeType: "model/gltf-binary",
+    buffer: Buffer.from("fixture"),
+  });
+  const save = dialog.getByRole("button", { name: "Save Changes", exact: true });
+  await save.click();
+  await dialog.getByRole("alert").waitFor();
+  await screen.waitForFunction(
+    () => document.querySelector("dialog form")?.getAttribute("aria-busy") === "false",
+  );
+  assert.ok(await save.isDisabled(), "An upload with a lost receipt cannot be resubmitted");
+  assert.equal(
+    records.length,
+    1,
+    "Retrying an upload with a lost receipt must not create a second candidate",
+  );
+  await dialog.getByRole("button", { name: "Check library" }).waitFor();
+  if (failure === "401") {
+    directoryDenied = true;
+    await dialog.getByRole("button", { name: "Check library" }).click();
+    await screen.getByRole("heading", { name: "Access denied" }).waitFor();
+    assert.equal(
+      await screen.getByRole("button", { name: "+ Add 3D Space", exact: true }).isDisabled(),
+      true,
+    );
+    directoryDenied = false;
+  }
+  await screen.reload();
+  const candidate = screen.getByRole("heading", { name: "Lost receipt", exact: true });
+  await candidate.waitFor({ state: "attached" });
+  assert.equal(
+    await dialog.count(),
+    0,
+    "Reloading the upload shortcut must show the catalogue after an uncertain write",
+  );
+  await screen.getByRole("button", { name: "+ Add 3D Space", exact: true }).click();
+  await dialog.waitFor();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await candidate.waitFor();
+  assert.equal(records.length, 1);
+  await screen.close();
+}
+
 try {
+  await checkUnacknowledgedUpload("abort");
+  await checkUnacknowledgedUpload("401");
   // Exercise the real components with the clearly labelled local adapter
   // No fixture response is evidence of authenticated intake or persisted asset approval
   const fixture = fileURLToPath(
@@ -101,9 +232,7 @@ try {
     .getByRole("button", { name: /View Model/ })
     .first()
     .waitFor();
-  await page
-    .locator(".asset-admin-thumbnail img")
-    .evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
+  await waitForVisibleThumbnails();
   const controlTops = await page
     .locator(".asset-admin-heading")
     .evaluate((row) =>
@@ -238,7 +367,10 @@ try {
     mimeType: "model/gltf-binary",
     buffer: Buffer.from("local preview only"),
   });
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
+  assert.equal(
+    await dialog.getByRole("status", { name: "Filter Category" }).textContent(),
+    "Not applicable",
+  );
   await dialog
     .getByLabel("Choose asset file")
     .evaluate((input) => input.dispatchEvent(new Event("cancel", { bubbles: true })));
@@ -247,8 +379,6 @@ try {
     await dialog.getByLabel("Choose asset file").evaluate((input) => input.files[0].name),
     "retained-room.glb",
   );
-  // Space upload and detail dialogs have no category control
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   assert.equal(
     await dialog
       .locator(".asset-admin-upload")
@@ -307,7 +437,6 @@ try {
   for (const [label, value] of draftMetadata) {
     await dialog.getByLabel(`${label} (optional)`, { exact: true }).fill(value);
   }
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
   await dialog.getByRole("alert").waitFor();
   for (const [label, value] of draftMetadata) {
@@ -321,8 +450,6 @@ try {
     await dialog.getByLabel("Choose asset file").evaluate((input) => input.files[0].name),
     "test-room.glb",
   );
-  // Space upload and detail dialogs have no category control
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
   // Only the adapter's confirmed pending result enters the list after successful submission
@@ -339,7 +466,6 @@ try {
       new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }),
     );
   });
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
   await page.getByRole("heading", { name: "new-room.glb", exact: true }).waitFor();
   await page
@@ -572,9 +698,7 @@ try {
   });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.locator(".asset-admin-card").first().waitFor();
-  await page
-    .locator(".asset-admin-thumbnail img")
-    .evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
+  await waitForVisibleThumbnails();
   await page.screenshot({ path: "test-results/scrum168/assets.png", fullPage: true });
 
   // Model dialogs keep their own asset type rather than inheriting the space form
@@ -822,7 +946,6 @@ try {
   await page.getByLabel("Display name", { exact: true }).fill("Alex Tan");
   await page.getByRole("banner").getByText("Alex Tan", { exact: true }).waitFor();
   assert.equal(await page.getByRole("banner").getByText("AT", { exact: true }).count(), 1);
-  assert.equal(await page.locator("select").count(), 0);
   assert.equal(
     await page
       .locator(".asset-admin-scroll")

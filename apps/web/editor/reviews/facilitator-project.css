@@ -283,6 +283,17 @@
   font-size: 15px;
   font-weight: 600;
 }
+.facilitator-project-header > .facilitator-submission-link {
+  width: max-content;
+  max-width: calc(100vw - 120px);
+  padding-inline: 16px;
+  text-align: center;
+}
+.facilitator-project-header > .facilitator-project-close {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+}
 
 .facilitator-project-view .sp-button:hover:not(:disabled, .sp-button--primary),
 .sp-facilitator-submission .sp-button:hover:not(:disabled, .sp-button--primary) {

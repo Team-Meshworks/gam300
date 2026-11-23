@@ -80,7 +80,6 @@ export function ProgressReviews({
   educator,
   onGuard,
   autoOpen = false,
-  startEditing = false,
   onClose,
   decisions = [],
   decisionsLoading = false,
@@ -96,7 +95,6 @@ export function ProgressReviews({
   educator: boolean;
   onGuard: (guard: LeaveGuard) => void;
   autoOpen?: boolean;
-  startEditing?: boolean;
   onClose?: () => void;
   decisions?: readonly SubmissionFeedback[];
   decisionsLoading?: boolean;
@@ -118,7 +116,7 @@ export function ProgressReviews({
   const [loading, setLoading] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
   const [open, setOpen] = useState(autoOpen);
-  const [editing, setEditing] = useState(Boolean(publication) || startEditing);
+  const [editing, setEditing] = useState(Boolean(publication));
   const [feedback, setFeedback] = useState("");
   const [staged, setStaged] = useState<Array<ProgressIntent & { createdAt: string }>>([]);
   const [intent, setIntent] = useState<ProgressIntent | null>(null);

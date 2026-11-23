@@ -9,7 +9,6 @@ public sealed class AssetCandidateConfiguration : IEntityTypeConfiguration<Asset
 {
     public void Configure(EntityTypeBuilder<AssetCandidate> entity)
     {
-
         // Enforce lifecycle invariants in PostgreSQL as well as the request handlers
         entity.ToTable("asset_candidates", table =>
         {
@@ -46,7 +45,6 @@ public sealed class AssetCandidateConfiguration : IEntityTypeConfiguration<Asset
 
         // Match administrative library queries without indexing the retained binary payload
         entity.HasIndex(asset => new { asset.Kind, asset.Deleted, asset.Hidden });
-
         // Restrict account deletion while an immutable version still needs its audit identity
         entity.HasOne<Spatia.Server.Accounts.ApplicationUser>().WithMany().HasForeignKey(asset => asset.SubmittedBy).OnDelete(DeleteBehavior.Restrict);
         entity.HasOne<Spatia.Server.Accounts.ApplicationUser>().WithMany().HasForeignKey(asset => asset.ReviewedBy).OnDelete(DeleteBehavior.Restrict);

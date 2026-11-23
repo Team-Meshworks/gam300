@@ -1,6 +1,6 @@
 import type { CameraPose, QuaternionTuple, Transform, Vector3Tuple } from "./project-types";
 
-import { checkFields, invalid, isRecord } from "./validation-helpers";
+import { checkFields, invalid, isRecord, readField } from "./validation-helpers";
 import type { ValidationResult } from "./validation-helpers";
 
 export type { ValidationResult } from "./validation-helpers";
@@ -66,6 +66,9 @@ function validateRotation(raw: unknown, path: string): ValidationResult<Quaterni
     return invalid(path, "Rotation must be a unit quaternion within 0.000001 of length 1");
   }
 
+  // Renormalizing unit-length roundoff can alternate between two quaternions on successive saves.
+  if (Math.abs(length - 1) <= 4 * Number.EPSILON) return { ok: true, value: [...raw] };
+
   // Copy before normalizing so validation leaves the imported values alone
   const [x, y, z, w] = raw;
   return { ok: true, value: [x / length, y / length, z / length, w / length] };
@@ -82,18 +85,19 @@ export function validateTransform(raw: unknown, path = "transform"): ValidationR
   if (!fields.ok) {
     return fields;
   }
-  const position = validatePosition(raw.position, `${path}.position`);
+  const position = validatePosition(readField(raw, "position"), `${path}.position`);
   if (!position.ok) {
     return position;
   }
-  const rotation = validateRotation(raw.rotation, `${path}.rotation`);
+  const rotation = validateRotation(readField(raw, "rotation"), `${path}.rotation`);
   if (!rotation.ok) {
     return rotation;
   }
-  if (!isVector3(raw.scale)) {
+  const scale = readField(raw, "scale");
+  if (!isVector3(scale)) {
     return invalid(`${path}.scale`, "Scale must contain three finite numbers");
   }
-  for (const [index, value] of raw.scale.entries()) {
+  for (const [index, value] of scale.entries()) {
     // Zero collapses an axis; negative scale mirrors it
     // M1 stores positive scale on every axis
     if (value <= 0) {
@@ -104,7 +108,7 @@ export function validateTransform(raw: unknown, path = "transform"): ValidationR
   // Fresh arrays keep later edits from changing the caller's input
   return {
     ok: true,
-    value: { position: position.value, rotation: rotation.value, scale: [...raw.scale] },
+    value: { position: position.value, rotation: rotation.value, scale: [...scale] },
   };
 }
 
@@ -120,25 +124,22 @@ export function validateCameraPose(
   if (!fields.ok) {
     return fields;
   }
-  const position = validatePosition(raw.position, `${path}.position`);
+  const position = validatePosition(readField(raw, "position"), `${path}.position`);
   if (!position.ok) {
     return position;
   }
-  const rotation = validateRotation(raw.rotation, `${path}.rotation`);
+  const rotation = validateRotation(readField(raw, "rotation"), `${path}.rotation`);
   if (!rotation.ok) {
     return rotation;
   }
   // Field of view stays in degrees in the saved format
   // Both endpoints of the 30 to 90 range are allowed
-  if (
-    !isFiniteNumber(raw.fovDegrees) ||
-    raw.fovDegrees < MIN_FOV_DEGREES ||
-    raw.fovDegrees > MAX_FOV_DEGREES
-  ) {
+  const fovDegrees = readField(raw, "fovDegrees");
+  if (!isFiniteNumber(fovDegrees) || fovDegrees < MIN_FOV_DEGREES || fovDegrees > MAX_FOV_DEGREES) {
     return invalid(`${path}.fovDegrees`, "Field of view must be between 30 and 90 degrees");
   }
   return {
     ok: true,
-    value: { position: position.value, rotation: rotation.value, fovDegrees: raw.fovDegrees },
+    value: { position: position.value, rotation: rotation.value, fovDegrees },
   };
 }

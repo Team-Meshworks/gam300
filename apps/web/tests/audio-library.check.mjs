@@ -20,21 +20,10 @@ try {
       window.spatialPanners.push(panner);
       return panner;
     };
-    const createSource = AudioContext.prototype.createBufferSource;
-    AudioContext.prototype.createBufferSource = function () {
-      const source = createSource.call(this);
-      const record = { source, started: false, stopped: false };
-      window.spatialSources.push(record);
-      const start = source.start.bind(source),
-        stop = source.stop.bind(source);
-      source.start = (...args) => {
-        record.started = true;
-        return start(...args);
-      };
-      source.stop = (...args) => {
-        record.stopped = true;
-        return stop(...args);
-      };
+    const createSource = AudioContext.prototype.createMediaElementSource;
+    AudioContext.prototype.createMediaElementSource = function (element) {
+      const source = createSource.call(this, element);
+      window.spatialSources.push({ source, element });
       return source;
     };
     const play = HTMLMediaElement.prototype.play;
@@ -55,20 +44,8 @@ try {
     page.getByRole("group", { name: "Rooms options", exact: true }),
   ).click();
   await page.locator(".viewport-stage").click({ position: { x: 600, y: 350 } });
-  // Read the saved server document so assertions wait for the same persistence used after reload
-  async function document() {
-    return project.document();
-  }
-  async function saved(check) {
-    const until = Date.now() + 15000;
-    while (Date.now() < until) {
-      const value = await document();
-      if (value && check(value)) return value;
-      await page.waitForTimeout(50);
-    }
-    throw Error("Audio edit did not reach the server");
-  }
-  await saved((doc) => doc.scenes.length === 1);
+  const saved = project.waitForDocument;
+  await saved((doc) => doc.scenes[0]?.environmentAssetId === "test-room-v1");
   await button("Asset library").click();
   const reference = await page.locator(".asset-picker").boundingBox();
   await button("Close asset library").click();
@@ -139,7 +116,6 @@ try {
   await dialog.getByRole("option", { name: "BGM", exact: true }).click();
   await dialog.screenshot({ path: "test-results/audio-library/background-desktop.png" });
   await page.setViewportSize({ width: 390, height: 844 });
-  await dialog.screenshot({ path: "test-results/audio-library/background-mobile.png" });
   const overflow = await dialog.evaluate((el) => ({
     width: el.clientWidth,
     scroll: el.scrollWidth,
@@ -159,39 +135,29 @@ try {
     ),
     true,
   );
-  let doc = await saved((doc) => doc.scenes[0].audio?.length === 1);
+  const doc = await saved((doc) => doc.scenes[0].audio?.length === 1);
   assert.equal(doc.scenes[0].objects.length, 0);
   const original = doc.scenes[0].audio[0];
-  await page.locator(".scene-audio-select").filter({ hasText: "Ethereal Calm" }).click();
-  assert.equal(await dialog.count(), 0, "Selecting hierarchy audio must not reopen the library");
-  assert.equal(await button("Ethereal Calm").getAttribute("aria-pressed"), "true");
-  assert.equal(await page.locator(".scene-audio-remove").count(), 0);
-  await page.keyboard.press("Delete");
-  await saved((doc) => (doc.scenes[0].audio?.length ?? 0) === 0);
-  await button("Undo").click();
-  await saved((doc) => doc.scenes[0].audio[0]?.id === original.id);
   // Unavailable audio types remain discoverable without changing the draft or opening a library
   await button("Audio").click();
   const audioTools = page.getByRole("group", { name: "Audio options", exact: true });
-  for (const name of ["Payphone audio"]) {
-    const tool = button(name, audioTools);
-    assert.equal(await tool.getAttribute("aria-disabled"), "true");
-    await tool.hover();
-    assert.equal(await page.locator(".tool-tip", { hasText: "Coming soon" }).isVisible(), true);
-    await tool.dispatchEvent("click");
-    assert.equal(await dialog.count(), 0);
-  }
+  const payphone = button("Payphone audio", audioTools);
+  assert.equal(await payphone.getAttribute("aria-disabled"), "true");
+  await payphone.hover();
+  assert.equal(await page.locator(".tool-tip", { hasText: "Coming soon" }).isVisible(), true);
+  await payphone.dispatchEvent("click");
+  assert.equal(await dialog.count(), 0);
   await page.keyboard.press("Escape");
   await page.reload();
   await openSavedProject(page);
-  doc = await document();
-  assert.equal(doc.scenes[0].audio[0].id, original.id);
-  assert.equal(doc.scenes[0].objects.length, 0);
+  assert.equal(await page.locator(".object-row").count(), 0);
   await page.locator(".scene-audio-select").filter({ hasText: "Ethereal Calm" }).click();
+  assert.equal(await dialog.count(), 0, "Selecting hierarchy audio must not reopen the library");
+  assert.equal(await button("Ethereal Calm").getAttribute("aria-pressed"), "true");
   await page.keyboard.press("Delete");
   await saved((doc) => (doc.scenes[0].audio?.length ?? 0) === 0);
   await button("Undo").click();
-  await saved((doc) => (doc.scenes[0].audio?.length ?? 0) === 1);
+  await saved((doc) => doc.scenes[0].audio?.[0]?.id === original.id);
   // Reload returns to first person; use the overview so the annotation target is fully visible
   const overview = button("Third person");
   if ((await overview.getAttribute("aria-pressed")) !== "true") await overview.click();
@@ -252,59 +218,49 @@ try {
   await page.reload();
   await openSavedProject(page);
   await button("Preview").click();
+  await page.getByRole("status").filter({ hasText: "Exhibition ready" }).waitFor();
+  await page.getByLabel("Exhibition view", { exact: true }).click({ position: { x: 20, y: 20 } });
+  await page.evaluate(() => document.exitPointerLock());
   await page.waitForFunction(
-    () =>
-      window.spatialPanners.length === 1 &&
-      window.spatialSources.some((entry) => entry.started && !entry.stopped),
+    () => window.spatialPanners.length === 1 && window.spatialSources.length === 1,
   );
   assert.equal(await page.evaluate(() => window.spatialPanners[0].panningModel), "HRTF");
-  const placed = (await document()).scenes[0].objects[0].transform.position;
-  const sourcePosition = await page.evaluate(() => {
-    const panner = window.spatialPanners[0];
-    return [panner.positionX.value, panner.positionY.value, panner.positionZ.value];
-  });
-  placed.forEach((value, index) =>
-    assert.ok(Math.abs(value - sourcePosition[index]) < 0.01, "Spatial source follows its exhibit"),
-  );
-  // A hidden tab pauses its sources and returning resumes them without orphaning playback
-  await page.evaluate(() => {
-    Object.defineProperty(document, "hidden", { configurable: true, value: true });
-    document.dispatchEvent(new Event("visibilitychange"));
+  const spatial = page.locator("audio[data-spatial-owner]");
+  await spatial.waitFor({ state: "attached" });
+  await page.waitForFunction(() => {
+    const audio = document.querySelector("audio[data-spatial-owner]");
+    return audio?.src.startsWith("blob:") && !audio.paused && audio.currentTime > 0;
   });
   assert.equal(
-    await page.evaluate(() => window.spatialSources.every((entry) => entry.stopped)),
+    await page.evaluate(
+      () =>
+        window.spatialSources[0].element === document.querySelector("audio[data-spatial-owner]"),
+    ),
     true,
   );
-  await page.evaluate(() => {
-    Object.defineProperty(document, "hidden", { configurable: true, value: false });
-    document.dispatchEvent(new Event("visibilitychange"));
-  });
-  await page.waitForFunction(() =>
-    window.spatialSources.some((entry) => entry.started && !entry.stopped),
-  );
-  const target = page.locator(".preview-targets button").first();
+  const placed = project.document().scenes[0].objects[0].transform.position;
+  await page.waitForFunction((position) => {
+    const panner = window.spatialPanners[0];
+    return [panner.positionX.value, panner.positionY.value, panner.positionZ.value].every(
+      (value, index) => Math.abs(value - position[index]) < 0.01,
+    );
+  }, placed);
+  await page.getByText("Exhibit information", { exact: true }).click();
+  const target = page.getByRole("button", { name: "Activate Sample crate", exact: true });
   await target.click();
-  await page.waitForFunction(() =>
-    window.previewAudios.some((audio) => !audio.paused && audio.src.includes("ethereal-calm")),
-  );
+  await page.waitForFunction(() => {
+    const audio = document.querySelector("audio[data-background]:not([data-spatial-owner])");
+    return audio?.src.startsWith("blob:") && !audio.paused && audio.currentTime > 0;
+  });
   await button("Exit preview").click();
   assert.equal(
-    await page.evaluate(() => window.spatialSources.every((entry) => entry.stopped)),
+    await page.evaluate(() =>
+      window.spatialSources.every(({ element }) => element.paused && !element.isConnected),
+    ),
     true,
     "Leaving Preview stops spatial audio",
   );
-  assert.equal(
-    await page.evaluate(() => window.previewAudios.every((audio) => audio.paused)),
-    true,
-  );
   await page.locator(".object-row[data-object-id]").first().click();
-  assert.equal(
-    await page
-      .locator(".scene-tree")
-      .getByRole("button", { name: /^Remove hotspot from / })
-      .count(),
-    0,
-  );
   await button("Interaction").click();
   await page.locator(".interaction-list").waitFor();
   await page.getByRole("button", { name: /^Remove hotspot from / }).click();

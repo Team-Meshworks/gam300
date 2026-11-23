@@ -165,12 +165,22 @@ try {
     .filter({ hasText: "Science project" })
     .getByRole("button", { name: "View Details" })
     .click();
-  const response = page.waitForResponse((r) =>
+  const latestAssignment = page.waitForResponse((r) =>
     r.url().includes(`/classes/${classId}/assignments/${assignmentId}`),
   );
+  const recheckedSession = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === "/api/v1/auth/session",
+  );
   releaseRefresh();
-  await response;
-  await page.waitForTimeout(200);
+  const [assignmentResponse, sessionResponse] = await Promise.all([
+    latestAssignment,
+    recheckedSession,
+  ]);
+  assert.equal(await assignmentResponse.finished(), null);
+  assert.equal(await sessionResponse.finished(), null);
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
   assert.equal(
     await page.getByRole("heading", { name: "Science project" }).count(),
     1,
@@ -301,9 +311,11 @@ try {
     removed: false,
   };
   const moderationWrites = [];
-  await page.route("**/api/v1/projects/publication-moderation?**", (route) =>
-    route.fulfill({ json: { items: [publicationState] } }),
-  );
+  let pendingVisibility;
+  await page.route("**/api/v1/projects/publication-moderation?**", async (route) => {
+    if (pendingVisibility) await pendingVisibility.promise;
+    await route.fulfill({ json: { items: [publicationState] } });
+  });
   await page.route("**/api/v1/auth/csrf", (route) =>
     route.fulfill({ json: { requestToken: "fixture-token" } }),
   );
@@ -432,6 +444,7 @@ try {
     publishingBlocked: false,
     removed: false,
   };
+  pendingVisibility = Promise.withResolvers();
   await page.goto(origin + "/home");
   await page
     .locator("article")
@@ -441,12 +454,10 @@ try {
   const hideDraft = page
     .locator(".sp-teacher-student-actions")
     .getByRole("button", { name: "Hide", exact: true });
-  await page.waitForFunction(
-    () =>
-      document
-        .querySelector(".sp-teacher-student-actions .sp-hide-action")
-        ?.getAttribute("title") === "Block publishing; the student can keep editing",
-  );
+  assert.equal(await hideDraft.isDisabled(), true, "Moderation waits for the current visibility");
+  assert.equal(await hideDraft.getAttribute("title"), "Publication visibility unavailable");
+  pendingVisibility.resolve();
+  await hideDraft.and(page.locator(":enabled")).waitFor();
   assert.equal(
     await hideDraft.getAttribute("title"),
     "Block publishing; the student can keep editing",

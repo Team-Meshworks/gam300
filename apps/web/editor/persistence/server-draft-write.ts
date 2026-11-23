@@ -4,13 +4,18 @@ import { isRecord } from "../../shared/project/validation-helpers";
 // Time allowed for one network attempt; the edit debounce lives in server-autosave
 const SAVE_REQUEST_TIMEOUT_MS = 15_000;
 
+function scheduleDeadline(expire: () => void, milliseconds: number): () => void {
+  const timer = setTimeout(expire, milliseconds);
+  return () => clearTimeout(timer);
+}
+
 export type ServerDraftRequest = Readonly<{ projectId: string; body: string }>;
 export type ServerDraftResult =
   | {
       kind: "saved";
       receipt: { projectId: string; clientMutationId: string; revision: number };
     }
-  | { kind: "conflict" | "rejected" | "failed" };
+  | { kind: "conflict" | "rejected" | "failed" | "invalid" };
 
 // Only send to the editor's own API origin
 // Keep the captured body unchanged when retrying an uncertain write
@@ -19,12 +24,13 @@ export async function writeServerDraft(
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
   accountId?: string,
+  schedule: typeof scheduleDeadline = scheduleDeadline,
 ): Promise<ServerDraftResult> {
   if (signal.aborted) return { kind: "failed" };
   // Bound the whole token/save exchange so a stalled connection releases the save queue
   // A timeout still leaves the server outcome uncertain; retry the original mutation
   const timeout = new AbortController();
-  const deadline = setTimeout(() => timeout.abort(), SAVE_REQUEST_TIMEOUT_MS);
+  const cancelDeadline = schedule(() => timeout.abort(), SAVE_REQUEST_TIMEOUT_MS);
   // Either leaving the account or reaching the deadline cancels both fetches
   const requestSignal = combineAbortSignals([signal, timeout.signal]);
   try {
@@ -40,7 +46,12 @@ export async function writeServerDraft(
     if ([401, 403].includes(csrf.status)) return { kind: "rejected" };
     if (!csrf.ok) return { kind: "failed" };
     const token: unknown = await csrf.json();
-    if (!isRecord(token) || typeof token.requestToken !== "string" || !token.requestToken)
+    if (
+      !isRecord(token) ||
+      !("requestToken" in token) ||
+      typeof token.requestToken !== "string" ||
+      !token.requestToken
+    )
       return { kind: "failed" };
 
     const response = await fetcher(`/api/v1/projects/${encodeURIComponent(request.projectId)}`, {
@@ -60,6 +71,12 @@ export async function writeServerDraft(
     // Another save may have moved the revision forward
     // Hand the conflict back for a user choice; keep our local work intact
     if (response.status === 409) return { kind: "conflict" };
+    if (response.status === 422) {
+      const problem: unknown = await response.json().catch(() => null);
+      // This application result follows receipt lookup and precedes any write
+      if (isRecord(problem) && "code" in problem && problem.code === "invalid_document")
+        return { kind: "invalid" };
+    }
     // These requests need account, permission or document correction before another attempt
     if ([400, 401, 403, 404, 413, 422].includes(response.status)) return { kind: "rejected" };
     if (response.status !== 200) return { kind: "failed" };
@@ -69,6 +86,9 @@ export async function writeServerDraft(
     const receipt: unknown = await response.json();
     if (
       !isRecord(receipt) ||
+      !("projectId" in receipt) ||
+      !("clientMutationId" in receipt) ||
+      !("revision" in receipt) ||
       typeof receipt.projectId !== "string" ||
       typeof receipt.clientMutationId !== "string" ||
       typeof receipt.revision !== "number" ||
@@ -89,7 +109,7 @@ export async function writeServerDraft(
     // Leave reconciliation to the caller; never claim the document was saved here
     return { kind: "failed" };
   } finally {
-    clearTimeout(deadline);
+    cancelDeadline();
 
     // Release fallback subscriptions when this request settles, keeping the project session active
     timeout.abort();

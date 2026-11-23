@@ -34,7 +34,13 @@ if (args is ["--exchange"])
             ? ProjectCapabilities.Missing(read.Value!, new HashSet<string>(StringComparer.Ordinal))
                 .Select(issue => new { path = issue.Path, capability = issue.Capability }).ToArray()
             : null;
-        return new { ok = saved.Ok, json = saved.Value, path = saved.Error?.Path, capabilities };
+        return new
+        {
+            ok = saved.Ok,
+            json = saved.Value,
+            path = saved.Error?.Path,
+            capabilities
+        };
     });
 
     // Emit one response array and stop before the human-readable fixture summary reaches stdout
@@ -47,28 +53,37 @@ var originals = new Dictionary<string, JsonNode>
     ["m1"] = JsonNode.Parse(File.ReadAllText(Path.Combine(fixtures, "m1-project.json")))!,
     ["m2"] = JsonNode.Parse(File.ReadAllText(Path.Combine(fixtures, "m2-project.json")))!,
 };
+var rotated = originals["m1"].DeepClone();
+double[] unitRotation = [0, 0.9205048534524405, 0, -0.39073112848927366];
+rotated["scenes"]![0]!["objects"]![1]!["transform"]!["rotation"] = JsonSerializer.SerializeToNode(unitRotation);
+var rotatedProject = Format.Deserialize(rotated.ToJsonString(), assets);
+Check(rotatedProject.Value is LegacyProject rotatedLegacy
+    && rotatedLegacy.Scenes[0].Objects[1].Transform.Rotation.SequenceEqual(unitRotation),
+    "Reopening a checked rotation must preserve its authored precision");
 var count = 0;
 foreach (var test in manifest["cases"]!.AsArray())
 {
     // Each case changes a fresh fixture; one rejection must not contaminate later checks
     var input = originals[test!["base"]!.GetValue<string>()].DeepClone();
+
     foreach (var patch in test["patches"]!.AsArray())
     {
         // Paths mix object keys and array positions to target the exact boundary under test
         var path = patch!["path"]!.AsArray();
         var parent = input;
+
         foreach (var key in path.Take(path.Count - 1))
-        {
             parent = Child(parent, key!)!;
-        }
 
         var last = path[^1]!;
         var remove = patch["remove"]?.GetValue<bool>() ?? false;
         JsonNode? value = patch["value"]?.DeepClone();
+
         if (patch["repeat"] is { } repeated)
         {
             // Expand limit cases here instead of checking megabytes of repeated data into Git
             var repeatCount = repeated.GetValue<int>();
+
             if (value is JsonValue scalar && scalar.TryGetValue<string>(out var repeatedText))
             {
                 value = JsonValue.Create(string.Concat(Enumerable.Repeat(repeatedText, repeatCount)));
@@ -76,38 +91,32 @@ foreach (var test in manifest["cases"]!.AsArray())
             else
             {
                 var array = new JsonArray();
+
                 for (var i = 0; i < repeatCount; i++)
-                {
                     array.Add(value?.DeepClone());
-                }
 
                 value = array;
             }
         }
+
         // Apply the requested replacement or removal to the cloned tree without changing the base fixture
         if (parent is JsonArray list)
         {
             var index = last.GetValue<int>();
+
             if (remove)
-            {
                 list.RemoveAt(index);
-            }
             else
-            {
                 list[index] = value;
-            }
         }
         else
         {
             var key = last.GetValue<string>();
+
             if (remove)
-            {
                 parent.AsObject().Remove(key);
-            }
             else
-            {
                 parent[key] = value;
-            }
         }
     }
 
@@ -128,10 +137,10 @@ foreach (var test in manifest["cases"]!.AsArray())
         Check(saved.Ok, $"{name}: serialization failed");
         var reopened = Format.Deserialize(saved.Value!, assets);
         Check(reopened.Ok, $"{name}: reopening failed");
-
         // Compare all data and array order while allowing quaternion normalization drift
         Equivalent(JsonDocument.Parse(input.ToJsonString()).RootElement, JsonDocument.Parse(saved.Value!).RootElement, name);
     }
+
     count++;
 }
 
@@ -140,6 +149,7 @@ foreach (var test in manifest["rawCases"]!.AsArray())
 {
     var result = Format.Deserialize(test!["json"]!.GetValue<string>(), assets);
     Check(result.Ok == test["valid"]!.GetValue<bool>(), $"Raw JSON {test["name"]}: acceptance mismatch");
+
     if (!result.Ok)
     {
         Check(result.Error!.Path == test["path"]!.GetValue<string>(),
@@ -181,7 +191,6 @@ Check(!Format.Deserialize(legacy.Replace("Crate layout", "\ud800", StringCompari
 // Typed callers can bypass JSON input, so saving must reject malformed strings too
 var legacyModel = (LegacyProject)Format.Deserialize(legacy, assets).Value!;
 Check(!Format.Serialize(legacyModel with { Title = "\ud800" }, assets).Ok, "invalid UTF-16 serialization");
-
 // A valid saved document may require features absent from a particular player build
 var content = (ContentProject)Format.Deserialize(originals["m2"].ToJsonString(), assets).Value!;
 var issues = ProjectCapabilities.Missing(content, new HashSet<string>());
@@ -202,20 +211,18 @@ Check(ProjectCapabilities.Missing(disabled, supported).Count == 0, "disabled kno
 Check(Format.Serialize(disabled, assets).Value!.Contains("gaze", StringComparison.Ordinal),
     "disabled rule serialization");
 Console.WriteLine($"Passed {count} shared format cases, byte/depth/duplicate-key boundaries, full-data round trips and capability checks");
-
 static JsonNode? Child(JsonNode parent, JsonNode key) => parent is JsonArray list ? list[key.GetValue<int>()] : parent[key.GetValue<string>()];
 static void Check(bool valid, string name)
 {
     // Throwing gives local runs and CI a failing exit code with the offending case name
     if (!valid)
-    {
         throw new InvalidOperationException(name);
-    }
 }
 static void Equivalent(JsonElement source, JsonElement result, string path)
 {
     // Compare meaning recursively; property order and equivalent JSON escapes are irrelevant
     Check(source.ValueKind == result.ValueKind, $"{path}: changed value kind");
+
     switch (source.ValueKind)
     {
         // Check both field count and names so round trips cannot quietly discard unknown content
@@ -241,20 +248,16 @@ static void Equivalent(JsonElement source, JsonElement result, string path)
                 // Validation normalizes near-unit quaternions without changing their orientation
                 var values = source.EnumerateArray().Select(value => value.GetDouble()).ToArray();
                 var length = Math.Sqrt(values.Sum(value => value * value));
+
                 for (var i = 0; i < values.Length; i++)
-                {
                     Check(Math.Abs(values[i] / length - result[i].GetDouble()) < 1e-12, $"{path}: changed rotation");
-                }
 
                 break;
             }
 
             // Scene, component, rule and action arrays must retain their authored order
             for (var i = 0; i < source.GetArrayLength(); i++)
-            {
                 Equivalent(source[i], result[i], $"{path}[{i}]");
-            }
-
             break;
         case JsonValueKind.Number:
 

@@ -1,4 +1,5 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
+import { serveHttp } from "../../tests/http-fixture";
 import type { ManagedAccount } from "../directory/directory-client";
 import {
   parseProjectGrants,
@@ -136,9 +137,8 @@ const json = (value: unknown) =>
   new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
 
 it("loads current grants and complete authorized choices under the captured administrator", async () => {
-  const request = vi.fn<typeof fetch>(async (input, init) => {
-    expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe(actorId);
-    const path = String(input);
+  const { fetch: request, requests } = await serveHttp(({ url }) => {
+    const path = url.slice(new URL(url).origin.length);
     if (path === `/api/v1/projects/${projectId}/assignments`) return json(snapshot);
     if (path.startsWith("/api/v1/admin/organizations"))
       return json({
@@ -170,13 +170,17 @@ it("loads current grants and complete authorized choices under the captured admi
   expect(
     await readProjectGrantEditor(projectId, actorId, new AbortController().signal, request),
   ).toEqual({ snapshot, accounts });
-  expect(request.mock.calls.every(([, init]) => init?.cache === "no-store")).toBe(true);
+  expect(
+    requests.every(
+      (sent) => sent.cache === "no-store" && sent.headers.get("X-Spatia-Account") === actorId,
+    ),
+  ).toBe(true);
 });
 
 it("rejects a changed account or inactive organisation after loading choices", async () => {
   for (const changedAccount of [true, false]) {
-    const request = vi.fn<typeof fetch>(async (input) => {
-      const path = String(input);
+    const { fetch: request, requests } = await serveHttp(({ url }) => {
+      const path = url.slice(new URL(url).origin.length);
       if (path === `/api/v1/projects/${projectId}/assignments`) return json(snapshot);
       if (path.startsWith("/api/v1/admin/organizations"))
         return json({
@@ -195,7 +199,7 @@ it("rejects a changed account or inactive organisation after loading choices", a
       if (path.startsWith("/api/v1/admin/users"))
         return json({ items: accounts, nextCursor: null });
       return json({
-        userId: projectId,
+        userId: changedAccount ? projectId : actorId,
         displayName: "Other",
         role: "Administrator",
         orgId: null,
@@ -204,14 +208,14 @@ it("rejects a changed account or inactive organisation after loading choices", a
     });
     await expect(
       readProjectGrantEditor(projectId, actorId, new AbortController().signal, request),
-    ).rejects.toThrow();
-    expect(request.mock.calls.every(([, init]) => !init?.method)).toBe(true);
+    ).rejects.toThrow(changedAccount ? "account changed" : "organisation is inactive");
+    expect(requests.every(({ method }) => method === "GET")).toBe(true);
   }
 });
 
 it("refuses ambiguous duplicate account choices", async () => {
-  const request = vi.fn<typeof fetch>(async (input) => {
-    const path = String(input);
+  const { fetch: request } = await serveHttp(({ url }) => {
+    const path = url.slice(new URL(url).origin.length);
     if (path === `/api/v1/projects/${projectId}/assignments`) return json(snapshot);
     if (path.startsWith("/api/v1/admin/organizations"))
       return json({

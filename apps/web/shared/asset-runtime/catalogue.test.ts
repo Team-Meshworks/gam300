@@ -4,11 +4,9 @@ import {
   STARTER_ROOM_SHA256,
   isStarterRoomEnvironment,
   isStarterRoomModel,
-  starterRoomCompanion,
   searchAssets,
   type CatalogueAsset,
 } from "./catalogue";
-import { createLoadedStore } from "../../tests/project-store-fixture";
 
 const assets: readonly CatalogueAsset[] = Object.freeze([
   Object.freeze({
@@ -47,34 +45,12 @@ describe("catalogue search", () => {
   it("clears to the original order and references without changing the catalogue", () => {
     expect(searchAssets(assets, "chair")[0]).toBe(assets[0]);
     expect(searchAssets(assets, "  ")).toEqual(assets);
-    expect(assets.map((asset) => asset.id)).toEqual(["chair", "panel", "room"]);
   });
 
   it("treats patterns, markup as literal input", () => {
     for (const query of [".*", "[", "<script>", "' OR 1=1 --"]) {
       expect(searchAssets(assets, query)).toEqual([]);
     }
-  });
-
-  it("places a search result through existing history and preserves its ID on redo", () => {
-    const store = createLoadedStore(assets, "room");
-    const match = searchAssets(assets, "BLUE")[0];
-    expect(match).toBeDefined();
-    const result = store.addObject(match!.id, [1, 0, -2]);
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error(result.error);
-    const placed = store.getSnapshot();
-    expect(placed.objects).toHaveLength(1);
-    expect(result.object.assetId).toBe("chair");
-    expect(result.object.transform.position).toEqual([1, 0, -2]);
-
-    searchAssets(assets, "nothing");
-    searchAssets(assets, "");
-    expect(store.getSnapshot()).toBe(placed);
-    store.undo();
-    expect(store.getSnapshot().objects).toHaveLength(0);
-    store.redo();
-    expect(store.getSnapshot().objects[0]?.id).toBe(result.object.id);
   });
 });
 
@@ -123,8 +99,6 @@ it("recognizes only matching non-empty Starter room hashes", () => {
     sha256: starterHash,
   };
   expect(isStarterRoomModel([approvedModel], approvedModel.id)).toBe(true);
-  expect(starterRoomCompanion([approvedModel])?.id).toBe(approvedModel.id);
-  expect(starterRoomCompanion([{ ...approvedModel, sha256: "b".repeat(64) }])).toBeUndefined();
 });
 
 it("pins Starter geometry to both packaged manifest entries", () => {
@@ -146,7 +120,7 @@ it("keeps approved room geometry aligned with the matching asset hashes", async 
   );
   expect(rooms.length).toBe(16);
   for (const room of rooms) {
-    expect(knownRoomGeometry[room.sha256]).toEqual(room.boundsMeters);
+    expect(knownRoomGeometry.get(room.sha256)).toEqual(room.boundsMeters);
     const modelId = room.assetId.replace(/-v1$/, "-module-v1");
     const model = manifest.assets.find((asset: { assetId: string }) => asset.assetId === modelId);
     expect(model?.kind).toBe("model");

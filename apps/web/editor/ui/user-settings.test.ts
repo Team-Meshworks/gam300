@@ -1,8 +1,8 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it } from "vitest";
 import { defaultSettings, loadSettings, readSettings } from "./user-settings";
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  localStorage.removeItem("spatia-user-settings");
 });
 
 it("keeps the volume in range and unknown themes light", () => {
@@ -11,6 +11,6 @@ it("keeps the volume in range and unknown themes light", () => {
 });
 
 it("falls back to the defaults when the saved settings are junk", () => {
-  vi.stubGlobal("localStorage", { getItem: () => "{not json", setItem: () => {} });
+  localStorage.setItem("spatia-user-settings", "{not json");
   expect(loadSettings()).toEqual(defaultSettings);
 });

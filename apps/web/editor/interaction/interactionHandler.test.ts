@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ProjectHotspot } from "../../shared/project/project-types";
 import { createInteractionHandler, type Interaction } from "./interactionHandler";
+import { createActionRunner } from "./actionHandler";
 import { DEFAULT_ELAPSED_SECONDS } from "./triggerHandler";
 
 const hotspots: readonly ProjectHotspot[] = [
@@ -42,33 +43,45 @@ describe("interaction handler", () => {
   });
 
   it("continues after an action throws", () => {
-    const runAction = vi.fn().mockImplementationOnce(() => {
-      throw new Error("action failed");
-    });
+    const controller = new AbortController();
+    const cancelled = new DOMException("Spatial playback was cancelled", "AbortError");
+    controller.abort(cancelled);
+    const moved = vi.fn();
+    const runner = createActionRunner({ goToScene: () => false, goToViewpoint: moved }, (id) =>
+      id === "spatial"
+        ? {
+            url: "/spatial.m4a",
+            loop: false,
+            volume: 1,
+            play: controller.signal.throwIfAborted.bind(controller.signal),
+          }
+        : undefined,
+    );
+    const runAction = vi.spyOn(runner, "run");
     const handler = createInteractionHandler(
-      [sceneStartInteraction, sceneStartInteraction],
+      [
+        {
+          when: sceneStartInteraction.when,
+          do: { type: "move-to-viewpoint", viewpointId: "first" },
+        },
+        {
+          when: sceneStartInteraction.when,
+          do: { type: "play-audio", mediaId: "spatial" },
+        },
+        {
+          when: sceneStartInteraction.when,
+          do: { type: "move-to-viewpoint", viewpointId: "next" },
+        },
+      ],
       hotspots,
-      recorder(runAction),
+      runner,
     );
 
     handler.sceneStarted();
 
-    expect(runAction).toHaveBeenCalledTimes(2);
-  });
-
-  it("runs only the click interactions for the clicked object", () => {
-    const runAction = vi.fn();
-    const handler = createInteractionHandler(
-      [clickInteraction, sceneStartInteraction],
-      hotspots,
-      recorder(runAction),
-    );
-
-    handler.objectClicked("other");
-    expect(runAction).not.toHaveBeenCalled();
-
-    handler.objectClicked("crate");
-    expect(runAction).toHaveBeenCalledExactlyOnceWith(clickInteraction.do);
+    expect(runAction.mock.results.map(({ type }) => type)).toEqual(["return", "throw", "return"]);
+    expect(runAction.mock.results[1]?.value).toBe(cancelled);
+    expect(moved.mock.calls).toEqual([["first"], ["next"]]);
   });
 
   it("matches click rules and hotspots case-insensitively in author order", () => {
@@ -82,11 +95,13 @@ describe("interaction handler", () => {
       do: { type: "open-link", url: "https://example.com/second" },
     };
     const handler = createInteractionHandler(
-      [first, clickInteraction, second],
+      [first, clickInteraction, sceneStartInteraction, second],
       hotspots,
       recorder(runAction),
     );
 
+    handler.objectClicked("other");
+    expect(runAction).not.toHaveBeenCalled();
     handler.objectClicked("CRATE");
 
     expect(runAction.mock.calls).toEqual([[first.do], [clickInteraction.do], [second.do]]);
@@ -139,10 +154,13 @@ describe("interaction handler", () => {
     const runAction = vi.fn();
     const handler = createInteractionHandler([elapsedInteraction], hotspots, recorder(runAction));
 
+    handler.update(DEFAULT_ELAPSED_SECONDS - 0.5);
     handler.update(0);
     handler.update(-5);
     handler.update(Number.NaN);
 
     expect(runAction).not.toHaveBeenCalled();
+    handler.update(0.5);
+    expect(runAction).toHaveBeenCalledExactlyOnceWith(elapsedInteraction.do);
   });
 });

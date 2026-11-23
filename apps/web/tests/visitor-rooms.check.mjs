@@ -52,6 +52,26 @@ snapshot.scenes.push({
   objects: [],
 });
 
+snapshot.schemaVersion = 2;
+for (const scene of snapshot.scenes) {
+  Object.assign(scene, { groups: [], zones: [], viewpoints: [], rules: [] });
+  for (const object of scene.objects)
+    Object.assign(object, { visible: true, parentId: null, components: [] });
+}
+const destination = snapshot.scenes[1];
+destination.viewpoints.push({
+  id: "99999999-9999-4999-8999-999999999998",
+  name: "Entrance",
+  camera: destination.startCamera,
+});
+snapshot.scenes[0].objects[2].components.push({
+  id: "99999999-9999-4999-8999-999999999999",
+  type: "navigationPoint",
+  label: "Enter single room",
+  sceneId: destination.id,
+  viewpointId: destination.viewpoints[0].id,
+});
+
 let mode = "canonical";
 let releaseManifest;
 let manifestGate;
@@ -102,7 +122,7 @@ try {
   });
 
   // Instrument the same Three.js module as the visitor before releasing the manifest.
-  const componentPath = new URL("../visitor/ExhibitionCanvas.tsx", import.meta.url).pathname;
+  const componentPath = new URL("../shared/player/ExhibitionCanvas.tsx", import.meta.url).pathname;
   const component = await page.request.get(`${origin}/@fs${componentPath}`);
   assert.ok(component.ok(), "Visitor component is served by the development server");
   const transformed = await component.text();
@@ -174,7 +194,8 @@ try {
     mesh.geometry.addEventListener("dispose", () => (window.roomTestDisposed = true));
   });
   const firstCanvas = await page.locator("canvas[aria-label='Exhibition view']").elementHandle();
-  await page.getByRole("combobox").selectOption("1");
+  await page.locator(".visitor-information summary").click();
+  await page.getByRole("button", { name: "Enter single room" }).click();
   await page.waitForFunction((canvas) => !canvas.isConnected, firstCanvas);
   await page.getByRole("status").getByText("Exhibition ready").waitFor();
   await page.evaluate(

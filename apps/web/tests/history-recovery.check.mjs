@@ -1,6 +1,7 @@
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import { serveProject } from "./authoring-project-fixture.mjs";
+import { waitForStoredDraft } from "./stored-draft.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -57,12 +58,11 @@ try {
   await addAsset(page, "Starter room");
   await addAsset(page, "Sample crate");
   const rows = page.locator(".object-row");
-  async function waitForRecovery(count, futureCount, hotspots = 0, interactions = 0) {
-    const deadline = Date.now() + 10000;
-    while (Date.now() < deadline) {
-      const ready = await page.evaluate(
+  function waitForRecovery(count, futureCount, hotspots = 0, interactions = 0) {
+    return waitForStoredDraft(page, () =>
+      page.evaluate(
         async ({ count, futureCount, hotspots, interactions }) => {
-          const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+          const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
           const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
           const result = await loadRecoverySession(
             new Map(assets.map((asset) => [asset.id, asset.kind])),
@@ -70,18 +70,17 @@ try {
           );
           return (
             result.ok &&
-            result.value?.document.scenes[0].objects.length === count &&
+            result.value?.document?.scenes[0].objects.length === count &&
             result.value.document.scenes[0].hotspots.length === hotspots &&
             result.value.document.scenes[0].interactions.length === interactions &&
             result.value.history?.future.length === futureCount
           );
         },
         { count, futureCount, hotspots, interactions },
-      );
-      if (ready) return;
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    throw new Error("Recovery history did not reach the expected edit");
+      ),
+    ).catch((cause) => {
+      throw new Error("Recovery history did not reach the expected edit", { cause });
+    });
   }
 
   // Capture the starting state so Undo is checked independently of the default spawn position
@@ -167,7 +166,7 @@ try {
 
   const storageResults = await page.evaluate(async () => {
     const { loadRecoverySession, applySaveRecoverySession } =
-      await import("/persistence/local-drafts.ts");
+      await import("/persistence/recovery-session.ts");
     const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const kinds = new Map(assets.map((a) => [a.id, a.kind]));
@@ -261,7 +260,7 @@ try {
   await compatibilityPage.goto(compatibilityProject.url);
   await compatibilityPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await compatibilityPage.evaluate(async (fixture) => {
-    const { applySaveRecoverySession } = await import("/persistence/local-drafts.ts");
+    const { applySaveRecoverySession } = await import("/persistence/recovery-session.ts");
     const { IndexedDBDraftDatabase } = await import("/persistence/draft-db.ts");
     const { createDocumentStore } = await import("/document-store.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
@@ -295,13 +294,11 @@ try {
   const target = await compatibilityPage
     .getByLabel("Interaction 1 hotspot", { exact: true })
     .inputValue();
-  async function waitForActiveScene(name, hotspotCount, ruleCount) {
-    const deadline = Date.now() + 10000;
-    while (Date.now() < deadline) {
-      // Await IndexedDB explicitly; an async predicate is itself truthy to DOM polling.
-      const ready = await compatibilityPage.evaluate(
+  function waitForActiveScene(name, hotspotCount, ruleCount) {
+    return waitForStoredDraft(compatibilityPage, () =>
+      compatibilityPage.evaluate(
         async ({ activeId, name, hotspotCount, ruleCount }) => {
-          const { loadRecoverySession } = await import("/persistence/local-drafts.ts");
+          const { loadRecoverySession } = await import("/persistence/recovery-session.ts");
           const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
           const result = await loadRecoverySession(
             new Map(assets.map((a) => [a.id, a.kind])),
@@ -318,11 +315,12 @@ try {
           );
         },
         { activeId, name, hotspotCount, ruleCount },
-      );
-      if (ready) return;
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    throw new Error("Recovery did not persist the expected active scene and interactions");
+      ),
+    ).catch((cause) => {
+      throw new Error("Recovery did not persist the expected active scene and interactions", {
+        cause,
+      });
+    });
   }
   await waitForActiveScene("Exhibit", 1, 1);
   await reloadRecovery(compatibilityPage);

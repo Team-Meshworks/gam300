@@ -34,23 +34,20 @@ public sealed class AccountSessionService(
 
         cancellationToken.ThrowIfCancellationRequested();
         var user = await users.FindByNameAsync(request.UserName);
+
         if (user is null || user.TwoFactorEnabled)
-        {
             return SignInResult.Failed;
-        }
 
         cancellationToken.ThrowIfCancellationRequested();
         var result = await signIn.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
+
         if (!result.Succeeded || string.IsNullOrEmpty(user.SecurityStamp))
-        {
             return SignInResult.Failed;
-        }
 
         var account = await accounts.ResolveAsync(user.Id, user.SecurityStamp, cancellationToken);
+
         if (account is null)
-        {
             return SignInResult.Failed;
-        }
 
         cancellationToken.ThrowIfCancellationRequested();
         // Keep the verified entity so a later reset can only leave an invalid old-stamp ticket
@@ -78,13 +75,13 @@ public sealed class AccountSessionService(
         var context = signIn.Context;
         var account = context.Features.Get<CurrentAccount>();
         var stamps = context.User.FindAll(signIn.Options.ClaimsIdentity.SecurityStampClaimType).ToArray();
+
         if (account is null || stamps.Length != 1 || string.IsNullOrEmpty(stamps[0].Value))
-        {
             return Failure("AuthenticationRequired");
-        }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         var user = await users.FindByIdAsync(account.UserId.ToString("D"));
+
         if (user is null || user.SecurityStamp != stamps[0].Value)
         {
             await signIn.SignOutAsync();
@@ -94,10 +91,9 @@ public sealed class AccountSessionService(
         cancellationToken.ThrowIfCancellationRequested();
         user.MustChangePassword = false;
         var result = await users.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+
         if (!result.Succeeded)
-        {
             return result;
-        }
 
         cancellationToken.ThrowIfCancellationRequested();
         await transaction.CommitAsync(cancellationToken);

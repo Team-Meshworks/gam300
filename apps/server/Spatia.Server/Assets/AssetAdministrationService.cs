@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -9,56 +8,80 @@ using Spatia.Server.Projects;
 namespace Spatia.Server.Assets;
 
 /// <summary>Owns private intake and ordinary retirement without changing existing authored documents</summary>
-public sealed class AssetAdministrationService(ApplicationDbContext database, AssetUploadValidator validator)
+public sealed class AssetAdministrationService(ApplicationDbContext database, AssetUploadValidator validator, IConfiguration configuration)
 {
+    private readonly int _maxRetainedAssets = AssetIntakePolicy.MaxRetainedAssets(configuration);
+    private readonly long _maxRetainedBytes = AssetIntakePolicy.MaxRetainedBytes(configuration);
 
-    // Load metadata without allocating every retained GLB for the administrative list
+    // List and retry responses need administration metadata only, even for 20 MB assets.
+    private IQueryable<AssetCandidate> CandidateMetadata => database.AssetCandidates.AsNoTracking()
+        .Select(asset => new AssetCandidate
+        {
+            Id = asset.Id,
+            Name = asset.Name,
+            Kind = asset.Kind,
+            Category = asset.Category,
+            Sha256 = asset.Sha256,
+            Bytes = Array.Empty<byte>(),
+            Status = asset.Status,
+            ValidationJson = asset.ValidationJson,
+            CreatedAt = asset.CreatedAt,
+            Hidden = asset.Hidden,
+            Deleted = asset.Deleted,
+            RemovedFromProjects = asset.RemovedFromProjects,
+            Source = asset.Source,
+            License = asset.License,
+            ReviewNotes = asset.ReviewNotes,
+        });
+
     public async Task<AssetAdministrationRecord[]> ListAsync(CancellationToken token) =>
-        (await database.AssetCandidates.AsNoTracking().OrderByDescending(asset => asset.CreatedAt)
-            .Select(asset => new AssetCandidate
-            {
-                Id = asset.Id,
-                Name = asset.Name,
-                Kind = asset.Kind,
-                Category = asset.Category,
-                Sha256 = asset.Sha256,
-                Bytes = Array.Empty<byte>(),
-                Status = asset.Status,
-                ValidationJson = asset.ValidationJson,
-                Hidden = asset.Hidden,
-                Deleted = asset.Deleted,
-                RemovedFromProjects = asset.RemovedFromProjects,
-                Source = asset.Source,
-                License = asset.License,
-                ReviewNotes = asset.ReviewNotes,
-            }).Take(1000).ToArrayAsync(token)).Select(Record).ToArray();
+        (await CandidateMetadata.OrderByDescending(asset => asset.CreatedAt).Take(AssetIntakePolicy.CatalogueLimit).ToArrayAsync(token)).Select(Record).ToArray();
 
-    public async Task<AssetAdministrationRecord?> SubmitAsync(string name, string kind, string? category,
+    internal async Task<AssetAdministrationRecord> ReadRecordAsync(Guid id, CancellationToken token) =>
+        Record(await CandidateMetadata.SingleAsync(asset => asset.Id == id, token));
+
+    public async Task<(AssetAdministrationRecord? Record, bool Created, bool QuotaExceeded)?> SubmitAsync(string name, string kind, string? category,
         byte[] bytes, Guid actor, AssetReviewRequest? metadata, CancellationToken token)
     {
+        if (database.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Asset uploads require a caller-owned transaction.");
 
         // Repeat input bounds here because the service can be called outside the HTTP upload handler
         if (!AssetIntakePolicy.Accepts(name, kind, category) || bytes.Length is < 1 or > AssetIntakePolicy.MaxBytes || actor == Guid.Empty)
-        {
             return null;
-        }
 
-        // Validate privately before allocating an immutable identity or admitting another stored upload
+        var label = name[..^4];
+        var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        // Validation stays outside the quota lock so other uploads can validate concurrently.
         var validation = kind == "audio" ? AssetAudioValidator.Validate(bytes) : await validator.ValidateAsync(bytes, token);
-        if (validation is null)
-        {
-            return null;
-        }
+        await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(167168)", token);
+        // Review and retirement never change these catalogue fields. Keep every historical ID
+        // addressable and choose a stable original when a pre-existing catalogue has duplicates.
+        var existing = await CandidateMetadata
+            .Where(asset => asset.Sha256 == digest && asset.Name == label && asset.Kind == kind && asset.Category == category)
+            .OrderBy(asset => asset.CreatedAt).ThenBy(asset => asset.Id)
+            .FirstOrDefaultAsync(token);
 
-        // A valid administrator upload is immediately selectable; failed validation stays private
-        // Fingerprint the exact uploaded bytes once and retain that version through later retirement
+        if (existing is not null)
+            return (Record(existing), false, false);
+
+        if (validation is null)
+            return null;
+
+        var count = await database.AssetCandidates.CountAsync(token);
+        var total = await database.AssetCandidates.SumAsync(item => (long?)item.Bytes.Length, token) ?? 0;
+
+        if (count >= _maxRetainedAssets || bytes.Length > _maxRetainedBytes - total)
+            return (null, false, true);
+
+        // New candidates alone consume quota and receive an immutable ID and the submitted provenance.
         var asset = new AssetCandidate
         {
             Id = Guid.NewGuid(),
-            Name = name[..^4],
+            Name = label,
             Kind = kind,
             Category = category,
-            Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)),
+            Sha256 = digest,
             Bytes = bytes,
             Status = validation.Value.Valid ? "approved" : "invalid",
             Hidden = !validation.Value.Valid,
@@ -71,26 +94,13 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
-        // Serialize quota admission across requests before adding another persistent upload
-        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
-        await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(167168)", token);
-        var count = await database.AssetCandidates.CountAsync(token);
-        var total = await database.AssetCandidates.SumAsync(item => (long?)item.Bytes.Length, token) ?? 0;
-        if (count >= 1000 || total + bytes.Length > 1024L * 1024 * 1024)
-        {
-            return null;
-        }
-
-        // Persist only after quota admission; disposal rolls the transaction back on every earlier return
         database.AssetCandidates.Add(asset);
         await database.SaveChangesAsync(token);
-        await transaction.CommitAsync(token);
-        return Record(asset);
+        return (Record(asset), true, false);
     }
 
     public async Task<AssetAdministrationRecord?> ReviewAsync(Guid id, AssetReviewRequest review, Guid actor, CancellationToken token)
     {
-
         // Record the explicit administrator decision; omitted details use empty strings for the stored approval contract
         var changed = await database.AssetCandidates.Where(asset => asset.Id == id && !asset.Deleted && asset.Status == "pending")
             .ExecuteUpdateAsync(update => update.SetProperty(asset => asset.Status, "approved")
@@ -99,12 +109,11 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
                 .SetProperty(asset => asset.ReviewedBy, actor), token);
 
         // Return the persisted record so the client replaces its state only after the database accepts review
-        return changed == 1 ? Record((await database.AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == id, token))) : null;
+        return changed == 1 ? await ReadRecordAsync(id, token) : null;
     }
 
     public async Task<AssetAdministrationRecord?> ChangeAsync(Guid id, string action, CancellationToken token)
     {
-
         // Ordinary retirement changes discoverability only and keeps exact bytes for existing references
         var query = database.AssetCandidates.Where(asset => asset.Id == id && !asset.Deleted);
         var changed = action == "delete"
@@ -113,7 +122,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
                 .ExecuteUpdateAsync(update => update.SetProperty(asset => asset.Hidden, action == "hide"), token);
 
         // A missing or concurrently retired row stays a conflict rather than a fabricated success
-        return changed == 1 ? Record(await database.AssetCandidates.AsNoTracking().SingleAsync(asset => asset.Id == id, token)) : null;
+        return changed == 1 ? await ReadRecordAsync(id, token) : null;
     }
 
     // The caller owns the transaction and checks live administrator authority before committing
@@ -122,27 +131,42 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
     {
         // Block project creation, writes and row-locking publication/review operations during the global change
         await database.Database.ExecuteSqlRawAsync("LOCK TABLE projects IN EXCLUSIVE MODE", token);
-        var asset = await database.AssetCandidates.FromSqlInterpolated($"SELECT * FROM asset_candidates WHERE id = {id} FOR UPDATE")
+        // Non-key updates must coexist with receipt foreign-key checks on this asset.
+        var asset = await database.AssetCandidates.FromSqlInterpolated($"SELECT * FROM asset_candidates WHERE id = {id} FOR NO KEY UPDATE")
             .SingleOrDefaultAsync(token);
-        if (asset is null || asset.Status != "approved" || asset.RemovedFromProjects || !asset.Deleted) { return null; }
+
+        if (asset is null || asset.Status != "approved" || asset.RemovedFromProjects || !asset.Deleted)
+            return null;
+
         var assetId = id.ToString("D");
         var pattern = "%" + assetId + "%";
         // Page matching drafts while the table lock keeps the set stable without retaining every document in memory
         var cursor = Guid.Empty;
+
         while (true)
         {
             var projects = await database.Projects.FromSqlInterpolated($"""
                 SELECT * FROM projects WHERE document::text LIKE {pattern} AND id > {cursor} ORDER BY id LIMIT 10
                 """).ToArrayAsync(token);
-            if (projects.Length == 0) { break; }
+
+            if (projects.Length == 0)
+                break;
+
             foreach (var project in projects)
             {
-                if (!AssetDocumentReferences.Read(project.DocumentJson).Contains(assetId)) { continue; }
-                if (project.Revision == Project.MaxRevision || !documents.ReadStored(project.Id, project.SchemaVersion, project.DocumentJson).Ok) { return null; }
+                if (!AssetDocumentReferences.Read(project.DocumentJson).Contains(assetId))
+                    continue;
+
+                if (project.Revision == Project.MaxRevision || !documents.ReadStored(project.Id, project.SchemaVersion, project.DocumentJson).Ok)
+                    return null;
+
                 var removed = AssetDocumentRemoval.Remove(project.DocumentJson, assetId);
                 using var parsed = JsonDocument.Parse(removed);
                 var version = parsed.RootElement.GetProperty("schemaVersion").GetInt32();
-                if (!documents.ReadStored(project.Id, version, removed).Ok) { return null; }
+
+                if (!documents.ReadStored(project.Id, version, removed).Ok)
+                    return null;
+
                 project.DocumentJson = removed;
                 project.SchemaVersion = version;
                 project.Revision++;
@@ -151,10 +175,14 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
                 project.LastMutationId = null;
                 project.LastMutationDigest = null;
             }
+
             await database.SaveChangesAsync(token);
             cursor = projects[^1].Id;
-            foreach (var project in projects) { database.Entry(project).State = EntityState.Detached; }
+
+            foreach (var project in projects)
+                database.Entry(project).State = EntityState.Detached;
         }
+
         // Immutable editions retain their audit snapshots but their links can never be restored
         var editions = database.Publications.FromSqlInterpolated($"""
             SELECT * FROM publications

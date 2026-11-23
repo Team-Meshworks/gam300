@@ -1,16 +1,16 @@
 import { isRoomModel, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { furnitureTools } from "./furniture-tools";
 
-// Match the editor's two pickers, including assets supplied by the approved catalogue.
+export type AssetPickerMode = "assets" | "rooms" | "furniture";
+
 export function belongsInAssetPicker(
   asset: CatalogueAsset,
-  rooms: boolean,
+  mode: AssetPickerMode,
   catalogue: readonly CatalogueAsset[],
 ): boolean {
-  return rooms
-    ? asset.kind === "environment"
-    : asset.kind === "model" &&
-        !isRoomModel(catalogue, asset.id) &&
-        !asset.displayRole &&
-        !furnitureTools.some((tool) => tool.assetId === asset.id);
+  if (mode === "rooms") return asset.kind === "environment";
+  if (asset.kind !== "model" || asset.displayRole || isRoomModel(catalogue, asset.id)) return false;
+  const furniture =
+    asset.category === "Furniture" || furnitureTools.some((tool) => tool.assetId === asset.id);
+  return mode === "furniture" ? furniture : !furniture;
 }

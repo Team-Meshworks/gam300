@@ -3037,6 +3037,17 @@ dialog.sp-dialog.sp-display-dialog {
   border-radius: 999px;
 }
 
+.asset-picker:is([data-picker-mode="assets"], [data-picker-mode="furniture"]) .asset-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.asset-picker:is([data-picker-mode="assets"], [data-picker-mode="furniture"])
+  .asset-search
+  .asset-filter {
+  display: flex;
+  align-items: center;
+}
+
 /* Keep the heart and its round hover target on the same center in every picker. */
 :is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-favourite {
   display: grid;

@@ -21,13 +21,10 @@ public static class AccountSessionEndpoints
             CancellationToken cancellationToken) =>
         {
             if (context.Features.Get<CurrentAccount>() is { MustChangePassword: true })
-            {
                 return ApiProblems.Create(context, 403, "access_denied", "This operation is not permitted.");
-            }
+
             if (!AccountSessionService.IsValidLoginRequest(request))
-            {
                 return ApiProblems.Create(context, 400, "invalid_login_input", "Check the supplied sign-in details.");
-            }
 
             var result = await sessions.LoginAsync(request, cancellationToken);
             return result.Succeeded
@@ -55,19 +52,18 @@ public static class AccountSessionEndpoints
             HttpContext context, CancellationToken cancellationToken) =>
         {
             var result = await sessions.ChangePasswordAsync(request, cancellationToken);
+
             if (result.Succeeded)
-            {
                 return Results.NoContent();
-            }
+
             var codes = result.Errors.Select(error => error.Code).ToHashSet(StringComparer.Ordinal);
+
             if (codes.Contains("AuthenticationRequired"))
-            {
                 return ApiProblems.Create(context, 401, "authentication_required", "A valid session is required.");
-            }
+
             if (codes.Contains("ConcurrencyFailure"))
-            {
                 return ApiProblems.Create(context, 409, "account_conflict", "The account changed; reload before retrying.");
-            }
+
             return ApiProblems.Create(context, 400, "password_change_failed", "Check the supplied password requirements.");
         }).RequireAuthorization(SecurityPolicies.CurrentAccount)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);

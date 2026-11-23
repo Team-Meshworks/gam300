@@ -8,5 +8,8 @@ public sealed class SetActiveRequest
     /// <summary>
     /// Gets the desired stored active state
     /// </summary>
-    public required bool IsActive { get; init; }
+    public required bool IsActive
+    {
+        get; init;
+    }
 }

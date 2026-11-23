@@ -1,4 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { deferred } from "../../tests/deferred";
+import { serveHttp, serveResponses } from "../../tests/http-fixture";
 import { writeServerDraft } from "./server-draft-write";
 
 // Transport receives a body already prepared by autosave
@@ -7,58 +9,36 @@ const request = { projectId: "project-a", body: '{"captured":"request"}' };
 const signal = new AbortController().signal;
 const receipt = { projectId: "project-a", clientMutationId: "save-a", revision: 1 };
 
-afterEach(() => {
-  vi.useRealTimers();
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
-
 function responses(response: Response) {
   // First fetch gets the CSRF token; second fetch sends the draft
   // Supplied responses keep these tests independent of a running backend
-  return vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(Response.json({ requestToken: "csrf-token" }))
-    .mockResolvedValueOnce(response);
+  return serveResponses(Response.json({ requestToken: "csrf-token" }), response);
 }
 
 describe("server draft transport", () => {
   it("sends the captured body with the server's CSRF token and same-origin cookies", async () => {
-    const fetcher = responses(Response.json(receipt));
+    const { fetch: fetcher, requests } = await responses(Response.json(receipt));
     expect(await writeServerDraft(request, signal, fetcher)).toEqual({ kind: "saved", receipt });
-    expect(fetcher).toHaveBeenLastCalledWith("/api/v1/projects/project-a", {
+    const sent = requests.at(-1)!;
+    expect(new URL(sent.url).pathname).toBe("/api/v1/projects/project-a");
+    expect(sent).toMatchObject({
       method: "PUT",
       credentials: "same-origin",
       cache: "no-store",
       redirect: "error",
       signal: expect.any(AbortSignal),
-      headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": "csrf-token" },
-      body: request.body,
     });
-
-    // Repeated successful saves must release fallback subscriptions before the session ends
-    class OlderAbortSignal extends AbortSignal {}
-    Object.defineProperty(OlderAbortSignal, "any", { value: undefined });
-    vi.stubGlobal("AbortSignal", OlderAbortSignal);
-    const account = new AbortController();
-    const added = vi.spyOn(account.signal, "addEventListener");
-    const removed = vi.spyOn(account.signal, "removeEventListener");
-    for (let save = 0; save < 50; save += 1) {
-      expect(
-        await writeServerDraft(request, account.signal, responses(Response.json(receipt))),
-      ).toEqual({ kind: "saved", receipt });
-      expect(added).toHaveBeenCalledTimes(save + 1);
-      expect(removed).toHaveBeenCalledTimes(save + 1);
-    }
-    expect(account.signal.aborted).toBe(false);
+    expect(sent.headers.get("Content-Type")).toBe("application/json");
+    expect(sent.headers.get("X-CSRF-TOKEN")).toBe("csrf-token");
+    expect(await sent.text()).toBe(request.body);
   });
 
   it("binds token and save requests to the originating account even after cookies change", async () => {
-    const fetcher = responses(Response.json(receipt));
+    const { fetch: fetcher, requests } = await responses(Response.json(receipt));
     await writeServerDraft(request, signal, fetcher, "original-account");
     // Both hops must reject a different cookie owner before draft bytes can be accepted
-    for (const [, init] of fetcher.mock.calls) {
-      expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe("original-account");
+    for (const sent of requests) {
+      expect(sent.headers.get("X-Spatia-Account")).toBe("original-account");
     }
   });
 
@@ -70,79 +50,108 @@ describe("server draft transport", () => {
     [503, "failed"],
   ])("keeps HTTP %s distinct from confirmed saving", async (status, kind) => {
     expect(
-      await writeServerDraft(request, signal, responses(new Response(null, { status }))),
+      await writeServerDraft(
+        request,
+        signal,
+        (await responses(new Response(null, { status }))).fetch,
+      ),
     ).toEqual({ kind });
   });
 
   it("does not send a draft when the CSRF bootstrap is invalid", async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ requestToken: null }));
+    const { fetch: fetcher, requests } = await serveResponses(
+      Response.json({ requestToken: null }),
+    );
     expect(await writeServerDraft(request, signal, fetcher)).toEqual({ kind: "failed" });
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(requests).toHaveLength(1);
+  });
+
+  it.each([
+    [{ code: "invalid_document" }, "invalid"],
+    [{ code: "project_id_mismatch" }, "rejected"],
+    [{}, "rejected"],
+  ])("distinguishes a known uncommitted document rejection: %j", async (problem, kind) => {
+    expect(
+      await writeServerDraft(
+        request,
+        signal,
+        (await responses(Response.json(problem, { status: 422 }))).fetch,
+      ),
+    ).toEqual({ kind });
   });
 
   it("treats a malformed success receipt as an unconfirmed write", async () => {
-    const fetcher = responses(Response.json({ ...receipt, revision: "1" }));
+    const { fetch: fetcher } = await responses(Response.json({ ...receipt, revision: "1" }));
     expect(await writeServerDraft(request, signal, fetcher)).toEqual({ kind: "failed" });
   });
 
   it("preserves uncertainty when the connection drops after sending", async () => {
     // Token succeeds, then the save loses its response
     // Nothing here tells us whether the server committed before the connection dropped
-    const fetcher = responses(Response.json(receipt));
-    fetcher.mockReset();
-    fetcher.mockResolvedValueOnce(Response.json({ requestToken: "csrf-token" }));
-    fetcher.mockRejectedValueOnce(new TypeError("Connection lost"));
+    const { fetch: fetcher } = await responses(Response.error());
     expect(await writeServerDraft(request, signal, fetcher)).toEqual({ kind: "failed" });
   });
 
   it.each([401, 403])("pauses when CSRF bootstrap rejects the session with %s", async (status) => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status }));
+    const { fetch: fetcher, requests } = await serveResponses(new Response(null, { status }));
     expect(await writeServerDraft(request, signal, fetcher)).toEqual({ kind: "rejected" });
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(requests).toHaveLength(1);
   });
 
   it("bounds a stalled request without claiming that the server rolled it back", async () => {
-    vi.useFakeTimers();
-    // Leave the save unresolved until its abort signal fires
-    // Advancing the test clock exercises the deadline without a real fifteen-second wait
-    const fetcher = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(Response.json({ requestToken: "csrf-token" }))
-      .mockImplementationOnce(
-        (_url, init) =>
-          new Promise((_resolve, reject) => {
-            init?.signal?.addEventListener(
-              "abort",
-              () => reject(new DOMException("Aborted", "AbortError")),
-              { once: true },
-            );
-          }),
-      );
-    const saving = writeServerDraft(request, signal, fetcher);
-    await vi.advanceTimersByTimeAsync(15_000);
+    const received = deferred<void>();
+    const disconnected = deferred<void>();
+    const deadline = deferred<{ expire: () => void; milliseconds: number }>();
+    let deadlineCancelled = false;
+    const { fetch: fetcher, requests } = await serveHttp(({ method, signal: requestSignal }) => {
+      if (method === "GET") return Response.json({ requestToken: "csrf-token" });
+      const cancelled = new Promise<Response>((resolve) => {
+        requestSignal.addEventListener(
+          "abort",
+          () => {
+            disconnected.resolve();
+            resolve(Response.error());
+          },
+          { once: true },
+        );
+      });
+      received.resolve();
+      return cancelled;
+    });
+    const saving = writeServerDraft(request, signal, fetcher, undefined, (expire, milliseconds) => {
+      deadline.resolve({ expire, milliseconds });
+      return () => {
+        deadlineCancelled = true;
+      };
+    });
+    const { expire, milliseconds } = await deadline.promise;
+    expect(milliseconds).toBe(15_000);
+    await received.promise;
+    expect(requests[1]?.signal.aborted).toBe(false);
+    expire();
+    await disconnected.promise;
     expect(await saving).toEqual({ kind: "failed" });
-    expect(fetcher.mock.calls[1]![1]?.signal?.aborted).toBe(true);
-    expect(vi.getTimerCount()).toBe(0);
+    expect(requests[1]?.signal.aborted).toBe(true);
+    expect(deadlineCancelled).toBe(true);
   });
 
   it("cancels the request when its owning account session ends", async () => {
     const account = new AbortController();
-    const fetcher = vi.fn<typeof fetch>().mockImplementation(
-      (_url, init) =>
-        new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener(
-            "abort",
-            () => reject(new DOMException("Aborted", "AbortError")),
-            { once: true },
-          );
-        }),
-    );
+    const received = deferred<void>();
+    const { fetch: fetcher, requests } = await serveHttp(({ signal: requestSignal }) => {
+      const cancelled = new Promise<Response>((resolve) => {
+        requestSignal.addEventListener("abort", () => resolve(Response.error()), { once: true });
+      });
+      received.resolve();
+      return cancelled;
+    });
     const saving = writeServerDraft(request, account.signal, fetcher);
+    await received.promise;
     account.abort();
     // Retry after logout as well; an ended session must not begin another fetch
     expect(await saving).toEqual({ kind: "failed" });
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(requests).toHaveLength(1);
     expect(await writeServerDraft(request, account.signal, fetcher)).toEqual({ kind: "failed" });
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(requests).toHaveLength(1);
   });
 });

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, readFile } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
 import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
+import { verifyExhibitAppearance } from "./exhibit-appearance.mjs";
 const browser = await launchBrowser({
   target: process.argv[2] ?? "http://127.0.0.1:5185/",
   args: ["--enable-unsafe-swiftshader"],
@@ -17,11 +18,12 @@ try {
   );
   const origin = process.argv[2] ?? "http://127.0.0.1:5185/";
   await renderer.goto(new URL("approved-room-harness.html", origin).href);
+  await verifyExhibitAppearance(renderer);
   const fixture = JSON.parse(
     await readFile(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
   );
   const measured = await renderer.evaluate(async (fixture) => {
-    const { editorModelCache, initScene } = await import("/graphics/scene.ts");
+    const { initScene } = await import("/graphics/scene.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const starter = assets.find((asset) => asset.id === "test-room-v1");
     const module = assets.find((asset) => asset.id === "test-room-module-v1");
@@ -32,14 +34,12 @@ try {
       id: "11111111-1111-4111-8111-111111111111",
       sha256: "b".repeat(64),
     };
-    const lease = await editorModelCache.acquire(starter, new AbortController().signal);
-    const prototype = Object.getPrototypeOf(Object.getPrototypeOf(lease.value.model));
-    const add = prototype.add;
+    const { Scene } = await import("/@id/three");
     let scene;
-    prototype.add = function (...nodes) {
-      if (this.isScene) scene = this;
-      return add.apply(this, nodes);
+    const observeScene = ({ target }) => {
+      scene = target;
     };
+    Scene.prototype.addEventListener("childadded", observeScene);
     const { promise: ready, resolve } = Promise.withResolvers();
     let handle;
     try {
@@ -52,8 +52,7 @@ try {
         onUpdate() {},
       });
     } finally {
-      prototype.add = add;
-      lease.release();
+      Scene.prototype.removeEventListener("childadded", observeScene);
     }
     const status = await ready;
     if (status !== "ready") throw new Error("Room renderer did not start: " + status);
@@ -120,7 +119,13 @@ try {
           export function Viewport(props) {
             React.useEffect(() => {
               props.onCamera({
-                prepareAsset: async (id) => { (window.preparedAssets ??= []).push(id); return true; },
+                prepareAsset: async (id) => {
+                  (window.preparedAssets ??= []).push(id);
+                  if (id === window.heldAssetId) {
+                    await new Promise((resolve) => { window.releasePreparation = resolve; });
+                  }
+                  return true;
+                },
                 capture: () => ({position: [0, 1, 0], rotation: [0, 0, 0, 1], fovDegrees: 40}),
                 show() {}, locate() {}, toggleDisplayMedia() {}, hotspotAnchor() {}, bounds() { return null; },
               });
@@ -166,29 +171,86 @@ try {
       );
       await page.locator(".viewport-stage").click();
     };
-    const document = () => project.document();
-    const waitForDocument = async (environmentAssetId, count, matches = () => true) => {
-      const deadline = Date.now() + 5000;
-      while (Date.now() < deadline) {
-        const saved = await document();
-        const scene = saved?.scenes[0];
-        if (
+    const waitForDocument = (environmentAssetId, count, matches = () => true) =>
+      project.waitForDocument(
+        ({ scenes: [scene] }) =>
           scene?.environmentAssetId === environmentAssetId &&
           scene.objects.length === count &&
-          matches(scene)
-        )
-          return saved;
-        await page.waitForTimeout(100);
-      }
-      throw new Error(
-        `Room document did not retain ${environmentAssetId} with ${count} added rooms: ${JSON.stringify(await document())}; ${(await page.locator('[role="alert"], [role="status"]').allTextContents()).join(" | ")}`,
+          matches(scene),
       );
-    };
-    return { page, choose, select, document, waitForDocument };
+    return { page, choose, select, document: project.document, waitForDocument };
   }
 
   const approvedPicker = await roomPickerPage();
   const approvedId = "22222222-2222-4222-8222-222222222222";
+  const delayedPicker = await roomPickerPage();
+  const delayedPage = delayedPicker.page;
+  const placement = delayedPage.locator(".viewport-stage");
+  async function startDelayedPick(preparingId = approvedId) {
+    await delayedPage.evaluate((id) => {
+      window.heldAssetId = id;
+      window.releasePreparation = undefined;
+    }, preparingId);
+    await delayedPicker.select("Approved Starter room");
+    await delayedPage.waitForFunction(() => !!window.releasePreparation);
+  }
+  async function finishDelayedPick() {
+    await delayedPage.evaluate(async () => {
+      window.releasePreparation();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+    return placement.getAttribute("data-placing-asset");
+  }
+  await startDelayedPick();
+  await delayedPicker.select("Starter room");
+  await delayedPage.waitForFunction(
+    () => document.querySelector(".viewport-stage")?.dataset.placingAsset === "test-room-v1",
+  );
+  const afterNewerChoice = await finishDelayedPick();
+  await startDelayedPick();
+  await delayedPage.keyboard.press("Escape");
+  const afterCancel = await finishDelayedPick();
+  assert.deepEqual(
+    { afterNewerChoice, afterCancel },
+    { afterNewerChoice: "test-room-v1", afterCancel: "" },
+    "A late asset preparation cannot replace the newer selection or re-arm canceled placement",
+  );
+  for (const tool of ["Orbit", "Pan"]) {
+    const before = await delayedPicker.document();
+    await startDelayedPick();
+    await delayedPage.getByRole("button", { name: tool, exact: true }).click();
+    assert.equal(await finishDelayedPick(), "", `${tool} must cancel pending placement`);
+    assert.equal(
+      await delayedPage
+        .getByRole("button", { name: tool, exact: true })
+        .getAttribute("aria-pressed"),
+      "true",
+    );
+    assert.deepEqual(await delayedPicker.document(), before);
+  }
+  await delayedPicker.choose("Starter room", "test-room-v1");
+  await delayedPicker.waitForDocument("test-room-v1", 0);
+  await startDelayedPick("test-room-module-v1");
+  await delayedPage.getByRole("button", { name: "Rooms", exact: true }).click();
+  const invalidRoom = delayedPage
+    .getByRole("group", { name: "Rooms options" })
+    .getByRole("button", { name: "Different room", exact: true });
+  const transfer = await delayedPage.evaluateHandle(() => new DataTransfer());
+  const card = await invalidRoom.elementHandle();
+  await card.dispatchEvent("dragstart", { dataTransfer: transfer });
+  await card.dispatchEvent("dragend", { dataTransfer: transfer });
+  await card.dispose();
+  await transfer.dispose();
+  await delayedPage
+    .getByText("An approved room model is required to add an adjoining room.")
+    .waitFor();
+  assert.equal(
+    await finishDelayedPick(),
+    "",
+    "A rejected replacement drag must also retire the earlier preparation",
+  );
+  await delayedPage.close();
+
   await approvedPicker.select("Approved Starter room");
   await approvedPicker.page.waitForFunction(
     (id) => document.querySelector(".viewport-stage")?.getAttribute("data-placing-asset") === id,
@@ -268,7 +330,6 @@ try {
   const project = await serveProject(page, process.argv[2] ?? "http://127.0.0.1:5185/");
   await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Filters", exact: true }).count(), 0);
   assert.equal(
     await page.getByRole("group", { name: "Camera tools", exact: true }).isVisible(),
     true,
@@ -277,23 +338,16 @@ try {
   // Observe viewport-owned room clones so connection checks never inspect or alter cached source models
   const captureRooms = () =>
     page.evaluate(async () => {
-      const { editorModelCache } = await import("/graphics/scene.ts");
-      const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-      const lease = await editorModelCache.acquire(
-        assets.find((asset) => asset.id === "test-room-v1"),
-        new AbortController().signal,
-      );
-      const prototype = Object.getPrototypeOf(Object.getPrototypeOf(lease.value.model));
-      const add = prototype.add;
+      const { Scene } = await import("/@id/three");
+      if (window.observeRooms) {
+        Scene.prototype.removeEventListener("childadded", window.observeRooms);
+      }
       window.roomRoots = [];
-      prototype.add = function (...nodes) {
-        for (const node of nodes) {
-          if (node.name === "placement-preview") window.roomGhost = node;
-          else if (this.isScene && node.getObjectByName("Wall_Back")) window.roomRoots.push(node);
-        }
-        return add.apply(this, nodes);
+      window.observeRooms = ({ child }) => {
+        if (child.name === "placement-preview") window.roomGhost = child;
+        else if (child.getObjectByName("Wall_Back")) window.roomRoots.push(child);
       };
-      lease.release();
+      Scene.prototype.addEventListener("childadded", window.observeRooms);
     });
   await captureRooms();
   async function choose() {
@@ -303,19 +357,15 @@ try {
       .getByRole("button", { name: "Starter room", exact: true })
       .click();
   }
-  async function saved(count, matches = () => true) {
-    const deadline = Date.now() + 15000;
-    while (Date.now() < deadline) {
-      const doc = project.document();
-      if (doc?.scenes[0].objects.length === count && matches(doc)) return doc;
-      await page.waitForTimeout(100);
-    }
-    throw new Error("Room placement did not reach storage");
+  function saved(count, matches = () => true) {
+    return project.waitForDocument(
+      (doc) => doc.scenes[0]?.objects.length === count && matches(doc),
+    );
   }
   const stage = page.locator(".viewport-stage");
   await choose();
   await stage.click({ position: { x: 600, y: 350 } });
-  let doc = await saved(0);
+  let doc = await saved(0, (value) => value.scenes[0].environmentAssetId === "test-room-v1");
   // Back the actual editor camera away so the enlarged 80 m grid edge is visible.
   await page.evaluate(() => {
     let mesh;

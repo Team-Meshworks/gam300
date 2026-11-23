@@ -107,24 +107,43 @@ export function Select({
     else if (bottom > popup.clientHeight) popup.scrollTop += bottom - popup.clientHeight;
   }, [active, id, open]);
 
-  // Dismiss on surrounding scroll or resize rather than leaving the menu detached from its field
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const close = () => setOpen(false);
+  // A scroll from bringing the field into view can arrive just after its menu opens.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const reposition = () => {
+      const bounds = button.current!.getBoundingClientRect();
+      if (bounds.bottom <= 0 || bounds.top >= innerHeight) {
+        setOpen(false);
+        return;
+      }
+      const popup = menu.current;
+      const height = popup
+        ? Math.min(popup.scrollHeight + popup.offsetHeight - popup.clientHeight, 245)
+        : Math.min(options.length * 36 + 18 + (footerLink ? 45 : 0), 245);
+      const below = innerHeight - bounds.bottom - 12;
+      const above = bounds.top - 12;
+      const upwards = below < height && above > below;
+      const maxHeight = Math.max(0, Math.min(height, upwards ? above : below));
+      setPosition({
+        top: upwards ? bounds.top - maxHeight : bounds.bottom,
+        left: bounds.left,
+        width: bounds.width,
+        maxHeight,
+      });
+    };
     const scroll = (event: Event) => {
       if (!(event.target instanceof Node) || !menu.current?.contains(event.target)) {
-        close();
+        reposition();
       }
     };
-    window.addEventListener("resize", close);
+    reposition();
+    window.addEventListener("resize", reposition);
     window.addEventListener("scroll", scroll, true);
     return () => {
-      window.removeEventListener("resize", close);
+      window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", scroll, true);
     };
-  }, [open]);
+  }, [open, options.length, footerLink]);
 
   // Commit only a real option, then return keyboard focus to the field that opened the menu
   function choose(index: number) {

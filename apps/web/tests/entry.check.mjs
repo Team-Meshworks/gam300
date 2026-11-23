@@ -95,12 +95,14 @@ try {
       return route.fulfill({ status: 204 });
     }
     if (path === "/api/v1/auth/logout") {
+      assert.equal(request.headers()["x-spatia-account"], session.userId);
       assert.equal(request.headers()["x-csrf-token"], "browser-test-token");
       mode = "anonymous";
       return route.fulfill({ status: 204 });
     }
     if (path === "/api/v1/auth/password") {
       passwordRequests += 1;
+      assert.equal(request.headers()["x-spatia-account"], session.userId);
       assert.equal(request.headers()["x-csrf-token"], "browser-test-token");
       assert.deepEqual(request.postDataJSON(), {
         currentPassword: "incorrect password",

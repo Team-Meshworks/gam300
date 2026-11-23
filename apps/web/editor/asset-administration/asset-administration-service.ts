@@ -7,17 +7,53 @@ import type {
 } from "./asset-administration";
 
 // Keep all requests on the authenticated application origin; never send cookies to an upload URL
-export function createAssetAdministrationService(actorId: string): AssetAdministrationService {
-  async function request<T>(
+export function createAssetAdministrationService(
+  actorId: string,
+  fetch: typeof globalThis.fetch = globalThis.fetch,
+): AssetAdministrationService {
+  const recoveryKey = `spatia.asset-write:${actorId}`;
+  const unknownWrite = {
+    ok: false,
+    kind: "unknown",
+    message: "The change may have completed. Check the library before trying again.",
+  } as const;
+  async function requestLocked<T>(
     path: string,
     signal: AbortSignal,
+    validate: (value: unknown) => value is T,
     init?: RequestInit,
+    reconcile = true,
+    removalAssetId?: string,
   ): Promise<AssetAdministrationResult<T>> {
-    let dispatched = false;
+    let writeSent = false;
+    let marker: string | null = null;
+    let pendingRemoval: { assetId: string; operationId: string } | null = null;
     try {
+      if (reconcile) {
+        try {
+          marker = localStorage.getItem(recoveryKey);
+        } catch (error) {
+          if (init?.method) throw error;
+        }
+      }
+      if (init?.method && marker !== null) return unknownWrite;
+      if (marker !== null && !init?.method && !isOperationId(marker)) {
+        const saved: unknown = JSON.parse(marker);
+        if (
+          !isObject(saved) ||
+          !("assetId" in saved) ||
+          typeof saved.assetId !== "string" ||
+          !saved.assetId ||
+          !("operationId" in saved) ||
+          typeof saved.operationId !== "string" ||
+          !isOperationId(saved.operationId)
+        )
+          return unknownWrite;
+        pendingRemoval = { assetId: saved.assetId, operationId: saved.operationId };
+      }
       const headers = new Headers(init?.headers);
       headers.set("X-Spatia-Account", actorId);
-      if (init?.method) {
+      if (init?.method || pendingRemoval) {
         // Bind both token acquisition and the write to the account that opened this screen.
         const csrf = await fetch("/api/v1/auth/csrf", {
           credentials: "same-origin",
@@ -34,7 +70,8 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
           !token ||
           typeof token !== "object" ||
           !("requestToken" in token) ||
-          typeof token.requestToken !== "string"
+          typeof token.requestToken !== "string" ||
+          !token.requestToken
         ) {
           return {
             ok: false,
@@ -45,64 +82,158 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
         headers.set("X-CSRF-TOKEN", token.requestToken);
       }
 
-      // Send the bounded write only after obtaining a token; reads use the same account-bound origin
-      dispatched = !!init?.method;
-      const response = await fetch(path, { ...init, credentials: "same-origin", headers, signal });
-      if (!response.ok) {
-        if (dispatched && response.status >= 500 && response.status !== 503)
-          return unknownOutcome();
-        return failure(response.status);
+      if (pendingRemoval) {
+        headers.set("Content-Type", "application/json");
+        const response = await fetch(
+          `/api/v1/admin/assets/${encodeURIComponent(pendingRemoval.assetId)}/removals/${pendingRemoval.operationId}/reconcile`,
+          {
+            method: "POST",
+            body: "{}",
+            credentials: "same-origin",
+            cache: "no-store",
+            redirect: "error",
+            headers,
+            signal,
+          },
+        );
+        if (!response.ok) return failure(response.status);
+        const receipt: unknown = await response.json();
+        if (
+          response.status !== 200 ||
+          !isObject(receipt) ||
+          !("assetId" in receipt) ||
+          receipt.assetId !== pendingRemoval.assetId ||
+          !("operationId" in receipt) ||
+          receipt.operationId !== pendingRemoval.operationId ||
+          !("outcome" in receipt) ||
+          (receipt.outcome !== "removed" && receipt.outcome !== "notApplied")
+        )
+          return unknownWrite;
       }
+
+      // Send the bounded write only after obtaining a token; reads use the same account-bound origin
+      if (init?.method) {
+        signal.throwIfAborted();
+        const operationId = crypto.randomUUID();
+        if (removalAssetId !== undefined) {
+          pendingRemoval = { assetId: removalAssetId, operationId };
+          marker = JSON.stringify(pendingRemoval);
+          path = `/api/v1/admin/assets/${encodeURIComponent(removalAssetId)}/removals/${operationId}`;
+          headers.set("Prefer", "spatia-created-status");
+          init = { ...init, method: "PUT", body: "{}" };
+        } else {
+          marker = operationId;
+        }
+        localStorage.setItem(recoveryKey, marker);
+        if (localStorage.getItem(recoveryKey) !== marker)
+          throw new Error("Could not record asset write");
+        writeSent = true;
+      }
+      const response = await fetch(path, {
+        ...init,
+        credentials: "same-origin",
+        cache: "no-store",
+        redirect: "error",
+        headers,
+        signal,
+      });
+      if (!response.ok) {
+        const problem: unknown = await response.json().catch(() => null);
+        const code = isObject(problem) && "code" in problem ? problem.code : undefined;
+        if (writeSent && (response.status >= 500 || [401, 408].includes(response.status))) {
+          if (!(response.status === 503 && code === "asset_intake_unavailable")) {
+            return unknownWrite;
+          }
+        }
+        if (writeSent && localStorage.getItem(recoveryKey) === marker)
+          localStorage.removeItem(recoveryKey);
+        return failure(response.status, code);
+      }
+      if (
+        writeSent &&
+        response.status === 204 &&
+        response.headers.get("X-Spatia-Write-Outcome") === "committed"
+      )
+        return unknownWrite;
       // Treat confirmed responses as untrusted until their lifecycle fields pass validation
       const value: unknown = await response.json();
 
       // Check the HTTP boundary before a malformed record can enable destructive controls
-      if (!(init?.method ? isCandidate(value) : isAdministrationData(value))) {
-        if (dispatched) return unknownOutcome();
-        return { ok: false, kind: "unavailable", message: "Asset service returned invalid data" };
+      if (!validate(value)) {
+        return writeSent
+          ? unknownWrite
+          : { ok: false, kind: "unavailable", message: "Asset service returned invalid data" };
       }
-      return { ok: true, value: value as T };
+      if (
+        removalAssetId !== undefined &&
+        (![200, 201].includes(response.status) ||
+          !isCandidate(value) ||
+          value.id !== removalAssetId ||
+          !value.removedFromProjects ||
+          !value.hidden ||
+          !value.deleted ||
+          response.headers.get("X-Spatia-Operation-Id") !== pendingRemoval?.operationId)
+      )
+        return unknownWrite;
+      signal.throwIfAborted();
+      if (marker !== null && localStorage.getItem(recoveryKey) === marker)
+        localStorage.removeItem(recoveryKey);
+      return { ok: true, value };
 
       // Let cancellation reach the mounting screen while ordinary network failures preserve its draft
     } catch (error) {
       if (signal.aborted) {
         throw error;
       }
-      if (dispatched) return unknownOutcome();
-      return {
-        ok: false,
-        kind: "unavailable",
-        message: "The change could not be confirmed. Reload before retrying",
-      };
+      return writeSent
+        ? unknownWrite
+        : {
+            ok: false,
+            kind: "unavailable",
+            message: "Asset service is unavailable. Please try again.",
+          };
     }
   }
 
-  function unknownOutcome(): AssetAdministrationResult<never> {
-    return {
-      ok: false,
-      kind: "unknown",
-      message: "The change may have completed. Check the library before trying again.",
-    };
+  async function request<T>(
+    path: string,
+    signal: AbortSignal,
+    validate: (value: unknown) => value is T,
+    init?: RequestInit,
+    removalAssetId?: string,
+  ): Promise<AssetAdministrationResult<T>> {
+    if (!navigator.locks && !init?.method)
+      return requestLocked(path, signal, validate, init, false);
+    if (!navigator.locks)
+      return {
+        ok: false,
+        kind: "unavailable",
+        message: "This browser cannot safely coordinate asset changes.",
+      };
+    return navigator.locks.request(recoveryKey, () =>
+      requestLocked(path, signal, validate, init, true, removalAssetId),
+    );
   }
-
   // Translate server failures without claiming that an unacknowledged write succeeded
-  function failure(status: number): AssetAdministrationResult<never> {
+  function failure(status: number, code?: unknown): AssetAdministrationResult<never> {
     return {
       ok: false,
       kind: status === 401 || status === 403 ? "denied" : status >= 500 ? "unavailable" : "invalid",
       message:
-        status === 401 || status === 403
-          ? "Access to asset administration was denied"
-          : status === 503
-            ? "Asset validation or removal is currently unavailable"
-            : "The asset operation could not be confirmed. Reload and try again",
+        code === "asset_quota_exceeded"
+          ? "Retained asset capacity is full. Ask an operator to increase storage capacity before uploading again."
+          : status === 401 || status === 403
+            ? "Access to asset administration was denied"
+            : status === 503
+              ? "Asset validation or removal is currently unavailable"
+              : "The asset operation could not be confirmed. Reload and try again",
     };
   }
 
   // Encode identities and upload metadata separately from bytes; the server owns validation and approval
   const base = "/api/v1/admin/assets";
   return {
-    load: (signal) => request<AssetAdministrationData>(base, signal),
+    load: (signal) => request(base, signal, isAdministrationData),
 
     // Download through the same captured account as the list and report failures inside the open dialog
     async download(id, signal) {
@@ -134,7 +265,7 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
       if (category !== null) {
         query.set("category", category);
       }
-      return request<AssetCandidate>(`${base}?${query}`, signal, {
+      return request(`${base}?${query}`, signal, isCandidate, {
         method: "POST",
         body: file,
         headers: {
@@ -150,7 +281,7 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
 
     // Approval records the human decision; a successful upload never calls this automatically
     review: (id, input, signal) =>
-      request<AssetCandidate>(`${base}/${encodeURIComponent(id)}/approve`, signal, {
+      request(`${base}/${encodeURIComponent(id)}/approve`, signal, isCandidate, {
         method: "POST",
         body: JSON.stringify(input),
         headers: { "Content-Type": "application/json" },
@@ -158,15 +289,21 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
 
     // Require the caller's explicit opt-in instead of inferring global removal from ordinary deletion
     changeAvailability: (id, action, signal, removeFromProjects = false) =>
-      request<AssetCandidate>(`${base}/${encodeURIComponent(id)}/availability`, signal, {
-        method: "POST",
-        body: JSON.stringify({ action, removeFromProjects }),
-        headers: { "Content-Type": "application/json" },
-      }),
+      request(
+        `${base}/${encodeURIComponent(id)}/availability`,
+        signal,
+        isCandidate,
+        {
+          method: "POST",
+          body: JSON.stringify({ action, removeFromProjects }),
+          headers: { "Content-Type": "application/json" },
+        },
+        action === "remove" ? id : undefined,
+      ),
   };
 }
 
-function record(value: unknown): value is Record<string, unknown> {
+function isObject(value: unknown): value is object {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function strings(value: unknown): value is string[] {
@@ -176,28 +313,42 @@ function strings(value: unknown): value is string[] {
 // Validate records before the screen derives review and retirement controls from them
 function isCandidate(value: unknown): value is AssetCandidate {
   return (
-    record(value) &&
+    isObject(value) &&
+    "id" in value &&
     typeof value.id === "string" &&
+    "name" in value &&
     typeof value.name === "string" &&
+    "kind" in value &&
     (value.kind === "model" || value.kind === "environment" || value.kind === "audio") &&
+    "category" in value &&
     (value.category === null || typeof value.category === "string") &&
+    "status" in value &&
     typeof value.status === "string" &&
     ["pending", "approved", "invalid", "unavailable"].includes(value.status) &&
+    "hidden" in value &&
     typeof value.hidden === "boolean" &&
+    "deleted" in value &&
     typeof value.deleted === "boolean" &&
+    "removedFromProjects" in value &&
     typeof value.removedFromProjects === "boolean" &&
-    (value.sha256 === undefined ||
+    (!("sha256" in value) ||
+      value.sha256 === undefined ||
       (typeof value.sha256 === "string" && /^[0-9a-f]{64}$/i.test(value.sha256))) &&
-    (value.inspectionUrl === undefined ||
+    (!("inspectionUrl" in value) ||
+      value.inspectionUrl === undefined ||
       value.inspectionUrl === null ||
       (typeof value.inspectionUrl === "string" &&
         /^\/api\/v1\/admin\/assets\/[a-f0-9-]{36}\/bytes$/.test(value.inspectionUrl))) &&
-    ["source", "license", "reviewNotes"].every(
-      (field) =>
-        value[field] === undefined || value[field] === null || typeof value[field] === "string",
-    ) &&
+    (!("source" in value) || value.source == null || typeof value.source === "string") &&
+    (!("license" in value) || value.license == null || typeof value.license === "string") &&
+    (!("reviewNotes" in value) ||
+      value.reviewNotes == null ||
+      typeof value.reviewNotes === "string") &&
+    "thumbnail" in value &&
     (value.thumbnail === null || typeof value.thumbnail === "string") &&
+    "validation" in value &&
     strings(value.validation) &&
+    "actions" in value &&
     strings(value.actions) &&
     value.actions.every((action) => ["hide", "show", "delete", "remove"].includes(action))
   );
@@ -206,31 +357,46 @@ function isCandidate(value: unknown): value is AssetCandidate {
 // Accept only the bounded GLB and M4A intake policy; spaces never acquire categories
 function isAdministrationData(value: unknown): value is AssetAdministrationData {
   if (
-    !record(value) ||
+    !isObject(value) ||
+    !("assets" in value) ||
     !Array.isArray(value.assets) ||
     !value.assets.every(isCandidate) ||
-    !record(value.policy)
+    !("policy" in value) ||
+    !isObject(value.policy)
   ) {
     return false;
   }
   const policy = value.policy;
   return (
+    "extensions" in policy &&
     strings(policy.extensions) &&
     policy.extensions.every((extension) => extension === ".glb" || extension === ".m4a") &&
+    "maxBytes" in policy &&
     typeof policy.maxBytes === "number" &&
     policy.maxBytes > 0 &&
     policy.maxBytes <= 20 * 1024 * 1024 &&
+    "canSubmit" in policy &&
     typeof policy.canSubmit === "boolean" &&
-    (policy.canSubmitByKind === undefined ||
-      (record(policy.canSubmitByKind) &&
+    (!("canSubmitByKind" in policy) ||
+      policy.canSubmitByKind === undefined ||
+      (isObject(policy.canSubmitByKind) &&
         Object.entries(policy.canSubmitByKind).every(
           ([kind, allowed]) =>
             ["model", "environment", "audio"].includes(kind) && typeof allowed === "boolean",
         ))) &&
+    "canForceRemove" in policy &&
     typeof policy.canForceRemove === "boolean" &&
-    record(policy.categories) &&
+    "categories" in policy &&
+    isObject(policy.categories) &&
+    "environment" in policy.categories &&
     policy.categories.environment === null &&
+    "model" in policy.categories &&
     strings(policy.categories.model) &&
-    (!policy.extensions.includes(".m4a") || strings(policy.categories.audio))
+    (!policy.extensions.includes(".m4a") ||
+      ("audio" in policy.categories && strings(policy.categories.audio)))
   );
+}
+
+function isOperationId(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }

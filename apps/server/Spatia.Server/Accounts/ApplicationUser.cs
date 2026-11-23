@@ -8,16 +8,19 @@ namespace Spatia.Server.Accounts;
 public sealed class ApplicationUser : IdentityUser<Guid>
 {
     /// <summary>Gets or sets the person's name, independently of their sign-in username.</summary>
-    public string? DisplayName { get; set; }
-
+    public string? DisplayName
+    {
+        get; set;
+    }
     /// <summary>
     /// Gets or sets whether the account can establish and retain an authenticated session
     /// </summary>
     public bool IsActive { get; set; } = true;
-
     /// <summary>Gets or sets whether the retained identity is permanently removed from account management</summary>
-    public bool IsDeleted { get; set; }
-
+    public bool IsDeleted
+    {
+        get; set;
+    }
     /// <summary>
     /// Gets or sets whether the account must change its password before using full account permissions
     /// </summary>

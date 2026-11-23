@@ -6,6 +6,7 @@ namespace Spatia.ProjectFormat;
 public static partial class ProjectFormat
 {
     private sealed record Entity(string Kind, string Scene, string Path);
+
     private static void References(JsonElement root, bool content, IReadOnlyDictionary<string, string> assets)
     {
         // Build the complete index before resolving forward references or navigation targets
@@ -14,16 +15,12 @@ public static partial class ProjectFormat
         void Entity(string id, string kind, string scene, string path)
         {
             if (id.Length != 36 || !Guid.TryParseExact(id, "D", out _))
-            {
                 Fail(path, "Expected a UUID");
-            }
 
             // One ID pool includes the project, scenes and every nested entity
             // Store the owning object path for later hierarchy feedback
             if (!entities.TryAdd(id, new(kind, scene, path.EndsWith(".id", StringComparison.Ordinal) ? path[..^3] : path)))
-            {
                 Fail(path, "Entity ID is already used");
-            }
         }
 
         // Resolve both entity kind and scene ownership; null scene is reserved for explicit destinations
@@ -40,9 +37,7 @@ public static partial class ProjectFormat
         void Asset(string id, string kind, string path)
         {
             if (!assets.TryGetValue(id, out var actual) || actual != kind)
-            {
                 Fail(path, $"Expected an approved {kind} asset");
-            }
         }
         void Destination(JsonElement item, string path)
         {
@@ -61,20 +56,20 @@ public static partial class ProjectFormat
             Array(Get(scene, "objects"), $"{path}.objects", 200, (item, path) =>
             {
                 Entity(String(item, "id"), "object", sceneId, $"{path}.id");
+
                 if (content)
                 {
                     Array(Get(item, "components"), $"{path}.components", 16, (component, path) => Entity(String(component, "id"), String(component, "type"), sceneId, $"{path}.id"));
                 }
             });
+
             // Register root audio before resolving hotspot actions against scene-local identities
             if (content && scene.TryGetProperty("audio", out var audio))
-            {
                 Array(audio, $"{path}.audio", 64, (item, audioPath) => Entity(String(item, "id"), "audio", sceneId, $"{audioPath}.id"));
-            }
+
             if (scene.TryGetProperty("hotspots", out var hotspots))
-            {
                 Array(hotspots, $"{path}.hotspots", 200, (item, path) => Entity(String(item, "id"), "hotspot", sceneId, $"{path}.id"));
-            }
+
             if (content)
             {
                 foreach (var collection in new[] { "groups", "zones", "viewpoints", "rules" })
@@ -88,23 +83,23 @@ public static partial class ProjectFormat
         Array(Get(root, "scenes"), "project.scenes", 16, (scene, path) =>
         {
             var sceneId = String(scene, "id");
+
             if (Get(scene, "environmentAssetId").ValueKind != JsonValueKind.Null)
-            {
                 Asset(String(scene, "environmentAssetId"), "environment", $"{path}.environmentAssetId");
-            }
+
             if (content)
             {
                 // Validate parent ownership before following chains; only objects and groups can parent
                 var parents = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+
                 foreach (var collection in new[] { "objects", "groups" })
                 {
                     Array(Get(scene, collection), $"{path}.{collection}", 200, (item, path) =>
                     {
                         var parent = Get(item, "parentId").GetString();
+
                         if (parent is not null)
-                        {
                             Ref(parent, ["object", "group"], sceneId, $"{path}.parentId");
-                        }
 
                         parents.Add(String(item, "id"), parent);
                     });
@@ -116,12 +111,11 @@ public static partial class ProjectFormat
                     // A fresh set per starting entity catches self-parenting and longer ancestor loops
                     var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     string? current = id;
+
                     while (current is not null)
                     {
                         if (!seen.Add(current))
-                        {
                             Fail($"{entities[id].Path}.parentId", "Hierarchy must not contain a cycle");
-                        }
 
                         current = parents[current];
                     }
@@ -132,28 +126,24 @@ public static partial class ProjectFormat
             var hotspotObjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             if (content && scene.TryGetProperty("audio", out var audio))
-            {
                 Array(audio, $"{path}.audio", 64, (item, audioPath) => Asset(String(item, "assetId"), "audio", $"{audioPath}.assetId"));
-            }
+
             // Resolve model and media assets separately so an approved asset of the wrong kind is rejected
             Array(Get(scene, "objects"), $"{path}.objects", 200, (item, path) =>
             {
                 Asset(String(item, "assetId"), "model", $"{path}.assetId");
+
                 if (content)
                 {
                     Array(Get(item, "components"), $"{path}.components", 16, (component, path) =>
                 {
                     var type = String(component, "type");
-                    if (type is "image" or "audio" or "video")
-                    {
-                        Asset(String(component, "assetId"), type, $"{path}.assetId");
-                    }
 
+                    if (type is "image" or "audio" or "video")
+                        Asset(String(component, "assetId"), type, $"{path}.assetId");
 
                     if (type == "navigationPoint")
-                    {
                         Destination(component, path);
-                    }
                 });
                 }
             });
@@ -165,47 +155,59 @@ public static partial class ProjectFormat
                 {
                     var objectId = String(item, "objectId");
                     Ref(objectId, ["object"], sceneId, $"{path}.objectId");
+
                     if (!hotspotObjects.Add(objectId))
-                    {
                         Fail($"{path}.objectId", "Each object can have at most one hotspot");
-                    }
                 });
             }
+
             if (scene.TryGetProperty("interactions", out var interactions))
             {
                 Array(interactions, $"{path}.interactions", 200, (item, path) =>
                 {
                     var action = Get(item, "do");
+
                     switch (String(action, "type"))
                     {
                         case "play-audio" when action.TryGetProperty("mediaId", out var mediaId):
                             Ref(mediaId.GetString()!, ["audio"], sceneId, $"{path}.do.mediaId");
                             break;
-                        case "navigate-scene": Ref(String(action, "sceneId"), ["scene"], null, $"{path}.do.sceneId"); break;
-                        case "move-to-viewpoint": Ref(String(action, "viewpointId"), ["viewpoint"], sceneId, $"{path}.do.viewpointId"); break;
+                        case "navigate-scene":
+                            Ref(String(action, "sceneId"), ["scene"], null, $"{path}.do.sceneId");
+                            break;
+                        case "move-to-viewpoint":
+                            Ref(String(action, "viewpointId"), ["viewpoint"], sceneId, $"{path}.do.viewpointId");
+                            break;
                     }
+
                     var trigger = Get(item, "when");
+
                     if (String(trigger, "type") == "visitor-clicks-hotspot")
-                    {
                         Ref(String(trigger, "targetHotspotId"), ["hotspot"], sceneId, $"{path}.when.targetHotspotId");
-                    }
                 });
             }
+
             if (!content)
-            {
                 return;
-            }
 
             // Disabled rules retain valid targets; enabling them must not revive dangling references
             Array(Get(scene, "rules"), $"{path}.rules", 256, (rule, path) =>
             {
                 var trigger = Get(rule, "trigger");
                 var triggerPath = $"{path}.trigger";
+
                 switch (String(trigger, "type"))
                 {
-                    case "click": case "gaze": Ref(String(trigger, "targetId"), ["object", "hotspot", "navigationPoint"], sceneId, $"{triggerPath}.targetId"); break;
-                    case "zoneEnter": Ref(String(trigger, "zoneId"), ["zone"], sceneId, $"{triggerPath}.zoneId"); break;
-                    case "panelClose": Ref(String(trigger, "panelId"), ["text", "image"], sceneId, $"{triggerPath}.panelId"); break;
+                    case "click":
+                    case "gaze":
+                        Ref(String(trigger, "targetId"), ["object", "hotspot", "navigationPoint"], sceneId, $"{triggerPath}.targetId");
+                        break;
+                    case "zoneEnter":
+                        Ref(String(trigger, "zoneId"), ["zone"], sceneId, $"{triggerPath}.zoneId");
+                        break;
+                    case "panelClose":
+                        Ref(String(trigger, "panelId"), ["text", "image"], sceneId, $"{triggerPath}.panelId");
+                        break;
                 }
 
                 // Ordinary actions stay scene-local; navigation checks its chosen scene and viewpoint together
@@ -213,11 +215,21 @@ public static partial class ProjectFormat
                 {
                     switch (String(action, "type"))
                     {
-                        case "showPanel": Ref(String(action, "panelId"), ["text", "image"], sceneId, $"{path}.panelId"); break;
-                        case "playMedia": Ref(String(action, "mediaId"), ["audio", "video"], sceneId, $"{path}.mediaId"); break;
-                        case "moveCamera": Ref(String(action, "viewpointId"), ["viewpoint"], sceneId, $"{path}.viewpointId"); break;
-                        case "setVisible": Ref(String(action, "objectId"), ["object"], sceneId, $"{path}.objectId"); break;
-                        case "navigateScene": Destination(action, path); break;
+                        case "showPanel":
+                            Ref(String(action, "panelId"), ["text", "image"], sceneId, $"{path}.panelId");
+                            break;
+                        case "playMedia":
+                            Ref(String(action, "mediaId"), ["audio", "video"], sceneId, $"{path}.mediaId");
+                            break;
+                        case "moveCamera":
+                            Ref(String(action, "viewpointId"), ["viewpoint"], sceneId, $"{path}.viewpointId");
+                            break;
+                        case "setVisible":
+                            Ref(String(action, "objectId"), ["object"], sceneId, $"{path}.objectId");
+                            break;
+                        case "navigateScene":
+                            Destination(action, path);
+                            break;
                     }
                 });
             });

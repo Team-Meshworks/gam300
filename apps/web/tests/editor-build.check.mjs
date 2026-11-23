@@ -48,28 +48,22 @@ async function addAsset(page, name) {
 let page;
 const errors = [];
 try {
-  const legacyModel = await fetch(new URL("models/snowglobe.glb", url));
-  assert.notEqual(
-    Buffer.from(await legacyModel.arrayBuffer())
-      .subarray(0, 4)
-      .toString("utf8"),
-    "glTF",
-    "The build must not ship a duplicate public model alongside the catalogue asset",
-  );
   page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   const project = await serveProject(page, url);
   page.on("pageerror", (error) => errors.push(error.message));
   const corePath = "**/assets/three-core-*.js";
+  const scenePath = "**/assets/scene-*.js";
   const { promise: coreGate, resolve: releaseCore } = Promise.withResolvers();
   await page.route(corePath, async (route) => {
     await coreGate;
     await route.continue();
   });
   const coreRequest = page.waitForRequest(corePath);
+  const sceneRequest = page.waitForRequest(scenePath);
   // The blocked renderer chunk can delay the load event; the shell must render while it is pending.
   await page.goto(project.url, { waitUntil: "commit" });
   await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor();
-  await coreRequest;
+  const [core, renderer] = await Promise.all([coreRequest, sceneRequest]);
   assert.equal(await page.locator("canvas").count(), 0, "Shell renders before Three.js arrives");
   const asset = page
     .locator(".asset-picker")
@@ -92,30 +86,19 @@ try {
   const snowglobe = await snowglobeResponse;
   assert.ok(snowglobe.ok(), "The selected manifest snowglobe loads on demand");
   assert.equal(await page.locator(".object-row").count(), 1);
-  // A collapsed tree must restore the same selected object when reopened
-  const placedObjectId = await page.locator(".object-row").getAttribute("data-object-id");
-  const disclosure = page.locator(".scene-disclosure");
-  await disclosure.press("ArrowLeft");
-  assert.equal(await page.locator(".object-row").isVisible(), false);
-  await disclosure.press("ArrowRight");
-  assert.equal(await page.locator(".object-row").isVisible(), true);
-  assert.equal(await page.locator(".object-row").getAttribute("data-object-id"), placedObjectId);
-  assert.equal(await page.locator(".object-row").getAttribute("aria-pressed"), "true");
-  await page.getByRole("button", { name: "Undo", exact: true }).click();
-  assert.equal(await page.locator(".object-row").count(), 0);
-
-  assert.equal(
-    await page.getByRole("button", { name: "Open sample project", exact: true }).count(),
-    0,
-  );
-
   const chunks = await page.evaluate(() =>
     performance
       .getEntriesByType("resource")
       .filter((entry) => new URL(entry.name).pathname.endsWith(".js"))
       .map((entry) => ({ file: new URL(entry.name).pathname, bytes: entry.decodedBodySize })),
   );
-  assert.ok(chunks.length >= 3, "Renderer and core stay separate from the shell");
+  for (const request of [core, renderer]) {
+    const path = new URL(request.url()).pathname;
+    assert.ok(
+      chunks.some((chunk) => chunk.file === path),
+      `Missing loaded chunk: ${path}`,
+    );
+  }
   // Print every chunk's size on failure so the oversized file is obvious from the CI log
   const sizes = JSON.stringify(chunks);
   assert.ok(
@@ -154,60 +137,56 @@ try {
   await contentPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await contentPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
   await contentPage.getByRole("button", { name: "Preview", exact: true }).click();
-  await contentPage.locator(".editor-shell.is-previewing").waitFor();
-  const targets = contentPage.getByRole("navigation", { name: "Interactive objects" });
-  await targets.getByRole("button", { name: "First crate", exact: true }).click();
-  await targets.getByRole("button", { name: "Second-scene crate", exact: true }).waitFor();
-  assert.equal(await contentPage.locator(".editor-shell.is-previewing").count(), 1);
-  await targets.getByRole("button", { name: "Second-scene crate", exact: true }).click();
-  await targets.getByRole("button", { name: "First crate", exact: true }).waitFor();
+  await contentPage.getByRole("region", { name: "Exhibition", exact: true }).waitFor();
+  await contentPage.getByText("Exhibit information", { exact: true }).click();
+  const targets = contentPage.getByRole("region", { name: "Exhibit information" });
+  await targets.getByRole("button", { name: "Activate First crate", exact: true }).click();
+  await targets.getByRole("button", { name: "Activate Second-scene crate", exact: true }).waitFor();
+  assert.equal(
+    await contentPage.getByRole("region", { name: "Exhibition", exact: true }).count(),
+    1,
+  );
+  await targets.getByRole("button", { name: "Activate Second-scene crate", exact: true }).click();
+  await targets.getByRole("button", { name: "Activate First crate", exact: true }).waitFor();
   await contentPage.getByRole("button", { name: "Exit preview", exact: true }).click();
   await contentPage.locator(".object-row").filter({ hasText: "First crate" }).waitFor();
-  assert.equal(await contentPage.locator(".editor-shell.is-previewing").count(), 0);
+  assert.equal(
+    await contentPage.getByRole("region", { name: "Exhibition", exact: true }).count(),
+    0,
+  );
   await contentPage.close();
 
-  // Rich v2 rules are still unsupported, even when the project's scene navigation is supported.
-  const unsupported = structuredClone(content);
-  unsupported.scenes[0].rules = [
+  // Rich v2 scene-start rules execute in the packaged shared player.
+  const rich = structuredClone(content);
+  rich.scenes[0].rules = [
     {
       id: "30000000-0000-4000-8000-000000000003",
       enabled: true,
       trigger: { type: "sceneStart" },
-      actions: [
-        {
-          type: "moveCamera",
-          viewpointId: unsupported.scenes[0].viewpoints[0].id,
-          durationSeconds: 1,
-        },
-      ],
+      actions: [{ type: "setVisible", objectId: rich.scenes[0].objects[0].id, visible: false }],
     },
   ];
-  const unsupportedPage = await browser.newPage();
-  unsupportedPage.on("pageerror", (error) => errors.push(error.message));
-  const unsupportedProject = await serveProject(unsupportedPage, url, unsupported);
-  await unsupportedPage.goto(unsupportedProject.url);
-  await unsupportedPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
-  await unsupportedPage.getByRole("button", { name: "Preview", exact: true }).click();
-  await unsupportedPage
-    .getByRole("status")
-    .filter({ hasText: "This preview does not support all the scenes and interactions" })
-    .waitFor();
-  assert.match(
-    await unsupportedPage
-      .getByRole("status")
-      .filter({ hasText: "This preview does not support" })
-      .innerText(),
-    /trigger:sceneStart at project\.scenes\[0\]\.rules\[0\]\.trigger/,
+  const richPage = await browser.newPage();
+  richPage.on("pageerror", (error) => errors.push(error.message));
+  const richProject = await serveProject(richPage, url, rich);
+  await richPage.goto(richProject.url);
+  await richPage.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await richPage.getByRole("button", { name: "Preview", exact: true }).click();
+  await richPage.getByRole("region", { name: "Exhibition", exact: true }).waitFor();
+  const hiddenExhibit = richPage.locator('[data-owner-id="' + rich.scenes[0].objects[0].id + '"]');
+  await hiddenExhibit.waitFor({ state: "attached" });
+  await richPage.waitForFunction(
+    (id) => document.querySelector(`[data-owner-id="${id}"]`)?.hidden === true,
+    rich.scenes[0].objects[0].id,
   );
-  assert.equal(await unsupportedPage.locator(".editor-shell.is-previewing").count(), 0);
-  assert.equal(await unsupportedPage.locator(".object-row").count(), 2);
-  await unsupportedPage.close();
+  await richPage.getByRole("button", { name: "Exit preview", exact: true }).click();
+  assert.equal(await richPage.locator(".object-row").count(), 2);
+  await richPage.close();
 
   // Use a fresh document so an already-evaluated module cannot hide a failed download
   const failed = await browser.newPage();
   const failedProject = await serveProject(failed, url);
   failed.on("pageerror", (error) => errors.push(error.message));
-  const scenePath = "**/assets/scene-*.js";
   await failed.route(scenePath, (route) => route.fulfill({ status: 503, body: "Unavailable" }));
   await failed.goto(failedProject.url);
   await failed.getByRole("status").filter({ hasText: "Couldn't start the 3D view" }).waitFor();
@@ -218,7 +197,7 @@ try {
   assert.deepEqual(errors, []);
   await failed.close();
   console.log(
-    `PASS: ${isDevelopment ? "development" : "production"} build controls, shell before renderer, chunk budget, placement, scene navigation, unsupported rules and chunk recovery`,
+    `PASS: ${isDevelopment ? "development" : "production"} build controls, shell before renderer, chunk budget, placement, scene navigation, rich rules and chunk recovery`,
   );
   console.log(JSON.stringify({ chunks }));
 

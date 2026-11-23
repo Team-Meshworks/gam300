@@ -49,20 +49,25 @@ public static class ProjectHttpResults
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(result);
+
+        if (result.RepresentationWithheld)
+            return CommittedWrite.WithoutRepresentation(context);
+
         if (result.AccessFailure is { } failure)
-        {
             return FromAccessFailure(context, failure);
-        }
+
         if (result.InvalidDocument)
         {
             // Library paths can contain user-supplied property names; public feedback must not echo them
             return ApiProblems.Create(context, 422, "invalid_document", "The project document is invalid or uses unavailable assets.");
         }
+
         if (result.Acknowledgement is { } acknowledgement)
         {
             context.Response.Headers.CacheControl = "no-store";
             return Results.Ok(acknowledgement);
         }
+
         if (result.Rejection is ProjectSaveDecision.Conflict or ProjectSaveDecision.RevisionExhausted
             && result.CurrentRevision is >= 0 and <= Project.MaxRevision)
         {
@@ -73,6 +78,7 @@ public static class ProjectHttpResults
             problem.ProblemDetails.Extensions["currentRevision"] = result.CurrentRevision.Value;
             return problem;
         }
+
         throw new InvalidOperationException("A completed authorized save result is required.");
     }
 }

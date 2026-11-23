@@ -3,96 +3,49 @@ import fixture from "../../shared/project/fixtures/m1-project.json";
 import contentFixture from "../../shared/project/fixtures/m2-project.json";
 import contentCases from "../../shared/project/fixtures/project-format-cases.json";
 import { serializeProject } from "../../shared/project/project-serialization";
-import type { ProjectDocument } from "../../shared/project/project-types";
 import {
   applySaveRecoverySession,
   clearConfirmedServerRecovery,
   getRecoverySession,
   type RecoverySession,
-} from "./local-drafts";
-import type { IDraftDatabase } from "./draft-db";
+} from "./recovery-session";
+import { IDBFactory, IDBObjectStore as StoredObjects } from "fake-indexeddb";
+import { IndexedDBDraftDatabase, SESSION_STORE_NAME } from "./draft-db";
+import { validateProject } from "../../shared/project/project-validation";
+import { serveHttp } from "../../tests/http-fixture";
+import { deferred } from "../../tests/deferred";
 import { createDocumentStore } from "../document-store";
-import { connectServerProjectSession } from "./server-project-session";
-import { validateServerSaveRecovery } from "./server-save-recovery";
-import type { ServerDraftRequest, ServerDraftResult } from "./server-draft-write";
+import { degreesToQuaternion } from "../ui/rotation-angles";
+import { connectServerProjectSession, type ServerSaveStatus } from "./server-project-session";
+import { writeServerDraft, type ServerDraftRequest } from "./server-draft-write";
 
 afterEach(() => vi.useRealTimers());
 
-// Small IndexedDB stand-in for revision checks and account separation
-// Real browser transaction behaviour is checked separately in the browser recovery flow
-class FakeDraftDatabase implements IDraftDatabase {
-  readonly records = new Map<string, unknown>();
+class RecoveryDatabase extends IndexedDBDraftDatabase {
+  constructor(factory = new IDBFactory()) {
+    super(factory);
+  }
 
-  async getIndexedDB(): Promise<IDBDatabase> {
-    const database = {
-      transaction: (storeNames: string | string[], mode: IDBTransactionMode) => {
-        const names = Array.isArray(storeNames) ? storeNames : [storeNames];
-        let aborted = false;
-        const transaction = {
-          onabort: null as ((event: Event) => void) | null,
-          oncomplete: null as ((event: Event) => void) | null,
-          error: null as DOMException | null,
-          abort: () => {
-            if (aborted) {
-              return;
-            }
-            aborted = true;
-            queueMicrotask(() => transaction.onabort?.(new Event("abort")));
-          },
-          objectStore: (name: string) => {
-            if (!names.includes(name)) {
-              throw new Error(`Store ${name} was not requested`);
-            }
-            const key = (value: IDBValidKey) => `${name}:${JSON.stringify(value)}`;
-            const request = (result: unknown) => {
-              // Delay delivery so the caller can attach onsuccess after creating the request
-              const resultRequest = {
-                result,
-                onsuccess: null as ((event: Event) => void) | null,
-              };
-              queueMicrotask(() => resultRequest.onsuccess?.(new Event("success")));
-              return resultRequest;
-            };
-            return {
-              get: (lookup: IDBValidKey) => {
-                const resultRequest = request(this.records.get(key(lookup)));
+  async query<T>(
+    operation: (store: IDBObjectStore) => IDBRequest<T>,
+    mode: IDBTransactionMode = "readonly",
+  ) {
+    const db = await this.getIndexedDB();
+    try {
+      const tx = db.transaction(SESSION_STORE_NAME, mode);
+      const request = operation(tx.objectStore(SESSION_STORE_NAME));
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onabort = () => reject(tx.error);
+      });
+      return request.result;
+    } finally {
+      db.close();
+    }
+  }
 
-                // Aborted writes cannot also report a successful transaction completion
-                queueMicrotask(() => {
-                  if (!aborted) {
-                    transaction.oncomplete?.(new Event("complete"));
-                  }
-                });
-                return resultRequest;
-              },
-              put: (value: unknown, lookup: IDBValidKey) => {
-                if (mode !== "readwrite") {
-                  throw new Error("Read-only transaction");
-                }
-                this.records.set(key(lookup), value);
-                const resultRequest = request(undefined);
-                queueMicrotask(() => {
-                  if (!aborted) {
-                    transaction.oncomplete?.(new Event("complete"));
-                  }
-                });
-                return resultRequest;
-              },
-              delete: (lookup: IDBValidKey) => {
-                if (mode !== "readwrite") {
-                  throw new Error("Read-only transaction");
-                }
-                this.records.delete(key(lookup));
-                return request(undefined);
-              },
-            };
-          },
-        };
-        return transaction;
-      },
-      close: () => {},
-    };
-    return database as unknown as IDBDatabase;
+  put(key: IDBValidKey, value: unknown) {
+    return this.query((store) => store.put(value, key), "readwrite");
   }
 }
 
@@ -112,7 +65,9 @@ function serializedFixture(project = fixture) {
 }
 
 function recoverySession(): Omit<RecoverySession, "revision" | "historyWarning"> {
-  return { document: fixture as unknown as ProjectDocument };
+  const checked = validateProject(fixture, assets);
+  if (!checked.ok) throw new Error(checked.error.message);
+  return { document: checked.value };
 }
 
 describe("account-scoped recovery", () => {
@@ -121,7 +76,7 @@ describe("account-scoped recovery", () => {
   const bob = { accountId: "bob", projectId: fixture.projectId };
 
   it("rejects an unscoped recovery read and leaves the former active draft intact", async () => {
-    const database = new FakeDraftDatabase();
+    const database = new RecoveryDatabase();
     const original = {
       fileName: "local.json",
       savedJson: null,
@@ -129,16 +84,16 @@ describe("account-scoped recovery", () => {
       revision: 1,
       document: serializedFixture(),
     };
-    database.records.set('session:"active"', original);
+    await database.put("active", original);
     // A stale caller can still omit the scope at runtime.
     expect(await Reflect.apply(getRecoverySession, undefined, [assets, database])).toMatchObject({
       ok: false,
     });
-    expect(database.records.get('session:"active"')).toEqual(original);
+    expect(await database.query((store) => store.get("active"))).toEqual(original);
   });
 
   it("keeps each account's copy separate from the local-only session", async () => {
-    const database = new FakeDraftDatabase();
+    const database = new RecoveryDatabase();
     const legacy = {
       fileName: "legacy.json",
       document: serializedFixture(),
@@ -146,7 +101,7 @@ describe("account-scoped recovery", () => {
       savedJson: null,
       pristine: false,
     };
-    database.records.set('session:"active"', legacy);
+    await database.put("active", legacy);
     const aliceSession = { document: { ...recoverySession().document, title: "Alice project" } };
     const bobSession = { document: { ...recoverySession().document, title: "Bob project" } };
     expect(await applySaveRecoverySession(aliceSession, 0, assets, database, alice)).toEqual({
@@ -165,12 +120,12 @@ describe("account-scoped recovery", () => {
       ok: true,
       value: { document: { title: "Bob project" } },
     });
-    expect(database.records.get('session:"active"')).toEqual(legacy);
+    expect(await database.query((store) => store.get("active"))).toEqual(legacy);
   });
 
   it("never falls back to another account or the local session when a scoped backup is missing", async () => {
-    const database = new FakeDraftDatabase();
-    database.records.set('session:"active"', { document: serializedFixture() });
+    const database = new RecoveryDatabase();
+    await database.put("active", { document: serializedFixture() });
     await applySaveRecoverySession(recoverySession(), 0, assets, database, alice);
     // A missing scoped key stays empty even when other accounts have saved drafts
     expect(await getRecoverySession(assets, database, bob)).toEqual({ ok: true, value: null });
@@ -180,7 +135,7 @@ describe("account-scoped recovery", () => {
   });
 
   it("preserves an invalid scoped older-format record without offering local conversion", async () => {
-    const database = new FakeDraftDatabase();
+    const database = new RecoveryDatabase();
     const older = {
       ...fixture,
       scenes: fixture.scenes.map((scene) => ({
@@ -197,17 +152,17 @@ describe("account-scoped recovery", () => {
       revision: 4,
       document: JSON.stringify(older),
     };
-    const key = `session:${JSON.stringify(["account", alice.accountId, alice.projectId.toLowerCase()])}`;
-    database.records.set(key, original);
+    const key = ["account", alice.accountId, alice.projectId.toLowerCase()];
+    await database.put(key, original);
 
     // A malformed authenticated backup never becomes an unscoped import offer for another account
     expect(await getRecoverySession(assets, database, alice)).toMatchObject({ ok: false });
     expect(await getRecoverySession(assets, database, bob)).toEqual({ ok: true, value: null });
-    expect(database.records.get(key)).toEqual(original);
+    expect(await database.query((store) => store.get(key))).toEqual(original);
   });
 
   it("rejects stale writes within the same account and project", async () => {
-    const database = new FakeDraftDatabase();
+    const database = new RecoveryDatabase();
     await applySaveRecoverySession(recoverySession(), 0, assets, database, alice);
     // Another tab still thinks this record is at revision zero
     // Its write must leave the committed revision-one copy intact
@@ -221,34 +176,31 @@ describe("account-scoped recovery", () => {
   });
 
   it("rejects a different project on both write and recovery", async () => {
-    const database = new FakeDraftDatabase();
+    const database = new RecoveryDatabase();
     const other = { ...alice, projectId: crypto.randomUUID() };
     expect(
       await applySaveRecoverySession(recoverySession(), 0, assets, database, other),
     ).toMatchObject({ ok: false });
     // A corrupted record under the right key still needs its document identity checked
-    database.records.set(
-      `session:${JSON.stringify(["account", other.accountId, other.projectId])}`,
-      {
-        fileName: "",
-        savedJson: null,
-        pristine: false,
-        revision: 1,
-        document: serializedFixture(),
-      },
-    );
+    await database.put(["account", other.accountId, other.projectId], {
+      fileName: "",
+      savedJson: null,
+      pristine: false,
+      revision: 1,
+      document: serializedFixture(),
+    });
     expect(await getRecoverySession(assets, database, other)).toMatchObject({ ok: false });
   });
 
   it("does not treat an empty account as a local-only session", async () => {
-    const database = new FakeDraftDatabase();
+    const database = new RecoveryDatabase();
     // Invalid identity must not silently select the local-only storage key
     const scope = { ...alice, accountId: "" };
     expect(await getRecoverySession(assets, database, scope)).toMatchObject({ ok: false });
     expect(
       await applySaveRecoverySession(recoverySession(), 0, assets, database, scope),
     ).toMatchObject({ ok: false });
-    expect(database.records.size).toBe(0);
+    expect(await database.query((store) => store.count())).toBe(0);
   });
 });
 
@@ -262,7 +214,7 @@ describe("persisted server save identity", () => {
   };
 
   it("stores and restores pending save bytes with the edited document", async () => {
-    const database = new FakeDraftDatabase();
+    const database = new RecoveryDatabase();
     // Keep the exact pending request with its document before a retry can occur
     const session = { ...recoverySession(), serverSave };
     expect(await applySaveRecoverySession(session, 0, assets, database, scope)).toEqual({
@@ -280,17 +232,13 @@ describe("persisted server save identity", () => {
     });
   });
 
-  it.each([
-    { ...serverSave, revision: -1 },
-    { ...serverSave, pending: { ...serverSave.pending, clientMutationId: "invalid" } },
-    { ...serverSave, pending: { ...serverSave.pending, documentJson: "{}" } },
-    {
+  it("rejects another project's save metadata without replacing the existing backup", async () => {
+    const damaged = {
       ...serverSave,
       confirmedJson: serializedFixture({ ...fixture, projectId: crypto.randomUUID() }),
-    },
-  ])("rejects damaged server metadata without replacing the existing backup", async (damaged) => {
+    };
     // Invalid retry metadata must not overwrite the previous valid recovery copy
-    const database = new FakeDraftDatabase();
+    const database = new RecoveryDatabase();
     await applySaveRecoverySession(
       { ...recoverySession(), serverSave },
       0,
@@ -298,7 +246,6 @@ describe("persisted server save identity", () => {
       database,
       scope,
     );
-    expect(validateServerSaveRecovery(damaged, projectId, assets).ok).toBe(false);
     expect(
       await applySaveRecoverySession(
         { ...recoverySession(), serverSave: damaged },
@@ -314,10 +261,58 @@ describe("persisted server save identity", () => {
     });
   });
 
+  it("does not reuse a cleared storage revision that an older tab can still write", async () => {
+    const database = new RecoveryDatabase();
+    const serverSave = { revision: 7, confirmedJson: serializedFixture(), pending: null };
+    expect(
+      await applySaveRecoverySession(
+        { ...recoverySession(), serverSave },
+        0,
+        assets,
+        database,
+        scope,
+      ),
+    ).toEqual({ ok: true, value: 1 });
+    await clearConfirmedServerRecovery(scope, database);
+    const reopened = await getRecoverySession(assets, database, scope);
+    if (!reopened.ok) throw new Error(reopened.error.message);
+    const newer = {
+      ...recoverySession(),
+      document: { ...recoverySession().document, title: "New tab's offline work" },
+    };
+    expect(
+      (
+        await applySaveRecoverySession(
+          { ...newer, serverSave },
+          reopened.value?.revision ?? 0,
+          assets,
+          database,
+          scope,
+        )
+      ).ok,
+    ).toBe(true);
+    const stale = await applySaveRecoverySession(
+      {
+        ...recoverySession(),
+        document: { ...recoverySession().document, title: "Stale tab" },
+        serverSave,
+      },
+      1,
+      assets,
+      database,
+      scope,
+    );
+    expect(stale.ok).toBe(false);
+    expect(await getRecoverySession(assets, database, scope)).toMatchObject({
+      ok: true,
+      value: { document: { title: "New tab's offline work" } },
+    });
+  });
+
   it("clears only confirmed cache data and preserves pending or newer local work", async () => {
     // Walk through a confirmed copy, an uncertain request and an unsent edit
     // Only the first record is safe for automatic cleanup
-    const database = new FakeDraftDatabase();
+    const database = new RecoveryDatabase();
     const confirmed = { ...serverSave, pending: null };
     await applySaveRecoverySession(
       { ...recoverySession(), serverSave: confirmed },
@@ -327,10 +322,16 @@ describe("persisted server save identity", () => {
       scope,
     );
     expect(await clearConfirmedServerRecovery(scope, database)).toEqual({ ok: true, value: true });
-    expect(await getRecoverySession(assets, database, scope)).toEqual({ ok: true, value: null });
+    expect(await getRecoverySession(assets, database, scope)).toMatchObject({
+      ok: true,
+      value: { revision: 1, document: null },
+    });
+    expect(await database.query((store) => store.getAll())).toEqual([
+      { revision: 1, cleared: true },
+    ]);
     await applySaveRecoverySession(
       { ...recoverySession(), serverSave },
-      0,
+      1,
       assets,
       database,
       scope,
@@ -342,7 +343,7 @@ describe("persisted server save identity", () => {
         document: { ...recoverySession().document, title: "Unsynced" },
         serverSave: confirmed,
       },
-      1,
+      2,
       assets,
       database,
       scope,
@@ -356,29 +357,47 @@ describe("persisted server save identity", () => {
 });
 
 describe("server project session lifecycle", () => {
-  function setup() {
-    // Use the real document store with controlled storage and server replies
-    // Events below stand in for browser reconnects and the account owner's logout signal
-    vi.useFakeTimers();
+  async function setup(
+    options: {
+      database?: RecoveryDatabase;
+      onOpen?: (connection: IDBDatabase) => void | Promise<void>;
+      reply?: () => Response | Promise<Response>;
+    } = {},
+  ) {
     const store = createDocumentStore([]);
     expect(store.loadProject(serializedFixture(), assets).ok).toBe(true);
-    const database = new FakeDraftDatabase();
+    const database = options.database ?? new RecoveryDatabase();
     const account = new AbortController();
     const events = new EventTarget();
-    const write = vi
-      .fn<(request: ServerDraftRequest, signal: AbortSignal) => Promise<ServerDraftResult>>()
-      .mockImplementation(async (request) => {
-        const body = JSON.parse(request.body);
-        return {
-          kind: "saved",
-          receipt: {
-            projectId,
-            clientMutationId: body.clientMutationId,
-            revision: body.expectedRevision + 1,
-          },
-        };
+    const writes: string[] = [];
+    const server = await serveHttp(async (request) => {
+      if (new URL(request.url).pathname === "/api/v1/auth/csrf") {
+        return Response.json({ requestToken: "token" });
+      }
+      if (
+        request.method !== "PUT" ||
+        new URL(request.url).pathname !== "/api/v1/projects/" + projectId
+      )
+        throw new Error("Unexpected draft request");
+      const bytes = await request.text();
+      writes.push(bytes);
+      if (options.reply) return options.reply();
+      const body = JSON.parse(bytes);
+      return Response.json({
+        projectId,
+        clientMutationId: body.clientMutationId,
+        revision: body.expectedRevision + 1,
       });
+    });
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    const write = (request: ServerDraftRequest, signal: AbortSignal) =>
+      writeServerDraft(request, signal, server.fetch, "alice");
+    const statuses = new EventTarget();
     const onStatus = vi.fn();
+    const waitForStatus = (status: ServerSaveStatus) =>
+      new Promise<void>((resolve) =>
+        statuses.addEventListener(status, () => resolve(), { once: true }),
+      );
     const session = connectServerProjectSession({
       accountId: "alice",
       store,
@@ -386,18 +405,29 @@ describe("server project session lifecycle", () => {
       storageRevision: 0,
       assetKinds: assets,
       signal: account.signal,
-      database,
+      database: options.onOpen
+        ? {
+            async getIndexedDB() {
+              const db = await database.getIndexedDB();
+              await options.onOpen?.(db);
+              return db;
+            },
+          }
+        : database,
       events,
       write,
-      onStatus,
+      onStatus(status) {
+        onStatus(status);
+        statuses.dispatchEvent(new Event(status));
+      },
     });
-    return { store, database, account, events, write, onStatus, session };
+    return { store, database, account, events, writes, write, onStatus, waitForStatus, session };
   }
 
   it.each(["save", "export", "recovery"] as const)(
     "preserves unfinished links and subsequent edits during %s departure",
     async (choice) => {
-      const { store, session, database, write } = setup();
+      const { store, session, database, writes } = await setup();
       const draft = structuredClone(store.getSnapshot().project!);
       expect(
         store.setInteractions([
@@ -406,11 +436,11 @@ describe("server project session lifecycle", () => {
       ).toBe(true);
       expect(store.deleteObject(draft.scenes[0]!.objects[0]!.id).ok).toBe(true);
       expect(session.getStatus()).not.toBe("saved");
-      const exportFile = vi.fn(async () => true);
+      const exportFile = vi.fn<() => Promise<boolean>>();
       const result = await session.prepareToLeave(choice, exportFile);
       expect(result.ok).toBe(choice === "recovery");
       expect(exportFile).not.toHaveBeenCalled();
-      expect(write).not.toHaveBeenCalled();
+      expect(writes).toHaveLength(0);
       await session.dispose();
       const recovered = await getRecoverySession(assets, database, {
         accountId: "alice",
@@ -426,20 +456,56 @@ describe("server project session lifecycle", () => {
   );
 
   it("keeps cancelled and failed export decisions open, then leaves after confirmed export", async () => {
-    const { store, session, write } = setup();
+    const { store, session, writes } = await setup();
     store.loadProject(serializedFixture({ ...fixture, title: "Unsent work" }), assets);
     expect(await session.prepareToLeave("cancel")).toEqual({ ok: true, value: false });
     expect(await session.prepareToLeave("export", async () => false)).toMatchObject({ ok: false });
     // Export must receive the latest complete document before the session can stop
-    const exportFile = vi.fn(async (json: string) => JSON.parse(json).title === "Unsent work");
+    const exportFile = async (json: string) => JSON.parse(json).title === "Unsent work";
     expect(await session.prepareToLeave("export", exportFile)).toEqual({ ok: true, value: true });
     await vi.advanceTimersByTimeAsync(5000);
-    expect(write).not.toHaveBeenCalled();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("schedules a corrected draft when its older invalid checkpoint is still running", async () => {
+    const opened = deferred<void>();
+    const gate = deferred<void>();
+    const { store, writes, session, waitForStatus } = await setup({
+      onOpen() {
+        opened.resolve();
+        return gate.promise;
+      },
+    });
+    expect(
+      store.setInteractions([
+        { when: { type: "scene-starts" }, do: { type: "open-link", url: "" } },
+      ]).ok,
+    ).toBe(true);
+    const pending = session.flush();
+    await opened.promise;
+    expect(
+      store.setInteractions([
+        { when: { type: "scene-starts" }, do: { type: "open-link", url: "https://example.org/" } },
+      ]).ok,
+    ).toBe(true);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(writes).toHaveLength(0);
+    gate.resolve();
+    await pending;
+    const saved = waitForStatus("saved");
+    await vi.advanceTimersByTimeAsync(2_000);
+    await saved;
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(writes[0]!).document.scenes[0].interactions[0].do.url).toBe(
+      "https://example.org/",
+    );
+    expect(session.getStatus()).toBe("saved");
+    await session.dispose();
   });
 
   // An export cannot cover an edit made while the picker is open
   it("refuses to leave when another edit arrives during export", async () => {
-    const { store, session } = setup();
+    const { store, session } = await setup();
     store.loadProject(serializedFixture({ ...fixture, title: "Exported version" }), assets);
     expect(
       await session.prepareToLeave("export", async () => {
@@ -452,15 +518,26 @@ describe("server project session lifecycle", () => {
   });
 
   it("keeps the editor open when recovery storage fails and still permits export", async () => {
-    const { store, session, database, write } = setup();
-    vi.spyOn(database, "getIndexedDB").mockRejectedValue(new Error("Quota exceeded"));
+    const factory = new IDBFactory();
+    const database = new RecoveryDatabase(factory);
+    const current = await database.getIndexedDB();
+    current.close();
+    const upgrade = factory.open(current.name, current.version + 1);
+    await new Promise<void>((resolve, reject) => {
+      upgrade.onsuccess = () => {
+        upgrade.result.close();
+        resolve();
+      };
+      upgrade.onerror = () => reject(upgrade.error);
+    });
+    const { store, session, writes } = await setup({ database });
     store.loadProject(serializedFixture({ ...fixture, title: "Unstored work" }), assets);
     expect(await session.prepareToLeave("recovery")).toMatchObject({
       ok: false,
       error: { message: "Recovery backup failed; keep this tab open and export your project" },
     });
     expect(await session.prepareToLeave("save")).toMatchObject({ ok: false });
-    expect(write).not.toHaveBeenCalled();
+    expect(writes).toHaveLength(0);
     // A real completed export remains an escape path when browser storage is unavailable
     expect(await session.prepareToLeave("export", async () => true)).toEqual({
       ok: true,
@@ -470,8 +547,9 @@ describe("server project session lifecycle", () => {
 
   // A stale revision remains available as a separate local recovery copy
   it("requires an explicit recovery choice after a server conflict", async () => {
-    const { store, session, database, write } = setup();
-    write.mockResolvedValue({ kind: "conflict" });
+    const { store, session, database, writes } = await setup({
+      reply: () => new Response(null, { status: 409 }),
+    });
     store.loadProject(serializedFixture({ ...fixture, title: "Conflicting work" }), assets);
     expect(await session.prepareToLeave("save")).toMatchObject({ ok: false });
     expect(session.getStatus()).toBe("conflict");
@@ -482,15 +560,26 @@ describe("server project session lifecycle", () => {
       ok: true,
       value: { document: { title: "Conflicting work" } },
     });
-    expect(write).toHaveBeenCalledTimes(1);
+    expect(writes).toHaveLength(1);
   });
 
   // Reconnection retries the same pending request for server deduplication
   it("backs up committed store edits and retries on reconnect", async () => {
-    const { store, database, events, write, session } = setup();
-    write.mockResolvedValueOnce({ kind: "failed" });
+    const { store, database, events, writes, session, waitForStatus } = await setup({
+      reply: () => {
+        if (writes.length === 1) return Response.error();
+        const body = JSON.parse(writes[1]!);
+        return Response.json({
+          projectId,
+          clientMutationId: body.clientMutationId,
+          revision: body.expectedRevision + 1,
+        });
+      },
+    });
+    const failed = waitForStatus("failed");
     store.loadProject(serializedFixture({ ...fixture, title: "Offline edit" }), assets);
     await vi.advanceTimersByTimeAsync(2_000);
+    await failed;
     expect(session.getStatus()).toBe("failed");
     expect(
       await getRecoverySession(assets, database, { accountId: "alice", projectId }),
@@ -498,43 +587,231 @@ describe("server project session lifecycle", () => {
       ok: true,
       value: { document: { title: "Offline edit" }, serverSave: { revision: 3 } },
     });
+    const saved = waitForStatus("saved");
     events.dispatchEvent(new Event("online"));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(write).toHaveBeenCalledTimes(2);
-    expect(write.mock.calls[1]![0].body).toBe(write.mock.calls[0]![0].body);
+    await saved;
+    expect(writes).toHaveLength(2);
+    expect(writes[1]!).toBe(writes[0]!);
     expect(session.getStatus()).toBe("saved");
     session.dispose();
   });
 
+  it("reattaches an undo snapshot retained in memory after storage failure", async () => {
+    let disconnected = false;
+    const { store, session, database, writes, write } = await setup({
+      onOpen: (db) => {
+        if (disconnected) db.close();
+      },
+    });
+    expect(store.createGroup("Exhibits").ok).toBe(true);
+    await session.flush();
+    store.undo();
+    disconnected = true;
+    expect(await session.dispose()).toMatchObject({ ok: false });
+    const retained = session.getRecovery();
+    const reopened = createDocumentStore([]);
+    const encoded = serializeProject(retained.document, assets, { allowDraftLinks: true });
+    if (!encoded.ok) throw new Error(encoded.error.message);
+    expect(
+      reopened.loadProject(encoded.value, assets, retained.history, { allowDraftLinks: true }).ok,
+    ).toBe(true);
+    const options = {
+      accountId: "alice",
+      store: reopened,
+      revision: retained.serverSave!.revision,
+      storageRevision: retained.revision,
+      assetKinds: assets,
+      signal: new AbortController().signal,
+      onStatus: vi.fn(),
+      database,
+      write,
+    };
+    expect(() =>
+      connectServerProjectSession({
+        ...options,
+        recovery: { ...retained, document: { ...retained.document, title: "Different draft" } },
+      }),
+    ).toThrow("Recovery does not match");
+    const resumed = connectServerProjectSession({ ...options, recovery: retained });
+    await resumed.flush();
+    expect(writes).toHaveLength(2);
+    expect(resumed.getStatus()).toBe("saved");
+    expect(reopened.getSnapshot().canRedo).toBe(true);
+    await resumed.dispose();
+  });
+
   // Logout disconnects editor changes and network events from the old account
   it("removes listeners on logout so the next account cannot retry old work", async () => {
-    const { store, account, events, write, onStatus } = setup();
+    const { store, account, events, writes, onStatus, session } = await setup();
     store.loadProject(serializedFixture({ ...fixture, title: "Alice edit" }), assets);
     account.abort();
     const count = onStatus.mock.calls.length;
     store.loadProject(serializedFixture({ ...fixture, title: "Bob edit" }), assets);
     events.dispatchEvent(new Event("online"));
     await vi.advanceTimersByTimeAsync(5_000);
-    expect(write).not.toHaveBeenCalled();
+    expect(writes).toHaveLength(0);
     expect(onStatus).toHaveBeenCalledTimes(count);
+    await session.dispose();
+  });
+
+  it("queues each recovery document with its captured history and storage revision", async () => {
+    const opened = deferred<void>();
+    const gate = deferred<void>();
+    const received = deferred<void>();
+    const reply = deferred<Response>();
+    const { store, database, writes, session } = await setup({
+      onOpen() {
+        opened.resolve();
+        return gate.promise;
+      },
+      reply() {
+        received.resolve();
+        return reply.promise;
+      },
+    });
+    const originalObjects = store.getSnapshot().objects;
+    const [firstObject, secondObject] = originalObjects;
+    if (!firstObject || !secondObject) throw new Error("Fixture needs two objects");
+    const stored = vi.spyOn(StoredObjects.prototype, "put");
+
+    expect(store.deleteObject(firstObject.id).ok).toBe(true);
+    const firstHistory = store.getRecoveryHistory();
+    const flush = session.flush();
+    await opened.promise;
+    expect(store.deleteObject(secondObject.id).ok).toBe(true);
+    const secondHistory = store.getRecoveryHistory();
+    const checkpoint = session.prepareToLeave("recovery");
+    store.undo();
+
+    gate.resolve();
+    await received.promise;
+    expect(await checkpoint).toMatchObject({ ok: false });
+    expect(writes).toHaveLength(1);
+    const records = stored.mock.calls.map(
+      ([record]) =>
+        record as {
+          revision: number;
+          document: string;
+          history: unknown;
+        },
+    );
+    expect(records).toMatchObject([
+      { revision: 1, history: firstHistory },
+      { revision: 2, history: secondHistory },
+    ]);
+    expect(records.map((record) => JSON.parse(record.document).scenes[0].objects.length)).toEqual([
+      originalObjects.length - 1,
+      originalObjects.length - 2,
+    ]);
+    const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
+    if (!recovered.ok || !recovered.value?.document) throw new Error("Missing queued recovery");
+    const reopened = createDocumentStore([]);
+    expect(
+      reopened.loadProject(
+        JSON.stringify(recovered.value.document),
+        assets,
+        recovered.value.history,
+      ).ok,
+    ).toBe(true);
+    expect(reopened.getSnapshot().canRedo).toBe(false);
+    reopened.undo();
+    expect(reopened.getSnapshot().objects).toHaveLength(originalObjects.length - 1);
+
+    reply.resolve(Response.error());
+    stored.mockRestore();
+    await flush;
+    await session.dispose();
+  });
+
+  it("checkpoints a legacy scene after undoing its first hierarchy edit", async () => {
+    const { store, database, session, writes } = await setup();
+    expect(store.createGroup("Exhibits").ok).toBe(true);
+    await session.flush();
+    expect(writes).toHaveLength(1);
+    store.undo();
+    const current = store.getSnapshot().project;
+    expect(current?.schemaVersion).toBe(2);
+    expect(store.getSnapshot().canRedo).toBe(true);
+    await session.flush();
+    expect(writes).toHaveLength(2);
+    expect(session.getStatus()).toBe("saved");
+    const restored = await getRecoverySession(assets, database, { accountId: "alice", projectId });
+    if (!restored.ok || !restored.value?.document) throw new Error("Missing undo checkpoint");
+    const reopened = createDocumentStore([]);
+    expect(
+      reopened.loadProject(JSON.stringify(restored.value.document), assets, restored.value.history)
+        .ok,
+    ).toBe(true);
+    expect(reopened.getSnapshot().canRedo).toBe(true);
+    reopened.redo();
+    expect(reopened.getSnapshot().project?.scenes[0]).toMatchObject({
+      groups: [{ name: "Exhibits" }],
+    });
+    await session.dispose();
+  });
+
+  it("saves a rotated crate and reopens the undo and redo history for another crate's rename", async () => {
+    const { store, writes, session, database } = await setup();
+    const [first, second] = store.getSnapshot().objects;
+    if (!first || !second) throw new Error("Expected two crates");
+    const rotation = degreesToQuaternion([0, 226, 0]);
+    expect(store.setTransform(second.id, { ...second.transform, rotation }).ok).toBe(true);
+    expect(store.renameObject(first.id, "Rotated exhibit").ok).toBe(true);
+    await session.flush();
+    const leave = await session.prepareToLeave("recovery");
+    const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
+    expect({
+      writes: writes.length,
+      checkpointed: recovered.ok && !!recovered.value?.document,
+      preserved: leave.ok && leave.value,
+    }).toEqual({ writes: 1, checkpointed: true, preserved: true });
+    expect(JSON.parse(writes[0]!).document.scenes[0].objects[0].name).toBe("Rotated exhibit");
+    if (!recovered.ok || !recovered.value?.document) throw new Error("Missing checkpoint");
+    expect(recovered.value.history).toBeDefined();
+    expect(recovered.value.historyWarning).toBeUndefined();
+    const reopened = createDocumentStore([]);
+    expect(
+      reopened.loadProject(
+        JSON.stringify(recovered.value.document),
+        assets,
+        recovered.value.history,
+      ).ok,
+    ).toBe(true);
+    const objects = () => reopened.getSnapshot().objects;
+    reopened.undo();
+    expect(objects()[0]!.name).toBe(first.name);
+    expect(objects()[1]!.transform.rotation[1]).toBeCloseTo(rotation[1], 14);
+    reopened.undo();
+    expect(objects()[1]!.transform.rotation).toEqual(second.transform.rotation);
+
+    const withRedo = reopened.getRecoveryHistory();
+    const next = createDocumentStore([]);
+    expect(
+      next.loadProject(JSON.stringify(reopened.getSnapshot().project), assets, withRedo).ok,
+    ).toBe(true);
+    next.redo();
+    next.redo();
+    expect(next.getSnapshot().objects[0]!.name).toBe("Rotated exhibit");
+    expect(next.getSnapshot().objects[1]!.transform.rotation[3]).toBeCloseTo(rotation[3], 14);
+    await session.dispose();
   });
 
   // Reopened history must belong to the recovered document
   it("saves undo changes and keeps their history with the recovery snapshot", async () => {
-    const { store, database, write, session } = setup();
+    const { store, database, writes, session } = await setup();
     const object = store.getSnapshot().objects[0];
     if (!object) throw new Error("Fixture needs an object");
     expect(store.deleteObject(object.id).ok).toBe(true);
     await session.flush();
     store.undo();
     await session.flush();
-    expect(write).toHaveBeenCalledTimes(2);
-    expect(JSON.parse(write.mock.calls[1]![0].body).document.scenes[0].objects).toHaveLength(
+    expect(writes).toHaveLength(2);
+    expect(JSON.parse(writes[1]!).document.scenes[0].objects).toHaveLength(
       fixture.scenes[0]!.objects.length,
     );
     const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
     expect(recovered.ok).toBe(true);
-    if (!recovered.ok || !recovered.value) throw new Error("Missing recovery");
+    if (!recovered.ok || !recovered.value?.document) throw new Error("Missing recovery");
     expect(recovered.value.history).toBeDefined();
     const reopened = createDocumentStore([]);
     // Restore into another store so the check cannot reuse history still held in memory
@@ -551,7 +828,7 @@ describe("server project session lifecycle", () => {
 
   // Switching projects preserves the previous draft without sending the new project
   it("stops saving when the store switches to a different project", async () => {
-    const { store, database, events, write, session } = setup();
+    const { store, database, events, writes, session } = await setup();
     store.loadProject(serializedFixture({ ...fixture, title: "Old project edit" }), assets);
     const object = store.getSnapshot().objects[0];
     if (!object) throw new Error("Fixture needs an object");
@@ -560,10 +837,11 @@ describe("server project session lifecycle", () => {
     events.dispatchEvent(new Event("online"));
     await session.flush();
     await vi.advanceTimersByTimeAsync(5_000);
-    expect(write).not.toHaveBeenCalled();
+    expect(writes).toHaveLength(0);
     await session.dispose();
     const recovered = await getRecoverySession(assets, database, { accountId: "alice", projectId });
-    if (!recovered.ok || !recovered.value) throw new Error("Missing previous project backup");
+    if (!recovered.ok || !recovered.value?.document)
+      throw new Error("Missing previous project backup");
     const reopened = createDocumentStore([]);
     expect(
       reopened.loadProject(
@@ -577,10 +855,10 @@ describe("server project session lifecycle", () => {
 
   // Closing before the timer fires still preserves unsent edits locally
   it("backs up unsynced edits when closing inside the debounce window", async () => {
-    const { store, database, write, session } = setup();
+    const { store, database, writes, session } = await setup();
     store.loadProject(serializedFixture({ ...fixture, title: "Last edit before closing" }), assets);
     expect(await session.dispose()).toMatchObject({ ok: true, value: false });
-    expect(write).not.toHaveBeenCalled();
+    expect(writes).toHaveLength(0);
     expect(
       await getRecoverySession(assets, database, { accountId: "alice", projectId }),
     ).toMatchObject({
@@ -592,17 +870,19 @@ describe("server project session lifecycle", () => {
     });
   });
 
-  // Cleanup must not remove another account’s recovery copy
+  // Cleanup must not remove another account's recovery copy
   it("clears the closed session's confirmed cache without touching another account", async () => {
-    const { database, session } = setup();
+    const { database, session } = await setup();
     await applySaveRecoverySession(recoverySession(), 0, assets, database, {
       accountId: "bob",
       projectId,
     });
     expect(await session.dispose()).toMatchObject({ ok: true, value: true });
-    expect(await getRecoverySession(assets, database, { accountId: "alice", projectId })).toEqual({
+    expect(
+      await getRecoverySession(assets, database, { accountId: "alice", projectId }),
+    ).toMatchObject({
       ok: true,
-      value: null,
+      value: { document: null, revision: 1 },
     });
     expect(
       await getRecoverySession(assets, database, { accountId: "bob", projectId }),
@@ -611,47 +891,58 @@ describe("server project session lifecycle", () => {
 });
 
 it("rejects blank account-scoped recovery without replacing the previous backup", async () => {
-  const database = new FakeDraftDatabase();
+  const database = new RecoveryDatabase();
   const scope = { accountId: "student-a", projectId: fixture.projectId };
   const empty = { document: null, fileName: "", savedJson: null, pristine: true };
   expect(
     await Reflect.apply(applySaveRecoverySession, undefined, [empty, 0, assets, database, scope]),
   ).toMatchObject({ ok: false });
-  expect(database.records.size).toBe(0);
+  expect(await database.query((store) => store.count())).toBe(0);
 
   // Stored data is untrusted too; reject an invalid scoped blank record on read
-  database.records.set(
-    `session:${JSON.stringify(["account", scope.accountId, scope.projectId.toLowerCase()])}`,
-    { ...empty, revision: 1 },
-  );
+  await database.put(["account", scope.accountId, scope.projectId.toLowerCase()], {
+    ...empty,
+    revision: 1,
+  });
   expect(await getRecoverySession(assets, database, scope)).toMatchObject({ ok: false });
-  expect(database.records.size).toBe(1);
+  expect(await database.query((store) => store.count())).toBe(1);
+});
+
+it.each([
+  { revision: 0, cleared: true },
+  { revision: 1, cleared: true, document: null },
+])("rejects malformed cleared recovery metadata: %j", async (record) => {
+  const database = new RecoveryDatabase();
+  const scope = { accountId: "alice", projectId };
+  await database.put(["account", scope.accountId, projectId], record);
+  expect(await getRecoverySession(assets, database, scope)).toMatchObject({ ok: false });
+  expect(await database.query((store) => store.getAll())).toEqual([record]);
 });
 
 it.each([1, 2])(
   "recovers incomplete v%s links, corrected edits, and preserves revision conflicts",
   async (version) => {
-    const database = new FakeDraftDatabase();
+    const database = new RecoveryDatabase();
     const kinds = new Map(Object.entries(contentCases.assets));
-    const document = structuredClone(
-      version === 1 ? fixture : contentFixture,
-    ) as unknown as ProjectDocument;
-    const draft = {
-      ...document,
-      scenes: document.scenes.map((scene, index) =>
-        index
-          ? scene
-          : {
-              ...scene,
-              interactions: [
-                {
-                  when: { type: "scene-starts" as const },
-                  do: { type: "open-link" as const, url: "" },
-                },
-              ],
-            },
-      ),
-    } as ProjectDocument;
+    const source = version === 1 ? fixture : contentFixture;
+    function withLink(url: string, title = source.title) {
+      const project = {
+        ...source,
+        title,
+        scenes: source.scenes.map((scene, index) =>
+          index === 0
+            ? {
+                ...scene,
+                interactions: [{ when: { type: "scene-starts" }, do: { type: "open-link", url } }],
+              }
+            : scene,
+        ),
+      };
+      const checked = validateProject(project, kinds, { allowDraftLinks: true });
+      if (!checked.ok) throw new Error(checked.error.message);
+      return checked.value;
+    }
+    const draft = withLink("");
     const scope = { accountId: "alice", projectId: draft.projectId };
     const session = { document: draft };
     expect(serializeProject(draft, kinds).ok).toBe(false);
@@ -663,23 +954,7 @@ it.each([1, 2])(
     expect(restored.ok).toBe(true);
     if (!restored.ok || !restored.value?.document) throw new Error("Missing draft");
     expect(restored.value.document.scenes[0]!.interactions).toEqual(draft.scenes[0]!.interactions);
-    const corrected = {
-      ...draft,
-      title: "Continued editing",
-      scenes: draft.scenes.map((scene, index) =>
-        index
-          ? scene
-          : {
-              ...scene,
-              interactions: [
-                {
-                  when: { type: "scene-starts" as const },
-                  do: { type: "open-link" as const, url: "https://example.com/corrected" },
-                },
-              ],
-            },
-      ),
-    } as ProjectDocument;
+    const corrected = withLink("https://example.com/corrected", "Continued editing");
     expect(serializeProject(corrected, kinds).ok).toBe(true);
     expect(
       await applySaveRecoverySession(

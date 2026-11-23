@@ -16,12 +16,12 @@ internal sealed class ApprovedReviewAssetResolver : IReviewAssetResolver
         // Review already authorizes the locked saved draft and derives these references from its validated content
         // Match canonical catalogue identities exactly so alternate UUID spellings cannot introduce aliases
         var ids = new List<Guid>(assetIds.Count);
+
         foreach (var assetId in assetIds)
         {
             if (!Guid.TryParseExact(assetId, "D", out var id) || id.ToString() != assetId)
-            {
                 return null;
-            }
+
             ids.Add(id);
         }
 

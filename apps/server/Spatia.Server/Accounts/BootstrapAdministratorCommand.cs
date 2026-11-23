@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.Json;
+using HttpJsonOptions = Microsoft.AspNetCore.Http.Json.JsonOptions;
 using Microsoft.Extensions.Options;
 using Spatia.Server.Hosting;
-using HttpJsonOptions = Microsoft.AspNetCore.Http.Json.JsonOptions;
 
 namespace Spatia.Server.Accounts;
 
@@ -33,6 +33,7 @@ public static class BootstrapAdministratorCommand
             await using var app = SpatiaApplication.Build(builder);
             var buffer = new byte[16385];
             var length = await input.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false, cancellationToken);
+
             if (length > 16384)
             {
                 await output.WriteLineAsync("Invalid bootstrap input.");
@@ -42,6 +43,7 @@ public static class BootstrapAdministratorCommand
             new UTF8Encoding(false, true).GetCharCount(buffer, 0, length);
             var options = app.Services.GetRequiredService<IOptions<HttpJsonOptions>>().Value.SerializerOptions;
             var request = JsonSerializer.Deserialize<BootstrapAdministratorRequest>(buffer.AsSpan(0, length), options);
+
             if (request is null)
             {
                 await output.WriteLineAsync("Invalid bootstrap input.");
@@ -51,11 +53,13 @@ public static class BootstrapAdministratorCommand
             await using var scope = app.Services.CreateAsyncScope();
             var result = await scope.ServiceProvider.GetRequiredService<AccountAdministrationService>()
                 .BootstrapAdministratorAsync(request, cancellationToken);
+
             if (result.Succeeded)
             {
                 await output.WriteLineAsync("Administrator created; a first-sign-in password change is required.");
                 return 0;
             }
+
             if (result.Errors.Any(error => error.Code == "BootstrapAlreadyExists"))
             {
                 await output.WriteLineAsync("An administrator already exists; bootstrap refused.");

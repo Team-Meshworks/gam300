@@ -1,6 +1,6 @@
 type ProjectFileHandle = {
   getFile(): Promise<File>;
-  createWritable(): Promise<{
+  createWritable(options: { mode: "exclusive" }): Promise<{
     write(text: string): Promise<void>;
     close(): Promise<void>;
     abort(): Promise<void>;
@@ -36,12 +36,14 @@ export async function writeProjectFile(
   text: string,
   previousText: string,
 ): Promise<void> {
-  // Recheck the destination so an export cannot overwrite an intervening edit.
-  if ((await (await handle.getFile()).text()) !== previousText) {
-    throw new Error("This file changed outside the editor; choose a different export destination");
-  }
-  const stream = await handle.createWritable();
+  // Hold the writer lock while checking the destination and committing the export.
+  const stream = await handle.createWritable({ mode: "exclusive" });
   try {
+    if ((await (await handle.getFile()).text()) !== previousText) {
+      throw new Error(
+        "This file changed outside the editor; choose a different export destination",
+      );
+    }
     await stream.write(text);
     // Closing commits the temporary write; writing bytes alone doesn't confirm a saved file
     await stream.close();

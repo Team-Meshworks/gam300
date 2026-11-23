@@ -1,6 +1,7 @@
 import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { useEffect, useRef, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
+import { classLabels } from "../projects/class-labels";
 import { AssignmentListScreen } from "../projects/AssignmentListScreen";
 import { Icon } from "@iconify/react/offline";
 import closeIcon from "@iconify-icons/lucide/x";
@@ -21,6 +22,10 @@ import {
 } from "./classroom-api";
 import { createWorkspaceClient } from "./workspace-api";
 import { createDirectoryClient, type ManagedOrganization } from "../directory/directory-client";
+
+import { createOperationKey, readCreateOperation, sendCreateOperation } from "./create-operation";
+
+import { PendingCreateRecovery } from "./PendingCreateRecovery";
 
 const api = createWorkspaceClient();
 const classesApi = createClassroomClient();
@@ -70,6 +75,8 @@ export function ClassHome({
   const [phase, setPhase] = useState<"ready" | "pending" | "unknown">("ready");
   const [notice, setNotice] = useState("");
   const busy = useRef(false);
+  const operationKey = createOperationKey(session.userId, "class");
+  const [recoverable, setRecoverable] = useState(true);
   const manager = session.role !== "Creator";
   const rosterKey = `${classId}:${refresh}`;
   useEffect(() => {
@@ -146,31 +153,60 @@ export function ClassHome({
     window.addEventListener("beforeunload", preventLoss);
     return () => window.removeEventListener("beforeunload", preventLoss);
   }, [phase]);
-  async function save() {
-    if (!dialog || busy.current || phase !== "ready") return;
+  async function save(retry = false) {
+    if (!active || (!retry && (!dialog || phase !== "ready")) || busy.current) return;
     busy.current = true;
     setPhase("pending");
     setNotice("");
     const result =
-      dialog === "create"
-        ? await api.write(session.userId, "/api/v1/classes", "POST", {
-            name: name.trim(),
-            ...(session.role === "Administrator" ? { orgId: organizationId } : {}),
-          })
+      dialog === "create" || retry
+        ? await sendCreateOperation(
+            localStorage,
+            operationKey,
+            session.userId,
+            api.write,
+            (value) => {
+              try {
+                const created = classroom(value);
+                const pending = readCreateOperation(localStorage, operationKey, session.userId);
+                return (
+                  created.name === pending?.body.name &&
+                  created.organizationId === (pending?.body.orgId ?? session.orgId)
+                );
+              } catch {
+                return false;
+              }
+            },
+            retry
+              ? undefined
+              : {
+                  path: "/api/v1/classes",
+                  body: {
+                    name: name.trim(),
+                    ...(session.role === "Administrator" ? { orgId: organizationId } : {}),
+                  },
+                },
+          )
         : await api.write(
             session.userId,
-            `/api/v1/classes/${encodeURIComponent(classId)}/members/${encodeURIComponent(dialog.userId)}`,
-            dialog.enrolled ? "DELETE" : "PUT",
+            `/api/v1/classes/${encodeURIComponent(classId)}/members/${encodeURIComponent(typeof dialog === "object" && dialog ? dialog.userId : "")}`,
+            typeof dialog === "object" && dialog?.enrolled ? "DELETE" : "PUT",
           );
     busy.current = false;
+    try {
+      setRecoverable(readCreateOperation(localStorage, operationKey, session.userId) !== null);
+    } catch {
+      setRecoverable(true);
+    }
     let verified =
       result.kind === "confirmed" && (dialog !== "create" ? result.value === null : false);
-    if (result.kind === "confirmed" && dialog === "create") {
+    if (result.kind === "confirmed" && (dialog === "create" || retry)) {
       try {
         const created = classroom(result.value);
         verified =
-          created.name === name.trim() &&
-          created.organizationId === (session.orgId ?? organizationId);
+          retry ||
+          (created.name === name.trim() &&
+            created.organizationId === (session.orgId ?? organizationId));
         if (verified) setClassId(created.id);
       } catch {
         verified = false;
@@ -193,6 +229,7 @@ export function ClassHome({
     }
   }
   function openClassForm() {
+    if (recoverable) return;
     setName("");
     setOrganizationId("");
     setOrganizations(null);
@@ -200,15 +237,56 @@ export function ClassHome({
     setNotice("");
     setDialog("create");
   }
+  const labels = classLabels((classes ?? []).map((row) => ({ id: row.id, label: row.name })));
   const currentRoster = roster?.key === rosterKey && !rosterError ? roster : null;
   const studentNames = Object.fromEntries(
     currentRoster?.members.map((member) => [member.userId, member.userName]) ?? [],
+  );
+  const canRetry = (() => {
+    try {
+      const operation = readCreateOperation(localStorage, operationKey, session.userId);
+      return operation !== null && !operation.receipt;
+    } catch {
+      return false;
+    }
+  })();
+  const recoveryPanel = (
+    <PendingCreateRecovery
+      actorId={session.userId}
+      purpose="class"
+      refreshKey={phase + notice}
+      onPendingChange={setRecoverable}
+      onRecovered={(value) => {
+        setClassId(value.id);
+        setDialog(null);
+        setPhase("ready");
+        setRefresh((value) => value + 1);
+      }}
+      active={active && phase !== "pending"}
+      onReleased={() => {
+        setPhase("ready");
+        setDialog(null);
+        setRefresh((value) => value + 1);
+        setNotice(
+          "The saved class request was released. Its outcome remains unknown. A new class is a separate creation.",
+        );
+      }}
+    />
   );
   return (
     <section
       aria-label="Classes"
       className={`sp-class-home${organisationView ? " sp-organisation-view sp-panel-surface" : ""}`}
     >
+      {canRetry && !dialog && (
+        <p role="alert">
+          An earlier class creation needs confirmation.
+          <Button disabled={!active || phase === "pending"} onClick={() => void save(true)}>
+            Retry same class
+          </Button>
+        </p>
+      )}
+      {!dialog && recoveryPanel}
       <div className="sp-page-heading sp-between">
         <div>
           <h1>{organisationView ? "Organisation Details" : "Classes"}</h1>
@@ -264,7 +342,12 @@ export function ClassHome({
                   ? "Select a class"
                   : "No classes"
             }
-            options={classes?.map((row) => ({ value: row.id, label: row.name })) ?? []}
+            options={
+              classes?.map((row) => ({
+                value: row.id,
+                label: labels.get(row.id)!,
+              })) ?? []
+            }
             disabled={!classes?.length}
             className="sp-organisation-class-select"
             menuClassName={`sp-organisation-class-menu${organisationView ? "" : " sp-legacy-class-menu"}`}
@@ -282,7 +365,7 @@ export function ClassHome({
             disabled={!classes?.length}
             options={[
               { value: "", label: "Choose a class" },
-              ...(classes?.map((row) => ({ value: row.id, label: row.name })) ?? []),
+              ...(classes?.map((row) => ({ value: row.id, label: labels.get(row.id)! })) ?? []),
             ]}
             onChange={(value) => {
               setClassId(value);
@@ -302,7 +385,7 @@ export function ClassHome({
               <option value="">Choose a class</option>
               {classes?.map((row) => (
                 <option key={row.id} value={row.id}>
-                  {row.name}
+                  {labels.get(row.id)}
                 </option>
               ))}
             </select>
@@ -312,7 +395,7 @@ export function ClassHome({
           <Button
             variant="primary"
             className="sp-class-create-action"
-            disabled={session.role === "Educator" && !session.orgId}
+            disabled={recoverable || (session.role === "Educator" && !session.orgId)}
             onClick={openClassForm}
           >
             <Icon icon={plusIcon} width={16} aria-hidden="true" />
@@ -333,6 +416,11 @@ export function ClassHome({
           </span>
         </Button>
       </div>
+      {classId && (
+        <p className="sp-muted">
+          Class ID: <code>{classId}</code>
+        </p>
+      )}
       {error ? (
         <p role="alert">{error}</p>
       ) : !classes ? (
@@ -537,6 +625,9 @@ export function ClassHome({
             }
           }}
         >
+          {dialog === "create" && canRetry && phase !== "pending" && (
+            <Button onClick={() => void save(true)}>Retry same class</Button>
+          )}
           {phase === "unknown" ? (
             <p role="alert">{notice}</p>
           ) : (
@@ -625,6 +716,7 @@ export function ClassHome({
               </fieldset>
             </form>
           )}
+          {dialog === "create" && recoveryPanel}
         </Dialog>
       )}
     </section>

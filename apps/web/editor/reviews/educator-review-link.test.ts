@@ -1,5 +1,6 @@
-import { expect, it, vi } from "vitest";
-import type { AccountSession } from "../accounts/account-client";
+import { expect, it } from "vitest";
+import { serveHttp } from "../../tests/http-fixture";
+import { createAccountClient, type AccountSession } from "../accounts/account-client";
 import { createReviewClient } from "./review-client";
 import { educatorReviewLink } from "./educator-review-link";
 
@@ -14,29 +15,46 @@ const session: AccountSession = {
   displayName: "Teacher",
   mustChangePassword: false,
 };
-function fixture() {
-  const client = createReviewClient();
-  vi.spyOn(client, "projectAssignment").mockResolvedValue({ projectId, classId, assignmentId });
-  vi.spyOn(client, "classrooms").mockResolvedValue({
-    items: [{ id: classId, name: "Class" }],
-    nextCursor: null,
+async function reviewLinkServer({
+  includeClass = true,
+  includeProject = true,
+  finalSession = session,
+} = {}) {
+  let activeSession = session;
+  const server = await serveHttp((request) => {
+    switch (new URL(request.url).pathname) {
+      case "/api/v1/auth/session":
+        return Response.json(activeSession);
+      case `/api/v1/projects/${projectId}/submissions`:
+        return Response.json({ projectId, classId, assignmentId });
+      case "/api/v1/classes":
+        return Response.json({
+          items: includeClass ? [{ id: classId, name: "Class" }] : [],
+          nextCursor: null,
+        });
+      case `/api/v1/classes/${classId}/assignments`:
+        activeSession = finalSession;
+        return Response.json({
+          items: [
+            {
+              assignmentId,
+              title: "Assignment",
+              dueAtUnixSeconds: 1,
+              projects: includeProject ? [{ projectId, studentId }] : [],
+            },
+          ],
+          nextCursor: null,
+        });
+      default:
+        return new Response(null, { status: 404 });
+    }
   });
-  vi.spyOn(client, "assignments").mockResolvedValue({
-    items: [
-      {
-        assignmentId,
-        title: "Assignment",
-        dueAtUnixSeconds: 1,
-        projects: [{ projectId, studentId }],
-      },
-    ],
-    nextCursor: null,
-  });
-  const getSession = vi.fn(async () => session);
-  return { client, getSession };
+  const client = createReviewClient(server.fetch);
+  const { getSession } = createAccountClient(server.fetch);
+  return { client, getSession, requests: server.requests };
 }
 it("opens the exact assigned student's editor review", async () => {
-  const { client, getSession } = fixture();
+  const { client, getSession } = await reviewLinkServer();
   const url = new URL(
     await educatorReviewLink(projectId, session, client, getSession),
     "https://example.test",
@@ -50,15 +68,13 @@ it("opens the exact assigned student's editor review", async () => {
   });
 });
 it("does not open a project removed from the assignment", async () => {
-  const { client, getSession } = fixture();
-  vi.mocked(client.assignments).mockResolvedValue({ items: [], nextCursor: null });
+  const { client, getSession } = await reviewLinkServer({ includeProject: false });
   await expect(educatorReviewLink(projectId, session, client, getSession)).rejects.toThrow(
     "no longer available",
   );
 });
 it("does not open a class outside the current account's class list", async () => {
-  const { client, getSession } = fixture();
-  vi.mocked(client.classrooms).mockResolvedValue({ items: [], nextCursor: null });
+  const { client, getSession } = await reviewLinkServer({ includeClass: false });
   await expect(educatorReviewLink(projectId, session, client, getSession)).rejects.toThrow(
     "linked class is unavailable",
   );
@@ -66,19 +82,18 @@ it("does not open a class outside the current account's class list", async () =>
 it.each(["userId", "orgId", "role"] as const)(
   "rejects a changed %s after lookup",
   async (field) => {
-    const { client, getSession } = fixture();
-    getSession
-      .mockResolvedValueOnce(session)
-      .mockResolvedValueOnce({ ...session, [field]: field === "role" ? "Creator" : studentId });
+    const { client, getSession } = await reviewLinkServer({
+      finalSession: { ...session, [field]: field === "role" ? "Creator" : studentId },
+    });
     await expect(educatorReviewLink(projectId, session, client, getSession)).rejects.toThrow(
       "account changed",
     );
   },
 );
 it("rejects Creator links before reading review records", async () => {
-  const { client, getSession } = fixture();
+  const { client, getSession, requests } = await reviewLinkServer();
   await expect(
     educatorReviewLink(projectId, { ...session, role: "Creator" }, client, getSession),
   ).rejects.toThrow("invalid");
-  expect(client.projectAssignment).not.toHaveBeenCalled();
+  expect(requests).toHaveLength(0);
 });

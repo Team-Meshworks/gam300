@@ -8,10 +8,14 @@ export function invalid(path: string, message: string): ValidationResult<never> 
   return { ok: false, error: { path, message } };
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is object {
   // typeof also calls null and arrays objects
   // Neither can hold a project record
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function readField(record: object, field: PropertyKey): unknown {
+  return Object.getOwnPropertyDescriptor(record, field)?.value;
 }
 
 // Only call after validation has produced a separate bounded JSON tree
@@ -26,7 +30,7 @@ export function freezeValidatedData<T>(value: T): T {
 }
 
 export function checkFields(
-  record: Record<string, unknown>,
+  record: object,
   fields: readonly string[],
   path: string,
   optional: readonly string[] = [],

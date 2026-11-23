@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { launchBrowser } from "./browser-security.mjs";
+import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5182";
 const browser = await launchBrowser({ target: origin });
@@ -104,7 +105,9 @@ try {
         });
       });
     }
+    const receipts = creationRecoveryFixture();
     await page.route("**/api/v1/**", async (route) => {
+      if (await receipts.handle(route, userId)) return;
       const request = route.request();
       const path = new URL(request.url()).pathname;
       if (path === "/api/v1/auth/session") {
@@ -388,11 +391,7 @@ try {
         const linkField = page.getByRole("textbox", { name: "Share your project" });
         assert.equal(await linkField.inputValue(), `https://spatia.example/p/${publicationId}`);
         assert.equal(await linkField.getAttribute("readonly"), "");
-        await page.evaluate(() =>
-          Object.defineProperty(navigator, "clipboard", {
-            value: { writeText: () => Promise.reject() },
-          }),
-        );
+        await page.context().grantPermissions([], { origin });
         const shareCard = page.locator(".sp-student-card--published");
         const shareHeight = (await shareCard.boundingBox()).height;
         await page.getByRole("button", { name: "Copy", exact: true }).click();

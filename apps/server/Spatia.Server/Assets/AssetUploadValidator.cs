@@ -14,13 +14,11 @@ public sealed class AssetUploadValidator(IConfiguration configuration)
 
     public async Task<(bool Valid, string[] Messages)?> ValidateAsync(byte[] bytes, CancellationToken cancellationToken)
     {
-
         // Use the packaged validator by default; missing tooling never becomes implicit approval
         var script = Script;
+
         if (string.IsNullOrWhiteSpace(script) || !Path.IsPathFullyQualified(script) || !File.Exists(script))
-        {
             return null;
-        }
 
         // Launch only the configured executable and fixed script; uploaded names never become arguments
         // Keep the validator out of the API process so malformed model parsing has its own memory ceiling
@@ -35,11 +33,11 @@ public sealed class AssetUploadValidator(IConfiguration configuration)
         start.ArgumentList.Add("--max-old-space-size=256");
         start.ArgumentList.Add(script);
         using var process = new Process { StartInfo = start };
-
         // Share request cancellation with a hard time limit so abandoned uploads cannot leave work running
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(30));
         var started = false;
+
         try
         {
             process.Start();
@@ -57,15 +55,14 @@ public sealed class AssetUploadValidator(IConfiguration configuration)
             // Require the structured result and exit code to agree before accepting the validator response
             // An execution failure stays unavailable rather than being reported as invalid user content
             using var result = JsonDocument.Parse(json);
+
             if (process.ExitCode is not (0 or 1))
-            {
                 return null;
-            }
+
             var valid = result.RootElement.GetProperty("valid").GetBoolean();
+
             if (valid != (process.ExitCode == 0))
-            {
                 return null;
-            }
 
             // Keep technical warnings visible to the reviewer without misclassifying them as invalid bytes
             var messages = result.RootElement.GetProperty("messages").EnumerateArray()
@@ -74,12 +71,10 @@ public sealed class AssetUploadValidator(IConfiguration configuration)
         }
         catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or IOException or JsonException or OperationCanceledException or InvalidOperationException)
         {
-
             // Terminate the entire child tree before returning; a cancelled caller must still observe cancellation
             if (started && !process.HasExited)
-            {
                 process.Kill(entireProcessTree: true);
-            }
+
             cancellationToken.ThrowIfCancellationRequested();
             return null;
         }

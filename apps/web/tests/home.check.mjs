@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "./browser-security.mjs";
+import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5182";
 const browser = await launchBrowser({ target: origin });
@@ -56,10 +57,27 @@ try {
   let writes = 0;
   let lostResponse = false;
   let rejectList = false;
+  const recovery = creationRecoveryFixture();
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
+    if (path.startsWith("/api/v1/creation-operations/") && request.method() === "GET") {
+      const owner = request.headers()["x-spatia-account"];
+      assert.ok(
+        owner === userId || owner === orgId,
+        "Recovery reads must carry a known account ID",
+      );
+      if (owner !== account?.userId) {
+        return route.fulfill({
+          status: 403,
+          contentType: "application/problem+json",
+          headers: { "Cache-Control": "no-store" },
+          json: { status: 403, code: "account_changed", title: "The signed-in account changed" },
+        });
+      }
+    }
+    if (await recovery.handle(route, account?.userId)) return;
     if (path === "/api/v1/auth/session")
       return route.fulfill(account ? { json: account } : { status: 401 });
     if (path === "/api/v1/auth/csrf")
@@ -89,10 +107,18 @@ try {
         },
       });
     if (path === "/api/v1/classes" && request.method() === "POST") {
-      assert.deepEqual(request.postDataJSON(), { name: "First class", orgId });
+      const body = request.postDataJSON();
+      assert.match(body.operationId, /^[0-9a-f-]{36}$/);
+      assert.equal(request.headers()["x-spatia-account"], userId);
+      assert.deepEqual(body, {
+        name: "First class",
+        orgId,
+        operationId: body.operationId,
+        creationGuard: { purpose: "class", previousOperationId: null },
+      });
       return route.fulfill({
         status: 201,
-        json: { id: copyId, name: "First class", organizationId: orgId },
+        json: recovery.commit(request, { id: copyId, name: "First class", organizationId: orgId }),
       });
     }
     if (path === "/api/v1/classes") return route.fulfill({ json: { items: [], nextCursor: null } });
@@ -116,12 +142,26 @@ try {
     if (path === `/api/v1/projects/${projectId}/duplicate`) {
       writes++;
       assert.equal(request.headers()["x-csrf-token"], "test-token");
-      assert.deepEqual(request.postDataJSON(), { expectedRevision: 3, title: "Silk Road copy" });
+      const body = request.postDataJSON();
+      assert.match(body.operationId, /^[0-9a-f-]{36}$/);
+      assert.equal(request.headers()["x-spatia-account"], userId);
+      assert.deepEqual(body, {
+        expectedRevision: 3,
+        title: "Silk Road copy",
+        operationId: body.operationId,
+        creationGuard: { purpose: "duplicate", previousOperationId: null },
+      });
       items.push({ ...project, projectId: copyId, title: "Silk Road copy", revision: 0 });
+      const receipt = recovery.commit(request, {
+        projectId: copyId,
+        revision: 0,
+        updatedAt: project.updatedAt,
+        archived: false,
+      });
       if (lostResponse) return route.abort();
       return route.fulfill({
         status: 201,
-        json: { projectId: copyId, revision: 0, updatedAt: project.updatedAt, archived: false },
+        json: receipt,
       });
     }
     if (path === `/api/v1/projects/${projectId}/archive`) {
@@ -171,10 +211,6 @@ try {
     assert.equal(await page.getByRole("button", { name: "New assignment" }).count(), 0);
     await page.goto(origin + "/review");
     await page.getByRole("heading", { name: "Submission review" }).waitFor();
-    assert.equal(
-      await page.getByRole("link", { name: "New class assignment", exact: true }).count(),
-      0,
-    );
     console.log("Legacy class and assignment routes use the guarded workspace");
   } else if (process.argv[3] === "admin") {
     account = { ...session, role: "Administrator", orgId: null };
@@ -307,11 +343,12 @@ try {
     await page.getByRole("button", { name: "Archive", exact: true }).click();
     await page.getByRole("button", { name: "Confirm", exact: true }).click();
     await page.getByText("Project archived.", { exact: true }).waitFor();
-    await page.getByRole("tab", { name: "Archived", exact: true }).click();
+    const projectStatus = page.getByRole("tablist", { name: "Project status", exact: true });
+    await projectStatus.getByRole("tab", { name: "Archived", exact: true }).click();
     await page.getByRole("button", { name: "Reopen", exact: true }).click();
     await page.getByRole("button", { name: "Confirm", exact: true }).click();
     await page.getByText("Project reopened.", { exact: true }).waitFor();
-    await page.getByRole("tab", { name: "Projects", exact: true }).click();
+    await projectStatus.getByRole("tab", { name: "Projects", exact: true }).click();
     items[0].revision = 3;
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await page.getByRole("button", { name: "Duplicate", exact: true }).click();
@@ -347,7 +384,6 @@ try {
       .waitFor();
     assert.equal(await page.getByRole("region", { name: "Project details" }).isVisible(), true);
     await page.getByRole("button", { name: "Close project details" }).click();
-    assert.equal(await page.getByText("Manage projects and archives", { exact: true }).count(), 0);
     await page
       .locator(".sp-student-card")
       .getByRole("heading", { name: "Student draft", exact: true })

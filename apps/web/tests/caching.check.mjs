@@ -13,30 +13,15 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   // Check real GLB revalidation before Playwright routing disables the HTTP cache.
   await page.goto(new URL("/", url).href);
-  const modelUrl = await page.evaluate(async () => {
-    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-    return new URL(assets.find((asset) => asset.id === "test-crate-v1").url, location.href).href;
-  });
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Network.enable");
-  const modelRequests = new Set();
-  let httpCacheHit = false;
-  cdp.on("Network.requestWillBeSent", ({ requestId, request }) => {
-    if (request.url === modelUrl) modelRequests.add(requestId);
-  });
-  cdp.on("Network.responseReceivedExtraInfo", ({ requestId, statusCode }) => {
-    if (modelRequests.has(requestId) && statusCode === 304) httpCacheHit = true;
-  });
-  cdp.on("Network.responseReceived", ({ response }) => {
-    if (response.url === modelUrl && response.fromDiskCache) httpCacheHit = true;
-  });
-  await page.evaluate(async () => {
+  const transfers = await page.evaluate(async () => {
     const source = await (await fetch("/graphics/scene.ts")).text();
     const cachePath = source.match(/from "([^"]*ModelCache[^\"]*)"/)[1];
     const { ModelCache } = await import(cachePath);
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     const asset = assets.find((asset) => asset.id === "test-crate-v1");
     const cache = new ModelCache();
+    const url = new URL(asset.url, location.href).href;
+    performance.clearResourceTimings();
     for (let request = 0; request < 2; request++) {
       const lease = await cache.acquire(asset, new AbortController().signal);
       try {
@@ -47,9 +32,25 @@ try {
         cache.invalidate();
       }
     }
+    return performance
+      .getEntriesByName(url, "resource")
+      .map(({ transferSize, encodedBodySize }) => ({
+        transferSize,
+        encodedBodySize,
+      }));
   });
-  assert.equal(httpCacheHit, true, "Reloading an invalidated model must reuse cached GLB bytes");
-  await cdp.detach();
+  assert.equal(transfers.length, 2, "Invalidating the parsed model must fetch its URL twice");
+  const [first, reload] = transfers;
+  assert.ok(
+    first.encodedBodySize > 300 && first.transferSize >= first.encodedBodySize,
+    "The cold load must transfer the GLB body",
+  );
+  assert.equal(reload.encodedBodySize, first.encodedBodySize);
+  // A local hit transfers zero bytes; HTTP 304 transfers just the response headers.
+  assert.ok(
+    reload.transferSize <= 300,
+    `Reloading an invalidated model must reuse cached GLB bytes: ${JSON.stringify(transfers)}`,
+  );
   await page.route("**/caching-harness.html", (route) =>
     route.fulfill({
       contentType: "text/html",
@@ -57,6 +58,89 @@ try {
     }),
   );
   await page.goto(new URL("caching-harness.html", url).href);
+  const crateBytes = readFileSync(
+    new URL("../../../assets/delivery/test-crate.glb", import.meta.url),
+  );
+  const vertices = Buffer.from(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]).buffer);
+  const bufferRequested = Promise.withResolvers();
+  const releaseBuffer = Promise.withResolvers();
+  let failure;
+  let fetches = 0;
+  let lateRequests = 0;
+  await page.route(/\.glb(?:\?|$)/, async (route) => {
+    if (route.request().resourceType() !== "fetch") {
+      await route.continue();
+      return;
+    }
+    fetches++;
+    const request = new URL(route.request().url());
+    if (request.pathname === "/cache-controlled.glb") {
+      if (++lateRequests > 1) {
+        await route.fulfill({ body: crateBytes, contentType: "model/gltf-binary" });
+        return;
+      }
+      await route.fulfill({
+        json: {
+          asset: { version: "2.0" },
+          scene: 0,
+          scenes: [{ nodes: [0] }],
+          nodes: [{ mesh: 0 }],
+          meshes: [
+            {
+              primitives: [
+                { attributes: { POSITION: 0 }, material: 0, extras: { lateCache: true } },
+              ],
+            },
+          ],
+          materials: [{ name: "LateCacheMaterial" }],
+          accessors: [
+            {
+              bufferView: 0,
+              componentType: 5126,
+              count: 3,
+              type: "VEC3",
+              min: [0, 0, 0],
+              max: [1, 1, 0],
+            },
+          ],
+          bufferViews: [{ buffer: 0, byteLength: vertices.byteLength }],
+          buffers: [
+            {
+              uri: new URL("/cache-controlled.bin", request).href,
+              byteLength: vertices.byteLength,
+            },
+          ],
+        },
+      });
+      return;
+    }
+    if (failure === "http") await route.fulfill({ status: 503, body: "Unavailable" });
+    else if (failure === "parse") await route.fulfill({ body: Buffer.alloc(20) });
+    else await route.continue();
+  });
+  await page.route("**/cache-controlled.bin", async (route) => {
+    bufferRequested.resolve();
+    await releaseBuffer.promise;
+    await route.fulfill({ body: vertices });
+  });
+  const devtools = await page.context().newCDPSession(page);
+  await devtools.send("Profiler.enable");
+  await devtools.send("Profiler.startPreciseCoverage", { callCount: true });
+  let parses = 0;
+  await page.exposeFunction("cacheTraffic", async () => {
+    const { result } = await devtools.send("Profiler.takePreciseCoverage");
+    for (const script of result) {
+      for (const fn of script.functions) {
+        if (fn.functionName === "parseAsync") parses += fn.ranges[0].count;
+      }
+    }
+    return { fetches, parses };
+  });
+  await page.exposeFunction("cacheFailure", (kind) => {
+    failure = kind;
+  });
+  await page.exposeFunction("cacheBufferRequested", () => bufferRequested.promise);
+  await page.exposeFunction("releaseCacheBuffer", () => releaseBuffer.resolve());
   const fixture = JSON.parse(
     readFileSync(new URL("../shared/project/fixtures/m1-project.json", import.meta.url), "utf8"),
   );
@@ -69,34 +153,15 @@ try {
       "The renderer must load the shared asset-runtime module",
     );
     const { ModelCache } = await import(cachePath);
-    const cacheSource = await (await fetch(cachePath)).text();
-    const { GLTFLoader } = await import(
-      cacheSource.match(/import \{ GLTFLoader \} from "([^"]+)"/)[1]
-    );
     const { initScene } = await import("/graphics/scene.ts");
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
     function check(condition, message) {
       if (!condition) throw new Error(message);
     }
-    const originalFetch = window.fetch;
-    const originalParse = GLTFLoader.prototype.parseAsync;
-    const counts = { fetches: 0, parses: 0, generatedThumbnails: 0 };
-    let failure;
-    window.fetch = function (url, ...args) {
-      const isModel = String(url).split("?")[0].endsWith(".glb");
-      if (isModel) counts.fetches++;
-      if (isModel && failure === "http")
-        return Promise.resolve(new Response("Unavailable", { status: 503 }));
-      if (isModel && failure === "parse") return Promise.resolve(new Response(new Uint8Array(20)));
-      return originalFetch.call(this, url, ...args);
-    };
-    GLTFLoader.prototype.parseAsync = function (...args) {
-      counts.parses++;
-      return originalParse.apply(this, args);
-    };
+    let generatedThumbnails = 0;
     const originalImage = HTMLCanvasElement.prototype.toDataURL;
     HTMLCanvasElement.prototype.toDataURL = function (...args) {
-      counts.generatedThumbnails++;
+      generatedThumbnails++;
       return originalImage.apply(this, args);
     };
     // Keep the load-count fixture fixed when the production catalogue gains more assets
@@ -111,12 +176,11 @@ try {
       const { promise, resolve } = Promise.withResolvers();
       const statuses = [];
       const thumbnails = [];
-      const originalAdd = THREE.Object3D.prototype.add;
       let scene;
-      THREE.Object3D.prototype.add = function (...nodes) {
-        if (this.isScene && this.background?.isColor) scene = this;
-        return originalAdd.apply(this, nodes);
+      const observeScene = ({ target }) => {
+        if (target.background?.isColor) scene = target;
       };
+      THREE.Scene.prototype.addEventListener("childadded", observeScene);
       let handle;
       try {
         handle = initScene(
@@ -138,7 +202,7 @@ try {
           cache,
         );
       } finally {
-        THREE.Object3D.prototype.add = originalAdd;
+        THREE.Scene.prototype.removeEventListener("childadded", observeScene);
       }
       check(handle !== undefined, "WebGL unavailable");
       // This cache fixture intentionally exercises every fixture model; the editor itself loads on demand.
@@ -201,9 +265,10 @@ try {
     const a = start(cache);
     const b = start(cache);
     check((await a.ready) === "ready" && (await b.ready) === "ready", "Concurrent startup failed");
+    const concurrent = await window.cacheTraffic();
     check(
-      counts.fetches === 3 && counts.parses === 3 && counts.generatedThumbnails === 1,
-      "Concurrent loads/thumbnails duplicated",
+      concurrent.fetches === 3 && concurrent.parses === 3 && generatedThumbnails === 1,
+      `Expected 3 fetches, 3 parses and 1 thumbnail; observed ${concurrent.fetches}, ${concurrent.parses} and ${generatedThumbnails}`,
     );
     check(a.thumbnails[0].data === b.thumbnails[0].data, "Cached thumbnail differs");
     const probe = await cache.acquire(snowglobe, new AbortController().signal);
@@ -247,9 +312,10 @@ try {
       viewport.handle.update(objects, null, fixture.scenes[0]);
       viewport.dispose();
     }
+    const repeated = await window.cacheTraffic();
     check(
-      counts.fetches === 4 && counts.parses === 4 && counts.generatedThumbnails === 2,
-      "Recreation reloaded immutable resources",
+      repeated.fetches === 4 && repeated.parses === 4 && generatedThumbnails === 2,
+      `Expected 4 fetches, 4 parses and 2 thumbnails; observed ${repeated.fetches}, ${repeated.parses} and ${generatedThumbnails}`,
     );
     cache.invalidate();
     cache.invalidate();
@@ -259,11 +325,11 @@ try {
     const crate = assets.filter((asset) => asset.id === "test-crate-v1");
     for (const injected of ["http", "parse"]) {
       const retryCache = new ModelCache();
-      failure = injected;
+      await window.cacheFailure(injected);
       const failed = start(retryCache, crate);
       check((await failed.ready) === "error", "Injected failure not reported");
       failed.dispose();
-      failure = undefined;
+      await window.cacheFailure(null);
       const retry = start(retryCache, crate);
       check((await retry.ready) === "ready", "Failed entry poisoned retry");
       retry.dispose();
@@ -271,31 +337,54 @@ try {
     }
 
     const lateCache = new ModelCache();
-    const { promise: parsed, resolve: finishParsing } = Promise.withResolvers();
-    const { promise: gate, resolve: releaseLate } = Promise.withResolvers();
-    let delayedResources;
-    GLTFLoader.prototype.parseAsync = async function (...args) {
-      const gltf = await originalParse.apply(this, args);
-      delayedResources = observe(gltf.scene);
-      finishParsing();
-      await gate;
-      return gltf;
+    const delayedCrate = crate.map((asset) => ({ ...asset, url: "/cache-controlled.glb" }));
+    const { promise: reclaimed, resolve: finishReclaiming } = Promise.withResolvers();
+    let geometryDisposals = 0;
+    let materialDisposals = 0;
+    const checkDisposals = () => {
+      if (geometryDisposals && materialDisposals) finishReclaiming();
     };
-    const stale = start(lateCache, crate);
-    await parsed;
-    stale.dispose();
-    GLTFLoader.prototype.parseAsync = originalParse;
-    const replacement = start(lateCache, crate);
-    check((await replacement.ready) === "ready", "Replacement failed");
-    releaseLate();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    check(delayedResources.disposed(), "Late parse leaked");
-    check(
-      stale.statuses.every((status) => status === "loading") && stale.thumbnails.length === 0,
-      "Stale result reached disposed viewport",
-    );
-    replacement.dispose();
-    lateCache.invalidate();
+    const geometryDisposed = ({ target }) => {
+      if (target.userData.lateCache) geometryDisposals++;
+      checkDisposals();
+    };
+    const materialDisposed = ({ target }) => {
+      if (target.name === "LateCacheMaterial") materialDisposals++;
+      checkDisposals();
+    };
+    try {
+      const stale = start(lateCache, delayedCrate);
+      await window.cacheBufferRequested();
+      stale.dispose();
+      const replacement = start(lateCache, delayedCrate);
+      check((await replacement.ready) === "ready", "Replacement failed");
+      THREE.BufferGeometry.prototype.addEventListener("dispose", geometryDisposed);
+      THREE.Material.prototype.addEventListener("dispose", materialDisposed);
+      await window.releaseCacheBuffer();
+      const signal = AbortSignal.timeout(5000);
+      await Promise.race([
+        reclaimed,
+        new Promise((_, reject) => {
+          signal.addEventListener("abort", () => reject(new Error("Late parse leaked")), {
+            once: true,
+          });
+        }),
+      ]);
+      check(
+        geometryDisposals === 1 && materialDisposals === 1,
+        "Late resources must be disposed once",
+      );
+      check(
+        stale.statuses.every((status) => status === "loading") && stale.thumbnails.length === 0,
+        "Stale result reached disposed viewport",
+      );
+      replacement.dispose();
+    } finally {
+      await window.releaseCacheBuffer();
+      THREE.BufferGeometry.prototype.removeEventListener("dispose", geometryDisposed);
+      THREE.Material.prototype.removeEventListener("dispose", materialDisposed);
+      lateCache.invalidate();
+    }
     check(document.querySelectorAll("canvas").length === 0, "Repeated disposal leaked canvases");
     return {
       concurrentFetches: 3,

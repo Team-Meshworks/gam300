@@ -8,5 +8,8 @@ public sealed class ResetAccountPasswordRequest
     /// <summary>
     /// Gets the temporary password that the account must replace after sign-in
     /// </summary>
-    public required string NewTemporaryPassword { get; init; }
+    public required string NewTemporaryPassword
+    {
+        get; init;
+    }
 }

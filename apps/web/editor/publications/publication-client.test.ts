@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { publicationAcknowledgement } from "./publication-client";
+import { parsePublicationRequest, publicationAcknowledgement } from "./publication-client";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const publicationId = "22222222-2222-4222-8222-222222222222";
@@ -15,6 +15,21 @@ const ack = {
   createdAt: "2026-11-05T00:00:00Z",
   visitorUrl: `https://spatia.test/p/${publicationId}`,
 };
+
+it("recovers the exact publication id, revision and audience from browser storage", () => {
+  const stored: unknown = JSON.parse(JSON.stringify(request));
+  expect(parsePublicationRequest(stored)).toEqual(request);
+});
+
+it.each([
+  { ...request, confirmedRevision: "7" },
+  { ...request, confirmedRevision: -1 },
+  { ...request, intent: { ...request.intent, audience: ["Authenticated"] } },
+  { ...request, intent: { ...request.intent, viewerIds: [projectId, projectId.toUpperCase()] } },
+  { ...request, extra: true },
+])("rejects an invalid earlier publication request", (stored) => {
+  expect(parsePublicationRequest(stored)).toBeNull();
+});
 
 describe("publication acknowledgement", () => {
   it("exposes only the matching committed visitor link", () => {

@@ -55,6 +55,7 @@ const write = (page, path, body, method = "POST") => page.evaluate(async ({ path
     "Content-Type": "application/json", "X-CSRF-TOKEN": requestToken,
   }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   return { status: response.status, body: response.status === 204 ? null : await response.json(),
+    resolution: response.headers.get("X-Spatia-Creation-Resolution"), location: response.headers.get("Location"),
     noStore: response.headers.get("Cache-Control")?.includes("no-store") === true };
 }, { path, body, method });
 
@@ -116,7 +117,8 @@ try {
   const firstSession = await get(administrator.page, "/api/v1/auth/session");
   assert.equal(firstSession.status, 200);
   const administratorSession = { userId: firstSession.body.userId, displayName: administratorName,
-    role: "Administrator", orgId: null, mustChangePassword: true };
+    userName: administratorName, role: "Administrator", orgId: null, orgName: null,
+    mustChangePassword: true, developmentAssetsAllowed: true };
   await session(administrator.page, administratorSession);
   assert.equal((await write(administrator.page, "/api/v1/auth/password",
     { currentPassword: administratorTemporary, newPassword: administratorPermanent })).status, 204);
@@ -139,29 +141,44 @@ try {
   assert.equal(created.noStore, true);
   assert.equal(typeof created.body.userId, "string");
   assert.deepEqual(created.body, { userId: created.body.userId, userName: creatorName,
-    role: "Creator", orgId: organization.body.id, isActive: true, mustChangePassword: true });
+    role: "Creator", orgId: organization.body.id, isActive: true, mustChangePassword: true, displayName: creatorName });
   const creatorSession = { userId: created.body.userId, displayName: creatorName,
-    role: "Creator", orgId: organization.body.id, mustChangePassword: true };
+    userName: creatorName, role: "Creator", orgId: organization.body.id, orgName: organizationName,
+    mustChangePassword: true, developmentAssetsAllowed: true };
 
   stage = "project creation assignment and committed saves";
-  const project = await write(administrator.page, "/api/v1/projects", {
-    title: "Restart project", environmentAssetId: "test-room-v1", orgId: organization.body.id,
+  const educatorName = "restart-educator-" + randomUUID();
+  const teacher = await write(administrator.page, "/api/v1/admin/users", {
+    userName: educatorName, initialPassword: creatorTemporary, role: "Educator", orgId: organization.body.id,
   });
+  assert.equal(teacher.status, 201);
+  const educator = await freshPage();
+  assert.equal((await write(educator.page, "/api/v1/auth/login",
+    { userName: educatorName, password: creatorTemporary })).status, 204);
+  assert.equal((await write(educator.page, "/api/v1/auth/password",
+    { currentPassword: creatorTemporary, newPassword: creatorPermanent })).status, 204);
+  const creation = { operationId: randomUUID(), title: "Restart project", environmentAssetId: "test-room-v1" };
+  const project = await write(educator.page, "/api/v1/projects", creation);
   assert.equal(project.status, 201);
   assert.equal(project.noStore, true);
   assert.equal(project.body.revision, 0);
   const projectPath = "/api/v1/projects/" + project.body.projectId;
-  const assigned = await write(administrator.page, projectPath + "/assignments", {
-    expectedRevision: 0, managedByUserIds: [], assignedCreatorIds: [created.body.userId], canPublishUserIds: [],
+  const assigned = await write(educator.page, projectPath + "/assignments", {
+    expectedRevision: 0, managedByUserIds: [teacher.body.userId], assignedCreatorIds: [created.body.userId], canPublishUserIds: [],
   }, "PATCH");
   assert.equal(assigned.status, 200);
   assert.equal(assigned.body.revision, 1);
   const document = JSON.parse(await readFile(new URL("../../web/shared/project/fixtures/m1-project.json", import.meta.url), "utf8"));
+  for (const scene of document.scenes) {
+    for (const field of ["hotspots", "interactions"]) {
+      if (scene[field]?.length === 0) delete scene[field];
+    }
+  }
   document.projectId = project.body.projectId;
   document.title = "private-restart-project-body-not-for-logs";
   document.scenes[0].objects[0].transform.position = [5.125, 0, -3];
   const envelope = { expectedRevision: 1, clientMutationId: randomUUID(), document };
-  const saved = await write(administrator.page, projectPath, envelope, "PUT");
+  const saved = await write(educator.page, projectPath, envelope, "PUT");
   assert.equal(saved.status, 200);
   assert.equal(saved.noStore, true);
   assert.equal(saved.body.revision, 2);
@@ -172,7 +189,7 @@ try {
   newerDocument.title = "private-restart-project-body-not-for-logs-newer";
   newerDocument.scenes[0].objects[0].transform.position = [-2.5, 1, 4];
   const newerEnvelope = { expectedRevision: 2, clientMutationId: randomUUID(), document: newerDocument };
-  const newerSave = await write(administrator.page, projectPath, newerEnvelope, "PUT");
+  const newerSave = await write(educator.page, projectPath, newerEnvelope, "PUT");
   assert.equal(newerSave.status, 200);
   assert.equal(newerSave.noStore, true);
   assert.equal(newerSave.body.revision, 3);
@@ -187,6 +204,26 @@ try {
   await session(administrator.page, administratorSession);
   await checkCookies(administrator.context);
   await storageIsEmpty(administrator.page);
+  stage = "lost committed legacy creation response";
+  const legacyBody = { title: "Legacy restart project" };
+  const legacyMissing = await write(educator.page, "/api/v1/projects", legacyBody);
+  assert.equal(legacyMissing.status, 400);
+  assert.equal(legacyMissing.body.code, "creation_operation_id_required");
+  assert.equal(legacyMissing.body.resolutionUrl, "/api/v1/projects/legacy-resolution");
+  assert.equal((await write(educator.page, `/api/v1/creation-operations/project/${creation.operationId}/acknowledge`, {})).status, 204);
+  const legacyResolution = `/api/v1/projects/legacy-resolution?createAfter=${creation.operationId}`;
+  let committedLegacy;
+  await educator.page.route("**/api/v1/projects/legacy-resolution?*", async (route) => {
+    const response = await route.fetch();
+    assert.equal(response.status(), 201);
+    assert.equal(response.headers()["x-spatia-creation-resolution"], "created");
+    committedLegacy = await response.json();
+    await route.abort("failed");
+  });
+  await assert.rejects(write(educator.page, legacyResolution, legacyBody, "PUT"));
+  assert.ok(committedLegacy.projectId);
+  await educator.page.unroute("**/api/v1/projects/legacy-resolution?*");
+  await storageIsEmpty(educator.page);
   const retainedCookie = (await administrator.context.cookies())
     .find((cookie) => cookie.name === applicationCookie).value;
   const capturedAt = Date.now();
@@ -210,7 +247,11 @@ try {
   process.stdout.write("restart retained session passed\n");
 
   stage = "historical save retry after restart";
-  const replay = await write(administrator.page, projectPath, envelope, "PUT");
+  await educator.page.goto(origin + "/api/v1/auth/csrf");
+  const creationReplay = await write(educator.page, "/api/v1/projects", creation);
+  assert.equal(creationReplay.status, 200);
+  assert.deepEqual(creationReplay.body, project.body);
+  const replay = await write(educator.page, projectPath, envelope, "PUT");
   assert.equal(replay.status, 200);
   assert.equal(replay.noStore, true);
   assert.deepEqual(replay.body, saved.body);
@@ -218,7 +259,7 @@ try {
   assert.equal(afterReplay.status, 200);
   assert.equal(afterReplay.noStore, true);
   assert.deepEqual(afterReplay.body, beforeRestart.body);
-  const inconsistentReuse = await write(administrator.page, projectPath,
+  const inconsistentReuse = await write(educator.page, projectPath,
     { ...envelope, expectedRevision: 3, document: newerDocument }, "PUT");
   assert.equal(inconsistentReuse.status, 409);
   assert.equal(inconsistentReuse.noStore, true);
@@ -228,6 +269,28 @@ try {
   assert.equal(afterConflict.status, 200);
   assert.equal(afterConflict.noStore, true);
   assert.deepEqual(afterConflict.body, beforeRestart.body);
+  stage = "legacy raw replay after cold restart and fresh browser";
+  const legacyReplay = await write(educator.page, "/api/v1/projects", legacyBody);
+  assert.equal(legacyReplay.status, 200);
+  assert.equal(legacyReplay.resolution, "created");
+  assert.equal(legacyReplay.noStore, true);
+  assert.equal(legacyReplay.location, "/api/v1/projects/" + committedLegacy.projectId);
+  assert.deepEqual(legacyReplay.body, committedLegacy);
+  const freshEducator = await freshPage();
+  await storageIsEmpty(freshEducator.page);
+  assert.equal((await write(freshEducator.page, "/api/v1/auth/login",
+    { userName: educatorName, password: creatorPermanent })).status, 204);
+  const freshLegacy = await write(freshEducator.page, legacyResolution, legacyBody, "PUT");
+  assert.equal(freshLegacy.status, 200);
+  assert.equal(freshLegacy.resolution, "created");
+  assert.deepEqual(freshLegacy.body, committedLegacy);
+  const distinctLegacy = await write(freshEducator.page, "/api/v1/projects", { ...legacyBody, operationId: randomUUID() });
+  assert.equal(distinctLegacy.status, 201);
+  assert.notEqual(distinctLegacy.body.projectId, committedLegacy.projectId);
+  const delayedLegacy = await write(freshEducator.page, "/api/v1/projects", legacyBody);
+  assert.equal(delayedLegacy.status, 200);
+  assert.deepEqual(delayedLegacy.body, committedLegacy);
+  await storageIsEmpty(freshEducator.page);
   process.stdout.write("restart committed save retry passed\n");
 
   stage = "fresh creator password lifecycle";

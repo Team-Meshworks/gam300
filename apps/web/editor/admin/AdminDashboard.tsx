@@ -842,10 +842,7 @@ export function AdminDashboard({
         <AddOrganizationDialog
           client={client}
           onClose={() => setModal(null)}
-          onCreated={() => {
-            // Continue directly to the directory after the server confirms creation
-            onOpenOrganisations();
-          }}
+          onDirectory={onOpenOrganisations}
         />
       )}
     </div>

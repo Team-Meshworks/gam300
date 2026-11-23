@@ -46,15 +46,16 @@ try {
   const notice = await page.locator(".draft-feedback").textContent();
   assert.match(notice, /1 related rule\b/i, "Hotspot deletion reports the affected rule count");
   assert.match(notice, /undo restores/i, "Hotspot deletion explains how to restore the rule");
-  let deadline = Date.now() + 15000;
-  while (Date.now() < deadline && (server.document().scenes[0].hotspots?.length ?? 0))
-    await page.waitForTimeout(100);
-  assert.equal(server.document().scenes[0].rules?.length ?? 0, 0);
+  const deleted = await server.waitForDocument(
+    ({ scenes }) => (scenes[0].hotspots?.length ?? 0) === 0,
+  );
+  assert.equal(deleted.scenes[0].rules?.length ?? 0, 0);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  deadline = Date.now() + 15000;
-  while (Date.now() < deadline && !server.document().scenes[0].hotspots?.length)
-    await page.waitForTimeout(100);
-  const restored = server.document().scenes[0];
+  const restored = (
+    await server.waitForDocument(({ scenes }) =>
+      scenes[0].hotspots?.some(({ id }) => id === hotspot.id),
+    )
+  ).scenes[0];
   assert.deepEqual(restored.hotspots, [hotspot]);
   assert.deepEqual(restored.rules, [rule]);
   console.log("PASS: hotspot deletion reports related rules and Undo restores both");

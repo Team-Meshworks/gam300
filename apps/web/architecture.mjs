@@ -13,9 +13,15 @@ export const modules = {
     packages: [],
     public: ["shared/network/abort-signals.ts"],
   },
+  player: {
+    paths: ["shared/player/"],
+    uses: ["preview", "project", "catalogue", "asset-loading", "network"],
+    packages: ["react", "three"],
+    public: ["shared/player/ExhibitionPlayer.tsx", "shared/player/player-snapshot.ts"],
+  },
   visitor: {
     paths: ["visitor/"],
-    uses: ["project", "catalogue", "asset-loading", "network", "preview"],
+    uses: ["project", "catalogue", "network", "player"],
     packages: ["react", "react-dom", "three"],
     public: [],
   },
@@ -28,6 +34,7 @@ export const modules = {
       "shared/project/attached-transforms.ts",
       "shared/project/starting-view.ts",
       "shared/project/legacy-scene-import.ts",
+      "shared/project/legacy-scene-types.ts",
       "shared/project/project-content.ts",
       "shared/project/project-appearance.ts",
       "shared/project/room-placement.ts",
@@ -59,28 +66,42 @@ export const modules = {
   "asset-loading": {
     paths: [
       "shared/asset-runtime/ModelCache.ts",
+      "shared/asset-runtime/scene-lighting.ts",
+      "shared/asset-runtime/hotspot-sprite.ts",
       "shared/asset-runtime/room-entrances.ts",
       "shared/asset-runtime/exhibit-appearance.ts",
       "shared/asset-runtime/text-texture.ts",
+      "shared/asset-runtime/display-text.ts",
       "shared/asset-runtime/display-layout.ts",
+      "shared/asset-runtime/display-surface.ts",
+      "shared/asset-runtime/stand-video.ts",
     ],
     uses: ["catalogue", "network", "project"],
     packages: ["three"],
     public: [
       "shared/asset-runtime/ModelCache.ts",
+      "shared/asset-runtime/scene-lighting.ts",
+      "shared/asset-runtime/hotspot-sprite.ts",
       "shared/asset-runtime/room-entrances.ts",
       "shared/asset-runtime/exhibit-appearance.ts",
       "shared/asset-runtime/text-texture.ts",
+      "shared/asset-runtime/display-text.ts",
       "shared/asset-runtime/display-layout.ts",
+      "shared/asset-runtime/display-surface.ts",
+      "shared/asset-runtime/stand-video.ts",
     ],
   },
   preview: {
     paths: ["shared/preview/"],
-    uses: [],
+    uses: ["project"],
     packages: ["react", "three"],
     public: [
       "shared/preview/FpsControls.ts",
+      "shared/preview/active-clock.ts",
+      "shared/preview/interaction-session.ts",
+      "shared/preview/rule-dispatch.ts",
       "shared/preview/preview-start.ts",
+      "shared/preview/walk-space.ts",
       "shared/preview/MobileControls.tsx",
       "shared/preview/preview.css",
     ],
@@ -121,9 +142,8 @@ export const modules = {
       "editor/persistence/server-project-session.ts",
       "editor/persistence/server-project-read.ts",
       "editor/persistence/server-assets.ts",
-      "editor/persistence/local-drafts.ts",
+      "editor/persistence/recovery-session.ts",
       "editor/persistence/project-files.ts",
-      "editor/persistence/server-autosave.ts",
     ],
   },
   "ui-foundation": {
@@ -162,6 +182,7 @@ export const modules = {
   editor: {
     paths: ["editor/"],
     uses: [
+      "player",
       "project",
       "catalogue",
       "input",
@@ -194,6 +215,8 @@ export const modules = {
   checks: {
     paths: ["tests/"],
     uses: [
+      "preview",
+      "player",
       "visitor",
       "project",
       "catalogue",
@@ -272,7 +295,7 @@ export function scan(root = webRoot) {
     if (["virtual:asset-catalogue", "/@id/__x00__virtual:asset-catalogue"].includes(specifier)) {
       return "shared/asset-runtime/catalogue.ts";
     }
-    const clean = specifier.replace(/(?<=[^?#])[?#].*$/, "");
+    const clean = specifier.replace(/(?<=[^?#])[?#].*$/, "").replace(/^\/@id\/three$/, "three");
     const request = clean.startsWith("/") ? resolve(root, "editor", clean.slice(1)) : clean;
     const found = ts.resolveModuleName(
       request,

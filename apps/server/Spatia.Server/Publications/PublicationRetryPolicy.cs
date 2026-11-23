@@ -15,21 +15,17 @@ public static class PublicationRetryPolicy
         Guid actorId, long sourceRevision, ReadOnlySpan<byte> requestDigest)
     {
         if (publicationId == Guid.Empty || projectId == Guid.Empty || actorId == Guid.Empty)
-        {
             throw new ArgumentException("Publication, project and actor identifiers must be nonempty.");
-        }
+
         if (sourceRevision < 0 || sourceRevision > Project.MaxRevision)
-        {
             throw new ArgumentOutOfRangeException(nameof(sourceRevision));
-        }
+
         if (requestDigest.Length != 32)
-        {
             throw new ArgumentException("A request digest must contain exactly 32 bytes.", nameof(requestDigest));
-        }
+
         if (existing is null)
-        {
             return PublicationRetryDecision.CreateRequired;
-        }
+
         if (existing.Id != publicationId || existing.RequestDigest is not { Length: 32 })
         {
             throw new ArgumentException("The persisted row must match the requested ID and contain a complete digest.", nameof(existing));

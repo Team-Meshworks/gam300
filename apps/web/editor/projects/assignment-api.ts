@@ -1,3 +1,4 @@
+import { isRecord, readField } from "../../shared/project/validation-helpers";
 import { validProjectImage, type ProjectImage } from "./project-image";
 import { combineAbortSignals } from "../../shared/network/abort-signals";
 import type { EligibleStudent, ProjectClass } from "./new-project-form";
@@ -51,6 +52,7 @@ export type AssignmentDetails = {
 export type PendingAssignment = {
   actorId: string;
   classId: string;
+  sourceSelection?: string;
   body: {
     requestId: string;
     sourceProjectId: string;
@@ -67,8 +69,12 @@ export type AssignmentAttempt =
   | { kind: "rejected"; message: string }
   | { kind: "unknown" };
 
-async function readJson(path: string, signal?: AbortSignal): Promise<unknown> {
-  const response = await fetch(path, {
+async function readJson(
+  request: typeof fetch,
+  path: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const response = await request(path, {
     credentials: "same-origin",
     cache: "no-store",
     signal: signal
@@ -79,24 +85,26 @@ async function readJson(path: string, signal?: AbortSignal): Promise<unknown> {
   return response.json();
 }
 
-function record(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function validStudentName(value: unknown): boolean {
   return value === undefined || (typeof value === "string" && value.trim().length > 0);
 }
 
-async function pages(path: string, signal?: AbortSignal): Promise<unknown[]> {
+async function pages(
+  request: typeof fetch,
+  path: string,
+  signal?: AbortSignal,
+): Promise<unknown[]> {
   const items: unknown[] = [];
   const cursors = new Set<string>();
   let cursor: string | null = null;
   do {
     const separator = path.includes("?") ? "&" : "?";
     const url = `${path}${separator}limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
-    const page = await readJson(url, signal);
+    const page = await readJson(request, url, signal);
     if (
-      !record(page) ||
+      !isRecord(page) ||
+      !("items" in page) ||
+      !("nextCursor" in page) ||
       !Array.isArray(page.items) ||
       !(page.nextCursor === null || typeof page.nextCursor === "string")
     )
@@ -109,48 +117,66 @@ async function pages(path: string, signal?: AbortSignal): Promise<unknown[]> {
   return items;
 }
 
-export async function assignmentSession(signal?: AbortSignal): Promise<AssignmentSession> {
-  const value = await readJson("/api/v1/auth/session", signal);
+export async function assignmentSession(
+  signal?: AbortSignal,
+  request: typeof fetch = fetch,
+): Promise<AssignmentSession> {
+  const value = await readJson(request, "/api/v1/auth/session", signal);
   if (
-    !record(value) ||
+    !isRecord(value) ||
+    !("userId" in value) ||
+    !("displayName" in value) ||
+    !("role" in value) ||
+    !("orgId" in value) ||
     typeof value.userId !== "string" ||
     typeof value.displayName !== "string" ||
     typeof value.role !== "string" ||
     !(value.orgId === null || typeof value.orgId === "string")
   )
     throw new Error("The account session is unavailable.");
+  const userName = readField(value, "userName");
+  const orgName = readField(value, "orgName");
   return {
     userId: value.userId,
     displayName: value.displayName,
-    ...(typeof value.userName === "string" && value.userName.trim()
-      ? { userName: value.userName }
-      : {}),
+    ...(typeof userName === "string" && userName.trim() ? { userName: userName } : {}),
     role: value.role,
     orgId: value.orgId,
-    orgName: typeof value.orgName === "string" && value.orgName.trim() ? value.orgName : null,
-    mustChangePassword: value.mustChangePassword === true,
+    orgName: typeof orgName === "string" && orgName.trim() ? orgName : null,
+    mustChangePassword: readField(value, "mustChangePassword") === true,
   };
 }
 
 export async function assignmentChoices(
   signal?: AbortSignal,
+  request: typeof fetch = fetch,
 ): Promise<{ classes: ProjectClass[]; projects: SourceProject[] }> {
   const [classes, projects] = await Promise.all([
-    pages("/api/v1/classes", signal),
-    pages("/api/v1/projects", signal),
+    pages(request, "/api/v1/classes", signal),
+    pages(request, "/api/v1/projects", signal),
   ]);
   if (
     classes.some(
-      (row) => !record(row) || typeof row.id !== "string" || typeof row.name !== "string",
+      (row) =>
+        !isRecord(row) ||
+        !("id" in row) ||
+        !("name" in row) ||
+        typeof row.id !== "string" ||
+        typeof row.name !== "string",
     ) ||
     projects.some(
       (row) =>
-        !record(row) ||
+        !isRecord(row) ||
+        !("projectId" in row) ||
+        !("title" in row) ||
+        !("revision" in row) ||
+        !("permissions" in row) ||
         typeof row.projectId !== "string" ||
         typeof row.title !== "string" ||
         typeof row.revision !== "number" ||
         !Number.isSafeInteger(row.revision) ||
-        !record(row.permissions) ||
+        !isRecord(row.permissions) ||
+        !("canManage" in row.permissions) ||
         typeof row.permissions.canManage !== "boolean",
     )
   )
@@ -173,20 +199,23 @@ export async function assignmentChoices(
 export async function enrolledStudents(
   classId: string,
   signal?: AbortSignal,
+  request: typeof fetch = fetch,
 ): Promise<EligibleStudent[]> {
   const rows = await pages(
+    request,
     `/api/v1/classes/${encodeURIComponent(classId)}/eligible-students`,
     signal,
   );
   if (
     rows.some(
       (row) =>
-        !record(row) ||
+        !isRecord(row) ||
+        !("userId" in row) ||
+        !("userName" in row) ||
+        !("enrolled" in row) ||
         typeof row.userId !== "string" ||
         typeof row.userName !== "string" ||
-        (row.displayName !== undefined &&
-          row.displayName !== null &&
-          typeof row.displayName !== "string") ||
+        ("displayName" in row && row.displayName != null && typeof row.displayName !== "string") ||
         typeof row.enrolled !== "boolean",
     )
   )
@@ -210,7 +239,9 @@ export async function enrolledStudents(
 
 function receipt(value: unknown, pending: PendingAssignment): AssignmentProject[] | null {
   if (
-    !record(value) ||
+    !isRecord(value) ||
+    !("assignmentId" in value) ||
+    !("projects" in value) ||
     value.assignmentId !== pending.body.requestId ||
     !Array.isArray(value.projects)
   )
@@ -220,10 +251,12 @@ function receipt(value: unknown, pending: PendingAssignment): AssignmentProject[
   const found = new Set<string>();
   for (const row of value.projects) {
     if (
-      !record(row) ||
+      !isRecord(row) ||
+      !("studentId" in row) ||
+      !("projectId" in row) ||
       typeof row.studentId !== "string" ||
       typeof row.projectId !== "string" ||
-      !validStudentName(row.studentName) ||
+      !validStudentName(readField(row, "studentName")) ||
       !expected.has(row.studentId) ||
       found.has(row.studentId) ||
       projectIds.has(row.projectId)
@@ -238,9 +271,10 @@ function receipt(value: unknown, pending: PendingAssignment): AssignmentProject[
 export async function submitAssignment(
   pending: PendingAssignment,
   previouslyUncertain: boolean,
+  request: typeof fetch = fetch,
 ): Promise<AssignmentAttempt> {
   try {
-    const session = await assignmentSession();
+    const session = await assignmentSession(undefined, request);
     if (session.userId !== pending.actorId)
       return previouslyUncertain
         ? { kind: "unknown" }
@@ -248,10 +282,10 @@ export async function submitAssignment(
             kind: "rejected",
             message: "The account changed. Reload before creating an assignment.",
           };
-    const csrf = await readJson("/api/v1/auth/csrf");
-    if (!record(csrf) || typeof csrf.requestToken !== "string")
+    const csrf = await readJson(request, "/api/v1/auth/csrf");
+    if (!isRecord(csrf) || !("requestToken" in csrf) || typeof csrf.requestToken !== "string")
       throw new Error("Missing request token.");
-    const current = await assignmentSession();
+    const current = await assignmentSession(undefined, request);
     if (current.userId !== pending.actorId || current.mustChangePassword)
       return previouslyUncertain
         ? { kind: "unknown" }
@@ -261,25 +295,29 @@ export async function submitAssignment(
           };
     let response: Response;
     try {
-      response = await fetch(`/api/v1/classes/${encodeURIComponent(pending.classId)}/assignments`, {
-        method: "POST",
-        credentials: "same-origin",
-        cache: "no-store",
-        signal: AbortSignal.timeout(15000),
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-TOKEN": csrf.requestToken,
-          "X-Spatia-Account": pending.actorId,
+      response = await request(
+        `/api/v1/classes/${encodeURIComponent(pending.classId)}/assignments`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          signal: AbortSignal.timeout(15000),
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-TOKEN": csrf.requestToken,
+            "X-Spatia-Account": pending.actorId,
+          },
+          body: JSON.stringify(pending.body),
         },
-        body: JSON.stringify(pending.body),
-      });
+      );
     } catch {
       return { kind: "unknown" };
     }
     if (response.status === 200 || response.status === 201) {
       try {
         const projects = receipt(await response.json(), pending);
-        if ((await assignmentSession()).userId !== pending.actorId) return { kind: "unknown" };
+        if ((await assignmentSession(undefined, request)).userId !== pending.actorId)
+          return { kind: "unknown" };
         return projects
           ? {
               kind: "confirmed",
@@ -313,34 +351,47 @@ export async function submitAssignment(
 }
 
 export function assignmentDetails(value: unknown): AssignmentDetails {
+  if (!isRecord(value)) throw new Error("The assignment is unavailable.");
+  const assignedBy = readField(value, "assignedBy");
+  const revision = readField(value, "revision");
+  const sourceProjectId = readField(value, "sourceProjectId");
+  const organizationName = readField(value, "organizationName");
+  const creatorName = readField(value, "creatorName");
   if (
-    !record(value) ||
-    !validProjectImage(value.image) ||
+    !("assignmentId" in value) ||
+    !("title" in value) ||
+    !("description" in value) ||
+    !("instructions" in value) ||
+    !("dueAtUnixSeconds" in value) ||
+    !("projects" in value) ||
+    !validProjectImage(readField(value, "image")) ||
     typeof value.assignmentId !== "string" ||
     typeof value.title !== "string" ||
     typeof value.description !== "string" ||
     typeof value.instructions !== "string" ||
-    !(value.assignedBy == null || typeof value.assignedBy === "string") ||
+    !(assignedBy == null || typeof assignedBy === "string") ||
     typeof value.dueAtUnixSeconds !== "number" ||
     !Number.isSafeInteger(value.dueAtUnixSeconds) ||
-    (value.revision !== undefined &&
-      (!Number.isSafeInteger(value.revision) || (value.revision as number) < 0)) ||
-    (value.sourceProjectId !== undefined &&
-      value.sourceProjectId !== null &&
-      typeof value.sourceProjectId !== "string") ||
-    (value.organizationName !== undefined && typeof value.organizationName !== "string") ||
-    (value.creatorName !== undefined && typeof value.creatorName !== "string") ||
-    !validStudentName(value.creatorUserName) ||
+    (revision !== undefined &&
+      (typeof revision !== "number" || !Number.isSafeInteger(revision) || revision < 0)) ||
+    (sourceProjectId != null && typeof sourceProjectId !== "string") ||
+    (organizationName !== undefined && typeof organizationName !== "string") ||
+    (creatorName !== undefined && typeof creatorName !== "string") ||
+    !validStudentName(readField(value, "creatorUserName")) ||
     !Array.isArray(value.projects) ||
-    value.projects.some(
-      (row) =>
-        !record(row) ||
-        typeof row.studentId !== "string" ||
-        typeof row.projectId !== "string" ||
-        !validStudentName(row.studentName) ||
-        !validStudentName(row.studentUserName) ||
-        !(row.reviewState == null || reviewStates.some((state) => state === row.reviewState)) ||
-        (row.approvalStatus !== undefined &&
+    value.projects.some((row: unknown) => {
+      if (!isRecord(row)) return true;
+      const reviewState = readField(row, "reviewState");
+      const approvalStatus = readField(row, "approvalStatus");
+      const published = readField(row, "published");
+      const isPublic = readField(row, "isPublic");
+      return (
+        typeof readField(row, "studentId") !== "string" ||
+        typeof readField(row, "projectId") !== "string" ||
+        !validStudentName(readField(row, "studentName")) ||
+        !validStudentName(readField(row, "studentUserName")) ||
+        !(reviewState == null || reviewStates.some((state) => state === reviewState)) ||
+        (approvalStatus !== undefined &&
           ![
             "not-submitted",
             "awaiting-approval",
@@ -348,10 +399,11 @@ export function assignmentDetails(value: unknown): AssignmentDetails {
             "returned",
             "revoked",
             "changes-since-submission",
-          ].includes(String(row.approvalStatus))) ||
-        (row.published !== undefined && typeof row.published !== "boolean") ||
-        (row.isPublic !== undefined && typeof row.isPublic !== "boolean"),
-    )
+          ].includes(String(approvalStatus))) ||
+        (published !== undefined && typeof published !== "boolean") ||
+        (isPublic !== undefined && typeof isPublic !== "boolean")
+      );
+    })
   )
     throw new Error("The assignment is unavailable.");
   return value as AssignmentDetails;
@@ -360,19 +412,22 @@ export function assignmentDetails(value: unknown): AssignmentDetails {
 export async function listAssignments(
   classId: string,
   signal?: AbortSignal,
+  request: typeof fetch = fetch,
 ): Promise<AssignmentDetails[]> {
-  return (await pages(`/api/v1/classes/${encodeURIComponent(classId)}/assignments`, signal)).map(
-    assignmentDetails,
-  );
+  return (
+    await pages(request, `/api/v1/classes/${encodeURIComponent(classId)}/assignments`, signal)
+  ).map(assignmentDetails);
 }
 
 export async function readAssignment(
   classId: string,
   assignmentId: string,
   signal?: AbortSignal,
+  request: typeof fetch = fetch,
 ): Promise<AssignmentDetails> {
   const value = assignmentDetails(
     await readJson(
+      request,
       `/api/v1/classes/${encodeURIComponent(classId)}/assignments/${encodeURIComponent(assignmentId)}`,
       signal,
     ),

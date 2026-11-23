@@ -33,10 +33,72 @@ export interface ProjectPage {
   items: DashboardProject[];
   nextCursor: string | null;
 }
-const record = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-const id = (value: unknown): value is string =>
-  typeof value === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
+const isObject = (value: unknown): value is object =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const isUuid = (value: string): boolean =>
+  /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
+const id = (value: unknown): value is string => typeof value === "string" && isUuid(value);
+const isCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+
+function isDashboardProject(item: unknown): item is DashboardProject {
+  return (
+    isObject(item) &&
+    "projectId" in item &&
+    id(item.projectId) &&
+    "title" in item &&
+    typeof item.title === "string" &&
+    "revision" in item &&
+    isCount(item.revision) &&
+    "updatedAt" in item &&
+    typeof item.updatedAt === "string" &&
+    Number.isFinite(Date.parse(item.updatedAt)) &&
+    "archived" in item &&
+    typeof item.archived === "boolean" &&
+    "organizationName" in item &&
+    typeof item.organizationName === "string" &&
+    !!item.organizationName.trim() &&
+    item.organizationName.length <= 256 &&
+    "isPublic" in item &&
+    typeof item.isPublic === "boolean" &&
+    !(item.archived && item.isPublic) &&
+    "permissions" in item &&
+    isObject(item.permissions) &&
+    "canEdit" in item.permissions &&
+    typeof item.permissions.canEdit === "boolean" &&
+    "canManage" in item.permissions &&
+    typeof item.permissions.canManage === "boolean" &&
+    "canPublish" in item.permissions &&
+    typeof item.permissions.canPublish === "boolean"
+  );
+}
+
+function isPublicationState(item: unknown): item is ProjectPublicationState {
+  return (
+    isObject(item) &&
+    "projectId" in item &&
+    id(item.projectId) &&
+    (!("publishingBlocked" in item) || typeof item.publishingBlocked === "boolean") &&
+    (!("removed" in item) || typeof item.removed === "boolean") &&
+    "publicationCount" in item &&
+    isCount(item.publicationCount) &&
+    "hiddenCount" in item &&
+    isCount(item.hiddenCount) &&
+    "publicCount" in item &&
+    isCount(item.publicCount) &&
+    item.hiddenCount + item.publicCount <= item.publicationCount
+  );
+}
+
+type OrganizationAttempt = { record: string; name: string | null };
+
+class DashboardRequestError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
 
 export function createDashboardClient(
   accountId: string,
@@ -63,7 +125,8 @@ export function createDashboardClient(
       );
     }
     if (!response.ok) {
-      throw new Error(
+      throw new DashboardRequestError(
+        response.status,
         response.status === 401
           ? "Your session has expired. Sign in again."
           : response.status === 403
@@ -88,7 +151,42 @@ export function createDashboardClient(
       throw new Error("The dashboard returned an invalid response. Please reload.");
     }
   }
+  const organizationKey = `spatia.organization-create:${accountId}`;
+  function pendingOrganization(): OrganizationAttempt | null {
+    const raw = localStorage.getItem(organizationKey);
+    if (raw === null) return null;
+    try {
+      const value: unknown = JSON.parse(raw);
+      if (
+        isObject(value) &&
+        "attemptId" in value &&
+        id(value.attemptId) &&
+        "name" in value &&
+        typeof value.name === "string" &&
+        value.name
+      )
+        return { record: raw, name: value.name };
+    } catch {
+      // The raw value still identifies the attempt the administrator reviewed.
+    }
+    return { record: raw, name: null };
+  }
+  function clearOrganization(expected: string) {
+    if (localStorage.getItem(organizationKey) !== expected)
+      throw new Error("The earlier request changed. Check the organisation directory again.");
+    localStorage.removeItem(organizationKey);
+    if (localStorage.getItem(organizationKey) !== null)
+      throw new Error("The earlier organisation request could not be cleared.");
+  }
   return {
+    pendingOrganization,
+    acknowledgeOrganization: (attempt: OrganizationAttempt) =>
+      navigator.locks.request(organizationKey, async () => {
+        if (pendingOrganization()?.record !== attempt.record)
+          throw new Error("The earlier request changed. Check the organisation directory again.");
+        await createDirectoryClient(request, accountId).organizations();
+        clearOrganization(attempt.record);
+      }),
     async projects(
       limit = 3,
       cursor: string | null = null,
@@ -99,59 +197,50 @@ export function createDashboardClient(
       if (cursor) query.set("cursor", cursor);
       const page = await send(`/api/v1/projects?${query}`);
       if (
-        !record(page) ||
+        !isObject(page) ||
+        !("items" in page) ||
         !Array.isArray(page.items) ||
+        !("nextCursor" in page) ||
         (page.nextCursor !== null && !id(page.nextCursor))
       )
         throw new Error("The project list returned an invalid page.");
-      for (const item of page.items) {
-        if (
-          !record(item) ||
-          !id(item.projectId) ||
-          typeof item.title !== "string" ||
-          !Number.isSafeInteger(item.revision) ||
-          (item.revision as number) < 0 ||
-          typeof item.updatedAt !== "string" ||
-          !Number.isFinite(Date.parse(item.updatedAt)) ||
-          typeof item.archived !== "boolean" ||
-          typeof item.organizationName !== "string" ||
-          !item.organizationName.trim() ||
-          item.organizationName.length > 256 ||
-          typeof item.isPublic !== "boolean" ||
-          (item.archived && item.isPublic) ||
-          !record(item.permissions) ||
-          typeof item.permissions.canEdit !== "boolean" ||
-          typeof item.permissions.canManage !== "boolean" ||
-          typeof item.permissions.canPublish !== "boolean"
-        )
-          throw new Error("The project list returned invalid details.");
-      }
-      return page as unknown as ProjectPage;
+      if (!page.items.every(isDashboardProject))
+        throw new Error("The project list returned invalid details.");
+      return { items: page.items, nextCursor: page.nextCursor };
     },
     async projectDetails(projectId: string): Promise<DashboardProjectDetails> {
-      if (!id(projectId)) {
+      if (!isUuid(projectId)) {
         throw new Error("The project organisation could not be verified.");
       }
       const [access, organizations] = await Promise.all([
         send(`/api/v1/projects/${encodeURIComponent(projectId)}/assignments`),
         createDirectoryClient(request, accountId).organizations(),
       ]);
-      if (!record(access) || access.projectId !== projectId || !id(access.organizationId)) {
+      if (
+        !isObject(access) ||
+        !("projectId" in access) ||
+        access.projectId !== projectId ||
+        !("organizationId" in access) ||
+        !id(access.organizationId)
+      ) {
         throw new Error("The project organisation could not be verified.");
       }
       const organization = organizations.find((row) => row.id === access.organizationId);
       if (!organization) {
         throw new Error("The project organisation is unavailable.");
       }
-      if (!Array.isArray(access.classAssignments)) {
+      if (!("classAssignments" in access) || !Array.isArray(access.classAssignments)) {
         throw new Error("The project assignments could not be verified.");
       }
       const assignments: DashboardAssignment[] = [];
       for (const context of access.classAssignments) {
         if (
-          !record(context) ||
+          !isObject(context) ||
+          !("classId" in context) ||
           !id(context.classId) ||
+          !("assignmentId" in context) ||
           !id(context.assignmentId) ||
+          !("className" in context) ||
           typeof context.className !== "string"
         ) {
           throw new Error("The project assignments could not be verified.");
@@ -161,7 +250,7 @@ export function createDashboardClient(
         );
         if (
           details.assignmentId !== context.assignmentId ||
-          !details.projects.every((row) => id(row.projectId) && id(row.studentId)) ||
+          !details.projects.every((row) => isUuid(row.projectId) && isUuid(row.studentId)) ||
           (details.sourceProjectId !== projectId &&
             !details.projects.some((row) => row.projectId === projectId))
         ) {
@@ -175,7 +264,7 @@ export function createDashboardClient(
       projectIds: readonly string[],
     ): Promise<Record<string, ProjectPublicationState>> {
       const ids = [...new Set(projectIds.map((value) => value.toLowerCase()))];
-      if (ids.some((value) => !id(value))) {
+      if (ids.some((value) => !isUuid(value))) {
         throw new Error("The publication projects could not be verified.");
       }
       const states: Record<string, ProjectPublicationState> = {};
@@ -186,26 +275,23 @@ export function createDashboardClient(
         const page = await send(
           `${moderationPrefix}/publication-moderation?${new URLSearchParams({ ids: batch.join(",") })}`,
         );
-        if (!record(page) || !Array.isArray(page.items) || page.items.length !== batch.length) {
+        if (
+          !isObject(page) ||
+          !("items" in page) ||
+          !Array.isArray(page.items) ||
+          page.items.length !== batch.length
+        ) {
           throw new Error("Publication visibility could not be verified.");
         }
         for (const item of page.items) {
           if (
-            !record(item) ||
-            !id(item.projectId) ||
+            !isPublicationState(item) ||
             !batch.includes(item.projectId.toLowerCase()) ||
-            states[item.projectId.toLowerCase()] ||
-            (item.publishingBlocked !== undefined && typeof item.publishingBlocked !== "boolean") ||
-            (item.removed !== undefined && typeof item.removed !== "boolean") ||
-            ![item.publicationCount, item.hiddenCount, item.publicCount].every(
-              (count) => Number.isSafeInteger(count) && (count as number) >= 0,
-            ) ||
-            (item.hiddenCount as number) + (item.publicCount as number) >
-              (item.publicationCount as number)
+            states[item.projectId.toLowerCase()]
           ) {
             throw new Error("Publication visibility could not be verified.");
           }
-          states[item.projectId.toLowerCase()] = item as unknown as ProjectPublicationState;
+          states[item.projectId.toLowerCase()] = item;
         }
       }
       return states;
@@ -215,11 +301,16 @@ export function createDashboardClient(
       action: "hide" | "show" | "delete",
     ): Promise<void> {
       const ids = typeof projectId === "string" ? [projectId] : projectId;
-      if (ids.length < 1 || ids.length > 1000 || ids.some((value) => !id(value))) {
+      if (ids.length < 1 || ids.length > 1000 || ids.some((value) => !isUuid(value))) {
         throw new Error("The publication projects could not be verified.");
       }
       const csrf = await send("/api/v1/auth/csrf");
-      if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken) {
+      if (
+        !isObject(csrf) ||
+        !("requestToken" in csrf) ||
+        typeof csrf.requestToken !== "string" ||
+        !csrf.requestToken
+      ) {
         throw new Error("Your session could not be verified. Sign in again.");
       }
       await send(
@@ -237,23 +328,62 @@ export function createDashboardClient(
       );
     },
     async createOrganization(name: string): Promise<void> {
-      const csrf = await send("/api/v1/auth/csrf");
-      if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken)
-        throw new Error("Your session could not be verified. Sign in again.");
-      const result = await send("/api/v1/admin/organizations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
-        body: JSON.stringify({ name: name.trim() }),
+      if (!navigator.locks)
+        throw new Error("This browser cannot safely coordinate organisation creation across tabs.");
+      await navigator.locks.request(organizationKey, async () => {
+        if (pendingOrganization())
+          throw new Error("Check the directory before starting another organisation.");
+        const csrf = await send("/api/v1/auth/csrf");
+        if (
+          !isObject(csrf) ||
+          !("requestToken" in csrf) ||
+          typeof csrf.requestToken !== "string" ||
+          !csrf.requestToken
+        )
+          throw new Error("Your session could not be verified. Sign in again.");
+        const attempt = { attemptId: crypto.randomUUID(), name: name.trim() };
+        const encoded = JSON.stringify(attempt);
+        localStorage.setItem(organizationKey, encoded);
+        if (localStorage.getItem(organizationKey) !== encoded)
+          throw new Error("The browser could not save recovery information. No request was sent.");
+        try {
+          const result = await send("/api/v1/admin/organizations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
+            body: JSON.stringify({ name: attempt.name }),
+          });
+          if (
+            !isObject(result) ||
+            !("id" in result) ||
+            !id(result.id) ||
+            !("name" in result) ||
+            typeof result.name !== "string" ||
+            result.name.trim().toLowerCase() !== attempt.name.toLowerCase() ||
+            !("isActive" in result) ||
+            result.isActive !== true
+          )
+            throw new Error("Invalid organisation receipt");
+        } catch (reason) {
+          if (
+            reason instanceof DashboardRequestError &&
+            [400, 403, 409, 429].includes(reason.status)
+          ) {
+            clearOrganization(encoded);
+            if (reason.status === 409)
+              throw new Error(
+                "That organisation name is in use. Check the organisation directory.",
+                {
+                  cause: reason,
+                },
+              );
+            throw reason;
+          }
+          throw new Error("Creation could not be confirmed. Check the organisation directory.", {
+            cause: reason,
+          });
+        }
+        clearOrganization(encoded);
       });
-      if (
-        !record(result) ||
-        !id(result.id) ||
-        typeof result.name !== "string" ||
-        result.isActive !== true
-      )
-        throw new Error(
-          "Creation could not be confirmed. Check the organisation list before trying again.",
-        );
     },
   };
 }

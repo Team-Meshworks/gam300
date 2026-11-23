@@ -210,6 +210,21 @@ action's package version and hash together when raising the security floor.
 The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
 browser context. Its output and the editor check output are retained under `apps/web/test-results/`.
 
+The packaged checks copy `/srv` and `/srv-restricted` from the editor image into separate
+runner temporary directories. `checks-<sha>` retains the available logs, JUnit XML,
+validation report, screenshots, test CA certificate and architecture graphs even on failure.
+After the Caddy access and browser checks pass, `web-<sha>` contains one copy of the
+verified public web root for 14 days, including on manual feature-branch runs. QA and M3
+reviewers can extract it and serve the static files. Signed-in authoring and catalogue
+access require the API, database and authenticated gateway.
+
+CI #421 stored 128.38 MiB in `checks-<sha>`. Its ZIP contained 118.54 MiB of compressed
+restricted files, two 3.57 MiB public trees and 2.63 MiB of diagnostics. Using those
+entries, the two new archives would total about 6.21 MiB plus ZIP overhead and the new
+catalogue test log. That saves about 122 MiB and projects 607.6 MiB of stored artifacts
+for a comparable run, down from 729.71 MiB. Organization billing covers a different scope.
+[Baseline run and artifacts](https://github.com/Team-Meshworks/gam300/actions/runs/44320426331)
+
 The server job uses the SDK pinned in `apps/server/global.json`, locked NuGet restore,
 Release build, both C# format checks, migration checks and the complete TUnit suite.
 Its disposable PostgreSQL 18.6 service publishes only to loopback and uses synthetic
@@ -227,6 +242,27 @@ test/web artifacts for 14 days and the small release bundle for 90 days. Retain 
 images and release bundles needed for reviewed recovery; old images may become unavailable.
 Feature branches can run validation through manual dispatch; run the relevant checks
 locally before requesting review.
+
+**Private GHCR handoff proposal.** The package API returned 403 for `gam300` with the
+available credential, which lacks `read:packages`. Its 404 for the proposed `gam300-ci`
+package leaves staging visibility and Actions grants unverified. Before enabling staging,
+verify private package visibility and repository access. Grant staging writes only on a
+push or manual dispatch of `dev` or `main` in `Team-Meshworks/gam300`. Run that job on
+a GitHub-hosted runner. Feature, PR and fork checks need only read access.
+[GitHub package access settings](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)
+
+Record the three tested local image IDs and match each against its staging manifest's
+config digest. Pass those immutable manifest references, the producing run and attempt,
+and deployment files to the gated publisher. After all required checks pass, including
+the selected architecture proof, copy each manifest by digest into the release package.
+Require all three destination digests to match before writing `release.json`.
+Test a publish-only retry with an earlier producer attempt and keep staging data available
+for at least the current two-day retry window. Deployment continues to use the manual
+environment gate, current branch head, selected CI run and release-package digests.
+
+To roll back the archive layout, revert this workflow change through review and rerun CI.
+That restores both public copies and the raw restricted catalogue to future private
+diagnostic archives.
 
 Superseded CI runs are cancelled. Deployments are serialized per environment, and a VM
 file lock also prevents concurrent changes to the same deployment.
@@ -250,7 +286,7 @@ gh workflow run ci.yml --ref dev
 ```
 
 Choose `dev` for a development release or `main` for a production release.
-Feature-branch checks must be run locally. Merging into either supported branch
+Feature branches can also be selected for manual validation. Merging into either supported branch
 automatically runs CI on the resulting commit. Deployment requires the selected
 run to match the current branch head and deploys that run's tested images.
 
@@ -280,12 +316,60 @@ PostgreSQL only and takes a fresh private backup of the actual retained database
 `backups/` before candidate startup. Every attempt, including a retry, takes a new
 backup. Database volumes are preserved after failures.
 
+**Development cutover.** The same manual **Deploy** button handles the create pause.
+After pulling all three images, the runner pauses project creation, duplication and
+class creation on both development HTTPS addresses. These routes return 503 with
+`Retry-After: 120`. Authenticated legacy-resolution PUTs are also paused. The
+runner backs up the outer Caddyfile before installing the development imports on an
+existing VM. The pause marker lives in the outer gateway's persistent configuration
+volume, so the block also applies while the application gateway is stopped.
+
+The runner drains the application gateway before stopping the API. It keeps a private
+`before-<commit>-clean.*.dump` before installing the insert guards on `projects`
+and `classrooms`. Every attempt then takes a `before-<commit>-guarded.*.dump`
+under those guards and reads the archive with `pg_restore`. A retry keeps the
+guards from the failed attempt in place. The guarded dump contains the triggers.
+Use these labels and the recovery procedure below when selecting a backup.
+
+The API starts after migrations, grants and insert-guard installation complete.
+Once the public and internal checks pass, Deploy verifies zero-row inserts as
+the API role, removes the gateway pause and checks the create routes. The canonical
+domain must return the Spatia session challenge to an anonymous create. An IP
+alias excluded by the API host allowlist may return 400 after the pause is lifted.
+If a health check fails, leave the pause in place and retry **Deploy** with the
+successful CI run for the current `dev` head.
+
+For a signed-in development smoke check, configure both `DEPLOY_SMOKE_USERNAME`
+and `DEPLOY_SMOKE_PASSWORD` as secrets in the GitHub `development` environment
+for a dedicated low-privilege creator account. Deploy signs in, reads the current
+session and verifies access to the project list before reopening. A partial pair
+fails preflight. With both absent, Deploy records the signed-in check as skipped.
+
 A failed backup, startup or health check leaves the API and application gateway stopped;
 the deployment does not restart an older API against the retained database. A subsequent
 successful CI release for the current branch head can be deployed normally. A successful
 rollout removes an obsolete `server-recovery-required` marker; existing recovery records
 and backups are retained. Editor-only releases retain their runtime rollback. An interrupted
 process may leave candidate services running; inspect their state before recovery.
+
+Deploy the receipt and generation migrations with the API before serving clients that use
+server-backed creation recovery. The deployment checks the anonymous creation-operation
+route and a bodyless legacy-resolution PUT through both the public and inner gateways. Both
+must return 401 with the `SpatiaSession` challenge, distinguishing the application response
+from an outer Basic challenge. The checks use no application credentials and make no writes.
+After migrations and grants, the database setup selects receipt fields and all nine
+`public.legacy_creation_bindings` columns with `LIMIT 0` as the API role. Missing columns or
+insufficient read permission stop startup. Apply `20261114170716_AddLegacyCreationBindings`
+with the receipt and generation migrations. The legacy-binding migration does not backfill
+historical creates. Downgrades are blocked when the respective history exists.
+
+Stop and drain old hosts and unkeyed writers during rollout, before enabling the release or
+header-only keys. Old hosts could ignore the header or accept an unkeyed request without a
+resolution. After the upgraded fleet is serving, unchanged integrations may resume and use
+the explicit resolution flow. Clients can prepare body keys where supported. A new key cannot
+identify an earlier unkeyed commit. Older server binaries cannot safely replace the upgraded
+server after the migrations. Review backup and forward recovery before rollout, and follow the
+[creation recovery contract](api-recovery.md#project-and-class-creation) for pre-upgrade work.
 
 Do not blindly restore a backup: migrations are not reversed and restoring a backup can
 discard later writes. Database restoration requires a reviewed procedure during downtime.
@@ -316,7 +400,9 @@ only public UI files and cannot serve the catalogue; use `compose.server.yaml` f
 asset access. Vite's local development/preview server is not the deployment access boundary.
 Run `node apps/web/tests/restricted-catalogue.check.mjs` to check both build modes, and after
 an editor build run `CADDY_BINARY=/path/to/caddy node deploy/restricted-assets.check.mjs` to
-verify direct byte denial and authenticated delivery with the pinned Caddy version.
+verify direct byte denial, authenticated delivery, both organization deletion methods and a
+legacy-resolution PUT through the pinned Caddy gateways. The browser uses POST for deletion;
+versioned DELETE remains compatible.
 CI also checks the real image's separate roots and an anonymous GLB request against the
 API stack. These access controls do not approve redistribution: SCRUM-73 still requires
 redistribution-ready replacements before the development catalogue is publication-ready.
@@ -349,7 +435,7 @@ IP routes and wiki routing. Its certificate volume must persist for automatic re
 The observed domain certificate has Let's Encrypt YE1 issuer, the domain as CN and SAN,
 and expires 7 February 2027. The production outer Basic gate was removed; Spatia's session
 and API authorization remain in force. Development's `PUBLICATION_ORIGIN` is the domain
-URL on port 8443 and its allowed hosts include the IP and domain.
+URL on port 8443. The deployment script sets the API host allowlist from that URL.
 
 Both GitHub environment `APP_URL` variables were updated to the domain URLs and read back.
 Server deployment derives `PUBLICATION_ORIGIN` from `APP_URL`; maintain those values when
@@ -371,7 +457,8 @@ docker compose -f gateway.compose.yaml up -d
 ```
 
 Existing outer gateways may retain HTTP Basic authentication in addition to Spatia's
-application login. Ordinary app deployment does not change that separate gateway.
+application login. Development cutover installs its create rule in the development
+sites of that gateway and preserves the configured login and TLS settings.
 For a gated environment, set GitHub environment secrets `DEPLOY_BASIC_AUTH_USERNAME`
 and `DEPLOY_BASIC_AUTH_PASSWORD` to its existing Basic username and plaintext password
 (not the Caddy password hash). Leave both unset for an ungated environment.

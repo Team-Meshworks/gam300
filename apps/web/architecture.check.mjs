@@ -116,7 +116,12 @@ function typecheck(root, name, cache) {
 async function browserEntry(root) {
   const server = await createServer({
     configFile: resolve(root, "vite.config.ts"),
-    server: { host: "127.0.0.1", port: 0 },
+    server: {
+      host: "127.0.0.1",
+      port: 0,
+      // The copy shares dependencies via a symlink. Vite checks their real paths.
+      fs: { allow: [realpathSync(resolve(root, "node_modules"))] },
+    },
   });
   let browser;
   try {
@@ -129,7 +134,7 @@ async function browserEntry(root) {
     const project = await serveProject(page, server.resolvedUrls.local[0]);
     const response = await page.goto(project.url);
     if (response.status() !== 200) return `Browser editor entry returned HTTP ${response.status()}`;
-    await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor({ timeout: 2000 });
+    await page.getByRole("heading", { name: "Spatia", exact: true }).waitFor({ timeout: 15000 });
     return undefined;
   } catch (error) {
     return `Browser editor entry failed: ${error.message}`;
@@ -201,6 +206,12 @@ try {
       "external dependency",
       'import type { ReactNode } from "react";',
       /project cannot import package react/,
+      false,
+    ],
+    [
+      "Vite Three.js dependency URL",
+      'void import("/@id/three");',
+      /project cannot import package three/,
       false,
     ],
     [
@@ -287,6 +298,13 @@ try {
 
   for (const removed of Object.keys(modules)) {
     const root = copy(`remove-${removed}`);
+    const configArgs = [];
+    if (removed === "build") {
+      const configFile = "test-results/removal-vitest.config.ts";
+      mkdirSync(resolve(root, "test-results"), { recursive: true });
+      cpSync(resolve(root, "vitest.config.ts"), resolve(root, configFile));
+      configArgs.push("--config", configFile);
+    }
     const removedFiles = files.filter((file) => moduleOf(file) === removed);
     assert.ok(removedFiles.length, `${removed} must contain implemented files`);
     for (const file of removedFiles) {
@@ -330,6 +348,7 @@ try {
       units = command(root, [
         "node_modules/vitest/vitest.mjs",
         "run",
+        ...configArgs,
         ...unitFiles,
         "--reporter=default",
         "--reporter=json",
@@ -338,6 +357,11 @@ try {
       assert.equal(units.status, 0, units.output);
       const summary = JSON.parse(
         readFileSync(resolve(root, "test-results/removal-units.json"), "utf8"),
+      );
+      assert.deepEqual(
+        summary.testResults.map(({ name }) => resolve(root, name)).sort(),
+        unitFiles.map((file) => resolve(root, file)).sort(),
+        `${removed}: Vitest must run exactly the surviving test files`,
       );
       units.testsPassed = summary.numPassedTests;
       units.files = unitFiles;

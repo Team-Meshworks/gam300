@@ -17,6 +17,7 @@ import { assetPreviewKey, assetPreviewSource } from "./asset-previews";
 import type {
   AssetAdministrationData,
   AssetAdministrationService,
+  AssetAdministrationResult,
   AssetCandidate,
 } from "./asset-administration";
 import "./asset-administration.css";
@@ -29,7 +30,7 @@ type Props = {
   initialUpload?: boolean;
   onClose: () => void;
 };
-type Notice = { kind: "denied" | "unavailable" | "invalid" | "unknown"; message: string };
+type Notice = Pick<Extract<AssetAdministrationResult<never>, { ok: false }>, "kind" | "message">;
 type Selection = { kind: "upload" } | { kind: "detail"; id: string } | null;
 
 // Mount after resolving the current account in the admin shell
@@ -68,6 +69,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   });
   useEffect(() => {
     const url = new URL(location.href);
+    url.searchParams.delete("add");
     if (selection?.kind === "detail") url.searchParams.set("assetId", selection.id);
     else url.searchParams.delete("assetId");
     history.replaceState(history.state, "", url);
@@ -127,8 +129,8 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         if (controller.signal.aborted) {
           return;
         }
+        setData(result.ok ? result.value : null);
         if (result.ok) {
-          setData(result.value);
           setUncertainWrite(false);
           if (initialUpload) {
             const upload =
@@ -148,6 +150,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       })
       .catch(() => {
         if (!controller.signal.aborted) {
+          setData(null);
           setNotice({
             kind: "unavailable",
             message: "Assets could not be loaded. Please try again.",
@@ -369,9 +372,10 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       );
     } catch {
       if (!controller.signal.aborted) {
+        setUncertainWrite(true);
         setNotice({
-          kind: "unavailable",
-          message: "The change could not be confirmed. Please try again.",
+          kind: "unknown",
+          message: "The change may have completed. Check the library before trying again.",
         });
       }
     } finally {

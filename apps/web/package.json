@@ -61,6 +61,7 @@
     "test:publication": "node tests/publication.check.mjs",
     "test:publication-access": "node tests/publication-access.check.mjs",
     "test:publication-readiness": "node tests/publication-readiness.check.mjs",
+    "test:player-parity": "node --test tests/shared-player-boundary.test.mjs && node tests/editable-preview.check.mjs && node tests/preview-visitor-parity.check.mjs && node tests/player-walking.check.mjs",
     "test:visitor": "node tests/visitor.check.mjs",
     "test:workspace-assignments": "node tests/workspace-assignments.check.mjs",
     "test:entry-config": "node tests/account-dev-server.check.mjs",
@@ -121,13 +122,15 @@
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "6.1.1",
     "eslint-plugin-react-hooks": "7.1.1",
+    "fake-indexeddb": "6.2.8",
     "gltf-validator": "2.0.0-dev.3.10",
+    "jsdom": "31.0.1",
     "jsqr": "1.4.0",
     "oxfmt": "0.76.0",
     "oxlint": "1.91.0",
     "playwright": "1.63.0",
     "typescript": "6.0.2",
-    "vite": "8.3.0",
+    "vite": "8.3.3",
     "vitest": "5.0.1"
   }
 }

@@ -1,4 +1,6 @@
+import { EventEmitter, on } from "node:events";
 import { readFileSync } from "node:fs";
+import { json } from "node:stream/consumers";
 
 const fixture = JSON.parse(
   readFileSync(new URL("../shared/project/fixtures/m2-project.json", import.meta.url), "utf8"),
@@ -22,15 +24,20 @@ export const blankProject = {
   ],
 };
 
-export async function serveProject(page, origin, initial = blankProject) {
+export function createProjectFixture(initial = blankProject) {
   let document = structuredClone(initial);
   let revision = 1;
-  await page.context().route("**/api/v1/**", (route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname;
-    const json = (status, body) => route.fulfill({ status, json: body });
+  const saves = new EventEmitter();
+  const projectPath = `/api/v1/projects/${initial.projectId}`;
+  function setDocument(next) {
+    document = structuredClone(next);
+    revision++;
+    saves.emit("saved", document);
+  }
+  async function respond(path, method, token, readBody) {
+    const reply = (status, json) => ({ status, json });
     if (path === "/api/v1/auth/session")
-      return json(200, {
+      return reply(200, {
         userId: "00000000-0000-4000-8000-000000000001",
         orgId: "00000000-0000-4000-8000-000000000002",
         displayName: "Browser test",
@@ -38,44 +45,83 @@ export async function serveProject(page, origin, initial = blankProject) {
         mustChangePassword: false,
         developmentAssetsAllowed: true,
       });
-    if (path === "/api/v1/auth/csrf") return json(200, { requestToken: "test-token" });
-    if (path === "/api/v1/assets") return json(200, []);
-    if (path === `/api/v1/projects/${initial.projectId}/assets`) return json(200, []);
-    if (path === `/api/v1/projects/${initial.projectId}/publication-readiness`)
-      return json(200, {
+    if (path === "/api/v1/auth/csrf") return reply(200, { requestToken: "test-token" });
+    if (path === "/api/v1/assets") return reply(200, []);
+    if (path === `${projectPath}/assets`) return reply(200, []);
+    if (path === `${projectPath}/publication-readiness`)
+      return reply(200, {
         projectId: initial.projectId,
         revision,
         state: "Ready",
         approved: null,
         completionConfirmed: null,
       });
-    if (path === `/api/v1/projects/${initial.projectId}`) {
-      if (request.method() === "GET")
-        return json(200, {
+    if (path === projectPath) {
+      if (method === "GET")
+        return reply(200, {
           projectId: initial.projectId,
           revision,
           document,
           permissions: { canEdit: true },
         });
-      const body = request.postDataJSON();
-      if (body.expectedRevision !== revision || request.headers()["x-csrf-token"] !== "test-token")
-        return json(409, {});
-      document = body.document;
-      return json(200, {
+      const body = await readBody();
+      if (body.expectedRevision !== revision || token !== "test-token") return reply(409, {});
+      setDocument(body.document);
+      return reply(200, {
         projectId: initial.projectId,
         clientMutationId: body.clientMutationId,
-        revision: ++revision,
+        revision,
       });
     }
-    return json(404, {});
-  });
+    return reply(404, {});
+  }
+  return {
+    async route(route) {
+      const request = route.request();
+      await route.fulfill(
+        await respond(
+          new URL(request.url()).pathname,
+          request.method(),
+          request.headers()["x-csrf-token"],
+          () => request.postDataJSON(),
+        ),
+      );
+    },
+    async middleware(request, response, next) {
+      const path = new URL(request.url, "http://localhost").pathname;
+      if (!path.startsWith("/api/v1/")) return next();
+      try {
+        const result = await respond(path, request.method, request.headers["x-csrf-token"], () =>
+          json(request),
+        );
+        response.writeHead(result.status, {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+        });
+        response.end(JSON.stringify(result.json));
+      } catch (error) {
+        next(error);
+      }
+    },
+    document: () => structuredClone(document),
+    setDocument,
+    async waitForDocument(matches) {
+      if (matches(document)) return structuredClone(document);
+      for await (const [saved] of on(saves, "saved", { signal: AbortSignal.timeout(15_000) })) {
+        if (matches(saved)) return structuredClone(saved);
+      }
+    },
+  };
+}
+
+export async function serveProject(page, origin, initial = blankProject) {
+  const { route, document, setDocument, waitForDocument } = createProjectFixture(initial);
+  await page.context().route("**/api/v1/**", route);
   return {
     url: new URL(`/?projectId=${initial.projectId}`, origin).href,
-    document: () => structuredClone(document),
-    setDocument: (next) => {
-      document = structuredClone(next);
-      revision++;
-    },
+    document,
+    setDocument,
+    waitForDocument,
   };
 }
 

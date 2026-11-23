@@ -67,6 +67,14 @@ describe("transform validation", () => {
     });
   });
 
+  it("keeps a unit rotation stable across repeated validation", () => {
+    const angle = (226 * Math.PI) / 360;
+    const input = { ...sampleTransform(), rotation: [0, Math.sin(angle), 0, Math.cos(angle)] };
+    const first = validateTransform(input);
+    if (!first.ok) throw new Error(first.error.message);
+    expect(validateTransform(first.value)).toEqual(first);
+  });
+
   it("normalizes small quaternion drift without modifying or sharing the input arrays", () => {
     const input = { ...sampleTransform(), rotation: [0, 0, 0, 1.0000005] };
     // Keep the original values for comparison after normalization

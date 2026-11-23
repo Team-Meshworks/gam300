@@ -18,6 +18,7 @@ public static partial class AccountDirectoryEndpoints
     {
         static bool ValidName(string? value) => value is null
             || (value.Length is > 0 and <= 256 && !string.IsNullOrWhiteSpace(value) && !value.Contains('\0'));
+
         if (!ValidName(request.DisplayName) || !ValidName(request.UserName)
             || request.Role is not (null or ApplicationRoles.Creator or ApplicationRoles.Educator)
             || request.NewTemporaryPassword is { Length: < 12 or > 128 })
@@ -28,18 +29,29 @@ public static partial class AccountDirectoryEndpoints
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         // Serialize role changes with account lifecycle and bootstrap operations.
         await database.Database.ExecuteSqlRawAsync("LOCK TABLE \"AspNetUserRoles\" IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
-        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure)
+            return failure;
+
         var user = await users.FindByIdAsync(id.ToString("D"));
-        if (user is null) { return ApiProblems.Create(context, 404, "account_not_found", "The account was not found."); }
+
+        if (user is null)
+            return ApiProblems.Create(context, 404, "account_not_found", "The account was not found.");
+
         await database.Entry(user).ReloadAsync(cancellationToken);
-        if (user.IsDeleted) { return ApiProblems.Create(context, 404, "account_not_found", "The account was not found."); }
+
+        if (user.IsDeleted)
+            return ApiProblems.Create(context, 404, "account_not_found", "The account was not found.");
+
         var membership = await database.OrganizationMemberships.AsNoTracking().SingleOrDefaultAsync(row => row.UserId == id, cancellationToken);
         var role = (await users.GetRolesAsync(user)).Single();
         var changeRole = request.Role is not null && request.Role != role;
+
         if (changeRole && (membership is null || role == ApplicationRoles.Administrator))
         {
             return ApiProblems.Create(context, 400, "invalid_account_input", "Only organisation account types can be changed here.");
         }
+
         if (changeRole && (await database.ClassroomMembers.AnyAsync(row => row.UserId == id, cancellationToken)
             || await database.ClassAssignmentStudents.AnyAsync(row => row.StudentId == id, cancellationToken)))
         {
@@ -53,9 +65,15 @@ public static partial class AccountDirectoryEndpoints
                 // Class and assignment history references the original role; never rewrite that history.
                 await database.OrganizationMemberships.Where(row => row.UserId == id).ExecuteDeleteAsync(cancellationToken);
                 var removed = await users.RemoveFromRoleAsync(user, role);
-                if (!removed.Succeeded) { return AccountAdministrationEndpoints.ToProblem(context, removed); }
+
+                if (!removed.Succeeded)
+                    return AccountAdministrationEndpoints.ToProblem(context, removed);
+
                 var assigned = await users.AddToRoleAsync(user, request.Role!);
-                if (!assigned.Succeeded) { return AccountAdministrationEndpoints.ToProblem(context, assigned); }
+
+                if (!assigned.Succeeded)
+                    return AccountAdministrationEndpoints.ToProblem(context, assigned);
+
                 database.OrganizationMemberships.Add(new OrganizationMembership
                 {
                     UserId = id,
@@ -65,9 +83,15 @@ public static partial class AccountDirectoryEndpoints
                 await database.SaveChangesAsync(cancellationToken);
                 role = request.Role!;
             }
-            if (request.DisplayName is not null) { user.DisplayName = request.DisplayName.Trim(); }
-            if (request.UserName is not null) { user.UserName = request.UserName.Trim(); }
+
+            if (request.DisplayName is not null)
+                user.DisplayName = request.DisplayName.Trim();
+
+            if (request.UserName is not null)
+                user.UserName = request.UserName.Trim();
+
             IdentityResult result;
+
             if (request.NewTemporaryPassword is { } password)
             {
                 user.MustChangePassword = true;
@@ -79,11 +103,13 @@ public static partial class AccountDirectoryEndpoints
                 // Username/authority changes invalidate cookies carrying the old identity.
                 result = await users.UpdateSecurityStampAsync(user);
             }
-            if (!result.Succeeded) { return AccountAdministrationEndpoints.ToProblem(context, result); }
+
+            if (!result.Succeeded)
+                return AccountAdministrationEndpoints.ToProblem(context, result);
+
             if (await AuthorizeAsync(context, accounts, cancellationToken) is { } revoked && id != context.Features.Get<ValidatedAccountSession>()?.UserId)
-            {
                 return revoked;
-            }
+
             return await CompleteAsync(context, transaction, Results.Ok(new ProvisionedAccount(id, user.UserName!, role,
                 membership?.OrganizationId, user.IsActive, user.MustChangePassword, user.DisplayName ?? user.UserName)), cancellationToken);
         }
@@ -104,15 +130,23 @@ public static partial class AccountDirectoryEndpoints
         ApplicationDbContext database, CurrentAccountResolver accounts, ProjectDocumentService documents, CancellationToken cancellationToken)
     {
         var page = ReadQuery(context.Request.Query, users: false);
-        if (page is null || page.Limit > 20 || context.Request.Query.ContainsKey("isActive") || context.Request.Query.ContainsKey("q")) { return InvalidQuery(context); }
+
+        if (page is null || page.Limit > 20 || context.Request.Query.ContainsKey("isActive") || context.Request.Query.ContainsKey("q"))
+            return InvalidQuery(context);
+
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
-        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure) { return failure; }
+
+        if (await AuthorizeAsync(context, accounts, cancellationToken) is { } failure)
+            return failure;
+
         if (!await database.Organizations.AnyAsync(row => row.Id == id, cancellationToken))
-        {
             return ApiProblems.Create(context, 404, "organization_not_found", "The organization was not found.");
-        }
+
         var query = ProjectAccessService.PublishedProjects(database).Where(row => row.OrganizationId == id);
-        if (page.Cursor is { } cursor) { query = query.Where(row => row.Id.CompareTo(cursor) > 0); }
+
+        if (page.Cursor is { } cursor)
+            query = query.Where(row => row.Id.CompareTo(cursor) > 0);
+
         var rows = await query.OrderBy(row => row.Id).Take(page.Limit + 1).ToListAsync(cancellationToken);
         // Resolve anonymous visibility once for the bounded organisation project page
         var pageIds = rows.Take(page.Limit).Select(row => row.Id).ToArray();
@@ -134,15 +168,29 @@ public static partial class AccountDirectoryEndpoints
             .Select(group => group.OrderByDescending(edition => edition.CreatedAt).ThenByDescending(edition => edition.Id).First())
             .ToDictionaryAsync(edition => edition.ProjectId, cancellationToken);
         var items = new List<object>();
+
         foreach (var row in rows.Take(page.Limit))
         {
             var edition = editions[row.Id];
             var document = documents.ReadStored(row.Id, edition.SchemaVersion, edition.DocumentJson);
-            if (!document.Ok) { return ApiProblems.Create(context, 503, "project_unavailable", "Project details could not be loaded."); }
+
+            if (!document.Ok)
+                return ApiProblems.Create(context, 503, "project_unavailable", "Project details could not be loaded.");
+
             var title = document.Value!.Title;
-            if (title.Length > 256) { title = title[..(char.IsHighSurrogate(title[254]) ? 254 : 255)] + "…"; }
-            items.Add(new { id = row.Id, title, status = "Published", isPublic = publicIds.Contains(row.Id) });
+
+            if (title.Length > 256)
+                title = title[..(char.IsHighSurrogate(title[254]) ? 254 : 255)] + "…";
+
+            items.Add(new
+            {
+                id = row.Id,
+                title,
+                status = "Published",
+                isPublic = publicIds.Contains(row.Id)
+            });
         }
+
         return await CompleteAsync(context, transaction, Results.Ok(new
         {
             items,

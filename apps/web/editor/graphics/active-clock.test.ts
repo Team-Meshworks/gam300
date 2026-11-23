@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { createActiveClock } from "./active-clock";
+import { createActiveClock } from "../../shared/preview/active-clock";
 import { createInteractionHandler } from "../interaction/interactionHandler";
 
 it("fires a two-second interaction after eight 250-ms frames", () => {

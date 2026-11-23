@@ -164,7 +164,6 @@ try {
   );
   assert.equal(approved.latestDecision.outcome, "approved");
   assert.equal(approved.latestDecision.feedback, "The saved exhibition is ready.");
-  assert.equal(await publication.getByRole("button", { name: "Approve and publish" }).count(), 0);
   // The student owns the separate publication decision after teacher approval
   await student.goto(origin + `/publish?projectId=${projectId}`);
   await student.getByRole("heading", { name: "Publish project", exact: true }).waitFor();

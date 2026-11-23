@@ -22,7 +22,7 @@ let holdLogout = false;
 let releaseLogout;
 let logoutStarted;
 async function waitForSignal(signal, label) {
-  await Promise.race([
+  return Promise.race([
     signal,
     new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} did not start`)), 5000)),
   ]);
@@ -44,7 +44,7 @@ try {
       if (holdColdSession) await coldSession;
       if (holdNextSession) {
         holdNextSession = false;
-        sessionStarted();
+        sessionStarted(route.request());
         await new Promise((resolve) => {
           releaseSession = resolve;
         });
@@ -164,12 +164,16 @@ try {
     sessionStarted = resolve;
   });
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await waitForSignal(heldSession, "Session recheck");
+  const staleRequest = await waitForSignal(heldSession, "Session recheck");
   current = { ...session, displayName: "Third Educator" };
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.getByText("Third Educator", { exact: true }).waitFor();
+  const staleResponse = page.waitForResponse((response) => response.request() === staleRequest);
   releaseSession();
-  await page.waitForTimeout(200);
+  assert.equal(await (await staleResponse).finished(), null);
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
   assert.equal(
     await page.getByText("Second Educator", { exact: true }).count(),
     0,
