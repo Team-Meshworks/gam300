@@ -441,6 +441,12 @@ try {
   const hideDraft = page
     .locator(".sp-teacher-student-actions")
     .getByRole("button", { name: "Hide", exact: true });
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector(".sp-teacher-student-actions .sp-hide-action")
+        ?.getAttribute("title") === "Block publishing; the student can keep editing",
+  );
   assert.equal(
     await hideDraft.getAttribute("title"),
     "Block publishing; the student can keep editing",

@@ -130,7 +130,7 @@ try {
     if (role === "Creator") {
       // Creators browse assigned projects without fetching the creation catalogue.
       await page.getByRole("heading", { name: "Projects", exact: true }).waitFor();
-      await page.getByText("No projects are available yet.", { exact: true }).waitFor();
+      await page.getByText("No projects assigned yet.", { exact: true }).waitFor();
       assert.equal(await page.getByRole("button", { name: "New project", exact: true }).count(), 0);
       assert.equal(
         await page.getByText("Manage projects and archives", { exact: true }).count(),
@@ -162,7 +162,7 @@ try {
           { userId, projectId },
         );
       }
-      await page.getByRole("link", { name: "New Project", exact: true }).click();
+      await page.getByRole("link", { name: /^\+?\s*New Project$/ }).click();
       await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
       assert.equal(
         await page.getByRole("combobox", { name: /^Class/ }).innerText(),
@@ -197,7 +197,7 @@ try {
       });
       page.off("dialog", dismissNative);
       assert.equal(nativePrompts, 0, "Confirmed discard must not ask again through beforeunload");
-      await page.getByRole("link", { name: "New Project", exact: true }).click();
+      await page.getByRole("link", { name: /^\+?\s*New Project$/ }).click();
       await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
       await page.getByLabel("Project title").fill("Blank project");
       await page.getByLabel("Project description").fill("Description");

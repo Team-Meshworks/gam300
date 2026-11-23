@@ -119,7 +119,7 @@ try {
       }
       const creation =
         role === "Educator"
-          ? page.getByRole("link", { name: "New Project", exact: true })
+          ? page.getByRole("link", { name: "+ New Project", exact: true })
           : page.getByRole("button", { name: "New project", exact: true });
       assert.equal(
         await creation.count(),
