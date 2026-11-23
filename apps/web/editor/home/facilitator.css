@@ -3,16 +3,16 @@
   --facilitator-home-border: rgb(255 255 255 / 85%);
   --facilitator-surface: #fffdfb;
   --facilitator-field: #f6f4f2;
-  --facilitator-control-hover: #eae5df;
-  --facilitator-project-delete-hover: #fbe2dd;
-  --facilitator-close-hover: #e4e5e7;
+  --facilitator-control-hover: var(--sp-hover);
+  --facilitator-project-delete-hover: var(--sp-danger-hover);
+  --facilitator-close-hover: var(--sp-close-hover);
   --facilitator-value-surface: #fff;
   --facilitator-context-fill: #eae5df;
   --facilitator-context-edge: #dcd5cc;
   --facilitator-value-ink: #515151;
-  --facilitator-project-delete-ink: #c94032;
-  --facilitator-project-delete-fill: #fef2f0;
-  --facilitator-project-delete-edge: #f4c5bc;
+  --facilitator-project-delete-ink: var(--facilitator-delete-ink);
+  --facilitator-project-delete-fill: var(--facilitator-delete-fill);
+  --facilitator-project-delete-edge: var(--facilitator-delete-edge);
   --facilitator-delete-ink: #515151;
   --facilitator-delete-fill: #f7f5f2;
   --facilitator-delete-edge: #e7e2dc;
@@ -60,8 +60,6 @@
   line-height: 1.3;
 }
 .sp-shell--facilitator .sp-teacher-detail-head p {
-  margin-top: 7px;
-  font-size: 12px;
   line-height: 17px;
 }
 .sp-shell--facilitator .sp-teacher-detail-head > button {
@@ -71,10 +69,6 @@
   padding: 0;
   flex: 0 0 40px;
   align-self: flex-start;
-}
-.sp-shell--facilitator .sp-teacher-project-identity h2 {
-  font-size: 25px;
-  line-height: 1.3;
 }
 .sp-teacher-detail-cover {
   width: 176px;
@@ -106,11 +100,9 @@
 .sp-shell--facilitator .sp-teacher-field-heading .sp-button {
   min-height: 32px;
   padding: 4px 16px;
-  font-size: 13px;
   font-weight: 400;
 }
 .sp-shell--facilitator .sp-teacher-field-heading h3 {
-  font-size: 16px;
   line-height: 22px;
   font-weight: 600;
 }
@@ -125,10 +117,6 @@
   flex-direction: column;
   background: var(--facilitator-surface);
   border-color: var(--facilitator-edge);
-}
-.sp-shell--facilitator .sp-teacher-students > .sp-tabs {
-  padding: 12px 20px 16px;
-  gap: 24px;
 }
 .sp-shell--facilitator .sp-teacher-student {
   grid-template-columns: minmax(0, 1fr) minmax(110px, 26%);
@@ -147,12 +135,10 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
 }
 .sp-shell--facilitator .sp-teacher-student-actions > .sp-button {
   min-height: 34px;
   padding: 6px 16px;
-  font-size: 15px;
   font-weight: 400;
 }
 .sp-shell--facilitator .sp-teacher-student-actions > .sp-button > svg {
@@ -202,9 +188,6 @@
   background-size: 100% 100%;
   box-shadow: var(--facilitator-search-shadow);
 }
-.sp-shell--facilitator .sp-project-details {
-  gap: 24px;
-}
 .sp-shell--facilitator .sp-project-details > div > h2,
 .sp-shell--facilitator .sp-students-header h2 {
   font-size: 20px;
@@ -223,7 +206,6 @@
 }
 @media (max-width: 760px) {
   .sp-shell--facilitator .sp-teacher-student {
-    grid-template-columns: minmax(0, 1fr) minmax(100px, 32%);
     padding: 20px;
   }
 }
@@ -235,9 +217,6 @@
 }
 .sp-shell--facilitator .sp-header-brand {
   font-weight: 400;
-}
-.sp-shell--facilitator .sp-teacher-card-copy {
-  grid-template-rows: 40px 15px 40px;
 }
 .sp-shell--facilitator .sp-teacher-card-heading {
   align-items: center;
@@ -253,13 +232,8 @@
   align-items: start;
   margin-bottom: 12px;
 }
-.sp-shell--facilitator .sp-teacher-project-identity h2 {
-  margin: 0;
-}
 .sp-shell--facilitator .sp-teacher-metadata {
   margin: 0 0 0;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 7px 12px;
 }
 .sp-shell--facilitator .sp-teacher-field-heading .sp-button {
   gap: 8px;
@@ -283,19 +257,16 @@
   font-size: 13px;
 }
 .sp-shell--facilitator .sp-teacher-student-identity strong {
-  font-weight: 700;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 .sp-shell--facilitator .sp-teacher-student-status strong {
   display: flex;
   gap: 6px;
   align-items: center;
-  font-size: 12px;
   font-weight: 400;
 }
 .sp-shell--facilitator .sp-teacher-student-status strong svg {
-  width: 13px;
-  height: 13px;
   flex: none;
 }
 .sp-shell--facilitator [data-approval="approved"] {
@@ -315,19 +286,14 @@
   font-size: 13px;
 }
 .sp-shell--facilitator .sp-teacher-students > .sp-tabs button {
-  padding: 4px 0;
   border: 0;
-  font-size: 15px;
   font-weight: 400;
 }
 .sp-shell--facilitator .sp-teacher-students > .sp-tabs button[aria-selected="true"] {
-  font-weight: 500;
+  font-weight: 600;
 }
 .sp-shell--facilitator .sp-teacher-new-project {
   min-height: 1200px;
-}
-.sp-shell--facilitator .sp-teacher-new-project .sp-page-heading {
-  margin-bottom: 30px;
 }
 .sp-shell--facilitator .sp-project-details {
   gap: 24px;
@@ -340,12 +306,12 @@
 .sp-shell--facilitator .sp-project-fields .sp-field > label,
 .sp-shell--facilitator .sp-image-options legend {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .sp-shell--facilitator
   .sp-project-fields
   input:not([type="checkbox"]):not([type="radio"]):not([type="search"]):not([type="file"]) {
-  min-height: 52px;
+  min-height: 44px;
 }
 .sp-shell--facilitator .sp-project-fields textarea {
   min-height: 130px;
@@ -353,14 +319,14 @@
 }
 .sp-shell--facilitator .sp-person-row .sp-person-name strong {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .sp-shell--facilitator .sp-person-row .sp-person-name small {
   font-size: 12px;
 }
 .sp-shell--facilitator .sp-form-footer .sp-button {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
 }
 @media (max-width: 760px) {
   .sp-shell--facilitator .sp-teacher-project-identity {
@@ -385,20 +351,12 @@
 .sp-shell--facilitator .sp-workspace:focus {
   outline: none;
 }
-.sp-shell--facilitator .sp-teacher-detail-head p {
-  font-size: 12px;
-}
-.sp-shell--facilitator .sp-assignment-edit-dialog {
-  width: min(960px, calc(100% - 32px));
-  padding: 32px;
-}
 .sp-shell--facilitator .sp-assignment-edit-dialog fieldset {
   display: grid;
   gap: 20px;
   min-width: 0;
   padding: 0;
   border: 0;
-  margin: 24px 0;
 }
 .sp-shell--facilitator .sp-assignment-edit-dialog .sp-actions {
   justify-content: flex-end;
@@ -415,18 +373,9 @@
 html:has(.sp-shell--facilitator) {
   scrollbar-gutter: stable;
 }
-.sp-shell--facilitator .sp-teacher-detail-head {
-  min-height: 66px;
-}
-.sp-shell--facilitator .sp-teacher-columns {
-  margin-top: 30px;
-}
 .sp-shell--facilitator .sp-teacher-students {
   min-height: 0;
   align-self: start;
-}
-.sp-shell--facilitator .sp-teacher-detail .sp-teacher-info {
-  gap: 12px;
 }
 .sp-shell--facilitator .sp-teacher-new-project .sp-project-fields {
   font-size: 14px;
@@ -436,9 +385,6 @@ html:has(.sp-shell--facilitator) {
 }
 .sp-shell--facilitator .sp-teacher-detail-head .sp-close-button {
   align-self: flex-start;
-}
-.sp-shell--facilitator .sp-teacher-detail-head p {
-  margin-top: 2px;
 }
 .sp-shell--facilitator .sp-teacher-student-status {
   gap: 16px;
@@ -495,11 +441,10 @@ html:has(.sp-shell--facilitator) {
 .sp-shell--facilitator .sp-workspace:has(.sp-teacher-new-project) {
   left: 0;
 }
-.sp-shell--facilitator .sp-teacher-columns {
-  margin-top: 10px;
-}
 .sp-shell--facilitator .sp-teacher-new-project .sp-page-heading {
-  margin-bottom: 16px;
+  min-height: 54px;
+  align-items: flex-start;
+  margin-bottom: 28px;
 }
 @media (max-width: 760px) {
   .sp-shell--facilitator .sp-teacher-detail,
@@ -545,7 +490,7 @@ html:has(.sp-shell--facilitator) {
 .sp-shell--facilitator .sp-teacher-welcome h1 {
   font-size: clamp(30px, 3.5vw, 50px);
   line-height: 1.3;
-  font-weight: 700;
+  font-weight: 600;
 }
 .sp-shell--facilitator .sp-teacher-welcome p {
   font-size: 15px;
@@ -553,17 +498,18 @@ html:has(.sp-shell--facilitator) {
 }
 .sp-shell--facilitator .sp-teacher-projects {
   min-height: 412px;
-  padding: 40px 38px 36px;
+  padding: 40px 38px 37px;
   border: 1px solid var(--facilitator-home-border);
   background-color: var(--facilitator-home-panel);
-  background-image: none;
+  background-size: 100% 100%;
   background-clip: padding-box;
-  box-shadow: var(--facilitator-shadow);
+  box-shadow: none;
 }
 .sp-shell--facilitator .sp-teacher-projects :is(h2, h3, button, input, a, p) {
   font-family: var(--facilitator-font);
 }
 .sp-shell--facilitator .sp-teacher-heading h2 {
+  letter-spacing: -0.5px;
   font-size: 25px;
   line-height: 1.35;
 }
@@ -575,13 +521,13 @@ html:has(.sp-shell--facilitator) {
   gap: 24px;
 }
 .sp-shell--facilitator .sp-teacher-card-copy {
-  padding: 20px;
-  gap: 12px;
-  grid-template-rows: minmax(40px, auto) minmax(15px, auto) 36px;
+  padding: 20px 20px 15px;
+  gap: 15px;
+  grid-template-rows: minmax(36px, auto) minmax(15px, auto) 40px;
 }
 .sp-shell--facilitator .sp-teacher-card h3 {
   font-size: 15px;
-  line-height: 1.4;
+  line-height: 20px;
 }
 .sp-shell--facilitator .sp-teacher-projects .sp-button {
   min-height: 36px;
@@ -590,6 +536,9 @@ html:has(.sp-shell--facilitator) {
   padding: 0 16px;
   font-size: 12px;
   font-weight: 600;
+}
+.sp-shell--facilitator .sp-teacher-card .sp-button {
+  min-width: 110px;
 }
 .sp-shell--facilitator .sp-teacher-toolbar .sp-tabs button,
 .sp-shell--facilitator .sp-teacher-projects .sp-new-project {
@@ -625,6 +574,11 @@ html:has(.sp-shell--facilitator) {
 .sp-shell--facilitator .sp-teacher-field-heading .sp-button,
 .sp-shell--facilitator .sp-teacher-student-actions > .sp-button:not(.sp-button--primary) {
   background: var(--facilitator-field);
+  --facilitator-control-hover: color-mix(
+    in srgb,
+    var(--facilitator-field),
+    var(--sp-hover-dark) var(--sp-hover-strength)
+  );
 }
 .sp-shell--facilitator .sp-teacher-field-heading .sp-button > span {
   text-box-trim: trim-both;
@@ -642,12 +596,57 @@ html:has(.sp-shell--facilitator) {
   flex-shrink: 0;
 }
 
+.sp-shell--facilitator .sp-teacher-new-project .sp-page-heading h1 {
+  line-height: 30px;
+}
 .sp-shell--facilitator .sp-teacher-new-project .sp-page-heading p {
-  margin-top: 2px;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 16px;
+}
+.sp-shell--facilitator
+  .sp-teacher-new-project
+  :is(.sp-project-details > div > h2, .sp-students-header h2) {
+  line-height: 24px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-project-details > div > .sp-hint {
+  line-height: 15px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-project-details .sp-field {
+  gap: 9px;
+}
+.sp-shell--facilitator .sp-teacher-new-project #project-description {
+  height: 132px;
+  min-height: 132px;
+}
+.sp-shell--facilitator .sp-teacher-new-project #project-instructions {
+  height: 158px;
+  min-height: 158px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-form-footer .sp-actions {
+  gap: 12px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-form-footer .sp-button {
+  min-width: 100px;
+  min-height: 44px;
+  height: 44px;
+  border-radius: 20px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-form-footer .sp-button--primary {
+  min-width: 156px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-form-footer strong {
+  display: block;
+  font: 600 14px/17px var(--sp-font);
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-form-footer .sp-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 15px;
 }
 .sp-shell--facilitator .sp-teacher-new-project .sp-school-context {
-  background: var(--facilitator-context-fill);
-  border: 1px solid var(--facilitator-context-edge);
+  background: var(--sp-soft);
+  border: 1px solid transparent;
   padding: 12px 16px;
   border-radius: 12px;
 }
@@ -712,10 +711,7 @@ html:has(.sp-shell--facilitator) {
 }
 
 .sp-shell--facilitator:has(.sp-teacher-welcome) {
-  --facilitator-tab-hover: #eaeaea;
-}
-.sp-shell--facilitator:has(.sp-teacher-welcome) > .sp-wash {
-  z-index: 1;
+  --facilitator-tab-hover: var(--sp-hover);
 }
 .sp-shell--facilitator:has(.sp-teacher-welcome) > .sp-account-header,
 .sp-shell--facilitator .sp-teacher-welcome,
@@ -729,7 +725,6 @@ html:has(.sp-shell--facilitator) {
 .sp-shell--facilitator .sp-teacher-toolbar .sp-tabs button:hover {
   text-decoration: none;
   border-radius: 6px;
-  background: var(--facilitator-tab-hover);
 }
 
 .sp-shell--facilitator .sp-teacher-projects::after {
@@ -772,7 +767,7 @@ html:has(.sp-shell--facilitator) {
   background: transparent;
 }
 .sp-shell--facilitator .sp-teacher-review-history:hover {
-  background: var(--facilitator-field);
+  background: var(--sp-hover);
 }
 .sp-shell--facilitator .sp-teacher-student-actions > .sp-teacher-review-history > svg {
   width: 12px;
@@ -789,12 +784,12 @@ html:has(.sp-shell--facilitator) {
 }
 
 .sp-shell--facilitator .sp-image-options label:hover {
-  background: var(--facilitator-field);
+  background: var(--sp-hover);
 }
 .sp-shell--facilitator .sp-student-filters .sp-tabs button:hover,
 .sp-shell--facilitator .sp-teacher-students > .sp-tabs button:hover {
   border-radius: 6px;
-  background: var(--facilitator-field);
+  background: var(--sp-hover);
   text-decoration: none;
 }
 
@@ -820,12 +815,10 @@ html:has(.sp-shell--facilitator) {
   border: 1px solid var(--facilitator-edge);
   border-radius: 12px;
   background: var(--facilitator-value-surface);
-  padding: 8px 12px;
   font-size: 14px;
   line-height: 21px;
 }
 .sp-shell--facilitator .sp-assignment-inline textarea {
-  min-height: 72px;
   resize: vertical;
 }
 .sp-shell--facilitator .sp-assignment-inline .sp-actions {
@@ -868,9 +861,6 @@ html:has(.sp-shell--facilitator) {
 
 .sp-shell--facilitator .sp-teacher-student-handle {
   display: block;
-  margin-top: 3px;
-  font-size: 12px;
-  line-height: 17px;
   color: var(--sp-muted);
 }
 .sp-shell--facilitator .sp-teacher-project-status {
@@ -889,12 +879,6 @@ html:has(.sp-shell--facilitator) {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-}
-.sp-shell--facilitator .sp-teacher-assignment-actions > .sp-button {
-  height: 32px;
-  min-height: 32px;
-  padding: 5px 14px;
-  font-size: 12px;
 }
 .sp-shell--facilitator .sp-teacher-assignment-actions svg {
   width: 13px;
@@ -919,15 +903,11 @@ html:has(.sp-shell--facilitator) {
   background: var(--facilitator-hide-fill);
   border: 1px solid var(--facilitator-edge);
   color: var(--sp-ink);
-  gap: 6px;
-}
-.sp-shell--facilitator .sp-teacher-assignment-actions > .admin-publication-delete {
-  background: var(--facilitator-delete-fill);
-  border-color: var(--facilitator-delete-edge);
-  color: var(--facilitator-delete-ink);
 }
 
-.sp-shell--facilitator .sp-teacher-metadata dd,
+.sp-shell--facilitator .sp-teacher-metadata dd {
+  font-weight: 400;
+}
 .sp-shell--facilitator .sp-teacher-student-status strong {
   font-weight: 600;
 }
@@ -1006,22 +986,12 @@ html:has(.sp-shell--facilitator) {
 .sp-shell--facilitator .sp-teacher-student-actions {
   gap: 10px;
 }
-.sp-shell--facilitator .sp-teacher-student-actions > .sp-button--primary {
-  min-width: 136px;
-}
 .sp-shell--facilitator .sp-teacher-assignment-actions > .admin-publication-delete,
-.sp-shell--facilitator .sp-teacher-student-actions > .admin-publication-delete {
+.sp-shell--facilitator .sp-teacher-student-actions > .sp-button.admin-publication-delete {
   min-width: 100px;
   color: var(--facilitator-delete-ink);
   background: var(--facilitator-delete-fill);
   border-color: var(--facilitator-delete-edge);
-}
-.sp-shell--facilitator
-  .sp-teacher-student-actions
-  > .sp-button:not(.sp-teacher-review-history)
-  svg {
-  width: 16px;
-  height: 16px;
 }
 
 .sp-shell--facilitator .sp-teacher-info .sp-dialog h2 {
@@ -1030,36 +1000,16 @@ html:has(.sp-shell--facilitator) {
   margin: 0 44px 16px 0;
 }
 
-.sp-shell--facilitator .sp-teacher-student-actions > .sp-button:not(.sp-teacher-review-history) {
-  width: auto;
-  min-width: 0;
-  height: 30px;
-  min-height: 30px;
-  padding: 0 12px;
-  font-size: 13px;
-  line-height: 18px;
-}
-.sp-shell--facilitator
-  .sp-teacher-student-actions
-  > .sp-button:not(.sp-teacher-review-history)
-  svg {
-  width: 13px;
-  height: 13px;
-}
-
 .sp-shell--facilitator {
   --facilitator-menu-shadow: 0 8px 24px rgb(41 39 35 / 10%);
 }
 .sp-shell--facilitator .sp-organisation-view {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.35fr);
   gap: 24px;
   padding: 32px 40px 40px;
   border: 1px solid var(--glass-edge);
   border-radius: 40px;
-  background: var(--glass);
-  box-shadow: var(--facilitator-shadow);
 }
 .sp-organisation-view > .sp-page-heading,
 .sp-organisation-view > .sp-home-toolbar,
@@ -1145,7 +1095,7 @@ html:has(.sp-shell--facilitator) {
 }
 .sp-organisation-class-select > label {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .sp-organisation-class-select > button {
   display: flex;
@@ -1190,25 +1140,18 @@ html:has(.sp-shell--facilitator) {
   cursor: pointer;
 }
 .sp-organisation-class-menu button:is(:hover, [data-active="true"]) {
-  background: var(--facilitator-field);
+  background: var(--sp-hover);
 }
 .sp-organisation-view .sp-assignment-list {
   margin: 16px 0 0;
-  gap: 12px;
 }
 .sp-organisation-view .sp-assignment-list li {
   display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--facilitator-edge);
-  border-radius: 12px;
 }
 .sp-organisation-view .sp-assignment-list .sp-button {
   justify-content: flex-start;
   min-width: 0;
   max-width: 100%;
-  min-height: 32px;
-  padding: 4px 0;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -1220,7 +1163,7 @@ html:has(.sp-shell--facilitator) {
   overflow-wrap: anywhere;
 }
 .sp-organisation-view .sp-assignment-list .sp-button:hover {
-  background: var(--facilitator-field);
+  background: var(--sp-hover);
 }
 .sp-organisation-view .sp-table {
   table-layout: fixed;
@@ -1230,15 +1173,6 @@ html:has(.sp-shell--facilitator) {
 .sp-organisation-view .sp-table :is(th, td) {
   padding: 14px 6px;
   vertical-align: middle;
-}
-.sp-organisation-view .sp-table th:first-child {
-  width: 37%;
-}
-.sp-organisation-view .sp-table th:nth-child(2) {
-  width: 23%;
-}
-.sp-organisation-view .sp-table th:nth-child(3) {
-  width: 16%;
 }
 .sp-organisation-view .sp-table td[data-active="true"] {
   color: var(--facilitator-approved);
@@ -1283,11 +1217,6 @@ html:has(.sp-shell--facilitator) {
   margin-top: 16px;
   padding: 0 16px;
   font-size: 13px;
-}
-@media (max-width: 1000px) {
-  .sp-shell--facilitator .sp-organisation-view {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 @media (max-width: 600px) {
   .sp-shell--facilitator .sp-organisation-view {
@@ -1350,7 +1279,6 @@ html:has(.sp-shell--facilitator) {
     text-align: left;
   }
   .sp-organisation-view .sp-table tbody td:last-child {
-    grid-column: 1 / -1;
     justify-self: end;
   }
 }
@@ -1370,7 +1298,7 @@ html:has(.sp-shell--facilitator) {
 }
 .sp-organisation-view .sp-assignment-list li:hover {
   border-radius: 8px;
-  background: var(--facilitator-field);
+  background: var(--sp-hover);
 }
 .sp-organisation-view .sp-assignment-list .sp-button {
   min-height: 26px;
@@ -1393,23 +1321,13 @@ html:has(.sp-shell--facilitator) {
     grid-column: auto;
   }
 }
-
-.sp-shell--facilitator .sp-organisation-view {
-  grid-template-columns: minmax(0, 1fr);
-}
-.sp-organisation-view > .sp-class-assignments {
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
 .sp-organisation-view .sp-class-assignments h2 {
   margin-bottom: 16px;
 }
 .sp-shell--facilitator .sp-teacher-card .sp-button {
   width: auto;
-  height: 36px;
-  min-height: 36px;
+  height: 40px;
+  min-height: 40px;
   padding: 0 16px;
   font: 600 12px/16px var(--facilitator-font);
 }
@@ -1433,7 +1351,6 @@ html:has(.sp-shell--facilitator) {
   gap: 6px;
   font-size: 12px;
   line-height: 18px;
-  font-weight: 400;
 }
 .sp-shell--facilitator .sp-teacher-assignment-actions > .admin-publication-delete {
   width: 94px;
@@ -1448,11 +1365,6 @@ html:has(.sp-shell--facilitator) {
 .sp-shell--facilitator .sp-teacher-student-actions > .sp-button:not(.sp-teacher-review-history) {
   width: auto;
   min-width: 0;
-  height: 30px;
-  min-height: 30px;
-  padding: 0 12px;
-  font-size: 13px;
-  line-height: 18px;
 }
 .sp-shell--facilitator
   .sp-teacher-student-actions
@@ -1531,9 +1443,6 @@ html:has(.sp-shell--facilitator) {
 }
 .sp-shell--facilitator .sp-teacher-detail .sp-teacher-info {
   gap: 6px;
-}
-.sp-shell--facilitator .sp-teacher-field-heading {
-  margin-top: 10px;
 }
 .sp-shell--facilitator .sp-teacher-field-heading > .sp-button {
   height: 28px;
@@ -1615,7 +1524,6 @@ html:has(.sp-shell--facilitator) {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 112px;
   margin: 0;
   padding: 24px;
   color: var(--sp-muted);
@@ -1623,14 +1531,15 @@ html:has(.sp-shell--facilitator) {
   line-height: 20px;
   text-align: center;
 }
-
-.sp-shell--facilitator .sp-teacher-toolbar .sp-tabs {
-  gap: 32px;
-}
 .sp-shell--facilitator .sp-teacher-toolbar .sp-tabs button,
 .sp-shell--facilitator .sp-teacher-projects .sp-new-project {
   font-size: 14.5px;
   line-height: 20px;
+}
+.sp-shell--facilitator .sp-teacher-projects .sp-new-project {
+  min-width: 150px;
+  height: 40px;
+  min-height: 40px;
 }
 
 .sp-shell--facilitator .sp-teacher-new-project .sp-image-options :is(label, .sp-gallery-button) {
@@ -1639,8 +1548,8 @@ html:has(.sp-shell--facilitator) {
   padding: 0 12px;
 }
 .sp-shell--facilitator .sp-teacher-new-project .sp-image-options svg {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
 }
 
 .sp-shell--facilitator
@@ -1668,6 +1577,7 @@ html:has(.sp-shell--facilitator) {
   font-weight: 400;
 }
 .sp-shell--facilitator .sp-image-options .sp-gallery-button[aria-pressed="true"] {
+  --sp-weight-action: var(--sp-weight-emphasis);
   font-weight: 600;
 }
 
@@ -1677,9 +1587,6 @@ html:has(.sp-shell--facilitator) {
   height: 24px;
 }
 
-.sp-shell--facilitator > .sp-wash {
-  z-index: 1;
-}
 .sp-shell--facilitator > .sp-account-header,
 .sp-shell--facilitator .sp-teacher-detail-head,
 .sp-shell--facilitator .sp-teacher-info > *,
@@ -1696,9 +1603,6 @@ html:has(.sp-shell--facilitator) {
 
 .sp-shell--facilitator:has(.sp-teacher-students, .sp-students) {
   --facilitator-content-layer: 4;
-}
-.sp-shell--facilitator:has(.sp-teacher-students, .sp-students) > .sp-wash--left {
-  z-index: 3;
 }
 .sp-shell--facilitator .sp-teacher-students,
 .sp-shell--facilitator .sp-students {
@@ -1747,10 +1651,6 @@ html:has(.sp-shell--facilitator) {
   flex: 1;
   min-height: 0;
   overflow: clip;
-}
-.sp-shell--facilitator .sp-organisation-view > :is(.sp-class-assignments, .sp-card) {
-  min-height: 0;
-  overflow: auto;
 }
 @media (max-width: 760px) {
   .sp-shell--facilitator .sp-teacher-columns {
@@ -1822,7 +1722,7 @@ html:has(.sp-shell--facilitator) {
   font-size: 14.5px;
   line-height: 20px;
 }
-.sp-shell--facilitator .sp-teacher-class-menu > button {
+.sp-shell--facilitator .sp-teacher-class-menu :is(.sp-select-options > button) {
   min-height: 32px;
   padding: 6px 10px;
 }
@@ -1850,10 +1750,10 @@ html:has(.sp-shell--facilitator) {
   isolation: isolate;
 }
 .sp-shell--facilitator .sp-teacher-toolbar .sp-tabs button:hover {
-  background: #eaeaea;
+  background: var(--sp-hover);
 }
 .sp-shell--facilitator .sp-teacher-detail {
-  padding: 50px 46px;
+  padding: 28px 50px 50px;
 }
 .sp-shell--facilitator .sp-teacher-detail-head {
   min-height: 57px;
@@ -1863,33 +1763,36 @@ html:has(.sp-shell--facilitator) {
   font-size: 12px;
 }
 .sp-shell--facilitator .sp-teacher-columns {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+  grid-template-columns: minmax(0, 540fr) minmax(0, 588fr);
   gap: 50px;
   margin-top: 20px;
 }
 .sp-shell--facilitator .sp-teacher-detail .sp-teacher-info {
-  padding: 8px;
-  margin: -8px;
+  padding: 8px 0 8px 8px;
+  margin: -8px 0 -8px -8px;
   grid-auto-rows: max-content;
 }
 .sp-shell--facilitator .sp-teacher-detail .sp-teacher-project-identity {
-  display: block;
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
   margin-bottom: 0;
 }
 .sp-shell--facilitator .sp-teacher-detail .sp-teacher-detail-cover {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 2.5;
+  flex: 0 0 177px;
+  width: 177px;
+  height: 102px;
   border-radius: 24px;
   object-fit: cover;
 }
 .sp-shell--facilitator .sp-teacher-project-identity h2 {
-  margin: 18px 0 0;
+  min-width: 0;
+  margin: 0;
   font-size: 25px;
   line-height: 1.35;
 }
 .sp-shell--facilitator .sp-teacher-assignment-actions {
-  margin: 0 0 12px;
+  margin: 14px 0 12px;
 }
 .sp-shell--facilitator .sp-teacher-metadata {
   grid-template-columns: 100px minmax(0, 1fr);
@@ -1932,16 +1835,17 @@ html:has(.sp-shell--facilitator) {
 }
 .sp-teacher-student-toolbar .sp-tabs button {
   flex: none;
+  height: 36px;
   min-height: 36px;
   border-bottom: 0;
-  padding: 8px 10px;
+  padding: 0 10px;
   border-radius: 8px;
   font-size: 15px;
   line-height: 20px;
   white-space: nowrap;
 }
 .sp-teacher-student-toolbar .sp-tabs button:hover {
-  background: #eae5df;
+  background: var(--sp-hover);
 }
 .sp-shell--facilitator .sp-teacher-select-projects {
   flex: 0 0 32px;
@@ -1950,7 +1854,6 @@ html:has(.sp-shell--facilitator) {
   min-height: 32px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
 }
 .sp-teacher-select-projects svg {
   width: 18px;
@@ -2017,34 +1920,6 @@ html:has(.sp-shell--facilitator) {
   font-size: 15px;
   line-height: 20px;
 }
-.sp-shell--facilitator .sp-dialog.sp-project-moderation-dialog {
-  width: min(400px, calc(100% - 32px));
-  padding: 28px;
-  background: var(--sp-surface);
-}
-.sp-shell--facilitator .sp-dialog.sp-project-moderation-dialog > h2 {
-  font-size: 20px;
-  line-height: 27px;
-}
-.sp-shell--facilitator .sp-dialog.sp-project-moderation-dialog .sp-dialog-body {
-  margin: 20px 0 0;
-  padding: 0;
-  gap: 16px;
-  font-size: 14px;
-  line-height: 1.35;
-}
-.sp-shell--facilitator .sp-project-moderation-dialog .sp-actions {
-  margin-top: 8px;
-  gap: 10px;
-  justify-content: flex-end;
-}
-.sp-shell--facilitator .sp-project-moderation-dialog .sp-actions > .sp-button {
-  height: 32px;
-  min-height: 32px;
-  padding: 0 16px;
-  font-size: 13px;
-  line-height: 18px;
-}
 @media (max-width: 800px) {
   .sp-shell--facilitator .sp-teacher-columns {
     grid-template-columns: minmax(0, 1fr);
@@ -2068,15 +1943,24 @@ html:has(.sp-shell--facilitator) {
   transform: none;
 }
 .sp-teacher-select-projects:hover:not(:disabled) {
-  background: #eae5df;
+  background: var(--sp-hover);
 }
 .sp-teacher-student-list {
   scrollbar-gutter: stable;
   border: solid transparent;
-  border-width: 0 6px 6px 0;
+  border-width: 0 0 var(--sp-scroll-inset);
 }
 .sp-shell--facilitator .sp-teacher-student-actions > .sp-button:not(.sp-teacher-review-history) {
-  font-weight: 500;
+  font-weight: 600;
+}
+.sp-shell--facilitator .sp-teacher-student-actions > .sp-button.sp-button--primary {
+  min-width: 136px;
+}
+.sp-shell--facilitator .sp-teacher-student-actions > .sp-button.sp-hide-action {
+  min-width: 88px;
+}
+.sp-shell--facilitator .sp-teacher-student-actions > .sp-button.admin-publication-delete {
+  min-width: 100px;
 }
 @media (min-width: 1051px) {
   .sp-teacher-student-toolbar > .sp-tabs {
@@ -2101,17 +1985,6 @@ html:has(.sp-shell--facilitator) {
   }
 }
 
-.sp-shell--facilitator .sp-project-moderation-dialog .sp-project-delete-confirmation {
-  color: #a51f24;
-  background: #fff4f4;
-  border-color: #d9b4b6;
-}
-.sp-shell--facilitator
-  .sp-project-moderation-dialog
-  .sp-project-delete-confirmation:hover:not(:disabled) {
-  background: #fbe2dd;
-}
-
 .sp-shell--facilitator .sp-organisation-view {
   grid-template-rows: auto auto auto minmax(0, 1fr);
   background: var(--facilitator-home-panel);
@@ -2122,7 +1995,6 @@ html:has(.sp-shell--facilitator) {
   align-self: stretch;
   min-height: 0;
   overflow: auto;
-  border: solid var(--facilitator-edge);
   border-width: 1px;
   scrollbar-gutter: stable;
 }
@@ -2184,9 +2056,1143 @@ html:has(.sp-shell--facilitator) {
   .sp-shell--facilitator .sp-teacher-student-list .sp-teacher-student {
     grid-template-columns: minmax(0, 1fr);
   }
-  .sp-shell--facilitator .sp-teacher-student-list .sp-teacher-student-status {
+  .sp-shell--facilitator .sp-teacher-detail .sp-teacher-student-list .sp-teacher-student-status {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 2;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
+}
+
+@media (max-width: 800px) {
+  .sp-shell.sp-shell--facilitator .sp-teacher-detail {
+    overflow-y: auto;
+  }
+  .sp-shell--facilitator .sp-teacher-columns {
+    flex: none;
+    grid-template-rows: auto;
+  }
+  .sp-shell--facilitator .sp-teacher-columns > :is(.sp-teacher-info, .sp-teacher-students),
+  .sp-shell--facilitator .sp-teacher-student-list {
+    overflow: visible;
+  }
+}
+
+@media (min-width: 601px) {
+  .sp-shell--facilitator:has(.sp-teacher-welcome) > .sp-account-header {
+    padding-top: 30px;
+    left: 0;
+  }
+}
+.sp-shell.sp-shell.sp-shell.sp-shell--facilitator:has(.sp-teacher-welcome) > .sp-workspace {
+  padding-top: 35px;
+  width: calc(100% - 2 * var(--sp-workspace-gutter));
+  max-width: 1280px;
+}
+.sp-shell--facilitator .sp-teacher-projects {
+  min-height: 0;
+  margin-inline: 0;
+}
+
+@media (max-width: 600px) {
+  .sp-shell--facilitator .sp-teacher-new-project .sp-form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sp-shell--facilitator .sp-teacher-detail .sp-teacher-detail-cover {
+    flex-basis: 120px;
+    width: 120px;
+    height: 69px;
+  }
+  .sp-shell--facilitator .sp-teacher-project-identity h2 {
+    font-size: 20px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (min-width: 801px) {
+  .sp-shell--facilitator .sp-teacher-detail .sp-teacher-detail-head > .sp-close-button {
+    margin-top: 8px;
+  }
+}
+
+.sp-shell--facilitator
+  .sp-teacher-detail
+  :is(.sp-teacher-assignment-actions, .sp-teacher-student-actions)
+  > .admin-publication-delete:hover:not(:disabled) {
+  background: var(--sp-danger-hover);
+  color: var(--sp-danger-hover-ink);
+  border-color: var(--sp-danger-hover-border);
+}
+
+.sp-shell--facilitator
+  :is(
+    .sp-teacher-heading h2,
+    .sp-teacher-card h3,
+    .sp-teacher-detail-head h1,
+    .sp-teacher-project-identity h2,
+    .sp-teacher-field-heading h3,
+    .sp-organisation-view h1,
+    .sp-organisation-view h2,
+    .sp-teacher-new-project h1,
+    .sp-project-details h2,
+    .sp-students-header h2
+  ) {
+  font-weight: 600;
+}
+.sp-shell--facilitator .sp-teacher-new-project :is(.sp-field > label, .sp-project-class > label) {
+  font-weight: 500;
+}
+.sp-shell--facilitator
+  :is(.sp-teacher-toolbar, .sp-teacher-student-toolbar, .sp-student-filters)
+  .sp-tabs
+  button {
+  font-weight: 400;
+}
+.sp-shell--facilitator
+  :is(.sp-teacher-toolbar, .sp-teacher-student-toolbar, .sp-student-filters)
+  .sp-tabs
+  button[aria-selected="true"] {
+  font-weight: 600;
+}
+.sp-shell--facilitator .sp-teacher-field-heading > .sp-button,
+.sp-shell--facilitator .sp-teacher-projects .sp-new-project {
+  font-weight: 600;
+}
+
+.sp-shell--facilitator .sp-facilitator-submission .sp-progress-actions .sp-button {
+  font-weight: 600;
+}
+.sp-shell--facilitator .sp-facilitator-submission .sp-progress-draft label {
+  font-weight: 500;
+}
+
+@media (min-width: 801px) {
+  .sp-shell--facilitator .sp-teacher-projects {
+    padding: 48px 50px;
+  }
+  .sp-shell--facilitator .sp-teacher-heading {
+    min-height: 64px;
+  }
+  .sp-shell--facilitator .sp-teacher-heading > div:first-child {
+    padding-top: 4px;
+  }
+  .sp-shell--facilitator .sp-teacher-heading h2 {
+    line-height: 1.3;
+  }
+  .sp-shell--facilitator .sp-teacher-heading p {
+    margin-top: 5px;
+  }
+  .sp-shell--facilitator .sp-teacher-heading .sp-search {
+    margin-top: 6px;
+  }
+  .sp-shell--facilitator .sp-teacher-toolbar {
+    min-height: 60px;
+    margin: 36px 0 25px;
+    padding: 8px 0 10px;
+  }
+  .sp-shell--facilitator .sp-teacher-toolbar .sp-tabs {
+    margin-inline: 0;
+    padding: 0;
+    gap: 24px;
+  }
+  .sp-shell--facilitator .sp-teacher-toolbar .sp-tabs button {
+    min-height: 41px;
+    padding-inline: 0;
+  }
+  .sp-shell--facilitator .sp-teacher-grid {
+    gap: 10px;
+  }
+}
+
+/* Keep the class filter paired with the adjacent project action. */
+.sp-shell--facilitator .sp-teacher-class-filter > button {
+  height: 40px;
+  min-height: 40px;
+  padding-inline: 16px;
+  border-color: var(--sp-selection-border);
+  background: var(--sp-surface);
+  font-family: var(--sp-font);
+  font-weight: 500;
+}
+.sp-shell--facilitator .sp-teacher-class-menu {
+  padding: 6px;
+  border-color: var(--sp-border);
+  border-radius: 16px;
+  background: var(--sp-surface);
+  font-family: var(--sp-font);
+}
+.sp-shell--facilitator .sp-teacher-class-menu :is(.sp-select-options > button) {
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+.sp-shell--facilitator
+  .sp-teacher-class-menu
+  :is(.sp-select-options > button)[aria-selected="true"] {
+  font-weight: var(--sp-weight-action);
+}
+.sp-shell--facilitator
+  .sp-teacher-class-menu
+  :is(.sp-select-options > button):is(:hover, [data-active="true"]) {
+  background: var(--sp-hover);
+}
+.sp-shell--facilitator .sp-teacher-class-menu :is(.sp-select-options > button):active {
+  background: var(--sp-soft);
+}
+@media (min-width: 801px) {
+  .sp-shell.sp-shell--facilitator > .sp-workspace > .sp-teacher-projects {
+    height: 844px;
+    flex: none;
+  }
+}
+
+.sp-shell--facilitator
+  .sp-teacher-toolbar-actions
+  :is(.sp-new-project, .sp-teacher-class-filter > button) {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 16px;
+  font-size: 15px;
+  line-height: 20px;
+}
+.sp-shell--facilitator .sp-teacher-class-filter > button {
+  border-color: var(--sp-border);
+}
+.sp-shell--facilitator .sp-teacher-class-menu {
+  font-size: 15px;
+  line-height: 20px;
+}
+
+@media (min-width: 1001px) {
+  .sp-shell--facilitator .sp-teacher-new-project .sp-students {
+    display: flex;
+    flex-direction: column;
+    height: min(810px, max(360px, calc(100dvh - 342px)));
+  }
+  .sp-shell--facilitator .sp-teacher-new-project .sp-students-header {
+    flex: none;
+  }
+  .sp-shell--facilitator .sp-teacher-new-project .sp-students > [role="tabpanel"] {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .sp-shell--facilitator .sp-teacher-new-project .sp-students .sp-list-empty {
+    min-height: 100%;
+  }
+  .sp-shell--facilitator .sp-teacher-new-project .sp-students-footer {
+    flex: none;
+    margin: 0;
+  }
+}
+
+.sp-shell--facilitator .sp-teacher-new-project {
+  --sp-panel-circle-left: none;
+  --sp-panel-circle-right: none;
+  --sp-panel-tint: var(--sp-panel-fill);
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-students-footer {
+  background: var(--sp-soft);
+}
+
+.sp-shell--facilitator .sp-teacher-new-project .sp-students .sp-students-header {
+  padding-bottom: 8px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-student-filters {
+  align-items: center;
+  gap: 12px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-students .sp-students-header {
+  row-gap: 7px;
+}
+.sp-shell--facilitator
+  .sp-teacher-new-project
+  .sp-students-header
+  > :is(.sp-search, .sp-student-filters) {
+  margin-top: 11px;
+}
+.sp-shell--facilitator
+  :is(.sp-student-filters, .sp-teacher-student-toolbar, .sp-student-filters, .sp-teacher-toolbar)
+  .sp-tabs
+  button {
+  height: 36px;
+  min-height: 36px;
+  font-size: 15px;
+  line-height: 20px;
+}
+.sp-shell--facilitator :is(.sp-selection-toggle, .sp-teacher-select-projects) > svg {
+  width: calc(144px / 7);
+  height: calc(144px / 7);
+  flex: none;
+}
+.sp-shell--facilitator
+  :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select):focus-visible {
+  outline: 2px solid var(--sp-focus);
+  outline-offset: -2px;
+}
+.sp-shell--facilitator .sp-search:focus-within {
+  outline: 2px solid var(--sp-focus);
+  outline-offset: -2px;
+}
+.sp-shell--facilitator .sp-search input:focus-visible {
+  outline: none;
+}
+.sp-shell--facilitator .sp-teacher-select-projects {
+  width: 40px;
+  min-width: 40px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+}
+@media (min-width: 801px) {
+  .sp-shell--facilitator .sp-organisation-view.sp-panel-surface {
+    border-radius: 50px;
+  }
+}
+
+.sp-shell.sp-shell--facilitator .sp-search input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.sp-shell--facilitator .sp-search:focus-within {
+  outline: 3px solid var(--sp-focus);
+  outline-offset: 3px;
+}
+
+@media (min-width: 801px) {
+  .sp-shell--facilitator .sp-teacher-new-project > .sp-assignment-create {
+    margin-inline-end: calc(-16px - var(--sp-scroll-size) - 2 * var(--sp-scroll-inset));
+    padding-inline-end: 16px;
+    scrollbar-gutter: stable;
+  }
+}
+
+.sp-shell--facilitator .sp-teacher-new-project {
+  --facilitator-create-action-fill: #332e2a;
+  padding-bottom: 30px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-form-footer {
+  margin-top: 24px;
+  padding-top: 24px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-form-footer .sp-button {
+  min-height: 36px;
+  height: 36px;
+  min-width: 88px;
+  padding: 0 16px;
+  background: var(--sp-soft);
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-form-footer .sp-button--primary {
+  min-width: 140px;
+  background: var(--facilitator-create-action-fill);
+  border-color: var(--facilitator-create-action-fill);
+}
+.sp-shell--facilitator
+  .sp-teacher-new-project
+  .sp-form-footer
+  .sp-button--primary:hover:not(:disabled) {
+  background: var(--sp-primary-hover);
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-person-row {
+  min-height: 64px;
+  padding-block: 10px;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-students-footer {
+  padding-block: 14px;
+}
+@media (max-width: 760px) {
+  .sp-shell--facilitator .sp-teacher-new-project {
+    padding-bottom: 24px;
+  }
+}
+.sp-shell--facilitator
+  .sp-teacher-new-project
+  .sp-form-footer
+  .sp-button:not(.sp-button--primary):hover:not(:disabled) {
+  background: var(--sp-hover);
+}
+
+.sp-shell--facilitator
+  .sp-teacher-new-project
+  :is(.sp-page-heading h1, .sp-project-details > div > h2, .sp-students-header h2) {
+  font-weight: var(--sp-weight-heading);
+}
+.sp-shell--facilitator
+  .sp-teacher-new-project
+  :is(.sp-field > label, .sp-project-class > label, .sp-image-options legend) {
+  font-weight: 600;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-students-header .sp-badge {
+  font-weight: 500;
+}
+.sp-shell--facilitator .sp-teacher-new-project .sp-students-header > .sp-student-filters {
+  margin-top: 1.5px;
+}
+
+.sp-shell--facilitator .sp-teacher-toolbar-actions .sp-teacher-class-filter {
+  flex: 0 1 160px;
+  width: 160px;
+}
+.sp-shell--facilitator
+  .sp-teacher-toolbar-actions
+  :is(.sp-teacher-class-filter > button, .sp-new-project) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding-block: 0;
+  border-width: 1px;
+  border-radius: 999px;
+}
+
+.sp-shell--facilitator .sp-teacher-toolbar-actions > .sp-new-project {
+  min-width: 0;
+  width: auto;
+  padding-inline: 16px;
+  font: 600 15px/20px var(--sp-font);
+  background: var(--action);
+  border-color: var(--action);
+}
+.sp-shell--facilitator .sp-teacher-toolbar-actions > .sp-new-project:hover {
+  background: var(--sp-primary-hover);
+}
+
+.sp-shell--facilitator .sp-teacher-projects .sp-work-status {
+  font-weight: 400;
+}
+
+.sp-shell--facilitator .sp-teacher-class-filter > button > span {
+  text-box-trim: none;
+  text-box-edge: auto;
+  line-height: 20px;
+}
+
+.sp-shell--facilitator .sp-teacher-projects > [role="tabpanel"] {
+  scrollbar-gutter: stable;
+  margin-inline-end: calc(-1 * var(--sp-scroll-inset));
+  padding-inline-end: 3px;
+}
+
+@media (min-width: 801px) {
+  .sp-shell--facilitator .sp-teacher-projects {
+    padding-inline: 50px;
+  }
+}
+
+.sp-shell--facilitator .sp-teacher-projects > [role="tabpanel"] > .sp-teacher-grid {
+  overflow: visible;
+  flex: none;
+  min-height: auto;
+}
+
+.sp-shell--facilitator .sp-search {
+  color: var(--sp-ink);
+}
+.sp-shell--facilitator .sp-search input {
+  color: var(--sp-ink);
+}
+.sp-shell--facilitator .sp-search input::placeholder {
+  color: var(--sp-muted);
+  opacity: 1;
+}
+.sp-shell--facilitator .sp-search > svg {
+  color: var(--sp-ink);
+}
+
+/* Project review uses the administrator detail layout with facilitator actions. */
+@media (min-width: 801px) {
+  .sp-shell--facilitator .sp-teacher-detail {
+    padding-block: 50px;
+  }
+  .sp-shell--facilitator .sp-teacher-columns {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+  }
+}
+.sp-shell--facilitator .sp-teacher-detail-head {
+  min-height: 57px;
+}
+.sp-shell--facilitator .sp-teacher-detail-head h1 {
+  line-height: 30px;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-project-identity {
+  display: block;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-detail-cover {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2.5;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-project-identity h2 {
+  margin: 20px 0 17px;
+  font: 600 25px/34px var(--sp-font);
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-assignment-actions {
+  margin: 0 0 23px;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-assignment-actions > .sp-button {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-metadata dd:not(:has(.sp-work-status)) {
+  font-weight: 600;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-field-heading h3 {
+  line-height: 27px;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-info > .sp-teacher-value {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  line-height: 20px;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-students > .sp-search {
+  flex: none;
+  width: calc(100% - 40px);
+  margin: 20px 20px 0;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-student-toolbar {
+  margin-top: 20px;
+  min-height: 41px;
+  padding: 0 20px 4px;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-student-toolbar .sp-tabs {
+  gap: var(--sp-selection-tab-gap);
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-student-toolbar .sp-tabs button {
+  height: 36px;
+  padding-inline: 5px;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-student-toolbar .sp-tabs button:first-child {
+  margin-inline-start: -5px;
+}
+.sp-shell--facilitator
+  .sp-teacher-detail
+  .sp-teacher-student-actions
+  > .sp-button:not(.sp-teacher-review-history) {
+  font-size: 14px;
+  line-height: 20px;
+  gap: 6px;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-student-actions > .sp-button > svg {
+  margin-right: 0;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-student-list {
+  scrollbar-gutter: stable;
+}
+
+.sp-shell--facilitator .sp-search {
+  background-clip: padding-box;
+}
+.sp-shell--facilitator .sp-teacher-detail {
+  border: 1px solid transparent;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-metadata dd:last-child {
+  font-weight: 400;
+}
+.sp-shell--facilitator .sp-teacher-detail {
+  --facilitator-assignment-delete-ink: #c94032;
+  --facilitator-assignment-delete-border: #f4c5bc;
+  --facilitator-assignment-delete-fill: #fef2f0;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-assignment-actions .admin-publication-delete {
+  color: var(--facilitator-assignment-delete-ink);
+  border-color: var(--facilitator-assignment-delete-border);
+  background: var(--facilitator-assignment-delete-fill);
+}
+
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-info {
+  gap: 0;
+  margin: 0
+    calc(
+      -1 * (var(--sp-scroll-size) + 2 * var(--sp-scroll-inset) + var(--sp-card-scroll-clearance))
+    )
+    0 0;
+  padding: 0 var(--sp-card-scroll-clearance) 0 0;
+  scrollbar-gutter: stable;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-field-heading {
+  margin-top: 24px;
+  margin-bottom: 8px;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-student-toolbar .sp-tabs {
+  gap: 22px;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-student-toolbar .sp-tabs button {
+  padding-inline: 0;
+  font-weight: 400;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-student-toolbar .sp-tabs button:first-child {
+  margin-inline-start: 0;
+}
+.sp-shell--facilitator
+  .sp-teacher-detail
+  .sp-teacher-student-toolbar
+  .sp-tabs
+  button[aria-selected="true"] {
+  font-weight: 600;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-student-status {
+  width: 124px;
+  justify-self: start;
+}
+.sp-shell--facilitator
+  .sp-teacher-detail
+  .sp-teacher-student
+  .sp-teacher-student-actions
+  .sp-teacher-review-history {
+  right: 10px;
+}
+
+.sp-shell--facilitator .sp-teacher-detail .sp-assignment-inline :is(input, textarea) {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding-inline: 16px;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-assignment-inline input {
+  height: 44px;
+  min-height: 44px;
+  padding-block: 0;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-select-projects {
+  position: relative;
+  isolation: isolate;
+  --sp-toggle-ink-width: 17px;
+  color: var(--sp-muted);
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-select-projects:hover:not(:disabled) {
+  background: transparent;
+}
+
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-info {
+  margin: 0;
+  padding: 0;
+  scrollbar-gutter: auto;
+}
+
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-student-actions {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-student > .sp-row-select-input {
+  width: 100%;
+  height: 100%;
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-bulk-bar {
+  z-index: 5;
+  justify-content: space-between;
+}
+.sp-shell--facilitator .sp-teacher-bulk-bar .sp-button {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 13px;
+  gap: 6px;
+  border-radius: 999px;
+  font: 600 14px/20px var(--sp-font);
+}
+.sp-shell--facilitator .sp-teacher-bulk-bar .sp-button > svg {
+  width: 16px;
+  height: 16px;
+}
+.sp-shell--facilitator .sp-teacher-students:has(> .sp-teacher-bulk-bar) .sp-teacher-student-list {
+  padding-bottom: var(--sp-selection-bar-height, 52px);
+}
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-bulk-bar {
+  position: absolute;
+  inset: auto 0 0;
+}
+.sp-shell--facilitator .sp-teacher-student-actions:disabled .sp-teacher-review-history {
+  background: transparent;
+}
+
+.sp-shell--facilitator .sp-teacher-students:has(> .sp-teacher-bulk-bar) {
+  padding-bottom: var(--sp-selection-bar-height, 52px);
+}
+.sp-shell--facilitator
+  .sp-teacher-students:has(> .sp-teacher-bulk-bar)
+  > .sp-teacher-students-note {
+  display: none;
+}
+.sp-shell--facilitator .sp-teacher-students:has(> .sp-teacher-bulk-bar) .sp-teacher-student-list {
+  padding-bottom: 0;
+}
+
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-assignment-actions > .sp-hide-action {
+  border: 1px solid var(--sp-selection-border);
+}
+.sp-shell--facilitator .sp-teacher-students:has(> .sp-teacher-bulk-bar) .sp-teacher-student-list {
+  border-bottom-width: 0;
+}
+
+/* Moderation proportions measured from facilitator Figma nodes 441:3955–441:4020. */
+.sp-shell--facilitator
+  .sp-teacher-detail
+  .sp-teacher-assignment-actions
+  > .sp-button:is(.sp-hide-action, .admin-publication-delete) {
+  padding-inline: 18px;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: var(--sp-weight-action);
+}
+.sp-shell--facilitator
+  .sp-teacher-detail
+  .sp-teacher-student-actions
+  > .sp-button:is(.sp-hide-action, .admin-publication-delete) {
+  padding-inline: 18px;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 500;
+}
+.sp-shell--facilitator
+  .sp-teacher-detail
+  :is(.sp-teacher-assignment-actions, .sp-teacher-student-actions)
+  > :is(.sp-hide-action, .admin-publication-delete)
+  > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin: 0;
+}
+/* Figma Home's panel has no fill wash; its circles provide the local tint. */
+.sp-shell--facilitator .sp-teacher-projects {
+  --sp-panel-tint: transparent;
+}
+
+/* Its visible Lucide lines sit 1.28px below the adjacent tab ink in both selection states. */
+.sp-shell--facilitator .sp-teacher-student-toolbar > .sp-selection-toggle {
+  translate: 0 -1.25px;
+}
+
+.sp-teacher-class-menu .sp-select-footer {
+  margin-top: 3px;
+  padding-top: 3px;
+  border-top: 1px solid var(--sp-border);
+}
+.sp-shell--facilitator .sp-teacher-class-menu .sp-select-footer a {
+  display: flex;
+  width: 100%;
+  white-space: nowrap;
+  line-height: 20px;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: var(--sp-ink);
+  font-size: inherit;
+  font-weight: var(--sp-weight-body);
+  text-decoration: none;
+}
+.sp-teacher-class-menu .sp-select-footer a:hover {
+  background: var(--sp-hover);
+}
+.sp-teacher-class-menu .sp-select-footer a:focus-visible {
+  outline: 2px solid var(--sp-focus);
+  outline-offset: -2px;
+}
+
+/* Options and the management footer share one row rhythm. */
+.sp-shell--facilitator
+  .sp-teacher-class-menu
+  :is(.sp-select-options > button, .sp-select-footer > a) {
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  padding: 8px 10px;
+  margin-bottom: 0;
+  font-size: inherit;
+  line-height: 20px;
+}
+
+/* Match Admin's scrollable View All Projects card panel. */
+@media (min-width: 801px) {
+  .sp-shell--facilitator .sp-teacher-projects {
+    padding-inline: 50px;
+  }
+  .sp-shell--facilitator .sp-teacher-projects .sp-teacher-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
+/* Match the facilitator Home toolbar's button scale. */
+.sp-shell--facilitator .sp-organisation-view > .sp-home-toolbar > .sp-button,
+.sp-shell--facilitator .sp-organisation-view > .sp-page-heading .sp-actions > .sp-button,
+.sp-shell--facilitator .sp-organisation-class-select > button {
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 16px;
+  font-size: 15px;
+  line-height: 20px;
+  text-decoration: none;
+}
+.sp-organisation-view :is(.sp-class-create-action, .sp-class-refresh-action) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.sp-shell--facilitator .sp-organisation-view .sp-class-refresh-action {
+  background: var(--sp-soft);
+  border-color: var(--sp-border);
+  color: var(--sp-ink);
+}
+.sp-shell--facilitator .sp-organisation-view .sp-class-refresh-action:hover:not(:disabled) {
+  background: var(--sp-hover);
+}
+
+.sp-class-project-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.sp-organisation-view .sp-class-project-heading h2 {
+  margin: 0;
+}
+.sp-organisation-view .sp-class-project-heading + .sp-organisation-projects > h2 {
+  display: none;
+}
+.sp-shell--facilitator .sp-organisation-view > :is(.sp-class-assignments, .sp-card) .sp-button {
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 16px;
+  font-size: 15px;
+  line-height: 20px;
+  text-decoration: none;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* Use the same inset heading/close row as the other detail pages. */
+.sp-shell--facilitator .sp-organisation-view {
+  padding: 48px 50px;
+  gap: 24px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas: "heading heading" "identity controls" "projects members";
+}
+.sp-organisation-view > .sp-page-heading {
+  grid-area: heading;
+  padding-right: 0;
+  align-items: flex-start;
+}
+.sp-organisation-view .sp-page-heading > .sp-organisation-close {
+  position: static;
+  margin: 0;
+  flex: 0 0 40px;
+}
+.sp-organisation-view > .sp-organisation-identity {
+  grid-area: identity;
+  align-self: center;
+  min-width: 0;
+  margin: 0;
+}
+.sp-organisation-view > .sp-organisation-identity h2 {
+  min-width: 0;
+  font-size: 25px;
+  line-height: 1.25;
+  font-weight: var(--sp-weight-heading);
+  overflow-wrap: break-word;
+}
+.sp-organisation-view > .sp-home-toolbar {
+  grid-area: controls;
+  padding: 0;
+  border: 0;
+  justify-content: flex-end;
+  align-items: center;
+  align-self: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.sp-organisation-view .sp-organisation-class-select {
+  width: 144px;
+  flex: 0 0 144px;
+  min-width: 0;
+}
+.sp-organisation-view > .sp-class-assignments {
+  grid-area: projects;
+}
+.sp-organisation-view > .sp-card {
+  grid-area: members;
+}
+.sp-shell--facilitator .sp-organisation-view > :is(.sp-class-assignments, .sp-card) {
+  padding: 20px;
+  border-radius: 16px;
+}
+.sp-organisation-view .sp-class-project-heading {
+  min-height: 47px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+@media (max-width: 1100px) {
+  .sp-shell--facilitator .sp-organisation-view {
+    padding: 28px 24px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "heading" "identity" "controls" "projects" "members";
+    grid-template-rows: auto;
+    overflow-y: auto;
+  }
+}
+
+/* Compact class selection; its width follows the task, not the empty toolbar space. */
+.sp-organisation-view .sp-organisation-class-select {
+  position: relative;
+  gap: 0;
+}
+.sp-organisation-view .sp-organisation-class-select > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.sp-shell--facilitator .sp-organisation-class-select > button {
+  border-radius: 999px;
+}
+.sp-organisation-view > .sp-organisation-identity {
+  gap: 12px;
+}
+.sp-shell--facilitator .sp-organisation-view .sp-class-project-create {
+  background: var(--sp-soft);
+}
+@media (max-width: 1100px) {
+  .sp-organisation-view > .sp-home-toolbar {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 480px) {
+  .sp-organisation-view .sp-organisation-class-select {
+    width: 120px;
+    flex-basis: 120px;
+  }
+  .sp-organisation-view > .sp-home-toolbar {
+    gap: 8px;
+  }
+}
+
+.sp-shell--facilitator .sp-organisation-view .sp-class-refresh-action {
+  background-color: var(--sp-soft);
+  background-image: none;
+  backdrop-filter: none;
+  opacity: 1;
+  mix-blend-mode: normal;
+  isolation: isolate;
+}
+.sp-shell--facilitator .sp-organisation-view .sp-class-refresh-action:hover:not(:disabled) {
+  background-color: var(--sp-hover);
+  background-image: none;
+}
+
+/* Use the detail-page body scale without altering the approved buttons. */
+.sp-shell--facilitator .sp-organisation-view > .sp-page-heading h1 {
+  line-height: 1.25;
+}
+.sp-shell--facilitator .sp-organisation-view .sp-table tbody :is(th, td) {
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* One typographic rhythm across the organisation's paired tables. */
+.sp-shell--facilitator .sp-organisation-view > .sp-page-heading p {
+  margin-top: 8px;
+}
+.sp-organisation-view .sp-organisation-identity .sp-avatar {
+  width: 50px;
+  height: 50px;
+}
+.sp-shell--facilitator .sp-organisation-view .sp-table thead th {
+  font-size: 12px;
+  font-weight: var(--sp-weight-action);
+  line-height: 18px;
+}
+.sp-shell--facilitator .sp-organisation-view .sp-table tbody :is(th, td) {
+  font-size: 13px;
+  line-height: 20px;
+}
+.sp-shell--facilitator .sp-organisation-view :is(.sp-hint, .sp-organisation-account-hint) {
+  font-size: 12px;
+  font-weight: var(--sp-weight-body);
+  line-height: 18px;
+}
+
+/* The reserved scrollbar is part of the right inset, not extra panel padding. */
+.sp-shell--facilitator .sp-organisation-view > :is(.sp-class-assignments, .sp-card) {
+  padding-inline-end: calc(20px - var(--sp-scroll-size) - 2 * var(--sp-scroll-inset));
+}
+
+/* Match Admin's menu states; field dimensions remain specific to each screen. */
+.sp-shell[data-account-role="Educator"] :is(.sp-project-class-menu, .sp-organisation-class-menu) {
+  padding: 6px;
+  border: 1px solid var(--sp-border);
+  border-radius: 8px;
+  background: var(--sp-surface);
+  color: var(--sp-ink);
+  box-shadow: var(--sp-admin-select-menu-shadow);
+  font-family: var(--sp-font);
+  font-weight: var(--sp-weight-body);
+  line-height: 20px;
+}
+.sp-shell[data-account-role="Educator"] .sp-organisation-class-menu {
+  font-size: 15px;
+}
+.sp-shell[data-account-role="Educator"]
+  :is(.sp-project-class-menu, .sp-organisation-class-menu)
+  [role="option"] {
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font: inherit;
+}
+.sp-shell[data-account-role="Educator"]
+  :is(.sp-project-class-menu, .sp-organisation-class-menu)
+  [role="option"][aria-selected="true"] {
+  font-weight: var(--sp-weight-action);
+}
+.sp-shell[data-account-role="Educator"]
+  :is(.sp-project-class-menu, .sp-organisation-class-menu)
+  [role="option"][data-active="true"] {
+  background: var(--sp-soft);
+}
+.sp-shell[data-account-role="Educator"]
+  :is(.sp-project-class-menu, .sp-organisation-class-menu)
+  [role="option"]:hover:not(:disabled) {
+  background: var(--sp-hover);
+}
+.sp-shell[data-account-role="Educator"]
+  :is(.sp-project-class, .sp-organisation-class-select)
+  > button[role="combobox"] {
+  font-weight: var(--sp-weight-body);
+  border-color: var(--sp-border);
+  background: var(--sp-surface);
+}
+.sp-shell[data-account-role="Educator"]
+  :is(.sp-project-class, .sp-organisation-class-select)
+  > button[role="combobox"]:hover:not(:disabled) {
+  background: var(--sp-hover);
+}
+.sp-shell[data-account-role="Educator"]
+  :is(.sp-project-class, .sp-organisation-class-select)
+  > button[role="combobox"]:focus-visible {
+  outline: 2px solid var(--sp-focus);
+  outline-offset: 2px;
+}
+.sp-shell[data-account-role="Educator"] .sp-teacher-class-menu .sp-select-footer a {
+  border-radius: 6px;
+}
+
+.sp-organisation-class-select > button > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.sp-shell--facilitator .sp-organisation-view .sp-class-project-create:hover:not(:disabled) {
+  background: var(--sp-hover);
+}
+
+/* New Class uses the same one-field form proportions as Admin Add Organisation. */
+.sp-shell--facilitator .sp-dialog.sp-class-form-dialog {
+  width: min(400px, calc(100% - 32px));
+  padding: var(--sp-form-dialog-inset);
+  background: var(--sp-surface);
+  border: 1px solid var(--sp-border);
+  border-radius: 20px;
+}
+.sp-shell--facilitator .sp-class-form-dialog > h2 {
+  margin: 0 40px 0 0;
+  font-size: var(--sp-form-dialog-title-size);
+  line-height: 28px;
+  font-weight: var(--sp-weight-heading);
+  text-box-trim: trim-both;
+}
+.sp-shell--facilitator .sp-class-form-dialog > .sp-dialog-dismiss {
+  font-size: var(--sp-form-dialog-title-size);
+  top: calc(var(--sp-form-dialog-inset) + (1cap - 36px) / 2);
+  right: var(--sp-form-dialog-inset);
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+}
+.sp-class-form-dialog .sp-dialog-body {
+  margin: 20px 0 0;
+}
+.sp-class-form-dialog .sp-home-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.sp-shell--facilitator .sp-class-form-dialog .sp-field > label {
+  font-size: var(--sp-form-dialog-label-size);
+  font-weight: var(--sp-weight-action);
+  color: var(--sp-muted);
+}
+.sp-shell--facilitator .sp-class-form-dialog .sp-field input {
+  box-sizing: border-box;
+  height: 46px;
+  min-height: 46px;
+  padding: 11px 16px;
+  font-size: 14px;
+  line-height: 21px;
+  border: 1px solid var(--sp-border);
+  border-radius: 12px;
+  background: var(--sp-hover-light);
+  color: var(--sp-ink);
+}
+.sp-class-form-dialog .sp-form-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin: 0;
+}
+.sp-shell--facilitator .sp-class-form-dialog .sp-form-dialog-actions > .sp-button {
+  width: auto;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 16px;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.sp-shell--facilitator .sp-class-form-dialog .sp-form-dialog-actions > .sp-button--primary {
+  --sp-button-primary-base: var(--sp-admin-primary-surface);
+  background: var(--sp-admin-primary-surface);
+  border-color: var(--sp-admin-primary-surface);
+}
+.sp-shell--facilitator
+  .sp-class-form-dialog
+  .sp-form-dialog-actions
+  > .sp-button--primary:hover:not(:disabled) {
+  background: var(--sp-primary-hover);
+}
+
+/* Keep the list viewport stable when the note becomes the selection bar. */
+.sp-shell--facilitator .sp-teacher-students > .sp-teacher-students-note {
+  box-sizing: border-box;
+  flex: 0 0 var(--sp-selection-bar-height, 52px);
+  min-height: var(--sp-selection-bar-height, 52px);
+}
+
+.sp-shell[data-account-role="Educator"] .sp-legacy-class-menu {
+  font-size: 14px;
 }
