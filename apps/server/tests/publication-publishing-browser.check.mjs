@@ -344,7 +344,7 @@ try {
   assert.equal(await moderate("hide"), 204);
   await student.goto(`${origin}/home`);
   await student.getByRole("tab", { name: "Published", exact: true }).click();
-  await student.getByText("No published projects are available yet.", { exact: true }).waitFor();
+  await student.getByText("No published projects yet.", { exact: true }).waitFor();
   assert.equal((await read(student, `/api/v1/projects/${data.projectId}`)).status, 200);
   assert.equal((await read(viewer, snapshot)).status, 404);
 
