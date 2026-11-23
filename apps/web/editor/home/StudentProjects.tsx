@@ -40,6 +40,7 @@ export function StudentProjectDetails({
   onClose,
   onOpen,
   onReviewChanged,
+  onRetryDetails,
 }: {
   row: StudentProjectRow;
   feedback: readonly Decision[];
@@ -49,12 +50,21 @@ export function StudentProjectDetails({
   onClose: () => void;
   onOpen: () => void;
   onReviewChanged?: () => void;
+  onRetryDetails: () => void;
 }) {
   const assignment = row.assignment?.details;
   const initialReview = assignment?.projects.find(
     (project) => project.projectId === row.project.projectId,
   )?.reviewState;
-  const [submittedState, setSubmittedState] = useState<"pending" | "approved" | null>(null);
+  const [submission, setSubmission] = useState<{
+    state: "pending" | "approved";
+    revision: number;
+    previousReview: typeof initialReview;
+  } | null>(null);
+  const submittedState =
+    submission?.revision === row.project.revision && submission.previousReview === initialReview
+      ? submission.state
+      : null;
   const approved = (submittedState ?? initialReview) === "approved";
   const pending = (submittedState ?? initialReview) === "pending";
   const [action, setAction] = useState<"request" | "publish" | null>(null);
@@ -62,7 +72,7 @@ export function StudentProjectDetails({
   const [historyReady, setHistoryReady] = useState(!assignment);
   const markHistoryReady = useCallback(() => setHistoryReady(true), []);
   // Keep one modal visible while preserving the details scroll and review state
-  const modal = useModal(historyReady && !feedbackLoading && action === null);
+  const modal = useModal((!assignment || historyReady) && !feedbackLoading && action === null);
   return (
     <>
       <dialog
@@ -129,10 +139,15 @@ export function StudentProjectDetails({
                   </div>
                 </>
               )}
-              {!assignment && <p>Assignment details are not available for this project.</p>}
-              <div className="sp-student-detail-comments">
-                <h2>Reviews:</h2>
-                {assignment && (
+              {!assignment && (
+                <div className="sp-student-detail-section" role="alert">
+                  <p>Couldn’t load project details.</p>
+                  <Button onClick={onRetryDetails}>Retry</Button>
+                </div>
+              )}
+              {assignment && (
+                <div className="sp-student-detail-comments">
+                  <h2>Reviews:</h2>
                   <ProgressReviews
                     key={`${row.project.projectId}:${actorId}`}
                     projectId={row.project.projectId}
@@ -145,8 +160,8 @@ export function StudentProjectDetails({
                     onHistorySettled={markHistoryReady}
                     onGuard={ignoreGuard}
                   />
-                )}
-              </div>
+                </div>
+              )}
             </div>
             <div className="sp-student-detail-actions">
               {assignment && !pending && (
@@ -174,8 +189,12 @@ export function StudentProjectDetails({
           projectId={row.project.projectId}
           actorId={actorId}
           onClose={() => setAction(null)}
-          onSubmitted={(_revision, approved) => {
-            setSubmittedState(approved ? "approved" : "pending");
+          onSubmitted={(revision, approved) => {
+            setSubmission({
+              state: approved ? "approved" : "pending",
+              revision,
+              previousReview: initialReview,
+            });
             // Refresh the card too so closing details cannot show the previous review state
             onReviewChanged?.();
             if (approved) setAction("publish");
@@ -210,28 +229,34 @@ export function StudentProjects({
     new URLSearchParams(location.search).get("tab") === "published" ? "published" : "projects",
   );
   const [attempt, setAttempt] = useState(0);
+  const [refresh, setRefresh] = useState(0);
   const request = useMemo(
-    () => ({ session, tab, listVersion, attempt }),
-    [session, tab, listVersion, attempt],
+    () => ({ session, tab, listVersion, attempt, refresh }),
+    [session, tab, listVersion, attempt, refresh],
   );
   const [list, setList] = useState<{
     request: typeof request;
     rows: StudentProjectRow[] | "error";
     links: Map<string, StudentPublication> | null;
+    assignmentUnavailable: boolean;
   } | null>(null);
-  // Keep the current tab intact until its replacement is ready; never reuse another account's view
-  const switchingTab =
+  // Keep the same account's list visible during background refresh and tab changes
+  const retainingList =
     list?.request.session.userId === session.userId &&
     list.request.session.orgId === session.orgId &&
     list.request.session.role === session.role &&
     list.request.listVersion === listVersion &&
-    list.request.attempt === attempt &&
-    list.request.tab !== tab;
-  const result = list?.request === request || switchingTab ? list : null;
+    list.request.attempt === attempt;
+  const switchingTab = retainingList && list.request.tab !== tab;
+  const result = list?.request === request || retainingList ? list : null;
   const shownTab = result?.request.tab ?? tab;
   const rows = result?.rows;
   // Keep the list mounted so closing details restores its trigger and browsing position
   const [selected, setSelected] = useState<StudentProjectRow | null>(null);
+  const selectedRow =
+    selected && Array.isArray(rows)
+      ? (rows.find((row) => row.project.projectId === selected.project.projectId) ?? null)
+      : selected;
   const [feedback, setFeedback] = useState<Decision[]>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState("");
@@ -247,18 +272,27 @@ export function StudentProjects({
           tab === "published"
             ? await readDashboardPublications(session.userId, controller.signal)
             : null;
+        let assignmentUnavailable = false;
         const [projects, classes] = await Promise.all([
           workspace.projects(false, controller.signal),
-          allPages((cursor) => reviews.classrooms(cursor)),
+          allPages((cursor) => reviews.classrooms(cursor)).catch(() => {
+            assignmentUnavailable = true;
+            return [];
+          }),
         ]);
         const assignments = (
           await Promise.all(
-            classes.map(async (item) =>
-              (await listAssignments(item.id, controller.signal)).map((details) => ({
-                className: item.name,
-                details,
-              })),
-            ),
+            classes.map(async (item) => {
+              try {
+                return (await listAssignments(item.id, controller.signal)).map((details) => ({
+                  className: item.name,
+                  details,
+                }));
+              } catch {
+                assignmentUnavailable = true;
+                return [];
+              }
+            }),
           )
         ).flat();
         const current = await accounts.getSession();
@@ -274,10 +308,15 @@ export function StudentProjects({
           setList({
             request,
             links,
-            rows: studentProjectRows(session.userId, projects, assignments),
+            assignmentUnavailable,
+            rows: studentProjectRows(session.userId, projects, assignments).map((row) => ({
+              ...row,
+              assignmentUnavailable: assignmentUnavailable && !row.assignment,
+            })),
           });
       } catch {
-        if (!disposed) setList({ request, rows: "error", links: null });
+        if (!disposed)
+          setList({ request, rows: "error", links: null, assignmentUnavailable: false });
       }
     })();
     return () => {
@@ -286,16 +325,25 @@ export function StudentProjects({
     };
   }, [active, request]);
   useEffect(() => {
+    if (!active) return;
+    const refreshList = () => setRefresh((value) => value + 1);
+    window.addEventListener("focus", refreshList);
+    return () => window.removeEventListener("focus", refreshList);
+  }, [active]);
+  useEffect(() => {
     let disposed = false;
-    if (!selected?.assignment) return;
+    if (!selectedRow?.assignment) return;
     void (async () => {
       try {
         const decisions = await loadStudentFeedback(
           reviews,
-          selected.project.projectId,
+          selectedRow.project.projectId,
           session.userId,
         );
-        if (!disposed) setFeedback(decisions);
+        if (!disposed) {
+          setFeedback(decisions);
+          setFeedbackError("");
+        }
       } catch {
         if (!disposed) setFeedbackError("Feedback could not be loaded.");
       } finally {
@@ -305,17 +353,19 @@ export function StudentProjects({
     return () => {
       disposed = true;
     };
-  }, [selected, session.userId]);
+  }, [selectedRow, session.userId]);
   const published = shownTab === "published";
   return renderWorkspace(
     <section className="sp-student-dashboard" aria-labelledby="creator-heading" data-tab={shownTab}>
       <div className="sp-student-heading">
-        <h1 id="creator-heading">{published ? "Published Projects" : "Projects"}</h1>
-        <p>
-          {published
-            ? "Your work, ready to explore. View your published projects and share them with others."
-            : "Your next chapter starts here. Explore your assigned projects and keep track of approvals."}
-        </p>
+        <div>
+          <h1 id="creator-heading">{published ? "Published Projects" : "Projects"}</h1>
+          <p>
+            {published
+              ? "Your work, ready to explore. View your published projects and share them with others."
+              : "Your next chapter starts here. Explore your assigned projects and keep track of approvals."}
+          </p>
+        </div>
       </div>
       <Tabs
         id="student-projects"
@@ -330,6 +380,14 @@ export function StudentProjects({
           setTab(next);
         }}
       />
+      {result?.assignmentUnavailable && (
+        <p className="sp-workspace-note" role="status">
+          Class details could not be loaded. You can still open your projects.
+          <Button variant="quiet" onClick={() => setRefresh((value) => value + 1)}>
+            Retry class details
+          </Button>
+        </p>
+      )}
       <div
         id="student-projects-panel"
         role="tabpanel"
@@ -349,7 +407,7 @@ export function StudentProjects({
           <PublishedProjects rows={rows} links={result.links} name={session.displayName} />
         ) : !rows.length ? (
           <p className="sp-dashboard-state" role="status">
-            No projects are available yet.
+            No projects assigned yet.
           </p>
         ) : (
           <div className="sp-student-list">
@@ -364,6 +422,7 @@ export function StudentProjects({
                   setFeedbackError("");
                   setFeedbackLoading(Boolean(row.assignment));
                   setSelected(row);
+                  setRefresh((value) => value + 1);
                 }}
               />
             ))}
@@ -376,17 +435,18 @@ export function StudentProjects({
           ? "A little sharing goes a long way. Copy your project link into a message, email or presentation."
           : "Open a project to review its instructions and continue building your virtual museum."}
       </p>
-      {selected && (
+      {selectedRow && (
         <StudentProjectDetails
-          key={`${selected.project.projectId}:${session.userId}`}
-          row={selected}
+          key={`${selectedRow.project.projectId}:${session.userId}`}
+          row={selectedRow}
           feedback={feedback}
           feedbackLoading={feedbackLoading}
           feedbackError={feedbackError}
           actorId={session.userId}
           onClose={() => setSelected(null)}
           onReviewChanged={() => setAttempt((n) => n + 1)}
-          onOpen={() => onOpenProject(selected.project.projectId)}
+          onRetryDetails={() => setRefresh((n) => n + 1)}
+          onOpen={() => onOpenProject(selectedRow.project.projectId)}
         />
       )}
     </section>,
