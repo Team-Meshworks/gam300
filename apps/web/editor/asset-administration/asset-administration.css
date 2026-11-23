@@ -1238,11 +1238,11 @@ html.asset-admin-preview-page,
   font-size: 15px;
   line-height: 20px;
 }
-.asset-admin-fields > .asset-admin-select > :is(label, span) {
+.asset-admin-fields .asset-admin-select > :is(label, span) {
   font-size: 15px;
   line-height: 20px;
 }
-.asset-admin-fields > .asset-admin-select > :is(input, output, button) {
+.asset-admin-fields .asset-admin-select > :is(input, output, button) {
   font-size: 15px;
   line-height: 20px;
   font-weight: 600;
@@ -1335,4 +1335,109 @@ html.asset-admin-preview-page,
 .asset-admin-scroll .asset-admin-state p {
   font-size: 13px;
   line-height: 18px;
+}
+
+.asset-admin-card {
+  position: relative;
+}
+.asset-admin-card-identity {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.asset-admin-card-identity a {
+  color: inherit;
+  text-decoration: none;
+}
+.asset-admin-card-identity a:hover,
+.asset-admin-card-identity a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.asset-admin-card-identity .asset-admin-card-type,
+.asset-admin-card-identity small {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  color: var(--aa-muted);
+  font-size: var(--aa-text-small);
+}
+.asset-admin-dialog .asset-admin-edit-title {
+  justify-content: flex-start;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.asset-admin-edit-title svg {
+  width: 15px;
+  flex-shrink: 0;
+  color: var(--aa-muted);
+}
+.asset-admin-name {
+  grid-column: 1 / -1;
+}
+.asset-admin-field-wrapper {
+  min-width: 0;
+}
+.asset-admin-dialog-edit .asset-admin-dialog-heading {
+  margin-bottom: 24px;
+}
+.asset-admin-dialog .asset-admin-replacement-help {
+  margin-bottom: 12px;
+  color: var(--aa-muted);
+}
+.asset-admin-dialog-edit .asset-admin-upload {
+  margin-bottom: 20px;
+}
+.asset-admin-bulk-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 16px;
+  color: var(--aa-muted);
+}
+.asset-admin-bulk-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--aa-ink);
+  font-weight: 600;
+}
+.asset-admin-bulk-bar button {
+  margin-left: auto;
+}
+.asset-admin-bulk-bar input,
+.asset-admin input.asset-admin-card-check {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--aa-primary);
+  cursor: pointer;
+}
+.asset-admin input.asset-admin-card-check {
+  position: absolute;
+  z-index: 1;
+  top: 14px;
+  left: 14px;
+  box-shadow: 0 0 0 3px white;
+}
+.asset-admin-card:has(.asset-admin-card-check:checked) {
+  outline: 2px solid var(--aa-primary);
+  outline-offset: -2px;
+}
+.asset-admin-bulk-names {
+  max-height: 25dvh;
+  overflow-y: auto;
+  margin: 12px 0;
+  padding-left: 24px;
+  font-weight: 600;
+}
+.asset-admin .asset-admin-bulk-outcome {
+  margin-bottom: 12px;
 }

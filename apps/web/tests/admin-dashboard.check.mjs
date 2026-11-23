@@ -22,6 +22,14 @@ const browser = await launchBrowser({ target: origin });
 const screenshot = process.env.CHECK_SCREENSHOT ?? "../../.artifacts/admin-dashboard/desktop.png";
 const userId = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const orgId = "ef580108-e406-4c8e-ac76-75cd41e9d2dc";
+const newSchool = {
+  id: "a6195776-48eb-49ab-832c-776bdca05d31",
+  name: "New School",
+  isActive: true,
+  projectCount: 0,
+  facilitatorCount: 0,
+  creatorCount: 0,
+};
 const projects = [
   "The Silk Road: A Journey Through History",
   "Life in Ancient Rome",
@@ -164,14 +172,7 @@ try {
         await new Promise((resolve) => setTimeout(resolve, 150));
         return route.fulfill({
           status: 201,
-          json: {
-            id: orgId,
-            name: "New School",
-            isActive: true,
-            projectCount: 0,
-            facilitatorCount: 0,
-            creatorCount: 0,
-          },
+          json: newSchool,
         });
       }
     }
@@ -298,10 +299,18 @@ try {
         },
       });
     }
+    if (url.pathname === `/api/v1/admin/organizations/${newSchool.id}/bulk-imports`)
+      return route.fulfill({ json: { items: [], nextCursor: null } });
+    if (
+      url.pathname === `/api/v1/admin/organizations/${newSchool.id}/projects` ||
+      (url.pathname === "/api/v1/admin/users" && url.searchParams.get("orgId") === newSchool.id)
+    )
+      return route.fulfill({ json: { items: [], nextCursor: null } });
     if (url.pathname === "/api/v1/admin/organizations")
       return route.fulfill({
         json: {
           items: [
+            ...(creations > 0 ? [newSchool] : []),
             {
               id: orgId,
               name: "Ridgeview Secondary School",
@@ -339,6 +348,12 @@ try {
   await page.getByRole("button", { name: "Change password", exact: true }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   await page.getByRole("heading", { name: "Welcome Back, VThere", exact: true }).waitFor();
+  const circleOpacity = () =>
+    page
+      .locator(".sp-shell > .sp-wash")
+      .evaluateAll((circles) => circles.map((circle) => getComputedStyle(circle).opacity));
+  const dashboardOpacity = await circleOpacity();
+  assert.deepEqual(dashboardOpacity, ["0.65", "0.65"]);
   assert.equal(
     await page.getByRole("link", { name: "+ Add Environment", exact: true }).getAttribute("href"),
     "/spaces?add=1",
@@ -365,6 +380,7 @@ try {
   await page.getByRole("link", { name: "View Organisations", exact: true }).waitFor();
   await page.goForward();
   await page.getByRole("heading", { name: "All Organisations", exact: true, level: 1 }).waitFor();
+  assert.deepEqual(await circleOpacity(), dashboardOpacity);
   assert.equal(await page.evaluate(() => window.organisationNavigationMarker), "same-workspace");
   assert.equal(await page.getByRole("navigation", { name: "Workspace screens" }).count(), 0);
   await page.getByRole("link", { name: "Close organisations" }).click();
@@ -375,6 +391,7 @@ try {
   ]) {
     await page.getByRole("link", { name: link, exact: true }).click();
     await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+    assert.deepEqual(await circleOpacity(), dashboardOpacity);
     assert.equal(
       await page.evaluate(() => window.organisationNavigationMarker),
       "same-workspace",
@@ -910,7 +927,14 @@ try {
     });
   await dialog.waitFor({ state: "detached" });
   assert.equal(creations, 1);
-  await page.waitForURL(origin + "/organisations");
+  await page.waitForURL(origin + "/organisations?organisation=" + newSchool.id);
+  await page.getByRole("heading", { name: newSchool.name, exact: true }).waitFor();
+  await page.getByRole("button", { name: "Add Accounts", exact: false }).first().waitFor();
+  await page.screenshot({
+    path: join(dirname(screenshot), "created-organisation.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Close organisation", exact: true }).click();
   await page.getByRole("heading", { name: "All Organisations", level: 1, exact: true }).waitFor();
   assert.deepEqual(
     await chromeGeometry(),

@@ -209,6 +209,20 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
   }
   // Translate server failures without claiming that an unacknowledged write succeeded
   function failure(status: number, code?: unknown): AssetAdministrationResult<never> {
+    if (status === 429)
+      return {
+        ok: false,
+        kind: "unavailable",
+        message: "The server is handling too many requests. Wait a moment, then try again.",
+      };
+    if (code === "invalid_replacement")
+      return { ok: false, kind: "invalid", message: "Choose a valid file for the new asset type." };
+    if (code === "replacement_exists")
+      return {
+        ok: false,
+        kind: "invalid",
+        message: "This file already has a library entry with that name and category.",
+      };
     return {
       ok: false,
       kind: status === 401 || status === 403 ? "denied" : status >= 500 ? "unavailable" : "invalid",
@@ -253,8 +267,10 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
         return { ok: false, kind: "unavailable", message: "Download failed. Please try again" };
       }
     },
-    submit: ({ file, kind, category, review }, signal) => {
+    submit: ({ file, name, kind, category, review, replaces }, signal) => {
       const query = new URLSearchParams({ name: file.name, kind });
+      if (name !== undefined) query.set("displayName", name);
+      if (replaces) query.set("replaces", replaces);
       if (category !== null) {
         query.set("category", category);
       }
@@ -271,6 +287,13 @@ export function createAssetAdministrationService(actorId: string): AssetAdminist
         },
       });
     },
+
+    updateDetails: (id, details, signal) =>
+      request<AssetCandidate>(`${base}/${encodeURIComponent(id)}/details`, signal, {
+        method: "PUT",
+        body: JSON.stringify(details),
+        headers: { "Content-Type": "application/json" },
+      }),
 
     // Approval records the human decision; a successful upload never calls this automatically
     review: (id, input, signal) =>

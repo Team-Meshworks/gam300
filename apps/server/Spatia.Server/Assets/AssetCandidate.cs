@@ -20,6 +20,12 @@ public sealed class AssetCandidate
     {
         get; set;
     }
+    // Catalogue edits are separate from the immutable upload and its recorded approval.
+    public string? CatalogueName { get; set; }
+    public string? CatalogueCategory { get; set; }
+    public string? CatalogueSource { get; set; }
+    public string? CatalogueLicense { get; set; }
+    public string? CatalogueReviewNotes { get; set; }
     public required string Sha256
     {
         get; set;

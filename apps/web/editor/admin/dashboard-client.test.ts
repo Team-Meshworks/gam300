@@ -142,7 +142,9 @@ it("creates organisations with CSRF protection and the originating account on bo
         201,
       ),
     );
-  await createDashboardClient(actor, request).createOrganization(" School ");
+  await expect(createDashboardClient(actor, request).createOrganization(" School ")).resolves.toBe(
+    actor,
+  );
   expect(request.mock.calls[0]?.[1]?.headers).toMatchObject({ "X-Spatia-Account": actor });
   expect(request.mock.calls[1]?.[1]).toMatchObject({
     method: "POST",

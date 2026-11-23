@@ -136,7 +136,9 @@ p {
   --sp-wash-right-x: calc(50% + 125px);
   --sp-wash-right-y: 208px;
 }
-.sp-shell:has(.admin-greeting, .sp-teacher-welcome) {
+.sp-shell[data-account-role="Administrator"],
+.sp-shell:has(.admin-greeting, .sp-teacher-welcome),
+.asset-admin-preview {
   --sp-wash-opacity: 0.65;
 }
 .sp-wash {
