@@ -25,7 +25,8 @@ export function CreatorApproval({
   const state =
     submittedState ??
     assignment?.details.projects.find((item) => item.projectId === project.projectId)?.reviewState;
-  if (!state) return assignment ? "Status unavailable" : "No review listed";
+  if (!state)
+    return assignment || row.assignmentUnavailable ? "Status unavailable" : "No review listed";
   return (
     <span className="sp-approval" data-state={state}>
       <Icon icon={state === "approved" ? check : state === "pending" ? clock : alert} width={14} />
@@ -145,7 +146,9 @@ export function CreatorProjectCard({
                 ? `Assigned by: ${details.assignedBy}`
                 : assignment
                   ? assignment.className
-                  : "No class assignment listed"}
+                  : row.assignmentUnavailable
+                    ? "Class details unavailable"
+                    : "No class assignment listed"}
           </p>
         </div>
         {details?.description && (
@@ -172,7 +175,7 @@ export function CreatorProjectCard({
         <div className="sp-card-actions">
           {publication ? (
             <a className="sp-button sp-preview" href={publication.visitorUrl}>
-              Preview
+              <span className="sp-button-label">Preview</span>
             </a>
           ) : (
             <>
@@ -189,7 +192,8 @@ export function CreatorProjectCard({
                 onClick={onDetails}
                 className="sp-view-details"
               >
-                View details <Icon icon={arrow} width={15} />
+                <span className="sp-plain-label">View details</span>
+                <Icon icon={arrow} width={15} />
               </button>
             </>
           )}

@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
@@ -256,7 +257,7 @@ export function ProjectCreation({
       ) : session.role !== "Administrator" && !session.orgId ? (
         <p role="status">An active organisation is required to create a project.</p>
       ) : spaces === null ? (
-        <p role="status">Loading approved 3D spaces…</p>
+        <LoadingSkeleton label="Loading approved 3D spaces" layout="cards" />
       ) : session.role === "Administrator" && organizations.length === 0 ? (
         <p role="status">An active organisation is required to create a project.</p>
       ) : spaceError ? (
