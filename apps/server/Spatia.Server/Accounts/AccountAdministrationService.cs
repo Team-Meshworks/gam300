@@ -88,6 +88,16 @@ public sealed class AccountAdministrationService(ApplicationDbContext database, 
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
+        var name = request.Name.Trim();
+        // Serialize the duplicate check and insert so concurrent creates cannot use the same name
+        await database.Database.ExecuteSqlRawAsync("LOCK TABLE organizations IN SHARE ROW EXCLUSIVE MODE", cancellationToken);
+        var duplicate = await database.Database.SqlQuery<bool>($"""
+            SELECT EXISTS (SELECT 1 FROM organizations WHERE lower(btrim(name)) = lower({name})) AS "Value"
+            """).SingleAsync(cancellationToken);
+        if (duplicate)
+        {
+            return (Failure("DuplicateOrganizationName"), null);
+        }
         var organization = new Organization { Name = request.Name };
         database.Organizations.Add(organization);
         await database.SaveChangesAsync(cancellationToken);

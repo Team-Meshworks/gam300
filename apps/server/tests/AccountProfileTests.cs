@@ -23,40 +23,47 @@ public sealed class AccountProfileTests
         var first = await fixture.CreateAccountAsync();
         var other = await fixture.CreateAccountAsync();
         Guid organizationId;
-        var publicProjectId = Guid.Empty;
+        var publicProjectId = Guid.NewGuid();
+        var privateProjectId = Guid.NewGuid();
         var publicationId = Guid.NewGuid();
         await using (var scope = fixture.Database.Services.CreateAsyncScope())
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             organizationId = (await database.OrganizationMemberships.SingleAsync(row => row.UserId == first)).OrganizationId;
             var otherId = (await database.OrganizationMemberships.SingleAsync(row => row.UserId == other)).OrganizationId;
-            foreach (var orgId in new[] { organizationId, organizationId, otherId })
+            var cases = new (Guid Id, Guid OrgId, PublicationAudience? Audience)[]
             {
-                var id = Guid.NewGuid();
+                (publicProjectId, organizationId, PublicationAudience.Public),
+                (privateProjectId, organizationId, PublicationAudience.Authenticated),
+                (Guid.NewGuid(), organizationId, null),
+                (Guid.NewGuid(), otherId, PublicationAudience.Public)
+            };
+            foreach (var (id, orgId, audience) in cases)
+            {
+                var document = ProjectTestDocuments.Create(id, orgId == organizationId ? "Visible project" : "Other organisation");
                 database.Projects.Add(new Project
                 {
                     Id = id,
                     OrganizationId = orgId,
                     SchemaVersion = 1,
-                    DocumentJson = ProjectTestDocuments.Create(id, orgId == organizationId ? "Visible project" : "Other organisation"),
+                    DocumentJson = document,
                     UpdatedAt = DateTimeOffset.UtcNow
                 });
+                if (audience is not { } publishedAudience) { continue; }
+                var editionId = id == publicProjectId ? publicationId : Guid.NewGuid();
+                database.Publications.Add(new Publication
+                {
+                    Id = editionId,
+                    ProjectId = id,
+                    PublishedById = orgId == organizationId ? first : other,
+                    SourceRevision = 0,
+                    SchemaVersion = 1,
+                    DocumentJson = document,
+                    AssetReferencesJson = "[]",
+                    RequestDigest = new byte[32],
+                });
+                database.PublicationAccess.Add(new PublicationAccessState { PublicationId = editionId, Audience = (int)publishedAudience });
             }
-            await database.SaveChangesAsync();
-            var project = await database.Projects.FirstAsync(row => row.OrganizationId == organizationId);
-            publicProjectId = project.Id;
-            database.Publications.Add(new Publication
-            {
-                Id = publicationId,
-                ProjectId = project.Id,
-                PublishedById = first,
-                SourceRevision = 0,
-                SchemaVersion = project.SchemaVersion,
-                DocumentJson = project.DocumentJson,
-                AssetReferencesJson = "[]",
-                RequestDigest = new byte[32],
-            });
-            database.PublicationAccess.Add(new PublicationAccessState { PublicationId = publicationId, Audience = (int)PublicationAudience.Public });
             await database.SaveChangesAsync();
         }
         var path = $"/api/v1/admin/organizations/{organizationId}/projects";
@@ -68,7 +75,7 @@ public sealed class AccountProfileTests
         await Assert.That(next.GetProperty("nextCursor").ValueKind).IsEqualTo(JsonValueKind.Null);
         var listed = page.GetProperty("items").EnumerateArray().Concat(next.GetProperty("items").EnumerateArray()).ToArray();
         await Assert.That(listed.Single(row => row.GetProperty("id").GetGuid() == publicProjectId).GetProperty("isPublic").GetBoolean()).IsTrue();
-        await Assert.That(listed.Single(row => row.GetProperty("id").GetGuid() != publicProjectId).GetProperty("isPublic").GetBoolean()).IsFalse();
+        await Assert.That(listed.Single(row => row.GetProperty("id").GetGuid() == privateProjectId).GetProperty("isPublic").GetBoolean()).IsFalse();
         await using (var scope = fixture.Database.Services.CreateAsyncScope())
         {
             var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

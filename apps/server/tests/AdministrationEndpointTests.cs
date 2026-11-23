@@ -19,6 +19,50 @@ public sealed class AdministrationEndpointTests
     private const string ReplacementPassword = "Synthetic replacement password 2!";
 
     [Test]
+    [Arguments("Preview School")]
+    [Arguments("PREVIEW SCHOOL")]
+    [Arguments("  preview school  ")]
+    public async Task Organization_DuplicateName_IgnoresCaseAndSurroundingSpaces(string duplicateName)
+    {
+        await using var fixture = await AdministratorFixtureAsync();
+        using var created = await SendAsync(fixture, "/api/v1/admin/organizations", new { name = "  Preview School  " });
+        await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var organization = await created.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(organization.GetProperty("name").GetString()).IsEqualTo("  Preview School  ");
+        using var duplicate = await SendAsync(fixture, "/api/v1/admin/organizations", new { name = duplicateName });
+        await Assert.That(duplicate.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+        await Assert.That((await duplicate.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()).IsEqualTo("organization_name_taken");
+        await using var scope = fixture.App.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.Organizations.CountAsync()).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task Organization_ConcurrentCaseVariants_CreateOnlyOneRow()
+    {
+        await using var fixture = await AdministratorFixtureAsync();
+        var token = await fixture.GetCsrfAsync();
+        var responses = await Task.WhenAll(
+            SendAsync(fixture, "/api/v1/admin/organizations", new { name = "Concurrent School" }, token),
+            SendAsync(fixture, "/api/v1/admin/organizations", new { name = "  CONCURRENT SCHOOL  " }, token));
+        try
+        {
+            await Assert.That(responses.Count(response => response.StatusCode == HttpStatusCode.Created)).IsEqualTo(1);
+            await Assert.That(responses.Count(response => response.StatusCode == HttpStatusCode.Conflict)).IsEqualTo(1);
+            await using var scope = fixture.App.Services.CreateAsyncScope();
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await Assert.That(await database.Organizations.CountAsync()).IsEqualTo(1);
+        }
+        finally
+        {
+            foreach (var response in responses)
+            {
+                response.Dispose();
+            }
+        }
+    }
+
+    [Test]
     public async Task BulkAccounts_SkipExistingUserNamesAndRejectInvalidRoles()
     {
         await using var fixture = await AdministratorFixtureAsync();
@@ -802,7 +846,7 @@ public sealed class AdministrationEndpointTests
 
     private static async Task<Guid> CreateOrganizationAsync(HttpsApplicationFixture fixture)
     {
-        using var response = await SendAsync(fixture, "/api/v1/admin/organizations", new { name = "Synthetic admin organization" });
+        using var response = await SendAsync(fixture, "/api/v1/admin/organizations", new { name = "Synthetic admin organization " + Guid.NewGuid().ToString("N") });
         if (response.StatusCode != HttpStatusCode.Created)
         {
             throw new InvalidOperationException("Expected a synthetic organization to be created.");

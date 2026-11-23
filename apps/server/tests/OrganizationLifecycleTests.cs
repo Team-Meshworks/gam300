@@ -47,7 +47,7 @@ public sealed class OrganizationLifecycleTests
             new { userName = userBefore.UserName, password = AuthTestRequests.CurrentPassword }, loginClient);
         await Assert.That(deniedLogin.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         using var adminRead = await fixture.Client.GetAsync($"/api/v1/projects/{projectId:D}");
-        await Assert.That(adminRead.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(adminRead.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         using var again = await PatchAsync(fixture, orgId, false);
         await Assert.That(again.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         using var directory = await fixture.Client.GetAsync($"/api/v1/admin/organizations/{orgId:D}");

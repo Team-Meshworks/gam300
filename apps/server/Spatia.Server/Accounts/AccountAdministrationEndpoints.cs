@@ -55,6 +55,10 @@ public static class AccountAdministrationEndpoints
     internal static IResult ToProblem(HttpContext context, IdentityResult result)
     {
         var codes = result.Errors.Select(error => error.Code).ToHashSet(StringComparer.Ordinal);
+        if (codes.Contains("DuplicateOrganizationName"))
+        {
+            return ApiProblems.Create(context, 409, "organization_name_taken", "An organisation with this name already exists.");
+        }
         if (codes.Contains("DuplicateUserName"))
         {
             return ApiProblems.Create(context, 409, "username_taken", "That username is unavailable.");
