@@ -1,4 +1,4 @@
-import { BoxGeometry, Group, Mesh, Vector3 } from "three";
+import { Box3, BoxGeometry, Group, Mesh, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { createRoomEntrances } from "../asset-runtime/room-entrances";
 import { createWalkSpace } from "./walk-space";
@@ -110,5 +110,98 @@ describe("walking inside rendered rooms", () => {
     }
     expect(eye.x).toBeCloseTo(8);
     expect(eye.y).toBeCloseTo(0.9);
+  });
+});
+
+describe("walking around placed assets", () => {
+  const bounds = new Box3(new Vector3(-0.5, 0, -0.5), new Vector3(0.5, 1.5, 0.5));
+  function advance(
+    space: ReturnType<typeof createWalkSpace>,
+    eye: Vector3,
+    delta: Vector3,
+    steps: number,
+  ) {
+    const next = new Vector3();
+    for (let i = 0; i < steps; i++) {
+      space.move(eye, next.copy(eye).add(delta));
+      eye.copy(next);
+    }
+  }
+
+  it("stops at the face of an offset, rotated and scaled display and slides along it", () => {
+    const root = new Group();
+    root.position.set(1, 0, -0.5);
+    root.rotation.y = Math.PI / 4;
+    root.scale.set(1.5, 0.8, 1);
+    const offset = new Box3(new Vector3(0.2, 0, -1.6), new Vector3(0.5, 2, 1.6));
+    const space = createWalkSpace([room()], [{ root, bounds: offset }]);
+    const eye = root.localToWorld(new Vector3(-1, 0.9 / 0.8, -0.7));
+    space.place(eye);
+    advance(space, eye, new Vector3(0.025, 0, 0).applyQuaternion(root.quaternion), 120);
+    const stop = root.worldToLocal(eye.clone());
+    expect((0.2 - stop.x) * root.scale.x).toBeCloseTo(0.22, 1);
+    advance(space, eye, new Vector3(0.01, 0, 0.02).applyQuaternion(root.quaternion), 80);
+    const slid = root.worldToLocal(eye.clone());
+    expect(slid.z).toBeGreaterThan(0.8);
+    expect(slid.x).toBeCloseTo(stop.x, 1);
+  });
+
+  it("honours low furniture and visibility changes on the open floor", () => {
+    const root = new Group();
+    root.scale.y = 0.1;
+    const space = createWalkSpace([], [{ root, bounds }]);
+    const lowView = new Vector3(-2, 0, 0);
+    expect(space.place(lowView)).toBe(0);
+    expect(lowView.y).toBe(0);
+    const eye = new Vector3(-1, 0.9, 0);
+    const step = new Vector3(0.02, 0, 0);
+    expect(space.place(eye)).toBe(0);
+    advance(space, eye, step, 100);
+    expect(eye.x).toBeLessThan(-0.5);
+    root.visible = false;
+    advance(space, eye, step, 35);
+    expect(Math.abs(eye.x)).toBeLessThan(0.1);
+    expect(space.insideProp(eye)).toBe(false);
+    root.visible = true;
+    expect(space.insideProp(eye)).toBe(true);
+    expect(space.place(eye)).toBe(0);
+    expect(space.insideProp(eye)).toBe(false);
+  });
+
+  it("leaves headroom under a raised exhibit and stops a jump against its underside", () => {
+    const root = new Group();
+    root.position.y = 1.8;
+    const space = createWalkSpace([room()], [{ root, bounds }]);
+    const eye = new Vector3(-1, 0.9, 0);
+    space.place(eye);
+    advance(space, eye, new Vector3(0.025, 0, 0), 40);
+    expect(eye.x).toBeCloseTo(0);
+    advance(space, eye, new Vector3(0, 0.025, 0), 50);
+    expect(eye.y).toBeCloseTo(1.15, 1);
+  });
+
+  it("preserves a narrow aisle between diagonal stands and the space beside a tilted panel", () => {
+    const left = new Group(),
+      right = new Group();
+    left.rotation.y = right.rotation.y = Math.PI / 4;
+    left.position.set(-0.75, 0, 0).applyQuaternion(left.quaternion);
+    right.position.copy(left.position).negate();
+    const tilted = new Group();
+    tilted.position.set(3, 0, 3);
+    tilted.rotation.z = -Math.PI / 4;
+    const space = createWalkSpace(
+      [],
+      [
+        { root: left, bounds },
+        { root: right, bounds },
+        { root: tilted, bounds: new Box3(new Vector3(-0.05, 0, -0.5), new Vector3(0.05, 3, 0.5)) },
+      ],
+    );
+    const eye = new Vector3(0, 0.9, -1.5).applyQuaternion(left.quaternion);
+    space.place(eye);
+    advance(space, eye, new Vector3(0, 0, 0.025).applyQuaternion(left.quaternion), 120);
+    expect(eye.z).toBeCloseTo(1.5 * Math.cos(Math.PI / 4));
+    expect(space.insideProp(new Vector3(3.7, 0.9, 3))).toBe(true);
+    expect(space.insideProp(new Vector3(5.1, 0.9, 3))).toBe(false);
   });
 });

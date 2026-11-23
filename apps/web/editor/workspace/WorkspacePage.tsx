@@ -177,7 +177,13 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
               onProjectsLoaded={rememberDashboardProjects}
               key={`${session.userId}:${route.key}`}
               session={session}
-              onOpenOrganisations={() => navigate(() => openScreen("/organisations"))}
+              onOpenOrganisations={(id) =>
+                navigate(() =>
+                  openScreen(
+                    id ? `/organisations?organisation=${encodeURIComponent(id)}` : "/organisations",
+                  ),
+                )
+              }
             />
           )}
           {screen.id === "review" && (

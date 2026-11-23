@@ -581,7 +581,7 @@ export function AdminDashboard({
   onProjectsLoaded,
 }: {
   session: AccountSession;
-  onOpenOrganisations: () => void;
+  onOpenOrganisations: (organizationId?: string) => void;
   initialProjects?: DashboardProject[] | undefined;
   onProjectsLoaded?: (projects: DashboardProject[]) => void;
 }) {

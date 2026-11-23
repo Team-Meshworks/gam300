@@ -363,7 +363,14 @@
   padding: 32px 64px 24px;
   min-height: 100svh;
 }
+.login-page .entry-header,
+.login-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 632px);
+  column-gap: 96px;
+}
 .login-page .entry-header {
+  justify-items: start;
   min-height: 44px;
 }
 .entry-back {
@@ -374,9 +381,6 @@
   font-weight: 600;
 }
 .login-workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 632px);
-  gap: 96px;
   min-height: 776px;
   flex: 1;
 }
@@ -568,12 +572,15 @@
 @media (min-width: 1600px) {
   .landing-hero-content,
   .landing-card-grid,
-  .entry-header,
+  .landing-page .entry-header,
   .landing-footer-columns {
     max-width: 1440px;
     width: 100%;
     margin-left: auto;
     margin-right: auto;
+  }
+  .login-page .entry-header {
+    padding-inline-start: calc((100% - 1440px) / 2);
   }
 }
 @media (max-width: 1100px) {
@@ -609,9 +616,10 @@
   .login-page {
     padding: 32px;
   }
+  .login-page .entry-header,
   .login-workspace {
-    grid-template-columns: 1fr 1fr;
-    gap: 32px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 32px;
   }
   .login-featured {
     padding: 20px;
@@ -673,9 +681,12 @@
     padding: 24px 20px;
     gap: 24px;
   }
+  .login-page .entry-header,
   .login-workspace {
-    grid-template-columns: 1fr;
-    gap: 24px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .login-workspace {
+    row-gap: 24px;
     min-height: 0;
   }
   .login-welcome h1 {

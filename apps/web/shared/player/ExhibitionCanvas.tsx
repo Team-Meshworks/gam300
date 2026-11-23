@@ -5,10 +5,10 @@ import { createActiveClock } from "../preview/active-clock";
 import { FpsControls, type FpsMobileControls } from "../preview/FpsControls";
 import { MobileControls } from "../preview/MobileControls";
 import { standOnPreviewFloor } from "../preview/preview-start";
-import { createWalkSpace } from "../preview/walk-space";
+import { createWalkSpace, type WalkProp } from "../preview/walk-space";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { isRoomModel, knownRoomGeometry, STARTER_ROOM_SHA256 } from "../asset-runtime/catalogue";
-import { disposeModels } from "../asset-runtime/ModelCache";
+import { disposeModels, visibleModelBounds } from "../asset-runtime/ModelCache";
 import { createExhibitAppearance } from "../asset-runtime/exhibit-appearance";
 import { containDisplay } from "../asset-runtime/display-layout";
 import { createDisplayText } from "../asset-runtime/display-text";
@@ -264,11 +264,18 @@ export function ExhibitionCanvas({
     const entrances = createRoomEntrances();
     const appearances = createExhibitAppearance();
     const rooms = new Map<THREE.Object3D, { model: THREE.Object3D; starter: boolean }>();
+    const props: WalkProp[] = [];
+    const propBounds = new Map<string, THREE.Box3>();
     function syncRooms() {
       const visible = [...rooms].filter(([root]) => root.visible);
       entrances.sync(visible.filter(([, room]) => room.starter).map(([root]) => root));
       fps.setWalkSpace(
-        visible.length ? createWalkSpace(visible.map(([, room]) => room.model)) : undefined,
+        visible.length || props.length
+          ? createWalkSpace(
+              visible.map(([, room]) => room.model),
+              props,
+            )
+          : undefined,
       );
     }
     const hotspots = "hotspots" in source ? source.hotspots : [];
@@ -312,6 +319,20 @@ export function ExhibitionCanvas({
         root.name = object.id;
         root.visible = !("visible" in object) || object.visible !== false;
         root.add(gltf.scene);
+        if (
+          asset.kind === "environment" ||
+          (asset.kind === "model" &&
+            (knownRoomGeometry.has(digest) || isRoomModel(exhibition.assets, asset.id)))
+        ) {
+          rooms.set(root, { model: gltf.scene, starter: digest === STARTER_ROOM_SHA256 });
+        } else if (asset.kind === "model") {
+          let bounds = propBounds.get(asset.id);
+          if (!bounds) {
+            bounds = visibleModelBounds(gltf.scene);
+            propBounds.set(asset.id, bounds);
+          }
+          if (!bounds.isEmpty()) props.push({ root, bounds });
+        }
         // Measure display surfaces in model-local coordinates before applying the authored root transform
         const localSurface =
           asset.displayRole === "physical" ? new THREE.Box3().setFromObject(gltf.scene) : undefined;
@@ -391,13 +412,6 @@ export function ExhibitionCanvas({
           if (hotspotTemplate && hotspot.objectId.toLowerCase() === object.id.toLowerCase())
             attachHotspotSprite(hotspotTemplate.clone(), root, hotspot.position);
         }
-        if (
-          asset.kind === "environment" ||
-          (asset.kind === "model" &&
-            (knownRoomGeometry.has(digest) || isRoomModel(exhibition.assets, asset.id)))
-        ) {
-          rooms.set(root, { model: gltf.scene, starter: digest === STARTER_ROOM_SHA256 });
-        }
       }
       if (!controller.signal.aborted) {
         syncRooms();
@@ -426,6 +440,7 @@ export function ExhibitionCanvas({
             "Click or tap the scene to enable audio",
             (root) => {
               if (rooms.has(root)) syncRooms();
+              else fps.refreshWalkObstacles();
             },
           );
           playback.begin();

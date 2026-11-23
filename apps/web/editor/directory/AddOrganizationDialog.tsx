@@ -20,7 +20,7 @@ export function AddOrganizationDialog({
   >;
   onClose: () => void;
   onCreated?: (name: string) => void;
-  onDirectory: () => void;
+  onDirectory: (organizationId?: string) => void;
 }) {
   const [recovery, setRecovery] = useState(() => {
     try {
@@ -39,9 +39,9 @@ export function AddOrganizationDialog({
     setPending(true);
     setError("");
     try {
-      await client.createOrganization(name);
+      const id = await client.createOrganization(name);
       if (onCreated) onCreated(name.trim());
-      else onDirectory();
+      else onDirectory(id);
     } catch (reason) {
       setError(errorMessage(reason));
       try {
@@ -90,7 +90,7 @@ export function AddOrganizationDialog({
               : recovery.error}
           </p>
           <div className="sp-actions sp-form-dialog-actions">
-            <Button disabled={pending} onClick={onDirectory}>
+            <Button disabled={pending} onClick={() => onDirectory()}>
               Check organisation directory
             </Button>
             {recovery.attempt && (

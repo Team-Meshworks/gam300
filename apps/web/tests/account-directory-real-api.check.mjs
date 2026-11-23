@@ -4,6 +4,7 @@ import { createServer } from "vite";
 import { createLoopbackBridge } from "./browser-network.mjs";
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { checkAdminAssets, captureAdminPreview } from "./admin-asset-details.mjs";
 
 assert.ok(process.env.SPATIA_API_ORIGIN && process.env.SPATIA_TEST_ADMIN);
 const started = performance.now();
@@ -43,14 +44,21 @@ try {
     "Unpublished drafts must not appear in the admin published-project list",
   );
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
-  await page
-    .getByLabel("Organisation name", { exact: true })
-    .fill("Dashboard browser organisation");
+  await page.getByLabel("Organisation name", { exact: true }).fill("Museum Studies Studio");
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  await page.waitForURL(origin + "/organisations");
-  await page
-    .getByRole("button", { name: "Open Dashboard browser organisation", exact: true })
-    .waitFor();
+  await page.waitForURL(/\/organisations\?organisation=[a-f0-9-]{36}$/);
+  await page.getByRole("heading", { name: "Museum Studies Studio", exact: true }).waitFor();
+  await page.getByText("No accounts yet.", { exact: false }).waitFor();
+  if (process.env.SPATIA_TEST_FORCED_ADMIN !== "true") {
+    await captureAdminPreview(page, "organisation-created");
+    const library = await context.newPage();
+    try {
+      await checkAdminAssets(library, origin);
+    } finally {
+      await library.close();
+    }
+  }
+  await page.getByRole("button", { name: "Close organisation", exact: true }).click();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
   await page.getByRole("button", { name: "Add Accounts" }).click();
   let dialog = page.getByRole("dialog");

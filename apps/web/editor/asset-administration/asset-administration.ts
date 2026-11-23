@@ -41,6 +41,14 @@ export type AssetAdministrationResult<T> =
   | { ok: true; value: T }
   | { ok: false; kind: "denied" | "unavailable" | "invalid" | "unknown"; message: string };
 
+export type AssetReview = { source: string; license: string; reviewNotes: string };
+export type AssetDetails = {
+  name: string;
+  kind: AssetCandidate["kind"];
+  category: string | null;
+  review: AssetReview;
+};
+
 // Return authoritative records after mutations; screens never infer approval from an upload
 // Implementations must enforce account permissions and validate bytes on the server
 export interface AssetAdministrationService {
@@ -49,10 +57,17 @@ export interface AssetAdministrationService {
   submit(
     input: {
       file: File;
+      name?: string;
       kind: CatalogueAsset["kind"];
       category: string | null;
-      review: { source: string; license: string; reviewNotes: string };
+      review: AssetReview;
+      replaces?: string;
     },
+    signal: AbortSignal,
+  ): Promise<AssetAdministrationResult<AssetCandidate>>;
+  updateDetails(
+    id: string,
+    details: AssetDetails,
     signal: AbortSignal,
   ): Promise<AssetAdministrationResult<AssetCandidate>>;
   review(

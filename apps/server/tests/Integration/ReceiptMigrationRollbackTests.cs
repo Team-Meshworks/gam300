@@ -10,7 +10,6 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Spatia.Server.Accounts;
-using Spatia.Server.Assets;
 using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
@@ -139,30 +138,24 @@ public sealed partial class ReceiptMigrationRollbackTests
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var organization = new Organization { Id = Guid.NewGuid(), Name = "Receipt migration organization" };
+        var organization = Guid.NewGuid();
+        var asset = Guid.NewGuid();
         var bytes = AssetIntakeTests.CreateMinimalGlb();
-        var asset = new AssetCandidate
-        {
-            Id = Guid.NewGuid(),
-            Name = "Receipt migration asset",
-            Kind = "environment",
-            Bytes = bytes,
-            Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)),
-            Status = "approved",
-            Hidden = true,
-            Deleted = true,
-            Source = "Fixture",
-            License = "Fixture",
-            ReviewNotes = "Fixture",
-            ValidationJson = "[]",
-            SubmittedBy = actor,
-            ReviewedBy = actor,
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
-        db.Organizations.Add(organization);
-        db.AssetCandidates.Add(asset);
-        await db.SaveChangesAsync();
-        return (organization.Id, asset.Id);
+        var sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
+
+        // This fixture also runs at AddAssetRemovalReceipts. Seed only columns present at that migration.
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO organizations (id, name, active)
+            VALUES ({organization}, 'Receipt migration organization', TRUE);
+
+            INSERT INTO asset_candidates
+                (id, name, kind, bytes, sha256, status, hidden, deleted, removed_from_projects,
+                 source, license, review_notes, validation, submitted_by, reviewed_by, created_at)
+            VALUES
+                ({asset}, 'Receipt migration asset', 'environment', {bytes}, {sha256}, 'approved', TRUE, TRUE, FALSE,
+                 'Fixture', 'Fixture', 'Fixture', '[]', {actor}, {actor}, {DateTimeOffset.UtcNow});
+            """);
+        return (organization, asset);
     }
 
     private static async Task WaitForBlockAsync(string connectionString, int waiter, int holder)

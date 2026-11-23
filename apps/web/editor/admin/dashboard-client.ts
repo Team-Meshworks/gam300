@@ -327,10 +327,10 @@ export function createDashboardClient(
         typeof projectId === "string" ? 15000 : 90000,
       );
     },
-    async createOrganization(name: string): Promise<void> {
+    async createOrganization(name: string): Promise<string> {
       if (!navigator.locks)
         throw new Error("This browser cannot safely coordinate organisation creation across tabs.");
-      await navigator.locks.request(organizationKey, async () => {
+      return navigator.locks.request(organizationKey, async () => {
         if (pendingOrganization())
           throw new Error("Check the directory before starting another organisation.");
         const csrf = await send("/api/v1/auth/csrf");
@@ -363,6 +363,8 @@ export function createDashboardClient(
             result.isActive !== true
           )
             throw new Error("Invalid organisation receipt");
+          clearOrganization(encoded);
+          return result.id;
         } catch (reason) {
           if (
             reason instanceof DashboardRequestError &&
@@ -382,7 +384,6 @@ export function createDashboardClient(
             cause: reason,
           });
         }
-        clearOrganization(encoded);
       });
     },
   };

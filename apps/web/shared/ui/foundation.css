@@ -160,6 +160,11 @@ p {
 .asset-admin-preview::after {
   filter: none;
 }
+.sp-shell[data-account-role="Administrator"],
+.sp-shell:has(.admin-greeting, .sp-teacher-welcome),
+.asset-admin-preview {
+  --sp-wash-opacity: 0.65;
+}
 .sp-wash {
   position: fixed;
   z-index: -1;
