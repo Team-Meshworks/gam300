@@ -143,7 +143,7 @@ public sealed class ClassAssignmentCoordinatorTests
         var classified = 0;
         foreach (var archivedOnly in new[] { false, true })
         {
-            using var listed = await administrator.GetAsync($"/api/v1/projects?archived={archivedOnly.ToString().ToLowerInvariant()}");
+            using var listed = await fixture.Client.GetAsync($"/api/v1/projects?archived={archivedOnly.ToString().ToLowerInvariant()}");
             await Assert.That(listed.StatusCode).IsEqualTo(HttpStatusCode.OK);
             var summaries = (await listed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items");
             foreach (var summary in summaries.EnumerateArray().Where(row => row.GetProperty("projectId").GetGuid() == data.SourceProject
@@ -727,10 +727,7 @@ public sealed class ClassAssignmentCoordinatorTests
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator), administrator);
         using (var detail = await administrator.GetAsync(detailPath))
         {
-            await Assert.That(detail.StatusCode).IsEqualTo(HttpStatusCode.OK);
-            var entries = (await detail.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects").EnumerateArray().ToArray();
-            await Assert.That(entries.Length).IsEqualTo(2);
-            await Assert.That(entries.All(row => !row.GetProperty("isPublic").GetBoolean())).IsTrue();
+            await Assert.That(detail.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         }
 
         // Distinguish anonymous visitor access from an authenticated edition and a retained retired ID
@@ -772,9 +769,16 @@ public sealed class ClassAssignmentCoordinatorTests
                     await database.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO retired_publication_ids (id) VALUES ({editionId})");
                 }
                 using var response = await administrator.GetAsync(detailPath);
+                if (retired)
+                {
+                    await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+                    continue;
+                }
                 await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
-                var entries = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects").EnumerateArray();
+                var entries = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("projects").EnumerateArray().ToArray();
+                await Assert.That(entries.Length).IsEqualTo(1);
                 var student = entries.Single(row => row.GetProperty("studentId").GetGuid() == data.FirstStudent);
+                await Assert.That(student.TryGetProperty("approvalStatus", out _)).IsFalse();
                 await Assert.That(student.GetProperty("isPublic").GetBoolean()).IsEqualTo(expectedPublic);
                 await Assert.That(student.GetProperty("published").GetBoolean()).IsEqualTo(expectedPublished);
             }

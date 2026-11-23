@@ -44,7 +44,8 @@ public static class ProjectReadEndpoints
                 }
                 cursor = id;
             }
-            var result = await access.ListAsync(context, cursor, limit, query["archived"] == "true", cancellationToken, published: query["published"] == "true");
+            var publishedOnly = context.Features.Get<CurrentAccount>()?.Role == ApplicationRoles.Administrator || query["published"] == "true";
+            var result = await access.ListAsync(context, cursor, limit, query["archived"] == "true", cancellationToken, published: publishedOnly);
             if (result.Failure is { } failure)
             {
                 return ProjectHttpResults.FromAccessFailure(context, failure);
@@ -71,7 +72,7 @@ public static class ProjectReadEndpoints
                                                                              && !retired.Contains(edition.Id)
                                                                          select edition.Id).Any(),
                                   }).ToDictionaryAsync(row => row.Id, cancellationToken);
-            var published = query["published"] == "true"
+            var published = publishedOnly
                 ? await database.Projects.AsNoTracking().Where(project => pageIds.Contains(project.Id))
                     .Select(project => new
                     {
@@ -112,6 +113,10 @@ public static class ProjectReadEndpoints
         group.MapGet("/{id:guid}", async (HttpContext context, Guid id, ProjectAccessService access,
             ProjectDocumentService documents, CancellationToken cancellationToken) =>
         {
+            if (context.Features.Get<CurrentAccount>()?.Role == ApplicationRoles.Administrator)
+            {
+                return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.OperationForbidden);
+            }
             var result = await access.ReadAsync(context, id, cancellationToken);
             if (result.Failure is { } failure)
             {

@@ -480,6 +480,33 @@ public sealed class PublicationAccessEndpointTests
             .Single(row => row.GetProperty("projectId").GetGuid() == projectId);
         await Assert.That(listed.GetProperty("title").GetString()).IsEqualTo("Latest published exhibition");
 
+        foreach (var query in new[] { "", "?published=false" })
+        {
+            using var adminList = await fixture.Client.GetAsync("/api/v1/projects" + query);
+            await Assert.That(adminList.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var page = await adminList.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(page.GetProperty("items").EnumerateArray()
+                .Any(row => row.GetProperty("projectId").GetGuid() == unpublishedId)).IsFalse();
+            await Assert.That(page.GetProperty("items").EnumerateArray()
+                .Single(row => row.GetProperty("projectId").GetGuid() == projectId)
+                .GetProperty("title").GetString()).IsEqualTo("Latest published exhibition");
+        }
+        using (var draftRead = await fixture.Client.GetAsync($"/api/v1/projects/{projectId}"))
+        {
+            await AuthTestRequests.AssertProblemAsync(draftRead, HttpStatusCode.Forbidden, "access_denied");
+        }
+        using (var directory = await fixture.Client.GetAsync($"/api/v1/admin/organizations/{draft.OrganizationId}/projects"))
+        {
+            await Assert.That(directory.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var page = await directory.Content.ReadFromJsonAsync<JsonElement>();
+            await Assert.That(page.GetProperty("items").EnumerateArray()
+                .Any(row => row.GetProperty("id").GetGuid() == unpublishedId)).IsFalse();
+            var publishedProject = page.GetProperty("items").EnumerateArray()
+                .Single(row => row.GetProperty("id").GetGuid() == projectId);
+            await Assert.That(publishedProject.GetProperty("title").GetString()).IsEqualTo("Latest published exhibition");
+            await Assert.That(publishedProject.GetProperty("status").GetString()).IsEqualTo("Published");
+        }
+
         document["title"] = "Republished exhibition";
         var republished = new Publication
         {

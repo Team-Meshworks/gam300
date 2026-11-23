@@ -211,7 +211,7 @@ public sealed class ProjectLifecycleTests
     }
 
     [Test]
-    public async Task ProjectLifecycle_AdministratorCanReadButCannotMutateStudentWork()
+    public async Task ProjectLifecycle_AdministratorCannotReadDraftOrMutateStudentWork()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         var educator = await fixture.CreateAccountAsync(ApplicationRoles.Educator);
@@ -219,11 +219,8 @@ public sealed class ProjectLifecycleTests
         var project = await CreateAsync(fixture, new { title = Marker, environmentAssetId = "test-room-v1" });
         var before = await ReadAsync(fixture, project);
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
-        var opened = await OpenAsync(fixture, project);
-        foreach (var permission in new[] { "canEdit", "canManage", "canPublish" })
-        {
-            await Assert.That(opened.GetProperty("permissions").GetProperty(permission).GetBoolean()).IsFalse();
-        }
+        using var draft = await fixture.Client.GetAsync(Path(project));
+        await Assert.That(draft.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         foreach (var (method, path, body) in new[]
         {
             (HttpMethod.Post, "/api/v1/projects/", (object)new { title = Marker, orgId = before.OrganizationId }),
