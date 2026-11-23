@@ -434,17 +434,11 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
         <AddOrganizationDialog
           client={publications}
           onClose={() => setAddingOrganization(false)}
-          onDirectory={() => {
+          onDirectory={(id) => {
             setAddingOrganization(false);
             setQuery("");
-            select(null);
-            refresh();
-          }}
-          onCreated={(name) => {
-            setAddingOrganization(false);
-            setQuery("");
-            refresh();
-            setNotice(`${name} is ready. Open the organisation to manage its accounts.`);
+            if (id) refresh();
+            select(id ?? null);
           }}
         />
       )}

@@ -11,7 +11,6 @@ const errorMessage = (reason: unknown) =>
 export function AddOrganizationDialog({
   client,
   onClose,
-  onCreated,
   onDirectory,
 }: {
   client: Pick<
@@ -19,7 +18,6 @@ export function AddOrganizationDialog({
     "createOrganization" | "pendingOrganization" | "acknowledgeOrganization"
   >;
   onClose: () => void;
-  onCreated?: (name: string) => void;
   onDirectory: (organizationId?: string) => void;
 }) {
   const [recovery, setRecovery] = useState(() => {
@@ -40,8 +38,7 @@ export function AddOrganizationDialog({
     setError("");
     try {
       const id = await client.createOrganization(name);
-      if (onCreated) onCreated(name.trim());
-      else onDirectory(id);
+      onDirectory(id);
     } catch (reason) {
       setError(errorMessage(reason));
       try {

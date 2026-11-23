@@ -59,6 +59,21 @@ try {
     }
   }
   await page.getByRole("button", { name: "Close organisation", exact: true }).click();
+  await page.getByRole("button", { name: "Add Organisation", exact: true }).click();
+  await page.getByLabel("Organisation name", { exact: true }).fill("Directory Studio");
+  const created = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/v1/admin/organizations" &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  const receipt = await (await created).json();
+  await page.waitForURL(origin + "/organisations?organisation=" + receipt.id);
+  await page.getByRole("heading", { name: "Directory Studio", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Add Accounts", exact: true }).click();
+  await page.getByRole("dialog", { name: "Account Creation" }).waitFor();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Close organisation", exact: true }).click();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
   await page.getByRole("button", { name: "Add Accounts" }).click();
   let dialog = page.getByRole("dialog");
