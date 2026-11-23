@@ -158,7 +158,7 @@ for (const [label, path, heading] of [
       try {
         await page.goto(origin + path);
         await page.getByRole("heading", { name: heading, exact: true }).waitFor();
-        await page.locator(".asset-admin-card").first().waitFor();
+        await page.locator(".asset-admin-card button").first().waitFor();
         assert.equal(await page.locator(".asset-admin-card").count(), 4);
         await checkGeneratedPreviews(page);
         const image = page.locator(".asset-admin-thumbnail img").first();
