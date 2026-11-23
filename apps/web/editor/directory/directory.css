@@ -867,6 +867,15 @@
 .sp-directory--administration .sp-organization-detail .sp-tabs button[aria-selected="true"] {
   color: var(--sp-ink);
 }
+.sp-directory--administration
+  .sp-organization-projects:has(.sp-organization-project-list > p[role="status"]:only-child) {
+  row-gap: 0;
+}
+.sp-directory--administration
+  .sp-organization-projects:has(.sp-organization-project-list > p[role="status"]:only-child)
+  > .sp-search {
+  margin-bottom: 20px;
+}
 .sp-directory--administration .sp-organization-project-list {
   /* The track sits against the card edge, independently of the header padding. */
   margin-inline-end: calc(-1 * var(--project-panel-padding));
