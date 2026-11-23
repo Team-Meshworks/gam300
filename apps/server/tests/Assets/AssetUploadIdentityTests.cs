@@ -231,9 +231,15 @@ public sealed class AssetUploadIdentityTests
         var entry = (await catalogue.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().Single();
         await Assert.That(entry.GetProperty("name").GetString()).IsEqualTo(details.Name);
         await Assert.That(entry.GetProperty("category").GetString()).IsEqualTo(details.Category);
-        using var badCategory = await AuthTestRequests.PutAsync(fixture.Client, path, details with { Category = "BGM" }, token);
+        using var badCategory = await AuthTestRequests.PutAsync(fixture.Client, path, details with
+        {
+            Category = "BGM"
+        }, token);
         await AuthTestRequests.AssertProblemAsync(badCategory, HttpStatusCode.BadRequest, "invalid_asset_input");
-        using var blank = await AuthTestRequests.PutAsync(fixture.Client, path, details with { Name = " " }, token);
+        using var blank = await AuthTestRequests.PutAsync(fixture.Client, path, details with
+        {
+            Name = " "
+        }, token);
         await AuthTestRequests.AssertProblemAsync(blank, HttpStatusCode.BadRequest, "invalid_asset_input");
         using var incompatible = await UploadAsync(fixture.Client, token, bytes, "track.m4a", "audio", "BGM", replaces: original.Id);
         await AuthTestRequests.AssertProblemAsync(incompatible, HttpStatusCode.BadRequest, "invalid_replacement");
