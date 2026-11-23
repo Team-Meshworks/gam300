@@ -198,7 +198,8 @@ try {
   await page.getByText("Class change confirmed.", { exact: true }).waitFor();
   assert.equal(classes.length, 2);
   await page.goto(origin + "/classes");
-  await page.getByRole("combobox", { name: "Class", exact: true }).selectOption(classId);
+  await page.getByRole("combobox", { name: "Class", exact: true }).click();
+  await page.getByRole("option", { name: "History", exact: true }).click();
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   assert.equal(await page.getByLabel("Source project").count(), 0);
   await page
@@ -308,7 +309,8 @@ try {
   const local = await localContext.newPage();
   local.on("pageerror", (error) => errors.push(error.message));
   await local.goto(origin + "/classes");
-  await local.getByRole("combobox", { name: "Class", exact: true }).selectOption(classId);
+  await local.getByRole("combobox", { name: "Class", exact: true }).click();
+  await local.getByRole("option", { name: "History", exact: true }).click();
   await local.getByRole("button", { name: "Silk Road assignment", exact: true }).click();
   await local.getByText("Build an exhibit and explain each object.", { exact: true }).waitFor();
   await local.getByText(/Nov 5, 2026/).waitFor();

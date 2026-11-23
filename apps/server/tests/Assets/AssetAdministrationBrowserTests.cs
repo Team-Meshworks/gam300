@@ -37,8 +37,16 @@ public sealed class AssetAdministrationBrowserTests
         using var process = Process.Start(start)!;
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
-        try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(90)); }
-        catch { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); throw; }
+        try
+        {
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(90));
+        }
+        catch
+        {
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync();
+            throw;
+        }
         await Assert.That(process.ExitCode).IsEqualTo(0).Because(await output + await error);
     }
 }
