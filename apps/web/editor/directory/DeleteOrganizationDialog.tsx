@@ -6,11 +6,13 @@ import type { createDirectoryClient, OrganizationDeletion } from "./directory-cl
 
 export function DeleteOrganizationDialog({
   organizationId,
+  organizationName,
   client,
   onClose,
   onDeleted,
 }: {
   organizationId: string;
+  organizationName: string;
   client: ReturnType<typeof createDirectoryClient>;
   onClose: () => void;
   onDeleted: (name: string) => void;
@@ -54,16 +56,18 @@ export function DeleteOrganizationDialog({
       setBusy(false);
     }
   }
+  const loading = !summary && !error;
   return (
     <Dialog
       title="Delete Organisation"
       variant="admin"
+      className="sp-delete-organisation-dialog"
+      loadingLabel={loading ? "Loading deletion details" : undefined}
       onClose={() => {
         if (!pending.current) onClose();
       }}
     >
-      {!summary && !error && <p role="status">Loading deletion details…</p>}
-      {summary && (
+      {(summary || loading) && (
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -71,25 +75,28 @@ export function DeleteOrganizationDialog({
           }}
         >
           <p>
-            Permanently delete <strong>{summary.name}</strong> and all its accounts and workspace
-            data? This cannot be undone.
+            Permanently delete <strong>{summary?.name ?? organizationName}</strong> and all its
+            accounts and workspace data? This cannot be undone.
           </p>
           <ul>
-            <li>{summary.accounts} accounts</li>
+            <li>{summary?.accounts ?? 0} accounts</li>
             <li>
-              {summary.classes} classes and {summary.assignments} assignments
+              {summary?.classes ?? 0} classes and {summary?.assignments ?? 0} assignments
             </li>
-            <li>{summary.projects} projects, including archived projects</li>
+            <li>{summary?.projects ?? 0} projects, including archived projects</li>
             <li>
-              {summary.submissions} submissions and {summary.reviews} review decisions
+              {summary?.submissions ?? 0} submissions and {summary?.reviews ?? 0} review decisions
             </li>
-            <li>{summary.publications} published editions</li>
+            <li>{summary?.publications ?? 0} published editions</li>
           </ul>
           <p>
             Members will lose access and published links will stop working. The shared asset library
             belongs to the platform and is kept.
           </p>
-          <Field id="delete-organisation-name" label={`Type ${summary.name} to confirm`}>
+          <Field
+            id="delete-organisation-name"
+            label={`Type ${summary?.name ?? organizationName} to confirm`}
+          >
             <input
               id="delete-organisation-name"
               value={confirmation}
@@ -106,7 +113,7 @@ export function DeleteOrganizationDialog({
             <Button
               type="submit"
               className="sp-button--danger"
-              disabled={busy || confirmation !== summary.name}
+              disabled={busy || !summary || confirmation !== summary.name}
             >
               {busy ? "Deleting…" : "Delete Organisation Permanently"}
             </Button>
