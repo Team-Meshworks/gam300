@@ -70,11 +70,13 @@ export function createDashboardClient(
             ? moderationScope === "facilitator"
               ? "Project management access could not be verified. Sign in again."
               : "Administrator access could not be verified. Sign in again."
-            : response.status === 400
-              ? "Check the organisation name and try again."
-              : response.status === 429
-                ? "Too many requests. Please wait before trying again."
-                : "The request could not be completed. Please try again.",
+            : response.status === 409 && path === "/api/v1/admin/organizations"
+              ? "An organisation with this name already exists."
+              : response.status === 400
+                ? "Check the organisation name and try again."
+                : response.status === 429
+                  ? "Too many requests. Please wait before trying again."
+                  : "The request could not be completed. Please try again.",
       );
     }
     if (response.status === 204) {

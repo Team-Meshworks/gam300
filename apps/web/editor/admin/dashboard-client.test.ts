@@ -254,3 +254,14 @@ it("sends a selected moderation action as one authenticated batch request", asyn
     action: "hide",
   });
 });
+
+it("explains duplicate organisation names without retrying creation", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
+    .mockResolvedValueOnce(json({ code: "organization_name_taken" }, 409));
+  await expect(createDashboardClient(actor, request).createOrganization("SCHOOL")).rejects.toThrow(
+    "An organisation with this name already exists.",
+  );
+  expect(request).toHaveBeenCalledTimes(2);
+});
