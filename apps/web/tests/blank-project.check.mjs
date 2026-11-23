@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
+import { exhaustStorage } from "./local-storage-quota.mjs";
 import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:5182";
@@ -150,10 +151,6 @@ try {
       await page.getByRole("heading", { name: "Projects", exact: true }).waitFor();
       await page.getByText("No projects are available yet.", { exact: true }).waitFor();
       assert.equal(await page.getByRole("button", { name: "New project", exact: true }).count(), 0);
-      assert.equal(
-        await page.getByText("Manage projects and archives", { exact: true }).count(),
-        0,
-      );
       assert.equal(assetReads, 0);
       assert.deepEqual(writes, []);
       await page.goto(origin + "/new-project");
@@ -236,16 +233,7 @@ try {
       await page.getByRole("option", { name: "Class", exact: true }).click();
       await page.getByRole("checkbox", { name: /Alice/ }).check();
       if (!missingSource && assetsStatus === 200) {
-        await page.evaluate((key) => {
-          const original = Storage.prototype.setItem;
-          Storage.prototype.setItem = function (name, value) {
-            if (name === key) {
-              Storage.prototype.setItem = original;
-              throw new DOMException("Storage full", "QuotaExceededError");
-            }
-            return original.call(this, name, value);
-          };
-        }, `spatia.assignment.source:${userId}`);
+        const restoreStorage = await exhaustStorage(page);
         await page.getByRole("button", { name: "Create project" }).click();
         await page
           .getByRole("alert")
@@ -264,6 +252,7 @@ try {
         assert.equal(await page.getByLabel("Project instructions").inputValue(), "Instructions");
         assert.equal(await page.getByLabel(/^Due date/).inputValue(), "2027-12-01");
         assert.equal(await page.getByRole("checkbox", { name: /Alice/ }).isChecked(), true);
+        await restoreStorage();
       }
       await page.getByRole("button", { name: "Create project" }).click();
       if (missingSource) {

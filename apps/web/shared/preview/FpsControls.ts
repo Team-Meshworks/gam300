@@ -48,6 +48,8 @@ export interface FpsMobileControls {
 export class FpsControls {
   private readonly camera: THREE.Camera;
   private readonly domElement: HTMLElement;
+  private readonly ownerDocument: Document;
+  private readonly ownerWindow: Window | null;
   private readonly keys = new Set<string>();
   private readonly velocity = new THREE.Vector3();
   private yaw = 0;
@@ -115,12 +117,14 @@ export class FpsControls {
   constructor(camera: THREE.Camera, domElement: HTMLElement) {
     this.camera = camera;
     this.domElement = domElement;
+    this.ownerDocument = domElement.ownerDocument;
+    this.ownerWindow = this.ownerDocument.defaultView;
     this.lockable = typeof domElement.requestPointerLock === "function";
     domElement.addEventListener("mousedown", this.onPointerDown);
-    document.addEventListener("mousemove", this.onPointerMove);
-    document.addEventListener("mouseup", this.onPointerUp);
-    document.addEventListener("pointerlockchange", this.onLockChange);
-    document.addEventListener("pointerlockerror", this.onLockError);
+    this.ownerDocument.addEventListener("mousemove", this.onPointerMove);
+    this.ownerDocument.addEventListener("mouseup", this.onPointerUp);
+    this.ownerDocument.addEventListener("pointerlockchange", this.onLockChange);
+    this.ownerDocument.addEventListener("pointerlockerror", this.onLockError);
   }
 
   engage(): void {
@@ -130,10 +134,10 @@ export class FpsControls {
     this.dragging = false;
     this.resetMobileInput();
     this.sync();
-    addEventListener("keydown", this.onKeyDown);
-    addEventListener("keyup", this.onKeyUp);
-    addEventListener("blur", this.clearInput);
-    document.addEventListener("visibilitychange", this.onVisibilityChange);
+    this.ownerWindow?.addEventListener("keydown", this.onKeyDown);
+    this.ownerWindow?.addEventListener("keyup", this.onKeyUp);
+    this.ownerWindow?.addEventListener("blur", this.clearInput);
+    this.ownerDocument.addEventListener("visibilitychange", this.onVisibilityChange);
   }
 
   // Pick up from wherever the camera is now. Starting in the air means flying, so nothing drops.
@@ -249,20 +253,20 @@ export class FpsControls {
     this.keys.clear();
     this.velocity.set(0, 0, 0);
     this.resetMobileInput();
-    if (this.captured) document.exitPointerLock();
-    removeEventListener("keydown", this.onKeyDown);
-    removeEventListener("keyup", this.onKeyUp);
-    removeEventListener("blur", this.clearInput);
-    document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    if (this.captured) this.ownerDocument.exitPointerLock();
+    this.ownerWindow?.removeEventListener("keydown", this.onKeyDown);
+    this.ownerWindow?.removeEventListener("keyup", this.onKeyUp);
+    this.ownerWindow?.removeEventListener("blur", this.clearInput);
+    this.ownerDocument.removeEventListener("visibilitychange", this.onVisibilityChange);
   }
 
   dispose(): void {
     this.disengage();
     this.domElement.removeEventListener("mousedown", this.onPointerDown);
-    document.removeEventListener("mousemove", this.onPointerMove);
-    document.removeEventListener("mouseup", this.onPointerUp);
-    document.removeEventListener("pointerlockchange", this.onLockChange);
-    document.removeEventListener("pointerlockerror", this.onLockError);
+    this.ownerDocument.removeEventListener("mousemove", this.onPointerMove);
+    this.ownerDocument.removeEventListener("mouseup", this.onPointerUp);
+    this.ownerDocument.removeEventListener("pointerlockchange", this.onLockChange);
+    this.ownerDocument.removeEventListener("pointerlockerror", this.onLockError);
   }
 
   update(delta: number): void {
@@ -429,7 +433,7 @@ export class FpsControls {
   };
 
   private readonly onLockChange = () => {
-    const captured = document.pointerLockElement === this.domElement;
+    const captured = this.ownerDocument.pointerLockElement === this.domElement;
     if (captured === this.captured) return;
     this.captured = captured;
     if (captured) this.capturePending = false;
@@ -444,9 +448,9 @@ export class FpsControls {
       // Stops Windows from jumping to the browser menu when Alt is let go
       event.preventDefault();
       // Ask the browser, the lock change event can arrive after a quick Alt press
-      if (document.pointerLockElement === this.domElement && !event.repeat) {
+      if (this.ownerDocument.pointerLockElement === this.domElement && !event.repeat) {
         this.altFreed = true;
-        document.exitPointerLock();
+        this.ownerDocument.exitPointerLock();
       }
       return;
     }
@@ -481,8 +485,12 @@ export class FpsControls {
       if (!this.altFreed) return;
       this.altFreed = false;
       // Clicking a button with Alt held moves focus there, so the mouse stay free for the UI
-      const active = document.activeElement;
-      if (active === null || active === document.body || active.contains(this.domElement)) {
+      const active = this.ownerDocument.activeElement;
+      if (
+        active === null ||
+        active === this.ownerDocument.body ||
+        active.contains(this.domElement)
+      ) {
         this.capture();
       }
       return;
@@ -502,7 +510,7 @@ export class FpsControls {
   };
 
   private readonly onVisibilityChange = () => {
-    if (document.hidden) this.clearInput();
+    if (this.ownerDocument.hidden) this.clearInput();
   };
 
   private applyRotation(): void {

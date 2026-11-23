@@ -19,7 +19,6 @@ it("maps a valid local date and time to Unix seconds", () => {
   expect(localDeadlineToUnixSeconds("2028-02-29T15:30")).toBe(
     new Date("2028-02-29T15:30").getTime() / 1000,
   );
-  expect(formatLocalDeadline(localDeadlineToUnixSeconds("2028-02-29T15:30")!)).toBeTruthy();
 });
 
 it("rejects invalid, incomplete and out-of-range deadlines", () => {

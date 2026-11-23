@@ -24,9 +24,9 @@ export class ReviewError extends Error {
 }
 const invalid = () =>
   new ReviewError("The service returned an invalid response. Refresh before continuing.");
-const record = (v: unknown): Record<string, unknown> => {
+const record = (v: unknown): object => {
   if (!v || typeof v !== "object" || Array.isArray(v)) throw invalid();
-  return v as Record<string, unknown>;
+  return v;
 };
 const string = (v: unknown): string => {
   if (typeof v !== "string") throw invalid();
@@ -66,10 +66,21 @@ function document(v: unknown, projectId: string) {
 }
 function page<T>(v: unknown, parse: (v: unknown) => T): Page<T> {
   const r = record(v);
+  if (!("items" in r) || !("nextCursor" in r)) throw invalid();
   return { items: array(r.items, parse), nextCursor: cursor(r.nextCursor) };
 }
 function summary(v: unknown): SubmissionSummary {
   const r = record(v);
+  if (
+    !("submissionId" in r) ||
+    !("revision" in r) ||
+    !("sequence" in r) ||
+    !("submittedAt" in r) ||
+    !("dueAtUnixSeconds" in r) ||
+    !("isLate" in r) ||
+    !("isCurrentSubmission" in r)
+  )
+    throw invalid();
   return {
     submissionId: id(r.submissionId),
     revision: integer(r.revision),
@@ -86,6 +97,15 @@ function outcome(v: unknown): Outcome {
 }
 function decision(v: unknown): Decision {
   const r = record(v);
+  if (
+    !("id" in r) ||
+    !("educatorId" in r) ||
+    !("sequence" in r) ||
+    !("outcome" in r) ||
+    !("feedback" in r) ||
+    !("decidedAt" in r)
+  )
+    throw invalid();
   return {
     id: id(r.id),
     educatorId: id(r.educatorId),
@@ -98,7 +118,18 @@ function decision(v: unknown): Decision {
 function review(v: unknown, projectId: string, submissionId: string): Review {
   const r = record(v);
   const s = summary(r);
-  if (id(r.projectId) !== projectId || s.submissionId !== submissionId) throw invalid();
+  if (
+    !("projectId" in r) ||
+    id(r.projectId) !== projectId ||
+    s.submissionId !== submissionId ||
+    !("studentId" in r) ||
+    !("document" in r) ||
+    !("assetReferences" in r) ||
+    !("latestDecision" in r) ||
+    !("decisions" in r) ||
+    !("nextCursor" in r)
+  )
+    throw invalid();
   return {
     ...s,
     projectId,
@@ -106,6 +137,7 @@ function review(v: unknown, projectId: string, submissionId: string): Review {
     document: document(r.document, projectId),
     assetReferences: array(r.assetReferences, (item) => {
       const a = record(item);
+      if (!("assetId" in a) || !("sha256" in a)) throw invalid();
       const sha256 = string(a.sha256);
       if (!/^[a-f0-9]{64}$/.test(sha256)) throw invalid();
       return { assetId: string(a.assetId), sha256 };
@@ -115,7 +147,7 @@ function review(v: unknown, projectId: string, submissionId: string): Review {
     nextCursor: cursor(r.nextCursor),
   };
 }
-const problemMessages: Record<string, string> = {
+const problemMessages = {
   account_changed: "The account changed. Reload before continuing. Your feedback is preserved.",
   review_assets_unavailable:
     "Submission is unavailable because the project's assets are not ready for review. Your saved project is unchanged.",
@@ -128,6 +160,9 @@ const problemMessages: Record<string, string> = {
   invalid_review_decision: "Check the decision and feedback, then try again.",
   invalid_submission_input: "Confirm completion of the saved revision before submitting.",
 };
+function isReviewProblem(code: string): code is keyof typeof problemMessages {
+  return Object.hasOwn(problemMessages, code);
+}
 export type WriteResult =
   | { kind: "confirmed" }
   | { kind: "rejected"; error: ReviewError }
@@ -144,11 +179,14 @@ export function createReviewClient(request: typeof fetch = fetch) {
   }
   async function read(response: Response): Promise<unknown> {
     if (!response.ok) {
-      const data = await response.json().catch(() => null);
-      const code = data && typeof data.code === "string" ? data.code : "unavailable";
-      const message =
-        problemMessages[code] ??
-        (response.status === 401
+      const data: unknown = await response.json().catch(() => null);
+      const code =
+        data && typeof data === "object" && "code" in data && typeof data.code === "string"
+          ? data.code
+          : "unavailable";
+      const message = isReviewProblem(code)
+        ? problemMessages[code]
+        : response.status === 401
           ? "Your session has expired. Sign in again to continue."
           : response.status === 403
             ? "You no longer have permission for this action, or your password must be changed."
@@ -158,7 +196,7 @@ export function createReviewClient(request: typeof fetch = fetch) {
                 ? "The saved revision or access has changed. Refresh before continuing."
                 : response.status === 429
                   ? "Too many requests. Wait a moment before trying again."
-                  : "The review service is unavailable. Try again later.");
+                  : "The review service is unavailable. Try again later.";
       throw new ReviewError(message, response.status, code);
     }
     if (!response.headers.get("content-type")?.includes("application/json")) throw invalid();
@@ -189,13 +227,13 @@ export function createReviewClient(request: typeof fetch = fetch) {
   async function execute(intent: ReviewIntent, actorId: string): Promise<WriteResult> {
     let token: string;
     try {
-      token = string(
-        record(
-          await read(
-            await send("/api/v1/auth/csrf", { headers: { "X-Spatia-Account": id(actorId) } }),
-          ),
-        ).requestToken,
+      const csrf = record(
+        await read(
+          await send("/api/v1/auth/csrf", { headers: { "X-Spatia-Account": id(actorId) } }),
+        ),
       );
+      if (!("requestToken" in csrf)) throw invalid();
+      token = string(csrf.requestToken);
       if (!token) throw invalid();
     } catch (error) {
       return { kind: "rejected", error: error instanceof ReviewError ? error : invalid() };
@@ -234,14 +272,19 @@ export function createReviewClient(request: typeof fetch = fetch) {
     if (response.status >= 500) {
       // This exact server code is emitted before submission evidence is written.
       if (intent.kind === "submit" && response.status === 503) {
-        const problem = await response
+        const problem: unknown = await response
           .clone()
           .json()
           .catch(() => null);
-        if (problem?.code === "review_assets_unavailable")
+        if (
+          problem &&
+          typeof problem === "object" &&
+          "code" in problem &&
+          problem.code === "review_assets_unavailable"
+        )
           return {
             kind: "rejected",
-            error: new ReviewError(problemMessages.review_assets_unavailable!, 503, problem.code),
+            error: new ReviewError(problemMessages.review_assets_unavailable, 503, problem.code),
           };
       }
       return { kind: "unknown" };
@@ -256,11 +299,17 @@ export function createReviewClient(request: typeof fetch = fetch) {
     try {
       if (response.status !== 200 && response.status !== 201) return { kind: "unknown" };
       const ack = record(await read(response));
-      if (id(ack.submissionId) !== id(intent.submissionId)) return { kind: "unknown" };
+      if (!("submissionId" in ack) || id(ack.submissionId) !== id(intent.submissionId))
+        return { kind: "unknown" };
       if (intent.kind === "submit") {
         if (
+          !("projectId" in ack) ||
           id(ack.projectId) !== id(intent.projectId) ||
-          integer(ack.revision) !== intent.expectedRevision
+          !("revision" in ack) ||
+          integer(ack.revision) !== intent.expectedRevision ||
+          !("submittedAt" in ack) ||
+          !("dueAtUnixSeconds" in ack) ||
+          !("isLate" in ack)
         )
           return { kind: "unknown" };
         date(ack.submittedAt);
@@ -268,9 +317,14 @@ export function createReviewClient(request: typeof fetch = fetch) {
         bool(ack.isLate);
       } else {
         if (
+          !("decisionId" in ack) ||
           id(ack.decisionId) !== id(intent.decisionId) ||
+          !("outcome" in ack) ||
           outcome(ack.outcome) !== intent.outcome ||
-          string(ack.feedback) !== intent.feedback
+          !("feedback" in ack) ||
+          string(ack.feedback) !== intent.feedback ||
+          !("sequence" in ack) ||
+          !("decidedAt" in ack)
         )
           return { kind: "unknown" };
         integer(ack.sequence);
@@ -308,6 +362,7 @@ export function createReviewClient(request: typeof fetch = fetch) {
     getReview,
     async projectAssignment(projectId: string) {
       const row = record(await get(submissionsPath(projectId) + "?limit=1"));
+      if (!("projectId" in row) || !("classId" in row) || !("assignmentId" in row)) throw invalid();
       const linkedProjectId = id(row.projectId);
       if (linkedProjectId !== id(projectId)) throw invalid();
       return {
@@ -319,6 +374,7 @@ export function createReviewClient(request: typeof fetch = fetch) {
     async classrooms(after?: string | null) {
       return page(await get(paged("/api/v1/classes", after)), (v) => {
         const r = record(v);
+        if (!("id" in r) || !("name" in r)) throw invalid();
         return { id: id(r.id), name: string(r.name) } satisfies Classroom;
       });
     },
@@ -327,12 +383,20 @@ export function createReviewClient(request: typeof fetch = fetch) {
         await get(paged("/api/v1/classes/" + id(classId) + "/assignments", after)),
         (v) => {
           const r = record(v);
+          if (
+            !("assignmentId" in r) ||
+            !("title" in r) ||
+            !("dueAtUnixSeconds" in r) ||
+            !("projects" in r)
+          )
+            throw invalid();
           return {
             assignmentId: id(r.assignmentId),
             title: string(r.title),
             dueAtUnixSeconds: integer(r.dueAtUnixSeconds),
             projects: array(r.projects, (p) => {
               const row = record(p);
+              if (!("studentId" in row) || !("projectId" in row)) throw invalid();
               return { studentId: id(row.studentId), projectId: id(row.projectId) };
             }),
           } satisfies Assignment;
@@ -342,6 +406,7 @@ export function createReviewClient(request: typeof fetch = fetch) {
     async roster(classId: string, after?: string | null) {
       return page(await get(paged("/api/v1/classes/" + id(classId) + "/roster", after)), (v) => {
         const r = record(v);
+        if (!("userId" in r) || !("userName" in r) || !("accountActive" in r)) throw invalid();
         return {
           userId: id(r.userId),
           userName: string(r.userName),
@@ -351,8 +416,16 @@ export function createReviewClient(request: typeof fetch = fetch) {
     },
     async project(projectId: string): Promise<SavedProject> {
       const r = record(await get(projectPath(projectId)));
-      if (id(r.projectId) !== id(projectId)) throw invalid();
+      if (
+        !("projectId" in r) ||
+        id(r.projectId) !== id(projectId) ||
+        !("revision" in r) ||
+        !("document" in r) ||
+        !("permissions" in r)
+      )
+        throw invalid();
       const p = record(r.permissions);
+      if (!("canEdit" in p) || !("canManage" in p) || !("canPublish" in p)) throw invalid();
       return {
         projectId: id(r.projectId),
         revision: integer(r.revision),

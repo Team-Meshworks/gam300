@@ -1,7 +1,12 @@
 import { combineAbortSignals } from "../../shared/network/abort-signals";
 import { deserializeProject } from "../../shared/project/project-deserialization";
 import { MAX_PROJECT_BYTES } from "../../shared/project/project-limits";
-import { invalid, isRecord, type ValidationResult } from "../../shared/project/validation-helpers";
+import {
+  invalid,
+  isRecord,
+  readField,
+  type ValidationResult,
+} from "../../shared/project/validation-helpers";
 import type { ProjectDocument } from "../../shared/project/project-types";
 
 export type OpenedServerProject = Readonly<{
@@ -47,7 +52,9 @@ export async function readServerProject(
       }
       const session: unknown = await response.json();
       return (
-        isRecord(session) && session.userId === accountId && session.mustChangePassword === false
+        isRecord(session) &&
+        readField(session, "userId") === accountId &&
+        readField(session, "mustChangePassword") === false
       );
     };
     if (cancelled.aborted || !(await sameAccount())) {
@@ -63,18 +70,23 @@ export async function readServerProject(
       return invalid("project", "Project response exceeds the supported size");
     }
     const body: unknown = JSON.parse(text);
+    if (!isRecord(body))
+      return invalid("project", "Project response is invalid; the current draft was kept");
+    const id = readField(body, "projectId");
+    const revision = readField(body, "revision");
+    const permissions = readField(body, "permissions");
+    const canEdit = isRecord(permissions) ? readField(permissions, "canEdit") : undefined;
     if (
-      !isRecord(body) ||
-      typeof body.projectId !== "string" ||
-      body.projectId.toLowerCase() !== projectId.toLowerCase() ||
-      !Number.isSafeInteger(body.revision) ||
-      (body.revision as number) < 0 ||
-      !isRecord(body.permissions) ||
-      typeof body.permissions.canEdit !== "boolean"
+      typeof id !== "string" ||
+      id.toLowerCase() !== projectId.toLowerCase() ||
+      typeof revision !== "number" ||
+      !Number.isSafeInteger(revision) ||
+      revision < 0 ||
+      typeof canEdit !== "boolean"
     ) {
       return invalid("project", "Project response is invalid; the current draft was kept");
     }
-    const document = deserializeProject(JSON.stringify(body.document), assetKinds);
+    const document = deserializeProject(JSON.stringify(readField(body, "document")), assetKinds);
     if (!document.ok) {
       return document;
     }
@@ -89,9 +101,9 @@ export async function readServerProject(
       ok: true,
       value: {
         accountId,
-        revision: body.revision as number,
+        revision,
         document: document.value,
-        canEdit: body.permissions.canEdit,
+        canEdit,
       },
     };
   } catch {

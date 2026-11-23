@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { scan } from "../architecture.mjs";
+import { moduleOf, scan } from "../architecture.mjs";
 
 test("published links use the player without importing authoring code", () => {
   const { graph } = scan();
@@ -13,15 +13,13 @@ test("published links use the player without importing authoring code", () => {
     }
     return files;
   };
-  const published = reach("visitor/main.tsx");
-  assert.ok(![...published].some((file) => file.startsWith("editor/")));
-  for (const part of [
-    "ExhibitionPlayer.tsx",
-    "ExhibitionCanvas.tsx",
-    "ExhibitionContent.tsx",
-    "playback.ts",
-  ]) {
-    const path = "shared/player/" + part;
-    assert.ok(published.has(path), "The visitor entry must reach " + path);
-  }
+  const published = [...reach("visitor/main.tsx")];
+  assert.ok(
+    published.some((file) => moduleOf(file) === "player"),
+    "Published links must reach the shared player",
+  );
+  assert.ok(
+    !published.some((file) => file.startsWith("editor/")),
+    "Published links must stay independent of authoring",
+  );
 });

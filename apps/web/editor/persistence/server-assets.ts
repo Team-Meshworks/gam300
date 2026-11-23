@@ -2,7 +2,7 @@ import { displayGeometry } from "../../shared/asset-runtime/catalogue";
 import { combineAbortSignals } from "../../shared/network/abort-signals";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { knownRoomGeometry } from "../../shared/asset-runtime/catalogue";
-import { isRecord } from "../../shared/project/validation-helpers";
+import { isRecord, readField } from "../../shared/project/validation-helpers";
 
 export async function readServerAssets(
   accountId: string,
@@ -27,36 +27,46 @@ export async function readServerAssets(
     throw new Error("Invalid approved asset catalogue.");
   const seen = new Set<string>();
   return rows.map((row: unknown) => {
+    if (!isRecord(row)) throw new Error("Invalid approved asset catalogue.");
+    const id = readField(row, "id");
+    const name = readField(row, "name");
+    const kind = readField(row, "kind");
+    const url = readField(row, "url");
+    const sha256 = readField(row, "sha256");
+    const category = readField(row, "category");
     if (
-      !isRecord(row) ||
-      typeof row.id !== "string" ||
-      !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(row.id) ||
-      seen.has(row.id.toLowerCase()) ||
-      typeof row.name !== "string" ||
-      !row.name.trim() ||
-      !["environment", "model", "image", "video", "audio"].includes(String(row.kind)) ||
-      row.url !== `${path}/${row.id}/bytes` ||
-      typeof row.sha256 !== "string" ||
-      !/^[0-9a-f]{64}$/i.test(row.sha256) ||
-      (row.category !== null && typeof row.category !== "string") ||
-      row.thumbnail !== null
+      typeof id !== "string" ||
+      !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id) ||
+      seen.has(id.toLowerCase()) ||
+      typeof name !== "string" ||
+      !name.trim() ||
+      (kind !== "environment" &&
+        kind !== "model" &&
+        kind !== "image" &&
+        kind !== "video" &&
+        kind !== "audio") ||
+      url !== `${path}/${id}/bytes` ||
+      typeof sha256 !== "string" ||
+      !/^[0-9a-f]{64}$/i.test(sha256) ||
+      (category !== null && typeof category !== "string") ||
+      readField(row, "thumbnail") !== null
     )
       throw new Error("Invalid approved asset catalogue.");
-    seen.add(row.id.toLowerCase());
+    seen.add(id.toLowerCase());
     const measured =
-      row.kind === "environment" || row.kind === "model"
-        ? knownRoomGeometry[row.sha256.toLowerCase()]
+      kind === "environment" || kind === "model"
+        ? knownRoomGeometry.get(sha256.toLowerCase())
         : undefined;
     return {
-      id: row.id,
-      name: row.name,
-      kind: row.kind as CatalogueAsset["kind"],
-      url: row.url as string,
-      sha256: row.sha256,
+      id,
+      name,
+      kind,
+      url,
+      sha256,
       thumbnail: null,
-      ...(row.kind === "model" ? displayGeometry[row.sha256.toLowerCase()] : undefined),
+      ...(kind === "model" ? displayGeometry.get(sha256.toLowerCase()) : undefined),
       ...(measured ? { boundsMeters: measured, placement: "bottom-center" as const } : {}),
-      ...(typeof row.category === "string" ? { category: row.category } : {}),
+      ...(typeof category === "string" ? { category } : {}),
     };
   });
 }

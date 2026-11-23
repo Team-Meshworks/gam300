@@ -28,7 +28,8 @@ import {
 import { serializeProject } from "../shared/project/project-serialization";
 import { deserializeProject } from "../shared/project/project-deserialization";
 import { MAX_PROJECT_BYTES } from "../shared/project/project-limits";
-import { createWorkspaceClient, isId, isRecord, projectReceipt } from "./home/workspace-api";
+import { createWorkspaceClient, isId, projectReceipt } from "./home/workspace-api";
+import { isRecord, readField } from "../shared/project/validation-helpers";
 import { Icon } from "./ui/Icon";
 import {
   createOperationKey,
@@ -288,13 +289,16 @@ function ServerProjectSession({
           identity?.userId === active!.accountId &&
           !identity.mustChangePassword &&
           isRecord(value) &&
+          "projectId" in value &&
+          "revision" in value &&
+          "approved" in value &&
           value.projectId === projectId &&
           value.revision === revision &&
           typeof revision === "number" &&
           (value.approved === null || typeof value.approved === "boolean")
         ) {
           let pending = false;
-          if (value.approved === false && value.completionConfirmed === true) {
+          if (value.approved === false && readField(value, "completionConfirmed") === true) {
             const submissions = await allPages((cursor) => reviews.submissions(projectId, cursor));
             const latest = submissions.sort((a, b) => b.sequence - a.sequence)[0];
             const review = latest ? await reviews.getReview(projectId, latest.submissionId) : null;
@@ -633,7 +637,9 @@ function ServerProjectSession({
         : await workspace.read(`/api/v1/projects/${projectId}/assignments`);
       const organizationId =
         identity.orgId ??
-        (isRecord(projectAccess) && isId(projectAccess.organizationId)
+        (isRecord(projectAccess) &&
+        "organizationId" in projectAccess &&
+        isId(projectAccess.organizationId)
           ? projectAccess.organizationId
           : null);
       if (!organizationId) {

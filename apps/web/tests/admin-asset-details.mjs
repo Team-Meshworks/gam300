@@ -75,7 +75,7 @@ export async function checkAdminAssets(page, origin) {
   await nameField.fill("Gallery Soundtrack");
   await save.click();
   await card("Gallery Soundtrack").getByRole("link", { name: "Audio" }).waitFor();
-  assert.equal(await card("Handling Crate").count(), 0);
+  await card("Handling Crate").waitFor({ state: "hidden" });
 
   for (const name of ["North Gallery Bench", "Gallery Soundtrack"]) {
     await card(name)

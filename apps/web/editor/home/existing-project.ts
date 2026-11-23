@@ -1,5 +1,6 @@
 import { createAccountClient } from "../accounts/account-client";
-import { createWorkspaceClient, isId, isRecord, type ProjectSummary } from "./workspace-api";
+import { createWorkspaceClient, isId, type ProjectSummary } from "./workspace-api";
+import { isRecord } from "../../shared/project/validation-helpers";
 
 export type ExistingProject = {
   projectId: string;
@@ -56,8 +57,12 @@ export function createExistingProjectClient(request: typeof fetch = fetch) {
     const value = await api.read(`/api/v1/projects/${projectId}`, undefined, actorId);
     if (
       !isRecord(value) ||
+      !("projectId" in value) ||
+      !("document" in value) ||
+      !("revision" in value) ||
       value.projectId !== projectId ||
       !isRecord(value.document) ||
+      !("title" in value.document) ||
       typeof value.document.title !== "string" ||
       !Number.isSafeInteger(value.revision) ||
       Number(value.revision) < 0

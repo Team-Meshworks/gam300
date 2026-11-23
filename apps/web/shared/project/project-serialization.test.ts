@@ -60,8 +60,7 @@ describe("project JSON serialization", () => {
   });
 
   it("omits empty extensions when exporting a released document", () => {
-    const scene = structuredClone(fixture.scenes[0]) as Record<string, unknown>;
-    delete scene.interactions;
+    const scene = { ...structuredClone(fixture.scenes[0]), interactions: [], hotspots: [] };
     const saved = serializeProject({ ...fixture, scenes: [scene] }, assets);
     expect(saved.ok).toBe(true);
     if (!saved.ok) throw new Error(saved.error.message);

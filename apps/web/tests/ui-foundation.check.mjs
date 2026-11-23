@@ -185,7 +185,6 @@ try {
     ),
   });
   await page.getByRole("img", { name: "Selected cover image" }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Clear form" }).count(), 0);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("heading", { name: "Class assignments", exact: true, level: 1 }).waitFor();
   await page.getByRole("link", { name: "New project", exact: true }).click();

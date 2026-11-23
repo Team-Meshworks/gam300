@@ -1,35 +1,17 @@
 import { readFile } from "node:fs/promises";
+import { URL as FileUrl } from "node:url";
 import { Box3, Group, PerspectiveCamera, Vector3 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { afterEach, beforeAll, expect, it, vi } from "vitest";
+import { beforeAll, expect, it } from "vitest";
 import { FpsControls } from "./FpsControls";
 import { createWalkSpace } from "./walk-space";
 
 let room: Group;
 beforeAll(async () => {
   const bytes = await readFile(
-    new URL("../../../../assets/delivery/test-room.glb", import.meta.url),
+    new FileUrl("../../../../assets/delivery/test-room.glb", import.meta.url),
   );
-  // Keep the real geometry but omit textures, which require browser image decoding
-  const jsonLength = bytes.readUInt32LE(12);
-  const gltf = JSON.parse(bytes.subarray(20, 20 + jsonLength).toString());
-  delete gltf.images;
-  delete gltf.textures;
-  delete gltf.materials;
-  for (const mesh of gltf.meshes)
-    for (const primitive of mesh.primitives) delete primitive.material;
-  const json = Buffer.from(JSON.stringify(gltf));
-  const padded = Buffer.concat([json, Buffer.alloc((4 - (json.length % 4)) % 4, 32)]);
-  const binary = bytes.subarray(20 + jsonLength);
-  const glb = Buffer.alloc(20 + padded.length + binary.length);
-  glb.write("glTF");
-  glb.writeUInt32LE(2, 4);
-  glb.writeUInt32LE(glb.length, 8);
-  glb.writeUInt32LE(padded.length, 12);
-  glb.write("JSON", 16);
-  padded.copy(glb, 20);
-  binary.copy(glb, 20 + padded.length);
-  const model = (await new GLTFLoader().parseAsync(Uint8Array.from(glb).buffer, "")).scene;
+  const model = (await new GLTFLoader().parseAsync(Uint8Array.from(bytes).buffer, "")).scene;
   const bounds = new Box3().setFromObject(model);
   const center = bounds.getCenter(new Vector3());
   model.position.sub(new Vector3(center.x, bounds.min.y, center.z));
@@ -37,17 +19,11 @@ beforeAll(async () => {
   room.add(model);
 });
 
-afterEach(() => vi.unstubAllGlobals());
-
 it.each(["initial engagement", "viewpoint sync", "room visibility resync"])(
   "holds authored poses until movement at %s, then resumes room collision",
   (phase) => {
-    const events = new EventTarget();
-    vi.stubGlobal("document", new EventTarget());
-    vi.stubGlobal("addEventListener", events.addEventListener.bind(events));
-    vi.stubGlobal("removeEventListener", events.removeEventListener.bind(events));
     const camera = new PerspectiveCamera();
-    const controls = new FpsControls(camera, new EventTarget() as HTMLElement);
+    const controls = new FpsControls(camera, document.createElement("canvas"));
     controls.setFlightAllowed(false);
     controls.setWalkSpace(createWalkSpace([room]));
     try {
@@ -91,16 +67,12 @@ it.each(["initial engagement", "viewpoint sync", "room visibility resync"])(
 it.each(["initial engagement", "runtime room visibility resync"])(
   "preserves the view and look controls when tilted-room walking is unavailable at %s",
   (phase) => {
-    const events = new EventTarget();
-    vi.stubGlobal("document", new EventTarget());
-    vi.stubGlobal("addEventListener", events.addEventListener.bind(events));
-    vi.stubGlobal("removeEventListener", events.removeEventListener.bind(events));
     const tilted = room.clone(true);
     tilted.quaternion.set(0.08715574274765817, 0, 0, 0.9961946980917455);
     const camera = new PerspectiveCamera();
     camera.position.set(0, 0.9, 0);
     camera.rotation.set(0.2, 0.3, 0.1);
-    const controls = new FpsControls(camera, new EventTarget() as HTMLElement);
+    const controls = new FpsControls(camera, document.createElement("canvas"));
     controls.setFlightAllowed(false);
     try {
       if (phase === "runtime room visibility resync") {

@@ -1,4 +1,5 @@
-import { isId, isRecord } from "../home/workspace-api";
+import { isId } from "../home/workspace-api";
+import { isRecord } from "../../shared/project/validation-helpers";
 
 export type PublicationAccessState = Readonly<{
   publicationId: string;
@@ -41,31 +42,43 @@ export function publicationAccessState(
 ): PublicationAccessState | null {
   if (
     !isRecord(value) ||
+    !("projectId" in value) ||
+    !("publicationId" in value) ||
+    !("audience" in value) ||
+    !("viewerIds" in value) ||
+    !("hidden" in value) ||
+    !("revoked" in value) ||
+    !("deleted" in value) ||
+    !("archived" in value) ||
+    !("canManage" in value) ||
     !isId(value.projectId) ||
     !isId(value.publicationId) ||
     value.projectId.toLowerCase() !== projectId.toLowerCase() ||
     value.publicationId.toLowerCase() !== publicationId.toLowerCase() ||
-    typeof value.audience !== "string" ||
-    !["Public", "Unlisted", "Authenticated"].includes(value.audience) ||
+    (value.audience !== "Public" &&
+      value.audience !== "Unlisted" &&
+      value.audience !== "Authenticated") ||
     !Array.isArray(value.viewerIds) ||
     value.viewerIds.length > 100 ||
     !value.viewerIds.every(isId) ||
     new Set(value.viewerIds.map((id: string) => id.toLowerCase())).size !==
       value.viewerIds.length ||
-    ["hidden", "revoked", "deleted", "archived", "canManage"].some(
-      (key) => typeof value[key] !== "boolean",
-    )
+    typeof value.hidden !== "boolean" ||
+    typeof value.revoked !== "boolean" ||
+    typeof value.deleted !== "boolean" ||
+    typeof value.archived !== "boolean" ||
+    typeof value.canManage !== "boolean"
   )
     return null;
   return {
     publicationId: value.publicationId,
     projectId: value.projectId,
-    audience: value.audience as PublicationAccessState["audience"],
+    audience: value.audience,
     viewerIds: [...value.viewerIds],
-    hidden: value.hidden as boolean,
-    revoked: value.revoked as boolean,
-    deleted: value.deleted as boolean,
-    archived: value.archived as boolean,
-    canManage: value.canManage as boolean,
+    hidden: value.hidden,
+    revoked: value.revoked,
+    deleted: value.deleted,
+    archived: value.archived,
+    canManage: value.canManage,
   };
 }

@@ -18,10 +18,11 @@ async function checkDialogTypography() {
       page: font(document.querySelector(".asset-admin h1")),
       title: font(dialog.querySelector("h2")),
       upload: dialog.classList.contains("asset-admin-dialog-upload"),
+      confirmation: dialog.classList.contains("asset-admin-dialog-confirmation"),
       section: dialog.querySelector("h3") ? font(dialog.querySelector("h3")) : null,
       labels: [
         ...dialog.querySelectorAll(".asset-admin-fields .asset-admin-select > :is(label, span)"),
-      ].map(font),
+      ].map((node) => ({ text: node.textContent.trim(), size: font(node) })),
       values: [
         ...dialog.querySelectorAll(
           ".asset-admin-fields .asset-admin-select > :is(input, output, button)",
@@ -35,13 +36,28 @@ async function checkDialogTypography() {
     };
   });
   assert.equal(sizes.title, sizes.upload || page.viewportSize().width <= 700 ? 22 : 25);
-  assert.ok(
-    sizes.section === null || sizes.section === sizes.title,
+  assert.equal(
+    sizes.section,
+    sizes.confirmation ? null : sizes.title,
     "Asset Details uses the same heading scale as the popup title",
   );
   assert.equal(sizes.page, 25, "Catalogue page headings keep the PDF's 25px level");
+  if (!sizes.confirmation) {
+    assert.deepEqual(
+      sizes.labels.map(({ text }) => text),
+      sizes.upload
+        ? ["Asset name", "Asset Type", "Filter Category"]
+        : ["Asset Type", "Filter Category"],
+    );
+    assert.equal(
+      sizes.values.length,
+      sizes.labels.length,
+      "Each asset field has a value or control",
+    );
+  }
+  assert.ok(sizes.actions.length > 0, "The dialog offers actions");
   assert.ok(
-    sizes.labels.every((size) => size === 15),
+    sizes.labels.every(({ size }) => size === 15),
     "Asset labels keep their 15px level",
   );
   assert.ok(
@@ -68,12 +84,15 @@ async function waitForVisibleThumbnails() {
   await page.waitForFunction(
     () => {
       const region = document.querySelector(".asset-admin-scroll").getBoundingClientRect();
-      return [...document.querySelectorAll(".asset-admin-thumbnail img")].every((image) => {
-        const box = image.getBoundingClientRect();
-        const visible =
-          box.bottom > Math.max(0, region.top) && box.top < Math.min(innerHeight, region.bottom);
-        return !visible || (image.complete && image.naturalWidth > 0);
-      });
+      const images = [...document.querySelectorAll(".asset-admin-thumbnail img")].filter(
+        (image) => {
+          const box = image.getBoundingClientRect();
+          return (
+            box.bottom > Math.max(0, region.top) && box.top < Math.min(innerHeight, region.bottom)
+          );
+        },
+      );
+      return images.length > 0 && images.every((image) => image.complete && image.naturalWidth > 0);
     },
     undefined,
     { timeout: 10000 },
@@ -351,7 +370,10 @@ try {
     mimeType: "model/gltf-binary",
     buffer: Buffer.from("local preview only"),
   });
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
+  assert.equal(
+    await dialog.getByRole("status", { name: "Filter Category" }).textContent(),
+    "Not applicable",
+  );
   await dialog
     .getByLabel("Choose asset file")
     .evaluate((input) => input.dispatchEvent(new Event("cancel", { bubbles: true })));
@@ -360,8 +382,6 @@ try {
     await dialog.getByLabel("Choose asset file").evaluate((input) => input.files[0].name),
     "retained-room.glb",
   );
-  // Space upload and detail dialogs have no category control
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   assert.equal(
     await dialog
       .locator(".asset-admin-upload")
@@ -420,7 +440,6 @@ try {
   for (const [label, value] of draftMetadata) {
     await dialog.getByLabel(`${label} (optional)`, { exact: true }).fill(value);
   }
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
   await dialog.getByRole("alert").waitFor();
   for (const [label, value] of draftMetadata) {
@@ -434,8 +453,6 @@ try {
     await dialog.getByLabel("Choose asset file").evaluate((input) => input.files[0].name),
     "test-room.glb",
   );
-  // Space upload and detail dialogs have no category control
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
   // Only the adapter's confirmed pending result enters the list after successful submission
@@ -452,7 +469,6 @@ try {
       new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }),
     );
   });
-  assert.equal(await dialog.getByRole("combobox", { name: "Filter Category" }).count(), 0);
   await dialog.getByRole("button", { name: "Save Changes", exact: true }).click();
   await page.getByRole("heading", { name: "new-room", exact: true }).waitFor();
   await page
@@ -914,7 +930,6 @@ try {
   await page.getByLabel("Display name", { exact: true }).fill("Alex Tan");
   await page.getByRole("banner").getByText("Alex Tan", { exact: true }).waitFor();
   assert.equal(await page.getByRole("banner").getByText("AT", { exact: true }).count(), 1);
-  assert.equal(await page.locator("select").count(), 0);
   assert.equal(
     await page
       .locator(".asset-admin-scroll")

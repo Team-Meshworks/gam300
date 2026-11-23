@@ -10,7 +10,7 @@ import {
   validateLoopbackURL,
 } from "./browser-network.mjs";
 
-test("bridge forwards OPTIONS * to the configured origin", { timeout: 2000 }, async (t) => {
+test("bridge forwards OPTIONS * to the configured origin", async (t) => {
   let received;
   const upstream = http.createServer((req, res) => {
     received = [req.method, req.url, req.headers.host];
@@ -22,7 +22,11 @@ test("bridge forwards OPTIONS * to the configured origin", { timeout: 2000 }, as
   const address = await listen(bridge);
   t.after(() => new Promise((resolve) => bridge.close(resolve)));
 
-  const client = http.request(address, { method: "OPTIONS", path: "*" });
+  const client = http.request(address, {
+    method: "OPTIONS",
+    path: "*",
+    signal: AbortSignal.timeout(2000),
+  });
   const reply = once(client, "response");
   client.end();
   const [response] = await reply;
@@ -31,10 +35,8 @@ test("bridge forwards OPTIONS * to the configured origin", { timeout: 2000 }, as
   assert.deepEqual(received, ["OPTIONS", "*", new URL(origin).host]);
 });
 
-test("bridge cancels upstream work when the browser disconnects", { timeout: 2000 }, async (t) => {
-  let received;
-  const upstream = new Promise((resolve) => (received = resolve));
-  const originServer = http.createServer((_req, res) => received(res));
+test("bridge cancels upstream work when the browser disconnects", async (t) => {
+  const originServer = http.createServer();
   const origin = await listen(originServer);
   const bridge = createLoopbackBridge(origin);
   const address = await listen(bridge);
@@ -46,9 +48,10 @@ test("bridge cancels upstream work when the browser disconnects", { timeout: 200
       new Promise((resolve) => originServer.close(resolve)),
     ]);
   });
+  const upstream = once(originServer, "request", { signal: AbortSignal.timeout(2000) });
   const client = http.get(address);
   client.on("error", () => {});
-  const response = await upstream;
+  const [, response] = await upstream;
   const canceled = once(response, "close", { signal: AbortSignal.timeout(1000) });
   client.destroy();
   await canceled;
@@ -63,7 +66,11 @@ function request(proxy, target, headers = {}) {
   return new Promise((resolve, reject) => {
     const req = http.get(
       proxy,
-      { path: target, headers: { host: new URL(target).host, ...headers } },
+      {
+        path: target,
+        headers: { host: new URL(target).host, ...headers },
+        signal: AbortSignal.timeout(5000),
+      },
       (res) => {
         let body = "";
         res.setEncoding("utf8");
@@ -77,7 +84,11 @@ function request(proxy, target, headers = {}) {
   });
 }
 async function handshake(proxy, message) {
-  const socket = net.connect({ host: "127.0.0.1", port: Number(new URL(proxy).port) });
+  const socket = net.connect({
+    host: "127.0.0.1",
+    port: Number(new URL(proxy).port),
+    signal: AbortSignal.timeout(5000),
+  });
   await once(socket, "connect");
   socket.write(message);
   const [data] = await once(socket, "data");
@@ -186,80 +197,76 @@ test("localhost is connected using a loopback literal and dynamic origins remain
 });
 
 for (const host of ["127.0.0.1", "::1"]) {
-  test(
-    `localhost supports an ${host === "::1" ? "IPv6" : "IPv4"}-only upstream`,
-    { timeout: 5000 },
-    async (t) => {
-      const upstreamSockets = new Set();
-      const upstream = http.createServer((_, res) => res.end("loopback response"));
-      upstream.on("connection", (socket) => {
-        upstreamSockets.add(socket);
-        socket.on("error", () => socket.destroy());
-        socket.on("close", () => upstreamSockets.delete(socket));
-      });
-      upstream.on("upgrade", (_, socket) => {
-        socket.write(
-          "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n",
-        );
-        socket.on("data", (data) => socket.write(data));
-      });
-      upstream.listen(0, host);
-      try {
-        await once(upstream, "listening");
-      } catch (error) {
-        if (host === "::1" && ["EAFNOSUPPORT", "EADDRNOTAVAIL"].includes(error.code)) {
-          t.skip("IPv6 loopback is not enabled on this host");
-          return;
-        }
-        throw error;
+  test(`localhost supports an ${host === "::1" ? "IPv6" : "IPv4"}-only upstream`, async (t) => {
+    const upstreamSockets = new Set();
+    const upstream = http.createServer((_, res) => res.end("loopback response"));
+    upstream.on("connection", (socket) => {
+      upstreamSockets.add(socket);
+      socket.on("error", () => socket.destroy());
+      socket.on("close", () => upstreamSockets.delete(socket));
+    });
+    upstream.on("upgrade", (_, socket) => {
+      socket.write(
+        "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n",
+      );
+      socket.on("data", (data) => socket.write(data));
+    });
+    upstream.listen(0, host);
+    try {
+      await once(upstream, "listening");
+    } catch (error) {
+      if (host === "::1" && ["EAFNOSUPPORT", "EADDRNOTAVAIL"].includes(error.code)) {
+        t.skip("IPv6 loopback is not enabled on this host");
+        return;
       }
-      t.after(() => {
-        for (const socket of upstreamSockets) socket.destroy();
-        return new Promise((resolve) => upstream.close(resolve));
-      });
-      const authority = `localhost:${upstream.address().port}`;
-      const origin = `http://${authority}`;
-      const proxy = await createLoopbackProxy([origin]);
-      t.after(() => proxy.close());
+      throw error;
+    }
+    t.after(() => {
+      for (const socket of upstreamSockets) socket.destroy();
+      return new Promise((resolve) => upstream.close(resolve));
+    });
+    const authority = `localhost:${upstream.address().port}`;
+    const origin = `http://${authority}`;
+    const proxy = await createLoopbackProxy([origin]);
+    t.after(() => proxy.close());
 
-      await t.test("HTTP reaches the approved localhost origin", async () => {
-        assert.equal((await request(proxy.url, origin)).body, "loopback response");
-        const literalOrigin = `http://${host === "::1" ? "[::1]" : host}:${upstream.address().port}`;
-        assert.equal((await request(proxy.url, literalOrigin)).status, 403);
-      });
+    await t.test("HTTP reaches the approved localhost origin", async () => {
+      assert.equal((await request(proxy.url, origin)).body, "loopback response");
+      const literalOrigin = `http://${host === "::1" ? "[::1]" : host}:${upstream.address().port}`;
+      assert.equal((await request(proxy.url, literalOrigin)).status, 403);
+    });
 
-      await t.test("CONNECT reaches the approved localhost endpoint", async () => {
-        const tunnel = await handshake(
-          proxy.url,
-          `CONNECT ${authority} HTTP/1.1\r\nHost: ${authority}\r\n\r\n`,
-        );
-        assert.match(tunnel.text, /200 Connection Established/);
-        const response = new Promise((resolve, reject) => {
-          let text = "";
-          tunnel.socket.on("data", (data) => {
-            text += data;
-          });
-          tunnel.socket.on("end", () => resolve(text));
-          tunnel.socket.on("error", reject);
+    await t.test("CONNECT reaches the approved localhost endpoint", async () => {
+      const tunnel = await handshake(
+        proxy.url,
+        `CONNECT ${authority} HTTP/1.1\r\nHost: ${authority}\r\n\r\n`,
+      );
+      assert.match(tunnel.text, /200 Connection Established/);
+      const response = new Promise((resolve, reject) => {
+        let text = "";
+        tunnel.socket.on("data", (data) => {
+          text += data;
         });
-        tunnel.socket.write(`GET / HTTP/1.1\r\nHost: ${authority}\r\nConnection: close\r\n\r\n`);
-        assert.match(await response, /loopback response/);
-        tunnel.socket.destroy();
+        tunnel.socket.on("end", () => resolve(text));
+        tunnel.socket.on("error", reject);
       });
+      tunnel.socket.write(`GET / HTTP/1.1\r\nHost: ${authority}\r\nConnection: close\r\n\r\n`);
+      assert.match(await response, /loopback response/);
+      tunnel.socket.destroy();
+    });
 
-      await t.test("WebSocket upgrades reach the approved localhost origin", async () => {
-        const upgraded = await handshake(
-          proxy.url,
-          `GET ws://${authority}/socket HTTP/1.1\r\nHost: ${authority}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`,
-        );
-        assert.match(upgraded.text, /101 Switching Protocols/);
-        const echoed = once(upgraded.socket, "data");
-        upgraded.socket.write("loopback websocket");
-        assert.equal((await echoed)[0].toString(), "loopback websocket");
-        upgraded.socket.destroy();
-      });
-    },
-  );
+    await t.test("WebSocket upgrades reach the approved localhost origin", async () => {
+      const upgraded = await handshake(
+        proxy.url,
+        `GET ws://${authority}/socket HTTP/1.1\r\nHost: ${authority}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`,
+      );
+      assert.match(upgraded.text, /101 Switching Protocols/);
+      const echoed = once(upgraded.socket, "data");
+      upgraded.socket.write("loopback websocket");
+      assert.equal((await echoed)[0].toString(), "loopback websocket");
+      upgraded.socket.destroy();
+    });
+  });
 }
 
 test("CONNECT enforces exact approved endpoints for HTTPS and WebSockets", async (t) => {
@@ -367,37 +374,40 @@ test("resetting denied and incomplete proxy connections does not terminate the r
   assert.equal((await request(proxy.url, origin)).body, "still available");
 });
 
-test(
-  "truncated upstream responses close the browser response promptly",
-  { timeout: 2000 },
-  async (t) => {
-    const originServer = http.createServer((req, res) => {
-      if (req.url !== "/truncate") {
-        res.end("still available");
-        return;
-      }
-      res.writeHead(200, { "Content-Length": "1000" });
-      res.write("partial");
-      setTimeout(() => res.destroy(), 20);
-    });
-    const origin = await listen(originServer);
-    t.after(() => new Promise((resolve) => originServer.close(resolve)));
-    const proxy = await createLoopbackProxy([origin]);
-    t.after(() => proxy.close());
-    const result = await new Promise((resolve, reject) => {
-      const req = http.get(
-        proxy.url,
-        { path: `${origin}/truncate`, headers: { host: new URL(origin).host } },
-        (res) => {
-          res.on("error", () => resolve("closed"));
-          res.on("aborted", () => resolve("closed"));
-          res.on("end", () => reject(new Error("Truncated response must not finish normally")));
-          res.resume();
-        },
-      );
-      req.on("error", reject);
-    });
-    assert.equal(result, "closed");
-    assert.equal((await request(proxy.url, origin)).body, "still available");
-  },
-);
+test("truncated upstream responses close the browser response promptly", async (t) => {
+  const partial = Promise.withResolvers();
+  const originServer = http.createServer(async (req, res) => {
+    if (req.url !== "/truncate") {
+      res.end("still available");
+      return;
+    }
+    res.writeHead(200, { "Content-Length": "1000" });
+    res.write("partial");
+    await partial.promise;
+    res.destroy();
+  });
+  const origin = await listen(originServer);
+  t.after(() => new Promise((resolve) => originServer.close(resolve)));
+  const proxy = await createLoopbackProxy([origin]);
+  t.after(() => proxy.close());
+  const result = await new Promise((resolve, reject) => {
+    const req = http.get(
+      proxy.url,
+      {
+        path: `${origin}/truncate`,
+        headers: { host: new URL(origin).host },
+        signal: AbortSignal.timeout(2000),
+      },
+      (res) => {
+        res.on("error", () => resolve("closed"));
+        res.on("aborted", () => resolve("closed"));
+        res.once("data", () => partial.resolve());
+        res.on("end", () => reject(new Error("Truncated response must not finish normally")));
+        res.resume();
+      },
+    );
+    req.on("error", reject);
+  });
+  assert.equal(result, "closed");
+  assert.equal((await request(proxy.url, origin)).body, "still available");
+});

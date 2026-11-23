@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
+import { exhaustStorage } from "./local-storage-quota.mjs";
 
 for (const name of [
   "SPATIA_API_ORIGIN",
@@ -162,16 +163,7 @@ try {
   await recovery.getByRole("button", { name: "Review recovered project", exact: true }).click();
   await recovery.getByText(new RegExp(lost.receipt.projectId)).waitFor();
   assert.equal(await recoveredPage.getByText("original-only.png", { exact: true }).count(), 0);
-  await recoveredPage.evaluate((key) => {
-    const original = Storage.prototype.setItem;
-    Storage.prototype.setItem = function (name, value) {
-      if (name === key) {
-        Storage.prototype.setItem = original;
-        throw new DOMException("Storage full", "QuotaExceededError");
-      }
-      return original.call(this, name, value);
-    };
-  }, "spatia.assignment.source:" + actor);
+  const restoreStorage = await exhaustStorage(recoveredPage);
   await recovery
     .getByRole("button", { name: "Use this recovered source project", exact: true })
     .click();
@@ -188,6 +180,7 @@ try {
     ),
     null,
   );
+  await restoreStorage();
   await recovery
     .getByRole("button", { name: "Use this recovered source project", exact: true })
     .click();

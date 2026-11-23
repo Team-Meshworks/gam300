@@ -322,7 +322,7 @@ export function ExhibitionCanvas({
         if (
           asset.kind === "environment" ||
           (asset.kind === "model" &&
-            (knownRoomGeometry[digest] || isRoomModel(exhibition.assets, asset.id)))
+            (knownRoomGeometry.has(digest) || isRoomModel(exhibition.assets, asset.id)))
         ) {
           rooms.set(root, { model: gltf.scene, starter: digest === STARTER_ROOM_SHA256 });
         } else if (asset.kind === "model") {

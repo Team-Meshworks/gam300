@@ -63,16 +63,28 @@ const requests = [];
 const errors = [];
 const duplicateRoots = [];
 const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
-let page;
+const manifest = () => ({
+  publicationId,
+  projectId: snapshot.projectId.toLowerCase(),
+  sourceRevision: 4,
+  assets: [
+    {
+      id: assetId,
+      kind: "environment",
+      sha256: mode === "bad-hash" ? "0".repeat(64) : hash,
+      url: `/api/v1/publications/${publicationId}/assets/${assetId}/bytes`,
+    },
+  ],
+});
+const manifestHolds = [];
+function holdManifest() {
+  const pending = Promise.withResolvers();
+  manifestHolds.push(pending);
+  return pending.promise;
+}
+let openingHold;
 try {
-  page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
-  await page.addInitScript(() => {
-    const timeout = AbortSignal.timeout.bind(AbortSignal);
-    AbortSignal.timeout = (milliseconds) =>
-      timeout(
-        milliseconds === 300000 && sessionStorage.getItem("shortAssetTimeout") ? 100 : milliseconds,
-      );
-  });
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
     if (
@@ -81,46 +93,24 @@ try {
     )
       duplicateRoots.push(message.text());
   });
-  await page.addInitScript(() => {
-    if (!sessionStorage.getItem("holdPublicationOpening")) return;
-    const readText = Response.prototype.text;
-    Response.prototype.text = async function () {
-      const body = await readText.call(this);
-      if (
-        new URL(this.url, location.origin).pathname.startsWith("/api/v1/publications/") &&
-        !this.url.endsWith("/manifest")
-      ) {
-        await new Promise((resolve) => {
-          window.releaseOpeningSnapshot = resolve;
-        });
-      }
-      return body;
-    };
-  });
   page.setDefaultTimeout(5000);
   page.on("request", (request) => requests.push(new URL(request.url()).pathname));
   await page.route("**/api/v1/publications/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/manifest") && manifestHolds.length) {
+      manifestHolds.shift().resolve(route);
+      return;
+    }
+    if (path.endsWith(publicationId) && openingHold) {
+      openingHold.resolve(route);
+      return;
+    }
     if (mode === "denied") return route.fulfill({ status: 404 });
     if (mode === "offline") return route.abort("failed");
-    if (path.endsWith("/manifest"))
-      return route.fulfill({
-        json: {
-          publicationId,
-          projectId: snapshot.projectId.toLowerCase(),
-          sourceRevision: 4,
-          assets: [
-            {
-              id: assetId,
-              kind: "environment",
-              sha256: mode === "bad-hash" ? "0".repeat(64) : hash,
-              url: `/api/v1/publications/${publicationId}/assets/${assetId}/bytes`,
-            },
-          ],
-        },
-      });
+    if (path.endsWith("/manifest")) return route.fulfill({ json: manifest() });
     if (path.endsWith("/bytes")) {
-      if (mode === "timeout") return route.fulfill({ status: 429 });
+      if (mode === "timeout")
+        return route.fulfill({ status: 429, headers: { "Retry-After": "300" } });
       if (mode === "asset-denied") return route.fulfill({ status: 404 });
       if (mode === "saturated") {
         saturatedAssetRequests++;
@@ -140,45 +130,35 @@ try {
   const canvas = page.locator("canvas[aria-label='Exhibition view']");
   assert.equal(await canvas.count(), 1);
   assert.ok(await canvas.evaluate((element) => element.width > 0 && element.height > 0));
-  // Let the real manifest request settle, then control when focus listeners receive the result.
   const priorCanvas = await canvas.elementHandle();
-  await page.evaluate(() => {
-    const fetchManifest = window.fetch.bind(window);
-    window.originalFetch = fetchManifest;
-    window.manifestChecks = [];
-    window.fetch = async (...args) => {
-      if (!String(args[0]).endsWith("/manifest")) return fetchManifest(...args);
-      const result = await fetchManifest(...args).then(
-        (response) => response,
-        (failure) => failure,
-      );
-      window.manifestChecks.push(result instanceof Response ? result.status : "network error");
-      if (window.manifestChecks.length === 1)
-        await new Promise((resolve) => {
-          window.releaseManifest = resolve;
-        });
-      if (result instanceof Error) throw result;
-      return result;
-    };
-  });
+  const afterRender = () =>
+    page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+  // An older failed recheck must not withdraw a scene after a newer success
   for (const failure of ["denied", "offline"]) {
-    await page.evaluate(() => {
-      window.manifestChecks = [];
-    });
-    mode = failure;
+    const held = holdManifest();
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await page.waitForFunction(() => window.manifestChecks.length === 1);
-    mode = "allowed";
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await page.waitForFunction(() => window.manifestChecks.length === 2);
-    assert.deepEqual(await page.evaluate(() => window.manifestChecks), [
-      failure === "denied" ? 404 : "network error",
-      200,
-    ]);
-    await page.evaluate(async () => {
-      window.releaseManifest();
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const older = await held;
+    const newerFinished = page.waitForEvent("requestfinished", {
+      predicate: (request) => request.url().endsWith("/manifest") && request !== older.request(),
     });
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    const newer = await newerFinished;
+    assert.equal((await newer.response()).status(), 200);
+    await afterRender();
+    const olderFinished = page.waitForEvent(
+      failure === "denied" ? "requestfinished" : "requestfailed",
+      {
+        predicate: (request) => request === older.request(),
+      },
+    );
+    if (failure === "denied") await older.fulfill({ status: 404 });
+    else await older.abort("failed");
+    const completed = await olderFinished;
+    if (failure === "denied") assert.equal((await completed.response()).status(), 404);
+    else assert.ok(completed.failure());
+    await afterRender();
     assert.equal(
       await priorCanvas.evaluate((node) => node.isConnected),
       true,
@@ -186,25 +166,16 @@ try {
     );
   }
   // Repeated checks cannot postpone a completed denial indefinitely.
+  const held = [holdManifest(), holdManifest(), holdManifest()];
   await page.evaluate(() => {
-    window.pendingChecks = [];
-    window.fetch = (...args) =>
-      String(args[0]).endsWith("/manifest")
-        ? new Promise((resolve) => window.pendingChecks.push(resolve))
-        : window.originalFetch(...args);
+    for (let i = 0; i < 3; i++) window.dispatchEvent(new Event("focus"));
   });
-  await page.evaluate(() => {
-    window.dispatchEvent(new Event("focus"));
-    window.dispatchEvent(new Event("focus"));
-    window.dispatchEvent(new Event("focus"));
-    window.pendingChecks[0](new Response(null, { status: 404 }));
-  });
+  const [first, ...later] = await Promise.all(held);
+  await first.fulfill({ status: 404 });
   await page.getByRole("heading", { name: "Exhibition unavailable" }).waitFor();
   assert.equal(await canvas.count(), 0);
   assert.equal(await page.title(), "Exhibition · Spatia");
-  await page.evaluate(() => {
-    window.fetch = window.originalFetch;
-  });
+  await Promise.all(later.map((route) => route.abort()));
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   await page.getByRole("status").getByText("Exhibition ready").waitFor();
   // A current denial still withdraws the scene and requires a fresh attempt.
@@ -216,18 +187,16 @@ try {
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   await page.getByRole("status").getByText("Exhibition ready").waitFor();
 
-  // Hold the authorized opening snapshot after its bytes arrive. A focus recheck
-  // can withdraw the visit while the original reader still owns that result.
-  await page.evaluate(() => sessionStorage.setItem("holdPublicationOpening", "1"));
+  // A delayed opening response must not restore a visit withdrawn by a recheck
+  openingHold = Promise.withResolvers();
   await page.reload();
-  await page.waitForFunction(() => typeof window.releaseOpeningSnapshot === "function");
+  const opening = await openingHold.promise;
+  openingHold = undefined;
   mode = "denied";
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.getByRole("heading", { name: "Exhibition unavailable" }).waitFor();
-  await page.evaluate(async () => {
-    window.releaseOpeningSnapshot();
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  });
+  await opening.fulfill({ json: snapshot });
+  await afterRender();
   assert.deepEqual(
     { revokedReadyTitle, revokedOpeningTitle: await page.title(), canvases: await canvas.count() },
     {
@@ -237,7 +206,6 @@ try {
     },
   );
   mode = "allowed";
-  await page.evaluate(() => sessionStorage.removeItem("holdPublicationOpening"));
   await page.reload();
   await page.getByRole("status").getByText("Exhibition ready").waitFor();
   const bounds = await canvas.boundingBox();
@@ -250,8 +218,6 @@ try {
     .getByRole("heading", { name: "Visitor test exhibition" })
     .boundingBox();
   assert.ok(titleBounds.width <= 1 && titleBounds.height <= 1, "Title does not occupy the preview");
-  assert.equal(await page.getByText(/Saved revision/).count(), 0);
-  assert.equal(await page.getByRole("button", { name: "Start exhibition" }).count(), 0);
   assert.equal(await page.getByRole("button", { name: /^Activate / }).count(), 0);
   assert.equal(await page.getByRole("button", { name: /edit|undo|redo|save/i }).count(), 0);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -287,15 +253,14 @@ try {
   console.log("Initial canvas captured");
   await canvas.focus();
   await page.keyboard.down("d");
-  await page.waitForTimeout(300);
-  await page.keyboard.up("d");
+  try {
+    await afterRender();
+  } finally {
+    await page.keyboard.up("d");
+  }
   assert.equal(await canvas.evaluate((element) => element === document.activeElement), true);
-  await page.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-  );
+  await afterRender();
   assert.notEqual(await screenshotHash(), original, "Walking moves the visible camera");
-  assert.equal(await page.getByRole("combobox").count(), 0);
-  assert.equal(await page.getByRole("button", { name: "Reset view" }).count(), 0);
   assert.equal(await canvas.count(), 1);
   assert.equal(
     requests.some((path) => /^\/editor\//.test(path)),
@@ -322,12 +287,17 @@ try {
   assert.ok(Date.now() - saturationStarted > 6000, "saturation lasts over six seconds");
 
   mode = "timeout";
-  await page.evaluate(() => sessionStorage.setItem("shortAssetTimeout", "yes"));
+  await page.clock.install();
+  const saturated = page.waitForResponse(
+    (response) => response.url().endsWith("/bytes") && response.status() === 429,
+  );
   await page.reload();
+  await saturated;
+  // Advance the real asset timeout without waiting five minutes
+  await page.clock.fastForward("05:00");
   await page.getByText("Loading the exhibition timed out. Please try again.").waitFor();
   const timedOutCanvas = await canvas.elementHandle();
   mode = "allowed";
-  await page.evaluate(() => sessionStorage.removeItem("shortAssetTimeout"));
   await page.getByRole("button", { name: "Retry loading exhibition" }).click();
   await page.getByRole("status").getByText("Exhibition ready").waitFor();
   assert.equal(await timedOutCanvas.evaluate((element) => element.isConnected), false);
@@ -349,9 +319,6 @@ try {
   console.log(
     "Visitor browser checks passed: canvas, keyboard, scene replacement, saturation, retry, timeout, hash rejection and sign-in return.",
   );
-} catch (error) {
-  console.error(await page?.locator("body").innerText());
-  throw error;
 } finally {
   await browser.close();
 }

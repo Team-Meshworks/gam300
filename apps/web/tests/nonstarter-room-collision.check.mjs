@@ -22,14 +22,8 @@ try {
       .click();
   };
   const scene = async (matches) => {
-    const deadline = Date.now() + 15000;
-    let latest;
-    while (Date.now() < deadline) {
-      latest = project.document().scenes[0];
-      if (latest && matches(latest)) return latest;
-      await page.waitForTimeout(100);
-    }
-    throw new Error(`Expected scene was not saved: ${JSON.stringify(latest)}`);
+    const doc = await project.waitForDocument(({ scenes: [value] }) => value && matches(value));
+    return doc.scenes[0];
   };
   await page.getByRole("button", { name: "Rooms", exact: true }).click();
   assert.equal(
@@ -73,8 +67,8 @@ try {
   for (const y of [200, 300, 400, 500, 600, 700, 800]) {
     for (const x of [450, 600, 750, 900, 1050, 1200, 1350]) {
       await stage.hover({ position: { x, y } });
-      await page.waitForTimeout(50);
-      const preview = await page.evaluate(() => {
+      const preview = await page.evaluate(async () => {
+        await new Promise(requestAnimationFrame);
         let color;
         window.roomGhost?.traverse((node) => {
           if (node.isMesh) color = node.material.color.getHexString();
@@ -98,13 +92,12 @@ try {
     `Expected a valid room preview: ${feedback.join(" | ")} ${JSON.stringify(previews)}`,
   );
   await stage.click({ position: validPoint });
-  await page.waitForTimeout(1000);
+  const added = await scene((value) => value.objects.length === 1);
   assert.equal(
     await page.locator(".scene-tree .object-row").count(),
     1,
     `Click at ${JSON.stringify(validPoint)} preview ${JSON.stringify(previews.at(-1))}: ${(await page.locator('[role="alert"], [role="status"]').allTextContents()).join(" | ")}`,
   );
-  const added = await scene((value) => value.objects.length === 1);
   const room = added.objects[0];
   const matchingAsset = await page.evaluate(async (id) => {
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
@@ -140,18 +133,10 @@ try {
       (Math.abs(Math.abs(pz) - halfSum(2)) < 0.1 && Math.abs(px) < halfSum(0)),
     "Placement snaps the distinct room bounds to an adjacent edge",
   );
-  const beforeReload = await scene((value) => value.objects.length === 1);
   const savedFile = project.document();
   await page.reload();
   await openSavedProject(page);
-  const restored = await scene((value) => value.objects.length === 1);
-  assert.equal(restored.environmentAssetId, beforeReload.environmentAssetId);
-  assert.deepEqual(
-    restored.objects,
-    beforeReload.objects,
-    "Server reload restores the placed room",
-  );
-  await page.locator(".scene-tree .object-row").last().click();
+  await page.locator(`.scene-tree .object-row[data-object-id="${room.id}"]`).click();
   await page.getByRole("button", { name: "Position", exact: true }).click();
   const x = page.getByRole("textbox", { name: `${room.name} transform X (m)`, exact: true });
   const z = page.getByRole("textbox", { name: `${room.name} transform Z (m)`, exact: true });

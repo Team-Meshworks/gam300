@@ -1,14 +1,18 @@
 import { serializeProject } from "../../shared/project/project-serialization";
 import { deserializeProject } from "../../shared/project/project-deserialization";
 import type { ProjectDocument } from "../../shared/project/project-types";
-import { checkFields, invalid, isRecord } from "../../shared/project/validation-helpers";
+import { checkFields, invalid, isRecord, readField } from "../../shared/project/validation-helpers";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
 import { validateRecoveryHistory, type RecoveryHistory } from "../recovery-history";
 import { IndexedDBDraftDatabase, SESSION_STORE_NAME, type IDraftDatabase } from "./draft-db";
 import { validateServerSaveRecovery, type ServerSaveRecovery } from "./server-save-recovery";
 
+function isNonnegativeSafeInteger(value: number) {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
 function isCounter(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+  return typeof value === "number" && isNonnegativeSafeInteger(value);
 }
 
 export type RecoverySession = Readonly<{
@@ -71,25 +75,30 @@ export async function getRecoverySession(
     if (raw === undefined) {
       return { ok: true, value: null };
     }
-    if (isRecord(raw) && raw.cleared === true) {
+    if (!isRecord(raw)) {
+      return invalid("storage", "Recovery metadata is invalid; the stored copy was kept");
+    }
+    const revision = readField(raw, "revision");
+    if (readField(raw, "cleared") === true) {
       const fields = checkFields(raw, ["revision", "cleared"], "recovery");
       if (!fields.ok) return fields;
-      if (!isCounter(raw.revision) || raw.revision < 1) {
+      if (!isCounter(revision) || revision < 1) {
         return invalid("storage", "Cleared recovery revision is invalid; the stored copy was kept");
       }
       return {
         ok: true,
-        value: { revision: raw.revision, document: null },
+        value: { revision, document: null },
       };
     }
+    const fileName = readField(raw, "fileName");
+    const savedJson = readField(raw, "savedJson");
     if (
-      !isRecord(raw) ||
-      !isCounter(raw.revision) ||
-      raw.revision < 1 ||
-      typeof raw.fileName !== "string" ||
-      raw.fileName.length > 255 ||
-      typeof raw.pristine !== "boolean" ||
-      (raw.savedJson !== null && typeof raw.savedJson !== "string")
+      !isCounter(revision) ||
+      revision < 1 ||
+      typeof fileName !== "string" ||
+      fileName.length > 255 ||
+      typeof readField(raw, "pristine") !== "boolean" ||
+      (savedJson !== null && typeof savedJson !== "string")
     ) {
       return invalid("storage", "Recovery metadata is invalid; the stored copy was kept");
     }
@@ -102,14 +111,17 @@ export async function getRecoverySession(
     if (!fields.ok) {
       return fields;
     }
-    const document = deserializeProject(raw.document, assetKinds, { allowDraftLinks: true });
+    const document = deserializeProject(readField(raw, "document"), assetKinds, {
+      allowDraftLinks: true,
+    });
     if (!document.ok) return document;
     // Validate the pending request alongside the scene before offering recovery
     // A damaged retry record must stay stored for inspection rather than being sent
+    const storedSave = readField(raw, "serverSave");
     const serverSave =
-      raw.serverSave === undefined
+      storedSave === undefined
         ? undefined
-        : validateServerSaveRecovery(raw.serverSave, document.value.projectId, assetKinds);
+        : validateServerSaveRecovery(storedSave, document.value.projectId, assetKinds);
     if (serverSave && !serverSave.ok) return serverSave;
     if (document.value.projectId.toLowerCase() !== projectId)
       return invalid(
@@ -117,13 +129,14 @@ export async function getRecoverySession(
         "Recovery belongs to a different project; the stored copy was kept",
       );
     // Keep the valid scene available even if an older history record cannot be restored
+    const storedHistory = readField(raw, "history");
     const history =
-      raw.history === undefined
+      storedHistory === undefined
         ? undefined
-        : validateRecoveryHistory(raw.history, document.value, assetKinds);
+        : validateRecoveryHistory(storedHistory, document.value, assetKinds);
     // Validate any manual-save baseline from older records before accepting their document.
-    if (raw.savedJson !== null) {
-      const baseline = deserializeProject(raw.savedJson, assetKinds);
+    if (savedJson !== null) {
+      const baseline = deserializeProject(savedJson, assetKinds);
       if (!baseline.ok) return baseline;
       if (baseline.value.projectId !== document.value.projectId)
         return invalid("storage", "Recovery file belongs to a different project");
@@ -131,7 +144,7 @@ export async function getRecoverySession(
     return {
       ok: true,
       value: {
-        revision: raw.revision,
+        revision,
         document: document.value,
         ...(serverSave?.ok ? { serverSave: serverSave.value } : {}),
         ...(history?.ok ? { history: history.value } : {}),
@@ -162,7 +175,7 @@ export async function applySaveRecoverySession(
   if (session.document?.projectId.toLowerCase() !== scope.projectId.toLowerCase()) {
     return invalid("storage", "Recovery belongs to a different project");
   }
-  if (!isCounter(expectedRevision) || expectedRevision === Number.MAX_SAFE_INTEGER) {
+  if (!isNonnegativeSafeInteger(expectedRevision) || expectedRevision === Number.MAX_SAFE_INTEGER) {
     return invalid("storage", "Invalid recovery revision");
   }
 
@@ -209,12 +222,13 @@ export async function applySaveRecoverySession(
       };
       read.onsuccess = () => {
         const previous: unknown = read.result;
-        if (previous !== undefined && (!isRecord(previous) || !isCounter(previous.revision))) {
+        const revision = isRecord(previous) ? readField(previous, "revision") : undefined;
+        if (previous !== undefined && !isCounter(revision)) {
           message = "Recovery metadata is invalid; the stored copy was kept";
           tx.abort();
           return;
         }
-        if ((isRecord(previous) ? previous.revision : 0) !== expectedRevision) {
+        if ((revision ?? 0) !== expectedRevision) {
           // Both tabs share this record; only the tab with the latest revision can replace it
           message = "Recovery changed in another tab; export your edits before refreshing";
           tx.abort();
@@ -283,19 +297,22 @@ export async function clearConfirmedServerRecovery(
         const raw: unknown = read.result;
         // Only remove an exact confirmed copy with no outstanding request
         // Missing metadata or newer local edits leave the backup in place
+        if (!isRecord(raw)) return;
+        const revision = readField(raw, "revision");
+        const serverSave = readField(raw, "serverSave");
+        const document = readField(raw, "document");
         if (
-          !isRecord(raw) ||
-          !isCounter(raw.revision) ||
-          raw.revision < 1 ||
-          !isRecord(raw.serverSave) ||
-          raw.serverSave.pending !== null ||
-          typeof raw.document !== "string" ||
-          raw.document !== raw.serverSave.confirmedJson
+          !isCounter(revision) ||
+          revision < 1 ||
+          !isRecord(serverSave) ||
+          readField(serverSave, "pending") !== null ||
+          typeof document !== "string" ||
+          document !== readField(serverSave, "confirmedJson")
         )
           return;
         try {
           // Keep the revision so another tab cannot reuse an old counter after cleanup
-          store.put({ revision: raw.revision, cleared: true }, key);
+          store.put({ revision, cleared: true }, key);
           removed = true;
         } catch {
           tx.abort();

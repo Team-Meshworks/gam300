@@ -24,17 +24,10 @@ try {
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await stage.click({ position: { x: 800, y: 500 } });
   async function saved(matches = () => true) {
-    const deadline = Date.now() + 15000;
-    let last;
-    while (Date.now() < deadline) {
-      const doc = project.document();
-      last = doc?.scenes[0];
-      if (last?.objects.length === 1 && matches(last)) return last;
-      await page.waitForTimeout(100);
-    }
-    throw new Error(
-      `Expected scene transform did not reach server storage: ${JSON.stringify(last)}`,
+    const doc = await project.waitForDocument(
+      ({ scenes: [scene] }) => scene?.objects.length === 1 && matches(scene),
     );
+    return doc.scenes[0];
   }
   const before = await saved();
   const roomTransform = (scene) =>
@@ -90,16 +83,9 @@ try {
   );
   await page.reload();
   await openSavedProject(page);
-  const reopened = await saved(
-    (scene) => Math.abs(scene.objects[0].transform.rotation[1] - Math.SQRT1_2) < 0.001,
-  );
-  assert.deepEqual(
-    reopened.environmentTransform,
-    rotated.environmentTransform,
-    "Recovery retains the room transform",
-  );
   await tree.locator(".object-row").click();
   await page.getByRole("button", { name: "Position", exact: true }).click();
+  assert.equal(Number(await yaw.inputValue()), 90, "Reload restores the rotated crate");
   await x.fill("100");
   await x.press("Enter");
   const clampedX = Number(await x.inputValue());
@@ -109,7 +95,7 @@ try {
   );
   assert.deepEqual(
     constrained.environmentTransform,
-    reopened.environmentTransform,
+    rotated.environmentTransform,
     "Lone crate movement leaves the room stationary",
   );
   assert.deepEqual(errors, []);

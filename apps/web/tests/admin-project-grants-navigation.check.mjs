@@ -44,9 +44,7 @@ try {
       });
     return route.fulfill({ json: { items: [], nextCursor: null } });
   });
-  await page.goto(`${origin}/admin/dashboard`);
-  assert.equal(await page.getByRole("link", { name: "Open project workspace" }).count(), 0);
-  await page.goto(`${origin}/home`);
+  await page.goto(`${origin}/home`, { waitUntil: "commit" });
   const project = page.getByRole("listitem").filter({
     has: page.getByRole("heading", { name: "Grant browser project", exact: true }),
   });

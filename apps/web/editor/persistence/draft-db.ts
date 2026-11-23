@@ -17,15 +17,22 @@ export interface IDraftDatabase {
 }
 
 export class IndexedDBDraftDatabase implements IDraftDatabase {
+  private readonly storage: IDBFactory | undefined;
+
+  constructor(storage?: IDBFactory) {
+    this.storage = storage;
+  }
+
   getIndexedDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
-      if (globalThis.indexedDB === undefined) {
+      const storage = this.storage ?? globalThis.indexedDB;
+      if (storage === undefined) {
         reject(new Error("IndexedDB is unavailable"));
         return;
       }
 
       // Database version controls the store layout; project schemaVersion lives in the JSON
-      const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+      const request = storage.open(DATABASE_NAME, DATABASE_VERSION);
       let blocked = false;
       request.onupgradeneeded = () => upgradeDatabase(request.result);
       request.onerror = () => reject(request.error);

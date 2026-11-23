@@ -5,7 +5,6 @@ import type {
   ContentProject,
   ProjectAction,
   ProjectTrigger,
-  TextMark,
 } from "./project-content";
 import { MAX_PROJECT_BYTES } from "./project-limits";
 import {
@@ -15,7 +14,13 @@ import {
 } from "./portable-url";
 import type { Interaction, ProjectHotspot } from "./project-types";
 import { validateCameraPose, validatePosition, validateTransform } from "./spatial-validation";
-import { checkFields, invalid, isRecord, type ValidationResult } from "./validation-helpers";
+import {
+  checkFields,
+  invalid,
+  isRecord,
+  readField,
+  type ValidationResult,
+} from "./validation-helpers";
 
 // Stop at the first bad field while preserving its path for import feedback
 class ContentError extends Error {
@@ -36,19 +41,30 @@ function checked<T>(result: ValidationResult<T>): T {
   }
   return result.value;
 }
-function record(
+function record<Required extends string, Optional extends string = never>(
   raw: unknown,
-  fields: readonly string[],
+  fields: readonly Required[],
   path: string,
-  optional: readonly string[] = [],
-): Record<string, unknown> {
+  optional: readonly Optional[] = [],
+): (field: Required | Optional) => unknown {
   if (!isRecord(raw)) {
     fail(path, "Expected an object");
   }
 
   // Reject extra fields too, including server authority accidentally embedded in a file
   checked(checkFields(raw, fields, path, optional));
-  return raw;
+  return (field) => readField(raw, field);
+}
+
+type VariantFields<Variant extends { type: string }, Common extends string = "type"> = {
+  [Type in Variant["type"]]: readonly Exclude<keyof Extract<Variant, { type: Type }>, Common>[];
+};
+
+function isVariant<Variants extends object>(
+  variants: Variants,
+  type: unknown,
+): type is Extract<keyof Variants, string> {
+  return typeof type === "string" && Object.hasOwn(variants, type);
 }
 
 // Match C# UTF-16 text limits and reject lone surrogates before JSON can replace them
@@ -66,10 +82,10 @@ function text(raw: unknown, path: string, limit = 256): string {
   return raw;
 }
 function appearance(raw: unknown, path: string): ExhibitAppearance {
-  const value = record(raw, ["color", "material"], path);
-  const color = text(value.color, `${path}.color`, 7);
+  const read = record(raw, ["color", "material"], path);
+  const color = text(read("color"), `${path}.color`, 7);
   if (!/^#[0-9a-fA-F]{6}$/.test(color)) fail(`${path}.color`, "Choose a six-digit colour");
-  const material = text(value.material, `${path}.material`);
+  const material = text(read("material"), `${path}.material`);
   if (!(exhibitMaterials as readonly string[]).includes(material))
     fail(`${path}.material`, "Choose a supported material");
   return { color, material: material as ExhibitAppearance["material"] };
@@ -120,51 +136,52 @@ function component(raw: unknown, path: string): ContentComponent {
   if (!isRecord(raw)) {
     fail(path, "Expected a component");
   }
-  const type = raw.type;
-  const variants: Record<string, readonly string[]> = {
+  const type = readField(raw, "type");
+  const variants = {
     hotspot: ["label"],
     text: ["runs", "caption"],
     image: ["assetId", "caption", "alt"],
     audio: ["assetId", "caption", "loop", "volume", "mode"],
     video: ["assetId", "caption", "loop", "volume"],
     navigationPoint: ["label", "sceneId", "viewpointId"],
-  };
-  if (typeof type !== "string" || !Object.hasOwn(variants, type)) {
+  } as const satisfies VariantFields<ContentComponent, "id" | "type">;
+  if (!isVariant(variants, type)) {
     fail(`${path}.type`, "Unsupported component type");
   }
-  record(
+  const read = record(
     raw,
-    ["id", "type", ...variants[type]!],
+    ["id", "type", ...variants[type]],
     path,
     type === "text" ? ["placement", "background", "color", "fontSize"] : [],
   );
-  const id = text(raw.id, `${path}.id`);
+  const id = text(read("id"), `${path}.id`);
   switch (type) {
     case "hotspot":
-      return { id, type, label: text(raw.label, `${path}.label`) };
+      return { id, type, label: text(read("label"), `${path}.label`) };
     case "text": {
+      const background = read("background");
+      const color = read("color");
+      const placement = read("placement");
+      const fontSize = read("fontSize");
       if (
-        raw.background !== undefined &&
-        raw.background !== "transparent" &&
-        (typeof raw.background !== "string" || !/^#[0-9a-fA-F]{6}$/.test(raw.background))
+        background !== undefined &&
+        background !== "transparent" &&
+        (typeof background !== "string" || !/^#[0-9a-fA-F]{6}$/.test(background))
       )
         fail(`${path}.background`, "Choose a background color or transparent");
-      if (
-        raw.color !== undefined &&
-        (typeof raw.color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(raw.color))
-      )
+      if (color !== undefined && (typeof color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(color)))
         fail(`${path}.color`, "Choose a text color");
       // Bound the whole panel so splitting text into many runs cannot bypass its limit
       let length = 0;
-      const runs = list(raw.runs, `${path}.runs`, 256, (input, path) => {
-        const run = record(input, ["text", "marks"], path);
-        const value = text(run.text, `${path}.text`, 65536);
+      const runs = list(read("runs"), `${path}.runs`, 256, (input, path) => {
+        const readRun = record(input, ["text", "marks"], path);
+        const value = text(readRun("text"), `${path}.text`, 65536);
         length += value.length;
-        const marks = list(run.marks, `${path}.marks`, 3, (input, path) => {
+        const marks = list(readRun("marks"), `${path}.marks`, 3, (input, path) => {
           if (input !== "bold" && input !== "italic" && input !== "underline") {
             fail(path, "Unsupported text mark");
           }
-          return input as TextMark;
+          return input;
         });
         if (new Set(marks).size !== marks.length) {
           fail(`${path}.marks`, "Text marks must be unique");
@@ -178,51 +195,52 @@ function component(raw: unknown, path: string): ContentComponent {
         id,
         type,
         runs,
-        caption: text(raw.caption, `${path}.caption`, 4096),
-        ...(raw.placement === undefined
+        caption: text(read("caption"), `${path}.caption`, 4096),
+        ...(placement === undefined
           ? {}
-          : { placement: transform(raw.placement, `${path}.placement`) }),
-        ...(raw.background === undefined ? {} : { background: raw.background as string }),
-        ...(raw.color === undefined ? {} : { color: raw.color as string }),
-        ...(raw.fontSize === undefined
+          : { placement: transform(placement, `${path}.placement`) }),
+        ...(background === undefined ? {} : { background }),
+        ...(color === undefined ? {} : { color }),
+        ...(fontSize === undefined
           ? {}
-          : { fontSize: number(raw.fontSize, `${path}.fontSize`, 12, 96) }),
+          : { fontSize: number(fontSize, `${path}.fontSize`, 12, 96) }),
       };
     }
     case "image":
       return {
         id,
         type,
-        assetId: text(raw.assetId, `${path}.assetId`),
-        caption: text(raw.caption, `${path}.caption`, 4096),
-        alt: text(raw.alt, `${path}.alt`, 4096),
+        assetId: text(read("assetId"), `${path}.assetId`),
+        caption: text(read("caption"), `${path}.caption`, 4096),
+        alt: text(read("alt"), `${path}.alt`, 4096),
       };
     // Share media fields while preserving the audio-only spatial or global mode
     case "audio":
     case "video": {
       const media = {
         id,
-        assetId: text(raw.assetId, `${path}.assetId`),
-        caption: text(raw.caption, `${path}.caption`, 4096),
-        loop: flag(raw.loop, `${path}.loop`),
-        volume: number(raw.volume, `${path}.volume`, 0, 1),
+        assetId: text(read("assetId"), `${path}.assetId`),
+        caption: text(read("caption"), `${path}.caption`, 4096),
+        loop: flag(read("loop"), `${path}.loop`),
+        volume: number(read("volume"), `${path}.volume`, 0, 1),
       };
       if (type === "video") {
         return { ...media, type };
       }
-      if (raw.mode !== "spatial" && raw.mode !== "global") {
+      const mode = read("mode");
+      if (mode !== "spatial" && mode !== "global") {
         fail(`${path}.mode`, "Expected spatial or global audio");
       }
-      return { ...media, type, mode: raw.mode };
+      return { ...media, type, mode };
     }
     // Only navigation remains after the supported tag check; resolve its paired destination later
-    default:
+    case "navigationPoint":
       return {
         id,
-        type: "navigationPoint",
-        label: text(raw.label, `${path}.label`),
-        sceneId: text(raw.sceneId, `${path}.sceneId`),
-        viewpointId: text(raw.viewpointId, `${path}.viewpointId`),
+        type,
+        label: text(read("label"), `${path}.label`),
+        sceneId: text(read("sceneId"), `${path}.sceneId`),
+        viewpointId: text(read("viewpointId"), `${path}.viewpointId`),
       };
   }
 }
@@ -232,36 +250,36 @@ function trigger(raw: unknown, path: string): ProjectTrigger {
   if (!isRecord(raw)) {
     fail(path, "Expected a trigger");
   }
-  const type = raw.type;
-  const variants: Record<string, readonly string[]> = {
+  const type = readField(raw, "type");
+  const variants = {
     click: ["targetId"],
     zoneEnter: ["zoneId"],
     sceneStart: [],
     elapsed: ["seconds"],
     gaze: ["targetId", "seconds"],
     panelClose: ["panelId"],
-  };
-  if (typeof type !== "string" || !Object.hasOwn(variants, type)) {
+  } as const satisfies VariantFields<ProjectTrigger>;
+  if (!isVariant(variants, type)) {
     fail(`${path}.type`, "Unsupported trigger type");
   }
-  record(raw, ["type", ...variants[type]!], path);
+  const read = record(raw, ["type", ...variants[type]], path);
   switch (type) {
     case "click":
-      return { type, targetId: text(raw.targetId, `${path}.targetId`) };
+      return { type, targetId: text(read("targetId"), `${path}.targetId`) };
     case "zoneEnter":
-      return { type, zoneId: text(raw.zoneId, `${path}.zoneId`) };
+      return { type, zoneId: text(read("zoneId"), `${path}.zoneId`) };
     case "sceneStart":
       return { type };
     case "elapsed":
-      return { type, seconds: number(raw.seconds, `${path}.seconds`, 0, 86400) };
+      return { type, seconds: number(read("seconds"), `${path}.seconds`, 0, 86400) };
     case "gaze":
       return {
         type,
-        targetId: text(raw.targetId, `${path}.targetId`),
-        seconds: number(raw.seconds, `${path}.seconds`, 0.1, 60),
+        targetId: text(read("targetId"), `${path}.targetId`),
+        seconds: number(read("seconds"), `${path}.seconds`, 0.1, 60),
       };
-    default:
-      return { type: "panelClose", panelId: text(raw.panelId, `${path}.panelId`) };
+    case "panelClose":
+      return { type, panelId: text(read("panelId"), `${path}.panelId`) };
   }
 }
 
@@ -270,50 +288,50 @@ function action(raw: unknown, path: string): ProjectAction {
   if (!isRecord(raw)) {
     fail(path, "Expected an action");
   }
-  const type = raw.type;
-  const variants: Record<string, readonly string[]> = {
+  const type = readField(raw, "type");
+  const variants = {
     showPanel: ["panelId"],
     playMedia: ["mediaId"],
     moveCamera: ["viewpointId", "durationSeconds"],
     setVisible: ["objectId", "visible"],
     navigateScene: ["sceneId", "viewpointId"],
     openLink: ["url"],
-  };
-  if (typeof type !== "string" || !Object.hasOwn(variants, type)) {
+  } as const satisfies VariantFields<ProjectAction>;
+  if (!isVariant(variants, type)) {
     fail(`${path}.type`, "Unsupported action type");
   }
-  record(raw, ["type", ...variants[type]!], path);
+  const read = record(raw, ["type", ...variants[type]], path);
   switch (type) {
     case "showPanel":
-      return { type, panelId: text(raw.panelId, `${path}.panelId`) };
+      return { type, panelId: text(read("panelId"), `${path}.panelId`) };
     case "playMedia":
-      return { type, mediaId: text(raw.mediaId, `${path}.mediaId`) };
+      return { type, mediaId: text(read("mediaId"), `${path}.mediaId`) };
     case "moveCamera":
       return {
         type,
-        viewpointId: text(raw.viewpointId, `${path}.viewpointId`),
-        durationSeconds: number(raw.durationSeconds, `${path}.durationSeconds`, 0, 60),
+        viewpointId: text(read("viewpointId"), `${path}.viewpointId`),
+        durationSeconds: number(read("durationSeconds"), `${path}.durationSeconds`, 0, 60),
       };
     case "setVisible":
       return {
         type,
-        objectId: text(raw.objectId, `${path}.objectId`),
-        visible: flag(raw.visible, `${path}.visible`),
+        objectId: text(read("objectId"), `${path}.objectId`),
+        visible: flag(read("visible"), `${path}.visible`),
       };
     case "navigateScene":
       return {
         type,
-        sceneId: text(raw.sceneId, `${path}.sceneId`),
-        viewpointId: text(raw.viewpointId, `${path}.viewpointId`),
+        sceneId: text(read("sceneId"), `${path}.sceneId`),
+        viewpointId: text(read("viewpointId"), `${path}.viewpointId`),
       };
-    default: {
-      const url = text(raw.url, `${path}.url`, MAX_PORTABLE_URL_LENGTH);
+    case "openLink": {
+      const url = text(read("url"), `${path}.url`, MAX_PORTABLE_URL_LENGTH);
 
       // All rejection paths point to the authored URL field; successful reads keep its spelling unchanged
       if (!isPortableHttpsUrl(url)) {
         fail(`${path}.url`, PORTABLE_HTTPS_URL_ERROR);
       }
-      return { type: "openLink", url };
+      return { type, url };
     }
   }
 }
@@ -321,11 +339,11 @@ function action(raw: unknown, path: string): ProjectAction {
 // Scene-level hotspot markers and interactions predate the content component model
 // They remain part of every scene so the editor can keep authored click rules
 function hotspot(raw: unknown, path: string): ProjectHotspot {
-  const value = record(raw, ["id", "objectId", "position"], path);
+  const read = record(raw, ["id", "objectId", "position"], path);
   return {
-    id: text(value.id, `${path}.id`),
-    objectId: text(value.objectId, `${path}.objectId`),
-    position: checked(validatePosition(value.position, `${path}.position`)),
+    id: text(read("id"), `${path}.id`),
+    objectId: text(read("objectId"), `${path}.objectId`),
+    position: checked(validatePosition(read("position"), `${path}.position`)),
   };
 }
 
@@ -333,12 +351,12 @@ function interactionTrigger(raw: unknown, path: string): Interaction["when"] {
   if (!isRecord(raw)) {
     fail(path, "Trigger must be an object");
   }
-  switch (raw.type) {
+  switch (readField(raw, "type")) {
     case "visitor-clicks-hotspot":
       record(raw, ["type", "targetHotspotId"], path);
       return {
         type: "visitor-clicks-hotspot",
-        targetHotspotId: text(raw.targetHotspotId, `${path}.targetHotspotId`),
+        targetHotspotId: text(readField(raw, "targetHotspotId"), `${path}.targetHotspotId`),
       };
     case "scene-starts":
       record(raw, ["type"], path);
@@ -347,7 +365,7 @@ function interactionTrigger(raw: unknown, path: string): Interaction["when"] {
       record(raw, ["type", "seconds"], path);
       return {
         type: "time-elapsed",
-        seconds: number(raw.seconds, `${path}.seconds`, Number.MIN_VALUE, 86_400),
+        seconds: number(readField(raw, "seconds"), `${path}.seconds`, Number.MIN_VALUE, 86_400),
       };
     default:
       return fail(`${path}.type`, "Unsupported trigger type");
@@ -362,34 +380,38 @@ function interactionAction(
   if (!isRecord(raw)) {
     fail(path, "Action must be an object");
   }
-  switch (raw.type) {
+  const type = readField(raw, "type");
+  switch (type) {
     case "play-audio": {
-      if (raw.mediaId !== undefined) {
+      if (readField(raw, "mediaId") !== undefined) {
         record(raw, ["type", "mediaId"], path);
-        return { type: "play-audio", mediaId: text(raw.mediaId, `${path}.mediaId`) };
+        return { type: "play-audio", mediaId: text(readField(raw, "mediaId"), `${path}.mediaId`) };
       }
       // Retain released URL actions; new authoring links the stable scene audio ID
       record(raw, ["type", "url"], path);
-      return { type: "play-audio", url: text(raw.url, `${path}.url`, MAX_PORTABLE_URL_LENGTH) };
+      return {
+        type: "play-audio",
+        url: text(readField(raw, "url"), `${path}.url`, MAX_PORTABLE_URL_LENGTH),
+      };
     }
     case "open-link": {
       record(raw, ["type", "url"], path);
       const url = text(
-        raw.url,
+        readField(raw, "url"),
         `${path}.url`,
         allowDraftLinks ? MAX_PROJECT_BYTES : MAX_PORTABLE_URL_LENGTH,
       );
-      if (!allowDraftLinks && raw.type === "open-link" && !isPortableHttpsUrl(url)) {
+      if (!allowDraftLinks && !isPortableHttpsUrl(url)) {
         fail(`${path}.url`, PORTABLE_HTTPS_URL_ERROR);
       }
-      return { type: raw.type, url };
+      return { type, url };
     }
     case "navigate-scene":
       record(raw, ["type", "sceneId"], path);
-      return { type: raw.type, sceneId: text(raw.sceneId, `${path}.sceneId`) };
+      return { type, sceneId: text(readField(raw, "sceneId"), `${path}.sceneId`) };
     case "move-to-viewpoint":
       record(raw, ["type", "viewpointId"], path);
-      return { type: raw.type, viewpointId: text(raw.viewpointId, `${path}.viewpointId`) };
+      return { type, viewpointId: text(readField(raw, "viewpointId"), `${path}.viewpointId`) };
     case "print-hi":
       record(raw, ["type"], path);
       return { type: "print-hi" };
@@ -399,10 +421,10 @@ function interactionAction(
 }
 
 function interaction(raw: unknown, path: string, allowDraftLinks: boolean): Interaction {
-  const value = record(raw, ["when", "do"], path);
+  const read = record(raw, ["when", "do"], path);
   return {
-    when: interactionTrigger(value.when, `${path}.when`),
-    do: interactionAction(value.do, `${path}.do`, allowDraftLinks),
+    when: interactionTrigger(read("when"), `${path}.when`),
+    do: interactionAction(read("do"), `${path}.do`, allowDraftLinks),
   };
 }
 
@@ -412,16 +434,16 @@ export function validateContentStructure(
 ): ValidationResult<ContentProject> {
   // Rebuild checked values so imported arrays cannot mutate the live document afterward
   try {
-    const root = record(raw, ["schemaVersion", "projectId", "title", "scenes"], "project");
-    if (root.schemaVersion !== 2) {
+    const readRoot = record(raw, ["schemaVersion", "projectId", "title", "scenes"], "project");
+    if (readRoot("schemaVersion") !== 2) {
       fail("project.schemaVersion", "Expected schemaVersion 2");
     }
-    const projectId = text(root.projectId, "project.projectId");
-    const title = text(root.title, "project.title");
+    const projectId = text(readRoot("projectId"), "project.projectId");
+    const title = text(readRoot("title"), "project.title");
 
     // Read every scene in place so saved ordering also defines navigation and rule ordering
-    const scenes = list(root.scenes, "project.scenes", 16, (input, path) => {
-      const scene = record(
+    const scenes = list(readRoot("scenes"), "project.scenes", 16, (input, path) => {
+      const readScene = record(
         input,
         [
           "id",
@@ -437,39 +459,40 @@ export function validateContentStructure(
         path,
         ["hotspots", "interactions", "audio", "environmentTransform", "environmentVisible"],
       );
+      const environment = readScene("environmentAssetId");
+      const environmentVisible = readScene("environmentVisible");
+      const environmentTransform = readScene("environmentTransform");
+      const hotspots = readScene("hotspots");
+      const interactions = readScene("interactions");
+      const audio = readScene("audio");
       return {
-        id: text(scene.id, `${path}.id`),
-        name: text(scene.name, `${path}.name`),
+        id: text(readScene("id"), `${path}.id`),
+        name: text(readScene("name"), `${path}.name`),
         environmentAssetId:
-          scene.environmentAssetId === null
-            ? null
-            : text(scene.environmentAssetId, `${path}.environmentAssetId`),
-        ...(scene.environmentVisible === undefined
+          environment === null ? null : text(environment, `${path}.environmentAssetId`),
+        ...(environmentVisible === undefined
           ? {}
-          : { environmentVisible: flag(scene.environmentVisible, `${path}.environmentVisible`) }),
-        startCamera: checked(validateCameraPose(scene.startCamera, `${path}.startCamera`)),
-        ...(scene.environmentTransform === undefined
+          : { environmentVisible: flag(environmentVisible, `${path}.environmentVisible`) }),
+        startCamera: checked(validateCameraPose(readScene("startCamera"), `${path}.startCamera`)),
+        ...(environmentTransform === undefined
           ? {}
           : {
               environmentTransform: checked(
-                validateTransform(scene.environmentTransform, `${path}.environmentTransform`),
+                validateTransform(environmentTransform, `${path}.environmentTransform`),
               ),
             }),
-        hotspots:
-          scene.hotspots === undefined
-            ? []
-            : list(scene.hotspots, `${path}.hotspots`, 200, hotspot),
+        hotspots: hotspots === undefined ? [] : list(hotspots, `${path}.hotspots`, 200, hotspot),
         interactions:
-          scene.interactions === undefined
+          interactions === undefined
             ? []
-            : list(scene.interactions, `${path}.interactions`, 200, (value, path) =>
+            : list(interactions, `${path}.interactions`, 200, (value, path) =>
                 interaction(value, path, allowDraftLinks),
               ),
         // Root audio uses the same component validation while rejecting non-global content
-        ...(scene.audio === undefined
+        ...(audio === undefined
           ? {}
           : {
-              audio: list(scene.audio, `${path}.audio`, 64, (raw, path) => {
+              audio: list(audio, `${path}.audio`, 64, (raw, path) => {
                 const value = component(raw, path);
                 if (value.type !== "audio" || value.mode !== "global") {
                   fail(path, "Scene audio must be global audio");
@@ -477,60 +500,61 @@ export function validateContentStructure(
                 return value;
               }),
             }),
-        objects: list(scene.objects, `${path}.objects`, 200, (input, path) => {
-          const object = record(
+        objects: list(readScene("objects"), `${path}.objects`, 200, (input, path) => {
+          const readObject = record(
             input,
             ["id", "name", "assetId", "transform", "parentId", "visible", "components"],
             path,
             ["appearance"],
           );
+          const authoredAppearance = readObject("appearance");
           return {
-            id: text(object.id, `${path}.id`),
-            name: text(object.name, `${path}.name`),
-            assetId: text(object.assetId, `${path}.assetId`),
-            transform: transform(object.transform, `${path}.transform`),
-            parentId: parent(object.parentId, `${path}.parentId`),
-            visible: flag(object.visible, `${path}.visible`),
-            components: list(object.components, `${path}.components`, 16, component),
-            ...(object.appearance === undefined
+            id: text(readObject("id"), `${path}.id`),
+            name: text(readObject("name"), `${path}.name`),
+            assetId: text(readObject("assetId"), `${path}.assetId`),
+            transform: transform(readObject("transform"), `${path}.transform`),
+            parentId: parent(readObject("parentId"), `${path}.parentId`),
+            visible: flag(readObject("visible"), `${path}.visible`),
+            components: list(readObject("components"), `${path}.components`, 16, component),
+            ...(authoredAppearance === undefined
               ? {}
-              : { appearance: appearance(object.appearance, `${path}.appearance`) }),
+              : { appearance: appearance(authoredAppearance, `${path}.appearance`) }),
           };
         }),
         // Groups express parent membership without introducing another room or transform
-        groups: list(scene.groups, `${path}.groups`, 200, (input, path) => {
-          const group = record(input, ["id", "name", "parentId"], path);
+        groups: list(readScene("groups"), `${path}.groups`, 200, (input, path) => {
+          const readGroup = record(input, ["id", "name", "parentId"], path);
           return {
-            id: text(group.id, `${path}.id`),
-            name: text(group.name, `${path}.name`),
-            parentId: parent(group.parentId, `${path}.parentId`),
+            id: text(readGroup("id"), `${path}.id`),
+            name: text(readGroup("name"), `${path}.name`),
+            parentId: parent(readGroup("parentId"), `${path}.parentId`),
           };
         }),
         // Zones and viewpoints own spatial values independently of the model object list
-        zones: list(scene.zones, `${path}.zones`, 64, (input, path) => {
-          const zone = record(input, ["id", "name", "transform"], path);
+        zones: list(readScene("zones"), `${path}.zones`, 64, (input, path) => {
+          const readZone = record(input, ["id", "name", "transform"], path);
           return {
-            id: text(zone.id, `${path}.id`),
-            name: text(zone.name, `${path}.name`),
-            transform: transform(zone.transform, `${path}.transform`),
+            id: text(readZone("id"), `${path}.id`),
+            name: text(readZone("name"), `${path}.name`),
+            transform: transform(readZone("transform"), `${path}.transform`),
           };
         }),
-        viewpoints: list(scene.viewpoints, `${path}.viewpoints`, 64, (input, path) => {
-          const viewpoint = record(input, ["id", "name", "camera"], path);
+        viewpoints: list(readScene("viewpoints"), `${path}.viewpoints`, 64, (input, path) => {
+          const readViewpoint = record(input, ["id", "name", "camera"], path);
           return {
-            id: text(viewpoint.id, `${path}.id`),
-            name: text(viewpoint.name, `${path}.name`),
-            camera: checked(validateCameraPose(viewpoint.camera, `${path}.camera`)),
+            id: text(readViewpoint("id"), `${path}.id`),
+            name: text(readViewpoint("name"), `${path}.name`),
+            camera: checked(validateCameraPose(readViewpoint("camera"), `${path}.camera`)),
           };
         }),
         // Preserve trigger and action order even when a rule is currently disabled
-        rules: list(scene.rules, `${path}.rules`, 256, (input, path) => {
-          const rule = record(input, ["id", "enabled", "trigger", "actions"], path);
+        rules: list(readScene("rules"), `${path}.rules`, 256, (input, path) => {
+          const readRule = record(input, ["id", "enabled", "trigger", "actions"], path);
           const result = {
-            id: text(rule.id, `${path}.id`),
-            enabled: flag(rule.enabled, `${path}.enabled`),
-            trigger: trigger(rule.trigger, `${path}.trigger`),
-            actions: list(rule.actions, `${path}.actions`, 16, action),
+            id: text(readRule("id"), `${path}.id`),
+            enabled: flag(readRule("enabled"), `${path}.enabled`),
+            trigger: trigger(readRule("trigger"), `${path}.trigger`),
+            actions: list(readRule("actions"), `${path}.actions`, 16, action),
           };
           if (result.actions.length === 0) {
             fail(`${path}.actions`, "A rule needs at least one action");
