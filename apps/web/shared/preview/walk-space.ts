@@ -1,9 +1,9 @@
 import { Box3, Mesh, Object3D, Ray, Triangle, Vector3 } from "three";
 
 // Flat-floor walkthrough dimensions in world metres, independent of model scale
-export const EYE_HEIGHT = 0.9;
+export const EYE_HEIGHT = 1.6;
 const HALF_WIDTH = 0.22;
-const HEIGHT = 1.55;
+const HEIGHT = 1.8;
 const MAX_STEP = 0.24;
 const EPSILON = 0.0001;
 const footprint = Array.from({ length: 8 }, (_, index) => {

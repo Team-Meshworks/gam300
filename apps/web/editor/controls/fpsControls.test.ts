@@ -1,10 +1,10 @@
 import { expect, it, onTestFinished } from "vitest";
 import * as THREE from "three";
-import { FpsControls } from "./fpsControls";
+import { EYE_HEIGHT, FpsControls } from "./fpsControls";
 
 it("distinguishes held movement from inertia without changing the camera trajectory", () => {
   const camera = new THREE.PerspectiveCamera();
-  camera.position.y = 0.9;
+  camera.position.y = EYE_HEIGHT;
   const controls = new FpsControls(camera, document.createElement("canvas"));
   onTestFinished(() => controls.dispose());
   controls.engage();
@@ -26,18 +26,18 @@ it("distinguishes held movement from inertia without changing the camera traject
 
 it("keeps a mobile jump until a physics step can consume it", () => {
   const camera = new THREE.PerspectiveCamera();
-  camera.position.y = 0.9;
+  camera.position.y = EYE_HEIGHT;
   const controls = new FpsControls(camera, document.createElement("canvas"));
   onTestFinished(() => controls.dispose());
   controls.engage();
   controls.mobileControls.jump();
   controls.update(0);
   for (let i = 0; i < 4; i++) controls.update(1 / 1000);
-  expect(camera.position.y).toBeCloseTo(0.9);
+  expect(camera.position.y).toBeCloseTo(EYE_HEIGHT);
   controls.update(1 / 60);
-  expect(camera.position.y).toBeGreaterThan(0.9);
+  expect(camera.position.y).toBeGreaterThan(EYE_HEIGHT);
   for (let i = 0; i < 120; i++) controls.update(1 / 60);
-  expect(camera.position.y).toBeCloseTo(0.9);
+  expect(camera.position.y).toBeCloseTo(EYE_HEIGHT);
 });
 
 it.each([
