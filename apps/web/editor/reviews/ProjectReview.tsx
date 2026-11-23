@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AccountRole } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
@@ -297,7 +298,7 @@ export function ProjectReview({
           Refresh status
         </Button>
       </div>
-      {loading && <p role="status">Loading saved project and review…</p>}
+      {loading && <LoadingSkeleton label="Loading saved project and review" />}
       {notice && (
         <p role="status" tabIndex={-1} ref={statusRef}>
           {notice}

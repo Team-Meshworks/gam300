@@ -22,6 +22,7 @@ import {
 import { createDocumentStore } from "../document-store";
 import { App, type ServerEditorSession } from "../App";
 import { allPages, createReviewClient } from "./review-client";
+import { LoadingSummary } from "../../shared/ui/LoadingSkeleton";
 import { Button } from "../../shared/ui/Button";
 import { ProgressReviews } from "./ProgressReviews";
 import "./reviews.css";
@@ -29,6 +30,14 @@ import "./facilitator-project.css";
 
 const accounts = createAccountClient();
 const reviews = createReviewClient();
+
+function PreviewLoading({ label }: { label: string }) {
+  return (
+    <div className="facilitator-project-status">
+      <LoadingSummary label={label} />
+    </div>
+  );
+}
 
 export function FacilitatorProjectView({
   session,
@@ -216,12 +225,12 @@ export function FacilitatorProjectView({
     [loaded, store],
   );
   return (
-    <main className="facilitator-project-view">
+    <main className="facilitator-project-view" data-account-role={session.role}>
       <header className="facilitator-project-header">
         <a
           className="sp-button sp-close-button facilitator-project-close"
-          aria-label="Close student project"
-          title="Close student project"
+          aria-label={published ? "Close published project" : "Close student project"}
+          title={published ? "Close published project" : "Close student project"}
           href={
             session.role === "Administrator"
               ? adminPublishedReturnUrl(new URLSearchParams(location.search))
@@ -230,7 +239,9 @@ export function FacilitatorProjectView({
         >
           <Icon icon={closeIcon} width={18} aria-hidden="true" />
         </a>
-        <h1>{loaded?.opened.document.title ?? "Student project"}</h1>
+        <h1>
+          {loaded?.opened.document.title ?? (published ? "Published project" : "Student project")}
+        </h1>
         {session.role === "Educator" && !published && (
           <Button
             className="facilitator-project-review"
@@ -259,9 +270,9 @@ export function FacilitatorProjectView({
           </Button>
         </div>
       ) : !loaded ? (
-        <p role="status" className="facilitator-project-status">
-          Opening student project…
-        </p>
+        <PreviewLoading
+          label={published ? "Opening published project…" : "Opening student project…"}
+        />
       ) : null}
       {loaded && loaded.opened.document.scenes.length > 1 && (
         <nav className="facilitator-project-scenes" aria-label="Scenes">
@@ -339,8 +350,12 @@ export function ProjectEntry({
     );
   if (session === undefined)
     return (
-      <main className="editor-opening">
-        <p role="status">Checking your account…</p>
+      <main className={published || context ? "facilitator-project-view" : "editor-opening"}>
+        {published || context ? (
+          <PreviewLoading label="Checking your account…" />
+        ) : (
+          <p role="status">Checking your account…</p>
+        )}
       </main>
     );
   if (
@@ -352,8 +367,8 @@ export function ProjectEntry({
     return context ? (
       <FacilitatorProjectView session={session} context={context} />
     ) : (
-      <main>
-        <p role="status">Opening student review…</p>
+      <main className="facilitator-project-view">
+        <PreviewLoading label="Opening student review…" />
       </main>
     );
   return children;

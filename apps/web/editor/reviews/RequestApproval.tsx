@@ -185,7 +185,6 @@ export function RequestApproval({
     <dialog
       ref={dialog}
       className="creator-approval-dialog"
-      data-loading={phase === "loading"}
       aria-busy={phase === "loading"}
       aria-labelledby="creator-approval-title"
       onCancel={(event) => {
@@ -202,6 +201,7 @@ export function RequestApproval({
               ? "pending"
               : "incomplete"
         }
+        loading={phase === "loading"}
         titleId="creator-approval-title"
         onClose={onClose}
         closeLabel="Close request approval"
@@ -236,11 +236,6 @@ export function RequestApproval({
           )
         }
       >
-        {phase === "loading" && (
-          <p role="status" className="publish-status-loading">
-            Preparing your saved project…
-          </p>
-        )}
         {error && (
           <p role="alert" className="creator-approval-error">
             {error}

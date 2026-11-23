@@ -1,8 +1,10 @@
+@import "../../shared/ui/control-colors.css";
+
 .facilitator-project-view,
 .sp-facilitator-submission {
   --sp-surface: #fffdfb;
   --sp-soft: #f5f4f2;
-  --sp-close-surface: #e4e1dc;
+  --review-close-surface: var(--sp-close-surface);
   --sp-close-ink: #000;
   --sp-border: #e7e2dc;
   --sp-ink: #292723;
@@ -12,9 +14,9 @@
   --review-body-font: Inter, sans-serif;
   --review-heading-font: var(--sp-font);
   --review-shadow: 0 16px 48px rgb(41 39 35 / 12%);
-  --review-control-hover: #eae5df;
-  --review-primary-hover: #51473d;
-  --review-close-hover: #d7d2cb;
+  --review-control-hover: var(--sp-hover);
+  --review-primary-hover: var(--sp-primary-hover);
+  --review-close-hover: var(--sp-close-hover);
   font-family: var(--review-body-font);
   color: var(--sp-ink);
 }
@@ -40,6 +42,7 @@
   border-radius: 20px;
   padding: 8px 24px;
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 .sp-facilitator-submission .sp-button--primary {
@@ -58,13 +61,11 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--sp-close-surface);
+  background: var(--review-close-surface);
 }
 .sp-facilitator-submission .sp-dialog-dismiss svg {
   display: block;
   flex: none;
-  width: 18px;
-  height: 18px;
 }
 .facilitator-project-header a {
   color: inherit;
@@ -92,13 +93,9 @@
   position: absolute;
   z-index: 2;
   inset: 24px 32px auto;
-  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 16px 24px;
-  border-radius: 24px;
-  background: var(--sp-surface, #fffdfb);
 }
 .facilitator-project-header h1 {
   font-size: 20px;
@@ -165,7 +162,7 @@
 .sp-facilitator-submission > h2,
 .sp-facilitator-submission .sp-dialog-body > h3 {
   font-family: var(--review-heading-font);
-  font-weight: 700;
+  font-weight: 600;
 }
 .sp-facilitator-submission > h2 {
   margin: 0 48px 16px 0;
@@ -184,6 +181,9 @@
 .sp-facilitator-submission .sp-dialog-body > p:last-child {
   margin: 0;
 }
+.sp-facilitator-submission .sp-progress-draft label {
+  font-weight: 500;
+}
 .sp-facilitator-submission .sp-progress-draft textarea {
   font-family: var(--review-body-font);
 }
@@ -193,23 +193,8 @@
 }
 
 .facilitator-project-header > .facilitator-project-review {
-  width: 148px;
-  height: 50px;
-  min-height: 50px;
   flex: none;
-  padding: 0;
   border: 0;
-  background: var(--sp-soft);
-  font-size: 20px;
-  font-weight: 600;
-}
-@media (max-width: 600px) {
-  .facilitator-project-header > .facilitator-project-review {
-    width: 96px;
-    height: 40px;
-    min-height: 40px;
-    font-size: 15px;
-  }
 }
 
 .facilitator-project-header {
@@ -245,41 +230,32 @@
 }
 
 .sp-facilitator-submission .sp-progress-actions .sp-button {
+  font-weight: 600;
   min-height: 36px;
   padding: 6px 16px;
 }
 .facilitator-project-header > .facilitator-project-review {
-  width: auto;
-  height: 36px;
-  min-height: 36px;
   padding-inline: 20px;
   justify-self: center;
-  font-size: 15px;
-}
-
-.facilitator-project-header > .facilitator-project-review {
-  width: 148px;
-  height: 50px;
-  min-height: 50px;
-  padding: 0;
-  font-size: 20px;
 }
 .facilitator-project-header > .facilitator-project-close {
   grid-column: 3;
   grid-row: 1;
   justify-self: end;
-  width: 40px;
-  height: 40px;
-  min-height: 40px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--sp-close-surface);
+  background: var(--review-close-surface);
   color: var(--sp-close-ink);
   pointer-events: auto;
 }
 .facilitator-project-close svg {
   display: block;
+  width: 16px;
+  height: 16px;
 }
 .facilitator-project-review .sp-button-label {
   text-box-trim: trim-both;
@@ -306,11 +282,6 @@
   background: var(--facilitator-review-fill);
   font-size: 15px;
   font-weight: 600;
-}
-.facilitator-project-header > .facilitator-project-close {
-  width: 40px;
-  height: 40px;
-  min-height: 40px;
 }
 
 .facilitator-project-view .sp-button:hover:not(:disabled, .sp-button--primary),
