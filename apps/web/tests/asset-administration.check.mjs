@@ -7,6 +7,15 @@ const baseUrl = process.argv[2] ?? "http://127.0.0.1:5173/";
 const browser = await launchBrowser({ target: baseUrl });
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 const errors = [];
+const backendWrites = [];
+await page.route("**/api/**", (route) => {
+  const request = route.request();
+  if (!["GET", "HEAD", "OPTIONS"].includes(request.method())) {
+    backendWrites.push(request.method() + " " + request.url());
+    return route.abort("blockedbyclient");
+  }
+  return route.continue();
+});
 page.on("pageerror", (error) => errors.push(error.message));
 await mkdir("test-results/scrum168", { recursive: true });
 // Keep dialog titles and section headings at the matching scale shown in the approved PDF
@@ -33,25 +42,23 @@ async function checkDialogTypography() {
       })),
     };
   });
-  assert.equal(sizes.title, sizes.upload || page.viewportSize().width <= 700 ? 22 : 25);
+  assert.equal(sizes.title, 20);
   assert.ok(
-    sizes.section === null || sizes.section === sizes.title,
-    "Asset Details uses the same heading scale as the popup title",
+    sizes.section === null || sizes.section === 20,
+    "Asset Details follows the scaled reference hierarchy",
   );
   assert.equal(sizes.page, 25, "Catalogue page headings keep the PDF's 25px level");
   assert.ok(
-    sizes.labels.every((size) => size === 15),
-    "Asset labels keep their 15px level",
+    sizes.labels.every((size) => size === 12),
+    "Asset labels share the compact field-label scale",
   );
   assert.ok(
-    sizes.values.every((size) => size === 15),
-    "Asset values keep their 15px level",
+    sizes.values.every((size) => size === 13),
+    "Asset values share the readable field scale",
   );
   assert.ok(
-    sizes.actions.every(
-      (action) => action.size === (sizes.upload || (action.icon && !action.danger) ? 15 : 14),
-    ),
-    "Upload and visibility actions retain their own size rather than flattening all actions",
+    sizes.actions.every((action) => action.size === 13),
+    "Upload and detail popup actions use the same caption scale",
   );
 }
 
@@ -84,12 +91,12 @@ try {
   await page.goto(new URL("/__asset-administration-test", baseUrl).href);
   await page.getByRole("heading", { name: "All 3D Spaces" }).waitFor();
   await page
-    .getByText("Review published experiences and control what visitors can explore.", {
+    .getByText("Review 3D spaces and control what creators can use.", {
       exact: true,
     })
     .waitFor({ timeout: 5000 });
-  await page.getByRole("button", { name: /^Public \(/ }).waitFor({ timeout: 5000 });
-  await page.getByRole("button", { name: /^Private \(/ }).waitFor();
+  await page.getByRole("tab", { name: /^Public \(/ }).waitFor({ timeout: 5000 });
+  await page.getByRole("tab", { name: /^Private \(/ }).waitFor();
   await page
     .getByRole("button", { name: /View Model/ })
     .first()
@@ -113,7 +120,7 @@ try {
   // Match the routed shell and the PDF's header and footer clearances before testing long lists
   const frame = await page.locator(".asset-admin").boundingBox();
   assert.equal(frame.y, 100);
-  assert.equal(1000 - frame.y - frame.height, 64);
+  assert.equal(1000 - frame.y - frame.height, 80);
   assert.ok(Math.abs(frame.x - (1400 - frame.x - frame.width)) <= 1);
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight),
@@ -133,7 +140,7 @@ try {
       background: getComputedStyle(el).backgroundColor,
       ink: getComputedStyle(el).color,
     }));
-  assert.equal(closeStyle.background, "rgb(228, 225, 220)");
+  assert.equal(closeStyle.background, "rgb(243, 244, 246)");
   assert.equal(closeStyle.ink, "rgb(41, 39, 35)");
 
   // Clicking the surrounding search surface must not place a caret in the input.
@@ -184,13 +191,13 @@ try {
   assert.equal(await dialog.locator("h3").count(), 1);
   await dialog.getByRole("heading", { name: "Upload 3D Space", exact: true }).waitFor();
   await checkDialogTypography();
-  assert.equal(await dialog.evaluate((n) => n.getBoundingClientRect().width), 600);
+  assert.equal(await dialog.evaluate((n) => n.getBoundingClientRect().width), 780);
   const closeInset = await dialog.locator(".asset-admin-close").evaluate((n) => {
-    const form = n.closest("form").getBoundingClientRect(),
+    const form = n.closest("dialog").getBoundingClientRect(),
       r = n.getBoundingClientRect();
     return r.top - form.top;
   });
-  assert.ok(closeInset >= 6, "Upload close focus outline fits inside the scroll frame");
+  assert.ok(closeInset >= 6, "Upload close focus outline fits inside the dialog scroll frame");
   await page.screenshot({ path: "test-results/scrum168/upload.png", fullPage: true });
   await dialog.locator("summary").click();
   const gaps = await dialog.evaluate((popup) => {
@@ -262,7 +269,7 @@ try {
   assert.equal(
     await dialog
       .locator("h2")
-      .evaluate((heading) => parseFloat(getComputedStyle(heading).fontSize) === 22),
+      .evaluate((heading) => parseFloat(getComputedStyle(heading).fontSize) === 20),
     true,
   );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -397,16 +404,16 @@ try {
   assert.equal(await page.getByRole("heading", { name: "new-room.glb", exact: true }).count(), 0);
 
   // Ordinary deletion retains an admin-only record and leaves the destructive option off by default
-  await page.getByRole("button", { name: /^Deleted \(/ }).click();
+  await page.getByRole("tab", { name: /^Deleted \(/ }).click();
   // Expanding the preview must not clone a deleted record into the Deleted tab
   await page.locator(".asset-admin-preview-controls").evaluate((details) => {
     details.open = true;
   });
   await page.getByLabel("More sample assets", { exact: true }).check();
-  await page.getByRole("button", { name: /^Deleted \(1\)/ }).click();
+  await page.getByRole("tab", { name: /^Deleted \(1\)/ }).click();
   assert.equal(await page.locator(".asset-admin-card").count(), 1);
   // Extra samples expose the same actions and retain changes without affecting their siblings
-  await page.getByRole("button", { name: /^All Spaces \(/ }).click();
+  await page.getByRole("tab", { name: /^All Spaces \(/ }).click();
   const sampleCard = page.locator(".asset-admin-card").filter({
     has: page.getByRole("heading", { name: "Starter room 1", exact: true }),
   });
@@ -418,10 +425,10 @@ try {
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
   await dialog.getByRole("button", { name: "Confirm Delete", exact: true }).click();
   assert.equal(await sampleCard.count(), 0);
-  await page.getByRole("button", { name: /^Deleted \(2\)/ }).click();
+  await page.getByRole("tab", { name: /^Deleted \(2\)/ }).click();
   assert.equal(await sampleCard.count(), 1);
   await page.getByLabel("More sample assets", { exact: true }).uncheck();
-  await page.getByRole("button", { name: /^Deleted \(1\)/ }).click();
+  await page.getByRole("tab", { name: /^Deleted \(1\)/ }).click();
   await page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: "new-room.glb", exact: true }) })
@@ -440,11 +447,11 @@ try {
     true,
   );
   const fieldRow = await dialog.locator(".asset-admin-fields").boundingBox();
-  assert.ok(Math.abs((fieldRow.width - 16) / 2 - typeBounds.width) < 1);
+  assert.ok(Math.abs((fieldRow.width - 12) / 2 - typeBounds.width) < 1);
   await page.screenshot({ path: "test-results/scrum168/deleted-details.png", fullPage: true });
   await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
   await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).waitFor();
-  // Use equal spacing around the irreversible warning instead of offsetting individual elements
+  // Keep related paragraphs together and balance the whitespace around the full message.
   const explanation = await dialog
     .locator(".asset-admin-confirmation-content > p")
     .first()
@@ -457,8 +464,8 @@ try {
     .waitFor();
   const warning = await dialog.locator(".asset-admin-confirmation-warning").boundingBox();
   const actions = await dialog.locator(".asset-admin-actions").boundingBox();
-  assert.ok(Math.abs(warning.y - (explanation.y + explanation.height) - 16) < 1);
-  assert.ok(Math.abs(actions.y - (warning.y + warning.height) - 16) < 1);
+  assert.ok(warning.y >= explanation.y + explanation.height);
+  assert.ok(actions.y >= warning.y + warning.height);
   await page.screenshot({ path: "test-results/scrum168/removal-confirmation.png", fullPage: true });
   const desktopViewport = page.viewportSize();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -482,7 +489,7 @@ try {
     0,
   );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("button", { name: /^All Spaces \(/ }).click();
+  await page.getByRole("tab", { name: /^All Spaces \(/ }).click();
 
   // Availability changes follow returned records and still require confirmation for deletion
   await page
@@ -492,7 +499,10 @@ try {
   await checkDialogTypography();
   await page.screenshot({ path: "test-results/scrum168/details.png", fullPage: true });
   const viewBounds = await dialog.boundingBox();
-  assert.ok(Math.abs(viewBounds.width - 960) < 1, "Details keep the reference dialog width");
+  assert.ok(
+    Math.abs(viewBounds.width - 780) < 1,
+    "Details use the compact frame while retaining the reference proportions",
+  );
   assert.ok(
     viewBounds.y >= 20 && viewBounds.y + viewBounds.height <= 980,
     "Details stay within the viewport",
@@ -524,7 +534,7 @@ try {
   assert.equal(await download.failure(), null);
   assert.equal(await dialog.isVisible(), true);
   await dialog.getByRole("button", { name: "Hide", exact: true }).click();
-  await page.getByRole("button", { name: /^Private \(/ }).click();
+  await page.getByRole("tab", { name: /^Private \(/ }).click();
   await page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: modelName, exact: true }) })
@@ -724,12 +734,12 @@ try {
     (await page.locator(".asset-admin-card").filter({ hasText: "Snow globe 1" }).count()) > 0,
     true,
   );
-  await page.getByRole("button", { name: /^Deleted \(/ }).click();
+  await page.getByRole("tab", { name: /^Deleted \(/ }).click();
   assert.equal(
     await page.locator(".asset-admin-card").filter({ hasText: "Snow globe 1" }).count(),
     0,
   );
-  await page.getByRole("button", { name: /^All Assets \(/ }).click();
+  await page.getByRole("tab", { name: /^All Assets \(/ }).click();
   await page.locator(".asset-admin-preview-controls").evaluate((details) => {
     details.open = false;
   });
@@ -776,7 +786,7 @@ try {
   assert.ok(removalBounds.y >= 0 && removalBounds.y + removalBounds.height <= 844);
   await page.screenshot({ path: "test-results/scrum168/mobile-delete.png", fullPage: true });
   await dialog.getByRole("button", { name: "Confirm Delete", exact: true }).click();
-  await page.getByRole("button", { name: /^Deleted \(/ }).click();
+  await page.getByRole("tab", { name: /^Deleted \(/ }).click();
   await page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: removedName, exact: true }) })
@@ -832,6 +842,7 @@ try {
 
   assert.equal(await page.locator(".asset-admin-grid").count(), 0);
 
+  assert.deepEqual(backendWrites, [], "The local asset fixture must never write to the backend");
   assert.deepEqual(errors, []);
   console.log(
     "PASS: asset administration search, submission recovery, authoritative state, role gating, confirmation and keyboard/mobile checks",

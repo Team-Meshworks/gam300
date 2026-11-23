@@ -4,6 +4,8 @@ import { assets } from "virtual:asset-catalogue";
 import { WorkspaceHeader } from "../shared/ui/WorkspaceHeader";
 import { AssetSelect } from "../editor/asset-administration/AssetSelect";
 import { AssetAdministration } from "../editor/asset-administration/AssetAdministration";
+import "../shared/ui/inter-font.css";
+import "../shared/ui/tabs.css";
 import "../editor/styles.css";
 import type {
   AssetAdministrationData,
