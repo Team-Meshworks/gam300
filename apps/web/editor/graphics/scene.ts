@@ -306,31 +306,43 @@ export function initScene(
       ? environmentObject(projectScene as ContentScene)
       : objects.find((object) => object.id === id);
   }
-  function syncRoomEntrances() {
-    roomEntrances.sync([
-      ...(isStarterRoomEnvironment(assets, environmentId) && environment ? [environment] : []),
-      ...objects.flatMap((object) => {
-        const instance = instances.get(object.id);
-        return isStarterRoomModel(assets, object.assetId) && instance ? [instance] : [];
-      }),
-    ]);
-    if (modeManager.getState().mode === "visitor") syncWalkSpace();
-  }
+  const roomTransforms = new Map<THREE.Object3D, THREE.Matrix4>();
+  const propTransforms = new Map<THREE.Object3D, THREE.Matrix4>();
+  let walkSpace: ReturnType<typeof createWalkSpace> | undefined;
   function syncWalkSpace() {
     const rooms = environment ? [environment] : [];
+    const starterRooms =
+      environment && isStarterRoomEnvironment(assets, environmentId) ? [environment] : [];
     const props: WalkProp[] = [];
     for (const object of objects) {
       const instance = instances.get(object.id);
       if (!instance?.visible || (object as Partial<ContentObject>).visible === false) continue;
-      if (isRoomModel(object.assetId)) rooms.push(instance);
-      else {
+      if (isRoomModel(object.assetId)) {
+        rooms.push(instance);
+        if (isStarterRoomModel(assets, object.assetId)) starterRooms.push(instance);
+      } else {
         const body = bodyFor(object.id, object.assetId, object.transform);
         if (body && !body.bounds.isEmpty()) props.push({ root: instance, bounds: body.bounds });
       }
     }
-    fpsControls.setWalkSpace(
-      rooms.length || props.length ? createWalkSpace(rooms, props) : undefined,
+    const roomsChanged = updateWalkTransforms(roomTransforms, rooms);
+    const propsChanged = updateWalkTransforms(
+      propTransforms,
+      props.map(({ root }) => root),
     );
+    if (!roomsChanged && !propsChanged) return;
+    if (roomsChanged) roomEntrances.sync(starterRooms);
+    if (!rooms.length && !props.length) {
+      walkSpace = undefined;
+    } else if (!roomsChanged && walkSpace) {
+      // Moving an exhibit only changes the prop index, including during a drag.
+      walkSpace.setProps(props);
+      fpsControls.refreshWalkObstacles();
+      return;
+    } else {
+      walkSpace = createWalkSpace(rooms, props);
+    }
+    fpsControls.setWalkSpace(walkSpace);
   }
   const displays = createDisplayContent(assets, render, models);
   const spatialAudio = createSceneAudio(camera, assets, (message) =>
@@ -765,7 +777,7 @@ export function initScene(
         const content = instance.children.find((child) => !(child instanceof THREE.Sprite));
         bounds.set(object.id, visibleModelBounds(content === undefined ? instance : content));
       }
-      syncRoomEntrances();
+      syncWalkSpace();
       displays.sync(objects, instances);
       spatialAudio.sync(objects, instances);
       syncHotspots();
@@ -1152,7 +1164,7 @@ export function initScene(
         bounds.set(object.id, visibleModelBounds(child));
       }
     }
-    syncRoomEntrances();
+    syncWalkSpace();
     syncHotspots();
     const box = visibleModelBounds(instance);
     bounds.set(id, box);
@@ -1805,7 +1817,6 @@ export function initScene(
   const unsubscribeMode = modeManager.subscribe(({ mode, view, captured }) => {
     if (mode !== previousMode) {
       if (mode === "visitor") {
-        syncWalkSpace();
         previewOrigin = { sceneId: projectScene?.id, loadGeneration: appliedLoadGeneration };
         pendingPreviewReturn = undefined;
       } else {
@@ -2275,6 +2286,21 @@ function createFpsMeter(host: HTMLDivElement): FpsMeter & { dispose(): void } {
       el.remove();
     },
   };
+}
+
+function updateWalkTransforms(
+  previous: Map<THREE.Object3D, THREE.Matrix4>,
+  roots: readonly THREE.Object3D[],
+) {
+  for (const root of roots) root.updateWorldMatrix(true, false);
+  if (
+    previous.size === roots.length &&
+    roots.every((root) => previous.get(root)?.equals(root.matrixWorld))
+  )
+    return false;
+  previous.clear();
+  for (const root of roots) previous.set(root, root.matrixWorld.clone());
+  return true;
 }
 
 function applyTransform(instance: THREE.Object3D, transform: Transform) {

@@ -94,12 +94,13 @@ try {
         if (!renderer.isWebGLRenderer) return;
         const render = renderer.render;
         renderer.render = function (scene, camera) {
-          window.walkCamera = camera;
+          if (["3D scene", "Exhibition view"].includes(this.domElement.getAttribute("aria-label")))
+            window.walkCamera = camera;
           return render.call(this, scene, camera);
         };
       });
     });
-  const editor = await browser.newPage();
+  const editor = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   await observe(editor);
   const saved = await serveProject(editor, origin, project);
   const projectAssets = `/api/v1/projects/${project.projectId}/assets`;
@@ -117,6 +118,40 @@ try {
     .catch(async (e) => {
       throw new Error(e.message + "\n" + (await editor.locator("body").innerText()));
     });
+  async function walkInEditor(caseX) {
+    await editor.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+    assert.equal(
+      await editor
+        .getByRole("button", { name: "Third person", exact: true })
+        .getAttribute("aria-pressed"),
+      "false",
+    );
+    await editor.locator('canvas[aria-label="3D scene"]').click();
+    async function walk(key, threshold) {
+      await editor.keyboard.down(key);
+      try {
+        await editor.waitForFunction(
+          ([key, threshold]) =>
+            key === "s"
+              ? window.walkCamera.position.x < threshold
+              : window.walkCamera.position.x > threshold,
+          [key, threshold],
+        );
+        // Keep pushing against the obstacle after reaching its near face.
+        await editor.evaluate(async () => {
+          for (let i = 0; i < 40; i++) await new Promise(requestAnimationFrame);
+        });
+        return await editor.evaluate(() => window.walkCamera.position.x);
+      } finally {
+        await editor.keyboard.up(key);
+      }
+    }
+    const wall = await walk("s", -4.54);
+    const prop = await walk("w", caseX - 0.86);
+    await editor.evaluate(() => document.exitPointerLock());
+    return { wall, prop, caseX };
+  }
+  const beforePreview = await walkInEditor(8);
   await editor.getByRole("button", { name: "Preview", exact: true }).click();
   const visitor = await browser.newPage();
   await observe(visitor);
@@ -167,7 +202,25 @@ try {
     const blocked = await page.evaluate(() => window.walkCamera.position.toArray());
     outcomes.push({ name, through, atCase, blocked });
   }
-  console.log(JSON.stringify(outcomes));
+  await editor.bringToFront();
+  await editor.evaluate(() => document.exitPointerLock());
+  await editor.getByRole("button", { name: "Exit preview", exact: true }).click();
+  await editor.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  await editor.locator(".scene-tree .object-row").filter({ hasText: "Glass case" }).click();
+  await editor.getByRole("button", { name: "Position", exact: true }).click();
+  const x = editor.getByRole("textbox", { name: "Glass case transform X (m)", exact: true });
+  await x.fill("9");
+  await x.press("Enter");
+  assert.equal(Number(await x.inputValue()), 9);
+  const afterPreview = await walkInEditor(9);
+  console.log(JSON.stringify({ beforePreview, afterPreview, outcomes }));
+  for (const [phase, { wall, prop, caseX }] of Object.entries({ beforePreview, afterPreview })) {
+    assert.ok(wall > -4.6 && wall < -4.54, `${phase}: editor should stop at the wall, got ${wall}`);
+    assert.ok(
+      prop > caseX - 0.86 && prop <= caseX - 0.819,
+      `${phase}: editor should stop at the case placed at ${caseX}, got ${prop}`,
+    );
+  }
   for (const { name, through, blocked } of outcomes) {
     assert.ok(through[0] > 5.5, `${name}: should cross the doorway, got ${through}`);
     assert.ok(

@@ -25,8 +25,8 @@ type Support = Pick<Floor, "y" | "top">;
 // Use the triangles after normalization, world transforms and doorway cuts. In particular,
 // the bounding box of a wall with a doorway includes the empty space under its lintel
 export function createWalkSpace(rooms: readonly Object3D[], props: readonly WalkProp[] = []) {
-  const obstacles = walkObstacles(props, HALF_WIDTH);
-  const openGround = !rooms.length && obstacles.boxes.length ? { y: 0, top: Infinity } : undefined;
+  let obstacles = walkObstacles(props, HALF_WIDTH);
+  const openGround = !rooms.length ? { y: 0, top: Infinity } : undefined;
   const grids: RoomGrid[] = [];
   const floors: Floor[] = [];
   for (const room of rooms) {
@@ -137,7 +137,7 @@ export function createWalkSpace(rooms: readonly Object3D[], props: readonly Walk
     return true;
   }
   function standingFloor(x: number, z: number, near: number) {
-    if (openGround) return openGround;
+    if (openGround) return obstacles.boxes.length ? openGround : undefined;
     const floor = support(x, z, near);
     if (!floor) return undefined;
     // The footprint may span two supporting floors across a connected threshold
@@ -251,5 +251,12 @@ export function createWalkSpace(rooms: readonly Object3D[], props: readonly Walk
     to.set(x, y, z);
     return currentFloor;
   }
-  return { place, move, insideProp };
+  return {
+    place,
+    move,
+    insideProp,
+    setProps(next: readonly WalkProp[]) {
+      obstacles = walkObstacles(next, HALF_WIDTH);
+    },
+  };
 }

@@ -118,6 +118,32 @@ it.each(["initial engagement", "runtime room visibility resync"])(
   },
 );
 
+it("restores editor wall collision after Preview and lets an airborne editor fly through it", () => {
+  const camera = new PerspectiveCamera();
+  const controls = new FpsControls(camera, document.createElement("canvas"));
+  controls.setWalkSpace(createWalkSpace([room]));
+  controls.setFlightAllowed(false);
+  camera.position.set(0, 1.1, 0);
+  controls.engage();
+  try {
+    controls.setFlightAllowed(true);
+    controls.syncFromCamera();
+    controls.mobileControls.setMove(1, 0);
+    for (let i = 0; i < 180; i++) controls.update(1 / 60);
+    expect(camera.position.x).toBeGreaterThan(4.4);
+    expect(camera.position.x).toBeLessThan(4.8);
+
+    controls.mobileControls.jump();
+    controls.update(1 / 60);
+    controls.mobileControls.jump();
+    for (let i = 0; i < 120; i++) controls.update(1 / 60);
+    expect(camera.position.x).toBeGreaterThan(9);
+    expect(camera.position.y).toBeGreaterThan(1.1);
+  } finally {
+    controls.dispose();
+  }
+});
+
 it("reports unsupported placement without changing the authored position", () => {
   const tilted = room.clone(true);
   tilted.quaternion.set(0.08715574274765817, 0, 0, 0.9961946980917455);
