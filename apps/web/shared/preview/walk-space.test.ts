@@ -1,7 +1,7 @@
 import { BoxGeometry, Group, Mesh, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { createRoomEntrances } from "../asset-runtime/room-entrances";
-import { createWalkSpace } from "./walk-space";
+import { createWalkSpace, touchesObject } from "./walk-space";
 
 function room(x = 0) {
   const root = new Group();
@@ -110,5 +110,39 @@ describe("walking inside rendered rooms", () => {
     }
     expect(eye.x).toBeCloseTo(8);
     expect(eye.y).toBeCloseTo(0.9);
+  });
+});
+
+describe("visitor touching an object", () => {
+  const exhibit = (x: number, y = 0.5) => {
+    const root = new Group();
+    const mesh = new Mesh(new BoxGeometry(1, 1, 1));
+    mesh.position.set(x, y, 0);
+    root.add(mesh);
+    return root;
+  };
+  const eye = new Vector3(0, 0.9, 0);
+
+  it("detects overlap with the visitor body box", () => {
+    expect(touchesObject(exhibit(0), eye)).toBe(true);
+  });
+
+  it("ignores objects outside the body box", () => {
+    expect(touchesObject(exhibit(0.8), eye)).toBe(false);
+    expect(touchesObject(exhibit(0, 3), eye)).toBe(false);
+  });
+
+  it("uses the authored world transform", () => {
+    const moved = exhibit(0);
+    moved.position.x = 1;
+    expect(touchesObject(moved, eye)).toBe(false);
+    moved.position.x = 0.1;
+    expect(touchesObject(moved, eye)).toBe(true);
+  });
+
+  it("ignores hidden objects", () => {
+    const hidden = exhibit(0);
+    hidden.visible = false;
+    expect(touchesObject(hidden, eye)).toBe(false);
   });
 });

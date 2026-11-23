@@ -405,6 +405,7 @@ public static partial class ProjectFormat
         switch (type)
         {
             case "visitor-clicks-hotspot":
+            case "visitor-touch":
                 Fields(value, path, "type", "targetHotspotId");
                 Text(Get(value, "targetHotspotId"), $"{path}.targetHotspotId");
                 break;

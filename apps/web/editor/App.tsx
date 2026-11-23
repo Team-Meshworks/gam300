@@ -356,7 +356,7 @@ export function App({
     interactionHandlerRef.current.objectClicked(id);
   }, []);
   const onSceneUpdate = useCallback((deltaSeconds: number) => {
-    interactionHandlerRef.current.update(deltaSeconds);
+    interactionHandlerRef.current.update(deltaSeconds, viewCameraRef.current?.visitorTouches);
   }, []);
   const onInteractionsChange = useCallback(
     (next: Interaction[]) => {

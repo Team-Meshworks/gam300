@@ -15,6 +15,30 @@ type Face = { triangle: Triangle; bounds: Box3 };
 type Floor = Face & { y: number; top: number };
 type Cell = { faces: Face[]; floors: Floor[] };
 
+// Use the same body dimensions for proximity triggers so touching matches walking collisions
+export function touchesObject(
+  root: Object3D,
+  eye: Vector3,
+  box = new Box3(),
+  body = new Box3(),
+): boolean {
+  for (let node: Object3D | null = root; node; node = node.parent) if (!node.visible) return false;
+  root.updateWorldMatrix(true, true);
+  box.makeEmpty();
+  const transformed = new Box3();
+  root.traverseVisible((node) => {
+    if (!(node instanceof Mesh)) return;
+    const geometry = node.geometry;
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    if (geometry.boundingBox)
+      box.union(transformed.copy(geometry.boundingBox).applyMatrix4(node.matrixWorld));
+  });
+  if (box.isEmpty()) return false;
+  body.min.set(eye.x - HALF_WIDTH, eye.y - EYE_HEIGHT, eye.z - HALF_WIDTH);
+  body.max.set(eye.x + HALF_WIDTH, eye.y - EYE_HEIGHT + HEIGHT, eye.z + HALF_WIDTH);
+  return body.intersectsBox(box);
+}
+
 // Index the static room once. A position query visits one cell per nearby room
 // because each triangle is indexed with the visitor radius already included
 function roomGrid(bounds: Box3) {

@@ -35,6 +35,7 @@ export type ViewpointCamera = {
   placementParent?: (assetId: string, transform: Transform, objectId?: string) => string | null;
   capture: () => CameraPose;
   show: (pose: CameraPose) => void;
+  visitorTouches?: (id: string) => boolean;
   locate: (id: string) => void;
   toggleDisplayMedia: (id: string) => void;
   playSpatialAudio?: (id: string) => void;
@@ -178,6 +179,7 @@ export function Viewport({
             placementParent: scene.getPlacementParent,
             capture: scene.captureCamera,
             show: scene.showCamera,
+            visitorTouches: scene.visitorTouches,
             locate: scene.locateObject,
             toggleDisplayMedia: scene.toggleDisplayMedia,
             playSpatialAudio: scene.playSpatialAudio,

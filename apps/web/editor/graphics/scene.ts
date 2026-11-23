@@ -6,7 +6,7 @@ import {
   ROOM_TRANSFORM,
 } from "../../shared/project/selection-transform";
 import { createRoomEntrances } from "../../shared/asset-runtime/room-entrances";
-import { createWalkSpace } from "../../shared/preview/walk-space";
+import { createWalkSpace, touchesObject } from "../../shared/preview/walk-space";
 import { visibleModelBounds, visibleRaycastHit, nearestExhibitHit } from "./visible-model-bounds";
 import { textSurfacePlacement } from "./text-placement";
 import {
@@ -168,6 +168,7 @@ export interface InitSceneHandle {
   setEditingEnabled: (enabled: boolean, allowInspection?: boolean) => void;
   captureCamera: () => CameraPose;
   showCamera: (pose: CameraPose) => void;
+  visitorTouches: (id: string) => boolean;
   locateObject: (id: string) => void;
   getObjectScreenBounds: (
     id: string,
@@ -299,6 +300,8 @@ export function initScene(
   let environmentId: string | undefined;
   const environmentBounds = new THREE.Box3();
   const instances = new Map<string, THREE.Group>();
+  const touchObjectBox = new THREE.Box3();
+  const touchBodyBox = new THREE.Box3();
   const roomEntrances = createRoomEntrances();
   let selectedIds: readonly string[] = [];
   function findObject(id: string | null) {
@@ -2125,6 +2128,13 @@ export function initScene(
       fovDegrees: camera.fov,
     }),
     showCamera,
+    visitorTouches: (id) => {
+      const instance = instanceFor(id);
+      return (
+        instance !== undefined &&
+        touchesObject(instance, camera.position, touchObjectBox, touchBodyBox)
+      );
+    },
     getObjectScreenBounds(id) {
       const box = getObjectBounds(id);
       if (!box || box.isEmpty()) return null;
