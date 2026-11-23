@@ -1,17 +1,23 @@
-/* Keep admin controls aligned while retaining the approved page layouts */
+/* Shared foundations for the role workspaces */
+@import "./tabs.css";
+@import "./admin-catalogue.css";
+@import "./form-dialog.css";
+@import "./button.css";
+@import "./control-colors.css";
 @import "./scrollbars.css";
+@import "./panel-surfaces.css";
+@import "./search-field.css";
 @import "@fortawesome/fontawesome-svg-core/styles.css";
-@import "@fontsource/inter/latin-400.css";
-@import "@fontsource/inter/latin-500.css";
-@import "@fontsource/inter/latin-600.css";
-@import "@fontsource/inter/latin-700.css";
 
 :root {
   --sp-font: "Inter", sans-serif;
+  --sp-weight-heading: 600;
+  --sp-weight-emphasis: 600;
+  --sp-weight-action: 500;
+  --sp-weight-body: 400;
   --sp-button-primary-ink: #fff;
   --sp-avatar-surface: #ede4d8;
   --sp-avatar-ink: #77604b;
-  --sp-close-surface: #f3f4f6;
   --sp-close-ink: #000;
   font-family: var(--sp-font);
   color: #292723;
@@ -22,6 +28,17 @@
   --sp-border: #e7e2dc;
   --sp-surface: #fffdfb;
   --sp-soft: #f7f5f2;
+  --sp-plain-hover-pad: 5px;
+  --sp-admin-action-gap: 10px;
+  --sp-preview-card-gap: 8px;
+  --sp-selection-hover: var(--sp-hover);
+  --sp-selection-surface: #fdfbf8;
+  --sp-selection-divider: #dedede;
+  --sp-selection-tab-gap: 12px;
+  --sp-account-toolbar-content-gap: 24px;
+  --sp-selection-border: #d1cbc4;
+  --sp-selection-active-hover: var(--sp-plain-hover-surface);
+  --sp-plain-hover-fill: var(--sp-plain-hover-surface);
   --sp-focus: #85582f;
 }
 * {
@@ -83,13 +100,15 @@ p {
 h1 {
   font-size: 25px;
   line-height: 1.3;
-  font-weight: 700;
+  font-weight: 600;
 }
 h2 {
   font-size: 20px;
   line-height: 1.35;
+  font-weight: 600;
 }
 h3 {
+  font-weight: 600;
   font-size: 16px;
   line-height: 1.4;
 }
@@ -130,14 +149,19 @@ p {
 }
 :root {
   --sp-search-edge: #fff;
-  --sp-wash-opacity: 0.95;
-  --sp-wash-left-x: calc(50% - 1097px);
-  --sp-wash-left-y: -201px;
-  --sp-wash-right-x: calc(50% + 125px);
-  --sp-wash-right-y: 208px;
+  --sp-wash-opacity: 1;
+  --sp-wash-left-x: calc(50vw - 930px);
+  --sp-wash-left-y: -248px;
+  --sp-wash-right-x: calc(50vw - 67px);
+  --sp-wash-right-y: 183px;
+}
+.sp-wash,
+.asset-admin-preview::before,
+.asset-admin-preview::after {
+  filter: none;
 }
 .sp-wash {
-  position: absolute;
+  position: fixed;
   z-index: -1;
   pointer-events: none;
   opacity: var(--sp-wash-opacity);
@@ -224,49 +248,6 @@ p {
   color: var(--sp-muted);
   font-size: 13px;
   margin-top: 8px;
-}
-.sp-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  border: 1px solid var(--sp-border);
-  background: var(--sp-surface);
-  border-radius: 20px;
-  min-height: 44px;
-  padding: 10px 28px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.5;
-  cursor: pointer;
-  white-space: nowrap;
-}
-/* Centre the visible capital height without shifting icon-only buttons */
-.sp-button-label {
-  display: block;
-  line-height: 1;
-  text-box-trim: trim-both;
-  text-box-edge: cap alphabetic;
-}
-.sp-button:hover:not(:disabled) {
-  background: #eee8e1;
-}
-.sp-button--primary {
-  background: var(--sp-ink);
-  color: var(--sp-button-primary-ink);
-  border-color: var(--sp-ink);
-}
-.sp-button--primary:hover:not(:disabled) {
-  background: #51473d;
-}
-.sp-button--quiet {
-  padding: 4px 0;
-  min-height: 32px;
-  border-color: transparent;
-  background: transparent;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  font-size: 12px;
 }
 .sp-field {
   display: flex;
@@ -357,24 +338,6 @@ h3 + .sp-hint {
 .sp-search svg {
   flex-shrink: 0;
   width: 18px;
-}
-.sp-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 22px;
-}
-.sp-tabs button {
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  padding: 8px 0;
-  font-size: 13px;
-  color: var(--sp-muted);
-}
-.sp-tabs button[aria-selected="true"] {
-  color: var(--sp-ink);
-  font-weight: 600;
-  border-bottom-color: var(--sp-ink);
 }
 .sp-badge {
   display: inline-block;
@@ -481,6 +444,7 @@ h3 + .sp-hint {
   background: rgb(41 39 35 / 0.35);
 }
 .sp-dialog-body {
+  font-weight: 400;
   display: grid;
   gap: 16px;
   margin: 20px 0 24px;
@@ -542,18 +506,12 @@ h3 + .sp-hint {
   min-height: 36px;
   padding: 6px 16px;
 }
-
-:is(.sp-shell--creator, .sp-shell--facilitator) .sp-dialog.sp-workspace-leave {
-  width: min(430px, calc(100% - 32px));
-  padding: 20px;
-}
 :is(.sp-shell--creator, .sp-shell--facilitator) .sp-dialog.sp-workspace-leave > h2 {
   font-size: 20px;
   line-height: 28px;
 }
 :is(.sp-shell--creator, .sp-shell--facilitator) .sp-dialog.sp-workspace-leave .sp-dialog-body {
   gap: 12px;
-  margin-top: 12px;
   margin-bottom: 0;
   font-size: 14px;
   line-height: 21px;
@@ -610,21 +568,24 @@ dialog.sp-dialog > button.sp-button.sp-dialog-dismiss.sp-close-button > svg {
 
 .sp-dialog.sp-project-moderation-dialog {
   width: min(400px, calc(100% - 32px));
-  padding: 18px 20px;
+  padding: 18px 20px 28px;
 }
 .sp-dialog.sp-project-moderation-dialog > h2 {
+  font-weight: 700;
+  margin: 18px 0;
   font-size: 18px;
   line-height: 24px;
 }
 .sp-dialog.sp-project-moderation-dialog .sp-dialog-body {
-  margin-top: 10px;
+  margin: 10px 0 0;
   gap: 10px;
   font-size: 13px;
   line-height: 19px;
 }
 
 .sp-dialog.sp-project-moderation-dialog .sp-actions > .sp-button,
-.sp-dialog .sp-actions.sp-confirmation-actions > .sp-button {
+.sp-dialog .sp-actions.sp-confirmation-actions > .sp-button,
+.sp-dialog .sp-actions.sp-form-dialog-actions > .sp-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -635,7 +596,8 @@ dialog.sp-dialog > button.sp-button.sp-dialog-dismiss.sp-close-button > svg {
   line-height: 18px;
 }
 .sp-dialog.sp-project-moderation-dialog .sp-actions > .sp-button > .sp-button-label,
-.sp-dialog .sp-actions.sp-confirmation-actions > .sp-button > .sp-button-label {
+.sp-dialog .sp-actions.sp-confirmation-actions > .sp-button > .sp-button-label,
+.sp-dialog .sp-actions.sp-form-dialog-actions > .sp-button > .sp-button-label {
   text-box-trim: trim-both;
   text-box-edge: cap alphabetic;
   line-height: 18px;
@@ -655,23 +617,30 @@ dialog.sp-dialog > button.sp-button.sp-dialog-dismiss.sp-close-button > svg {
 }
 
 /* The outer workspace fits the viewport; content panels own their scrolling. */
+:root {
+  --sp-workspace-gutter: clamp(20px, 5.56vw, 80px);
+  --sp-workspace-bottom-space: clamp(24px, 5.56vw, 80px);
+}
 html:has(.sp-shell),
 body:has(.sp-shell) {
   height: 100%;
   overflow-y: hidden;
 }
 .sp-shell.sp-shell {
+  width: 100vw;
   display: flex;
   flex-direction: column;
   height: 100dvh;
   min-height: 0;
-  padding-bottom: 32px;
+  padding-bottom: var(--sp-workspace-bottom-space);
 }
 .sp-shell > .sp-account-header {
   flex-shrink: 0;
   margin-block: 0;
 }
-.sp-shell.sp-shell > .sp-workspace {
+.sp-shell.sp-shell.sp-shell.sp-shell > .sp-workspace {
+  width: calc(100% - 2 * var(--sp-workspace-gutter));
+  max-width: 1280px;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -692,6 +661,11 @@ body:has(.sp-shell) {
   overflow: auto;
 }
 
+.sp-shell[data-account-role="Creator"] > .sp-workspace > .sp-class-home {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
 .sp-shell.sp-shell > .sp-workspace > .sp-directory {
   display: flex;
   flex-direction: column;
@@ -724,45 +698,77 @@ body:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome) {
   overflow: auto;
 }
 
-.sp-selection-checkbox {
-  appearance: none;
+.sp-shell
+  :is(.admin-progress, .sp-account-list):has(> .sp-admin-selection-bar:not([hidden]))
+  > :is(.admin-progress-list, .sp-account-rows) {
+  background: var(--sp-selection-row-surface);
+  border-bottom-width: 0;
+}
+.sp-shell article:is(.sp-account-row--selectable, :has(> .sp-row-select-input)) {
   position: relative;
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 16px;
-  height: 16px;
+  isolation: isolate;
+}
+.sp-row-select-input {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  border: 1px solid #b1aaa2;
-  border-radius: 4px;
-  background: var(--sp-surface);
-  cursor: pointer;
+  opacity: 0;
 }
-.sp-selection-checkbox:is(:checked, :indeterminate) {
-  border-color: var(--sp-ink);
-  background: var(--sp-ink);
+.sp-shell
+  article:is(.sp-account-row--selectable, :has(> .sp-row-select-input))
+  fieldset:disabled
+  :is(button:not([disabled]), a[aria-disabled="true"]) {
+  opacity: 1;
 }
-.sp-selection-checkbox:checked::after {
-  content: "";
-  width: 7px;
-  height: 4px;
-  margin-top: -2px;
-  border: solid #fff;
-  border-width: 0 0 1.5px 1.5px;
-  transform: rotate(-45deg);
+.sp-shell
+  article:is(.sp-account-row--selectable, :has(> .sp-row-select-input))
+  fieldset:disabled
+  .sp-button:not(.sp-button--primary) {
+  color: var(--sp-ink);
+  background-color: var(--sp-surface);
 }
-.sp-selection-checkbox:indeterminate::after {
-  content: "";
-  width: 8px;
-  height: 1.5px;
-  background: #fff;
+@media (forced-colors: active) {
+  .sp-shell article:has(> .sp-row-select-input:checked) {
+    border-block-end: 1px dashed Highlight;
+  }
 }
-.sp-selection-checkbox:focus-visible {
+.sp-shell article:has(> .sp-row-select-input:focus-visible) .sp-selection-marker::before {
   outline: 2px solid var(--sp-focus);
   outline-offset: 3px;
 }
 
+.sp-selection-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-admin-action-gap);
+  white-space: nowrap;
+}
+.sp-selection-summary [role="status"] {
+  color: var(--sp-ink);
+  font: 600 14px/20px var(--sp-font);
+  font-variant-numeric: tabular-nums;
+}
+.sp-selection-summary .sp-select-all-action {
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sp-muted);
+  font: 500 13px/18px var(--sp-font);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sp-select-all-action:hover:enabled {
+  background: var(--sp-hover);
+  color: var(--sp-ink);
+}
+
 .sp-admin-page-heading > div:first-child > h1 {
+  letter-spacing: -0.5px;
   text-box-trim: trim-start;
   text-box-edge: cap alphabetic;
 }
@@ -770,4 +776,726 @@ body:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome) {
   > :is(.sp-search, .sp-close-button, .asset-admin-search, .asset-admin-close) {
   align-self: start;
   margin-block-start: 0;
+}
+
+:root {
+  --sp-admin-hover: var(--sp-hover);
+  --sp-admin-primary-hover: var(--sp-primary-hover);
+  --sp-admin-danger-hover: var(--sp-danger-hover);
+  --sp-admin-close-hover: var(--sp-close-hover);
+}
+.sp-shell[data-account-role="Administrator"] .sp-dialog:where(:not(.sp-account-dialog)) {
+  --sp-admin-dialog-title-inset: 28px;
+  padding-block-end: var(--sp-admin-dialog-title-inset);
+}
+.sp-shell[data-account-role="Administrator"] .sp-dialog .sp-dialog-body:last-child {
+  margin-block-end: 0;
+}
+.sp-shell[data-account-role="Administrator"]:has(.sp-directory--administration)
+  .sp-dialog:not(.sp-account-dialog) {
+  --sp-admin-dialog-title-inset: 24px;
+}
+/* Balance the visible title-to-copy and copy-to-action gaps at each dialog's type size. */
+.sp-shell[data-account-role="Administrator"]
+  .sp-project-moderation-dialog
+  .admin-moderation-dialog-actions {
+  margin-top: 14px;
+}
+.sp-shell[data-account-role="Administrator"] .sp-dialog .sp-confirmation-actions {
+  margin-top: 10px;
+}
+.sp-shell[data-account-role="Administrator"] .sp-account-confirmation .sp-confirmation-actions {
+  margin-top: 12px;
+}
+.sp-shell[data-account-role="Administrator"] .sp-delete-organisation-dialog form > .sp-actions {
+  margin-top: 28px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-admin-selection-bar
+  .admin-moderation-dialog-actions {
+  margin-top: 11px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-dialog:where(:not(.sp-account-dialog))
+  > .sp-dialog-dismiss {
+  top: var(--sp-admin-dialog-title-inset);
+}
+
+.sp-admin-selection-bar,
+.sp-selection-toggle[aria-pressed="true"]::before {
+  background-color: var(--sp-selection-surface);
+}
+.sp-selection-toggle[aria-pressed="true"]::before {
+  box-shadow: inset 0 0 0 1px var(--sp-selection-border);
+}
+
+/* A separate selection bar preserves the list and its header while selecting. */
+.sp-admin-selection-bar {
+  box-shadow: inset 0 1px 0 var(--sp-selection-divider);
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-height: 48px;
+  padding: 10px 24px;
+  --sp-plain-hover-fill: var(--sp-selection-active-hover);
+  border-radius: 0 0 16px 16px;
+}
+.sp-shell[data-account-role="Administrator"] .sp-admin-selection-bar .sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 13px;
+  gap: 6px;
+  border-radius: 999px;
+  font: 600 14px/1 var(--sp-font);
+}
+.sp-shell[data-account-role="Administrator"] .sp-admin-selection-bar .sp-button > svg {
+  width: 16px;
+  height: 16px;
+}
+.sp-shell[data-account-role="Administrator"] .sp-admin-selection-bar .sp-button-label {
+  text-box-trim: none;
+}
+/* The bulk actions use the same resting colours as their row counterparts. */
+.sp-shell[data-account-role="Administrator"]
+  .sp-admin-selection-bar
+  :is(.sp-account-bulk-hide, .sp-account-bulk-delete, .sp-hide-action, .admin-publication-delete) {
+  color: var(--sp-ink);
+  background-color: var(--sp-surface);
+  border-color: var(--sp-selection-border);
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-admin-selection-bar
+  :is(.sp-account-bulk-hide, .sp-hide-action):hover:enabled {
+  background-color: var(--sp-selection-hover);
+  border-color: var(--sp-selection-border);
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-admin-selection-bar
+  :is(.sp-account-bulk-delete, .admin-publication-delete):hover:enabled {
+  background-color: var(--sp-admin-danger-hover);
+  color: #b42318;
+}
+.sp-admin-selection-bar[hidden] {
+  display: none;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-project-selection-toolbar, .sp-account-list-toolbar)
+  .sp-tabs.sp-tabs
+  button {
+  position: relative;
+  isolation: isolate;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-project-selection-toolbar, .sp-account-list-toolbar)
+  .sp-tabs.sp-tabs
+  button:hover:not(:disabled) {
+  background: transparent;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-project-selection-toolbar, .sp-account-list-toolbar)
+  .sp-tab-content {
+  align-items: center;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-project-selection-toolbar, .sp-account-list-toolbar)
+  .sp-tab-content
+  > span:first-child {
+  position: relative;
+  justify-self: start;
+  line-height: 1;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-hide-action.sp-hide-action.sp-button:hover:not(:disabled),
+.sp-shell[data-account-role="Administrator"] .sp-account-bulk-hide.sp-button:hover:not(:disabled) {
+  background: var(--sp-visibility-hover);
+  opacity: 1;
+}
+
+.sp-shell[data-account-role="Administrator"]
+  :is(.sp-hide-action.sp-button, .sp-account-bulk-hide.sp-button) {
+  border: 1px solid var(--sp-selection-border);
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.sp-hide-action.sp-button, .sp-account-bulk-hide.sp-button):hover:not(:disabled) {
+  border-color: #b9b2aa;
+}
+
+.sp-shell[data-account-role="Administrator"] .sp-button.sp-selection-toggle {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  align-self: start;
+  flex: none;
+  --sp-toggle-width: 40px;
+  --sp-toggle-ink-width: 17px;
+  width: var(--sp-toggle-width);
+  min-width: var(--sp-toggle-width);
+  height: 36px;
+  min-height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--sp-muted);
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.sp-account-list-toolbar, .admin-project-selection-toolbar)
+  .sp-tabs
+  button {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+}
+.sp-shell[data-account-role="Administrator"] .sp-account-list-toolbar {
+  --sp-first-tab-inset: 6px;
+}
+.sp-shell[data-account-role="Administrator"] .sp-account-list-toolbar .sp-tabs button:first-child {
+  padding-inline-start: var(--sp-first-tab-inset);
+}
+.sp-shell[data-account-role="Administrator"] .sp-button.sp-selection-toggle {
+  margin-inline-end: calc(
+    var(--sp-first-tab-inset, 0px) - (var(--sp-toggle-width) - var(--sp-toggle-ink-width)) / 2
+  );
+}
+.sp-shell[data-account-role="Administrator"] :is(.sp-selection-toggle, .sp-account-add) {
+  translate: 0 -2.5px;
+}
+.sp-selection-toggle > svg {
+  /* The Lucide lines sit 7 units apart in a 24-unit viewBox. Render that gap at 6px. */
+  width: calc(144px / 7);
+  height: calc(144px / 7);
+  display: block;
+}
+.sp-selection-toggle svg,
+.sp-selection-toggle svg [stroke-width] {
+  stroke-width: 1.75; /* 1.5px after scaling the viewBox */
+}
+.sp-selection-toggle::before {
+  content: "";
+  position: absolute;
+  place-self: center;
+  z-index: -1;
+  box-sizing: content-box;
+  width: var(--sp-toggle-ink-width);
+  height: 13.5px;
+  padding: var(--sp-plain-hover-pad);
+  border-radius: 6px;
+  pointer-events: none;
+}
+.sp-selection-toggle[aria-pressed="true"] {
+  --sp-plain-hover-fill: var(--sp-selection-active-hover);
+}
+.sp-selection-toggle[aria-pressed="true"] > svg {
+  color: var(--sp-ink);
+}
+.sp-selection-toggle[aria-pressed="true"]:hover:enabled::before {
+  background: var(--sp-plain-hover-fill);
+}
+.sp-shell[data-account-role="Administrator"] .sp-button.sp-selection-toggle:hover:enabled {
+  background: transparent;
+  box-shadow: none;
+}
+.sp-selection-toggle[aria-pressed="false"]:hover:enabled::before {
+  background: var(--sp-plain-hover-fill);
+}
+
+.sp-shell[data-account-role]
+  :is(.sp-close-button.sp-button, .sp-dialog-dismiss, .asset-admin-close, .creator-approval-close) {
+  background: var(--sp-close-surface);
+  color: var(--sp-close-ink);
+}
+.sp-shell[data-account-role]
+  :is(
+    .sp-close-button.sp-button,
+    .sp-dialog-dismiss,
+    .asset-admin-close,
+    .creator-approval-close
+  ):hover:not(:disabled) {
+  background: var(--sp-close-hover);
+}
+
+/* The pointer target keeps its full size. Only the painted highlight hugs the ink. */
+[data-plain-hover="anchor"] {
+  position: relative !important;
+}
+[data-plain-hover] {
+  isolation: isolate;
+}
+[data-plain-hover]:hover:not(:disabled) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+[data-plain-hover]:hover:not(:disabled, [aria-disabled="true"])::before {
+  background: var(--sp-plain-hover-fill, var(--sp-hover));
+}
+
+.sp-shell[data-account-role="Administrator"]
+  :is(
+    .sp-hide-action.sp-button,
+    .admin-publication-delete.sp-button,
+    .sp-button[aria-label^="Delete account"],
+    .sp-button[aria-label="Delete organisation"]
+  ) {
+  font-size: 13px;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(
+    .sp-hide-action.sp-button,
+    .admin-publication-delete.sp-button,
+    .sp-button[aria-label^="Delete account"],
+    .sp-button[aria-label="Delete organisation"]
+  )
+  > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-progress-row, .sp-account-row)
+  :is(
+    .sp-hide-action.sp-button,
+    .admin-publication-delete.sp-button,
+    .sp-button[aria-label^="Delete account"]
+  ) {
+  font-size: 15px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-account-row
+  :is(
+    .sp-hide-action.sp-button,
+    .admin-publication-delete.sp-button,
+    .sp-button[aria-label^="Delete account"]
+  )
+  > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-progress-row, .sp-account-row)
+  .sp-button.sp-button {
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-block: 0;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-progress-row, .sp-account-row)
+  .sp-button
+  > .sp-button-label {
+  line-height: 1;
+  text-box-trim: none;
+  transform: none;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-progress-row, .sp-account-row)
+  .sp-button
+  > svg {
+  display: block;
+}
+
+.sp-shell .sp-project-moderation-dialog .sp-project-delete-confirmation {
+  color: var(--sp-danger-hover-ink);
+  background: #fff4f4;
+  border-color: #d9b4b6;
+}
+.sp-shell .sp-project-moderation-dialog .sp-project-delete-confirmation:hover:enabled {
+  background: var(--sp-danger-hover);
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.sp-dialog, .admin-panel, .sp-directory, .asset-admin, .sp-admin-selection-bar)
+  :is(
+    .sp-destructive-action,
+    .sp-button--danger,
+    .admin-publication-delete,
+    .sp-project-delete-confirmation,
+    .asset-admin-danger
+  ):hover:enabled {
+  background-color: var(--sp-danger-hover);
+  color: var(--sp-danger-hover-ink);
+  border-color: var(--sp-danger-hover-border);
+}
+.sp-shell[data-account-role="Administrator"] .asset-admin-visibility:hover:enabled {
+  background-color: var(--sp-visibility-hover);
+}
+
+/* Keep the rounded scrollbar end visible at both extremes of Admin lists. */
+.sp-shell[data-account-role="Administrator"]
+  :is(
+    .admin-progress-list,
+    .sp-account-rows,
+    .sp-organization-project-list,
+    .sp-organization-grid,
+    .asset-admin-scroll,
+    .admin-project-browser > [role="tabpanel"],
+    .admin-detail-columns > :first-child
+  ) {
+  border-bottom: var(--sp-scroll-inset) solid transparent;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-project-moderation, .sp-organization-identity .sp-actions)
+  > .sp-button {
+  height: 34px;
+  min-height: 34px;
+  padding-block: 0;
+  font-size: 12px;
+  line-height: 16px;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-project-moderation, .sp-organization-identity .sp-actions)
+  > .sp-button
+  > svg {
+  width: 14px;
+  height: 14px;
+}
+.sp-directory--administration .sp-account-toolbar-actions > .sp-button--primary {
+  font-weight: 600;
+}
+
+/* Match the Admin PDF's text weight and untrimmed heading geometry. */
+.sp-shell.sp-shell.sp-shell:is([data-account-role="Administrator"], .sp-shell--facilitator)
+  :is(h1, h2, h3) {
+  font-weight: var(--sp-weight-heading);
+}
+.sp-shell.sp-shell.sp-shell:is([data-account-role="Administrator"], .sp-shell--facilitator) {
+  font-weight: var(--sp-weight-body);
+}
+.sp-shell.sp-shell.sp-shell:is([data-account-role="Administrator"], .sp-shell--facilitator)
+  :is(strong, .sp-person-name) {
+  font-weight: var(--sp-weight-emphasis);
+}
+.sp-shell[data-account-role="Administrator"] .sp-admin-page-heading > div:first-child > h1,
+.sp-shell[data-account-role="Administrator"] .admin-project-detail .admin-project-view-heading p {
+  text-box-trim: none;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-admin-page-heading
+  > :is(.sp-search, .sp-close-button, .asset-admin-search, .asset-admin-close) {
+  margin-block-start: 6px;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-dashboard, .sp-directory--administration, .asset-admin)
+  :is(.sp-tabs, .asset-admin-tabs) {
+  column-gap: 22px;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-dashboard, .sp-directory--administration, .asset-admin)
+  :is(.sp-tabs, .asset-admin-tabs)
+  > button {
+  padding-inline: 0;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-dashboard, .sp-directory--administration, .asset-admin)
+  :is(.sp-tabs, .asset-admin-tabs)
+  > button:first-child {
+  margin-inline-start: 0;
+  padding-inline-start: 0;
+}
+.sp-shell.sp-shell.sp-shell[data-account-role="Administrator"]
+  :is(.sp-tabs, .asset-admin-tabs)
+  :is(button[aria-selected="true"], button[aria-pressed="true"], .sp-tab-measure) {
+  font-weight: var(--sp-weight-emphasis);
+}
+.sp-shell[data-account-role="Administrator"] .asset-admin-tab-count {
+  min-width: 0;
+}
+
+.sp-shell[data-account-role="Administrator"] .sp-admin-page-heading > div:first-child {
+  padding-block-start: 2px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .admin-project-browser
+  .sp-admin-page-heading
+  > div:first-child {
+  padding-block-start: 4px;
+}
+.sp-shell[data-account-role="Administrator"] .admin-project-browser > .sp-tabs {
+  margin-top: 16px;
+}
+.sp-shell[data-account-role="Administrator"] .admin-project-detail .admin-project-view-heading p {
+  margin-top: 16px;
+}
+.sp-shell[data-account-role="Administrator"] .admin-project-detail .admin-detail-columns {
+  margin-top: 13px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-directory--administration
+  .sp-organization-overview-heading {
+  margin-bottom: 12px;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-dashboard, .sp-directory--administration)
+  .sp-tabs {
+  column-gap: 24px;
+}
+@media (min-width: 801px) {
+  .sp-shell[data-account-role="Administrator"] .asset-admin-toolbar {
+    margin-top: 38px;
+  }
+}
+
+/* Hallmark component redesign: explicit controls within the existing Spatia system */
+/* Selection affordances occupy the avatar slots so row content stays anchored */
+.sp-selection-marker {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+}
+.sp-selection-marker::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--sp-muted);
+  border-radius: 4px;
+  background: var(--sp-surface);
+}
+article:has(> .sp-row-select-input:checked) .sp-selection-marker::before {
+  background: var(--sp-ink);
+  border-color: var(--sp-ink);
+}
+article:has(> .sp-row-select-input:checked) .sp-selection-marker::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 4px;
+  border-inline-start: 2px solid var(--sp-button-primary-ink);
+  border-block-end: 2px solid var(--sp-button-primary-ink);
+  transform: translateY(-1px) rotate(-45deg);
+}
+.sp-row-select-input {
+  cursor: pointer;
+}
+.sp-shell[data-account-role="Administrator"] .sp-selection-toggle[aria-pressed="true"] {
+  color: var(--sp-ink);
+  font: 600 15px/1 var(--sp-font);
+}
+.sp-selection-toggle[aria-pressed="true"]::before {
+  box-shadow: none;
+  background: transparent;
+}
+.sp-shell[data-account-role="Administrator"]
+  :is(.admin-project-moderation, .sp-account-row, .admin-progress-row, .sp-admin-selection-bar)
+  .sp-button.sp-button
+  > .sp-button-label {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+  position: static;
+  translate: none;
+}
+
+/* Trimmed label boxes give plain controls a shared, measurable hover inset */
+.sp-plain-label {
+  display: block;
+  line-height: 1;
+  text-box-trim: trim-both;
+  text-box-edge: cap text;
+}
+.sp-selection-summary .sp-select-all-action {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.sp-select-all-action > .sp-plain-label {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+@media (min-width: 601px) {
+  .sp-shell[data-account-role="Administrator"]
+    .sp-directory--administration
+    .sp-account-list
+    > .sp-admin-selection-bar {
+    padding-inline-start: 20px;
+  }
+}
+
+.sp-shell[data-account-role="Administrator"] :is(.admin-progress-row, .sp-account-row) {
+  --sp-hover: color-mix(in srgb, var(--sp-soft), var(--sp-hover-dark) var(--sp-hover-strength));
+  --sp-visibility-hover: var(--sp-hover);
+}
+
+.sp-shell
+  :is(
+    .sp-destructive-action,
+    .sp-button--danger,
+    .admin-publication-delete,
+    .asset-admin-danger
+  ):hover:enabled {
+  background-color: var(--sp-danger-hover);
+  color: var(--sp-danger-hover-ink);
+  border-color: var(--sp-danger-hover-border);
+}
+
+/* One inset around native text/icon bounds; the hit area and text selection stay unchanged */
+[data-plain-hover]:hover:not(:disabled, [aria-disabled="true"])::before {
+  content: "";
+  position: absolute;
+  left: var(--hover-offset-x);
+  top: var(--hover-offset-y);
+  width: var(--hover-paint-width);
+  height: var(--hover-paint-height);
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  border-radius: 6px;
+  background: var(--sp-plain-hover-fill, var(--sp-hover));
+  box-shadow: none;
+  pointer-events: none;
+  z-index: -1;
+  place-self: auto;
+}
+
+/* Empty content occupies the remaining list region, after its heading and filters */
+.sp-shell
+  :is(
+    .sp-organization-grid,
+    .sp-organization-project-list,
+    .sp-account-rows,
+    .admin-progress-list
+  ):has(> p[role="status"]:only-child) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-content: stretch;
+  place-items: stretch;
+  padding-block: 0 var(--sp-selection-bar-height, 0px);
+  margin-inline: 0;
+  border-block: 0;
+  scrollbar-gutter: auto;
+}
+.sp-shell
+  :is(.sp-organization-grid, .sp-organization-project-list, .sp-account-rows, .admin-progress-list)
+  > p[role="status"]:only-child {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  margin: 0;
+  padding: 24px;
+  min-height: 0;
+  text-align: center;
+  font: 400 13px/18px var(--sp-font);
+}
+.sp-shell[data-account-role="Administrator"] .sp-account-toolbar-actions > .sp-account-add {
+  width: 40px;
+  min-width: 40px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  color: var(--sp-muted);
+  border: 0;
+  background: transparent;
+  align-self: start;
+}
+
+/* Balance the person and list drawings while keeping a consistent stroke weight. */
+.sp-account-add > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: block;
+}
+.sp-account-add svg [stroke-width] {
+  stroke-width: 2;
+}
+/* The short crossing strokes read heavier than the curved person outline. */
+.sp-account-add svg g > path:last-child {
+  stroke-width: 1.75;
+}
+
+/* The 40px icon hit areas already provide the same visible gap as the tabs. */
+.sp-shell[data-account-role="Administrator"] .sp-account-list-toolbar:has(.sp-selection-toggle) {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: calc(var(--sp-account-toolbar-content-gap) - 23px);
+}
+.sp-shell[data-account-role="Administrator"] .sp-account-list-toolbar .sp-tabs {
+  column-gap: var(--sp-account-toolbar-content-gap);
+}
+
+.sp-selection-toggle[aria-pressed="true"] svg,
+.sp-selection-toggle[aria-pressed="true"] svg [stroke-width] {
+  stroke-width: 2;
+}
+
+/* Keep the standard hover inset inside scrollable tab rows. */
+.sp-shell.sp-shell[data-account-role]
+  :is(.admin-project-selection-toolbar, .sp-teacher-student-toolbar, .sp-account-list-toolbar)
+  > .sp-tabs {
+  padding-inline: var(--sp-plain-hover-pad);
+  margin-inline: calc(-1 * var(--sp-plain-hover-pad));
+}
+
+.sp-shell.sp-shell.sp-shell:is([data-account-role="Administrator"], .sp-shell--facilitator)
+  .sp-button.sp-button {
+  font-weight: var(--sp-weight-action);
+}
+
+.sp-shell.sp-shell.sp-shell:is(
+    [data-account-role="Administrator"],
+    .sp-shell--facilitator,
+    .sp-shell--creator
+  )
+  :is(.sp-button, .asset-admin-text-link)
+  > .sp-button-label {
+  position: static;
+  top: auto;
+  line-height: 1.5;
+  text-box-trim: none;
+  transform: none;
+  translate: none;
+}
+
+/* Moderation dialogs share the same placement across role workspaces. */
+.sp-dialog.sp-project-moderation-dialog > .sp-dialog-dismiss {
+  top: 28px;
+}
+.sp-dialog.sp-project-moderation-dialog .admin-moderation-dialog-actions {
+  margin-top: 14px;
+  gap: 12px;
+}
+.sp-shell[data-account-role] .sp-dialog.sp-project-moderation-dialog .sp-actions > .sp-button {
+  font-weight: 500;
+}
+.sp-shell[data-account-role]
+  .sp-dialog.sp-project-moderation-dialog
+  .sp-actions
+  > .sp-button
+  > .sp-button-label {
+  line-height: 1.5;
+  text-box-trim: none;
+  translate: none;
+}
+
+/* Keep the two role views on the same project metadata rhythm. */
+.sp-shell[data-account-role]
+  :is(.admin-project-detail .admin-project-metadata, .sp-teacher-detail .sp-teacher-metadata) {
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 10px 8px;
+  font: 400 13px/normal var(--sp-font);
+}
+.sp-shell[data-account-role]
+  :is(.admin-project-detail .admin-project-metadata, .sp-teacher-detail .sp-teacher-metadata)
+  a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  min-height: calc(1lh + 4px);
+  border-radius: 6px;
+  text-underline-offset: 2px;
 }
