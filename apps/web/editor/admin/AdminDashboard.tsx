@@ -529,7 +529,7 @@ function AddOrganization({
 }: {
   client: Client;
   onClose: () => void;
-  onDirectory: () => void;
+  onDirectory: (organizationId?: string) => void;
 }) {
   const [recovery, setRecovery] = useState(() => {
     try {
@@ -548,8 +548,8 @@ function AddOrganization({
     setPending(true);
     setError("");
     try {
-      await client.createOrganization(name);
-      onDirectory();
+      const id = await client.createOrganization(name);
+      onDirectory(id);
     } catch (reason) {
       setError(errorMessage(reason));
       try {
@@ -580,7 +580,7 @@ function AddOrganization({
                 : "The previous organisation request could not be read. Check the directory before creating another organisation."
               : recovery.error}
           </p>
-          <Button onClick={onDirectory}>Check organisation directory</Button>
+          <Button onClick={() => onDirectory()}>Check organisation directory</Button>
           {recovery.attempt && (
             <Button
               disabled={pending}
@@ -642,7 +642,7 @@ export function AdminDashboard({
   onProjectsLoaded,
 }: {
   session: AccountSession;
-  onOpenOrganisations: () => void;
+  onOpenOrganisations: (organizationId?: string) => void;
   initialProjects?: DashboardProject[] | undefined;
   onProjectsLoaded?: (projects: DashboardProject[]) => void;
 }) {

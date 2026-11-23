@@ -20,9 +20,9 @@ public static class AssetDeliveryEndpoints
                 .Select(asset => new
                 {
                     id = asset.Id.ToString(),
-                    asset.Name,
+                    Name = asset.CatalogueName ?? asset.Name,
                     asset.Kind,
-                    asset.Category,
+                    Category = asset.CatalogueCategory ?? asset.Category,
                     url = ApiV1Endpoints.Prefix + "/assets/" + asset.Id + "/bytes",
                     asset.Sha256,
                     thumbnail = (string?)null
@@ -56,9 +56,9 @@ public static class AssetDeliveryEndpoints
                 .Select(asset => new
                 {
                     id = asset.Id.ToString(),
-                    asset.Name,
+                    Name = asset.CatalogueName ?? asset.Name,
                     asset.Kind,
-                    asset.Category,
+                    Category = asset.CatalogueCategory ?? asset.Category,
                     url = ApiV1Endpoints.Prefix + "/projects/" + projectId + "/assets/" + asset.Id + "/bytes",
                     asset.Sha256,
                     thumbnail = (string?)null

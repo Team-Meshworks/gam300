@@ -136,7 +136,7 @@ it("creates organisations with CSRF protection and the originating account on bo
     new Response(null, { status: 204 }),
   );
   const client = createDashboardClient(actor, request.fetch);
-  await client.createOrganization(" School ");
+  await expect(client.createOrganization(" School ")).resolves.toBe(actor);
   expect(request.requests[0]?.headers.get("X-Spatia-Account")).toBe(actor);
   const create = request.requests[1]!;
   expect(create.method).toBe("POST");

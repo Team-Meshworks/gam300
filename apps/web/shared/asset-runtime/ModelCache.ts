@@ -157,6 +157,20 @@ async function loadModel(asset: CatalogueAsset, signal: AbortSignal): Promise<Lo
   return { model: scene, thumbnail: undefined };
 }
 
+// Hidden covers and non-mesh markers do not enlarge the model's physical outline.
+export function visibleModelBounds(root: THREE.Object3D): THREE.Box3 {
+  root.updateWorldMatrix(true, true);
+  const bounds = new THREE.Box3();
+  const part = new THREE.Box3();
+  root.traverseVisible((node) => {
+    if (!(node instanceof THREE.Mesh)) return;
+    if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
+    if (node.geometry.boundingBox)
+      bounds.union(part.copy(node.geometry.boundingBox).applyMatrix4(node.matrixWorld));
+  });
+  return bounds;
+}
+
 export function disposeModels(...roots: THREE.Object3D[]): void {
   const resources = new Set<THREE.BufferGeometry | THREE.Material | THREE.Texture>();
   const images = new Set<ImageBitmap>();
