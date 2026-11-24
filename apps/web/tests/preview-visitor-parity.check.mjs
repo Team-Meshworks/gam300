@@ -610,8 +610,12 @@ try {
       await page.getByRole("status").getByText("Exhibition ready").waitFor();
     }
   }
-  await checkStandVisibility(editor, editorUrl, "Preview");
-  await checkStandVisibility(visitor, visitorUrl, "Visitor");
+  // Each visibility check opens its own native hidden target. Release the two
+  // completed WebGL players before starting another renderer in that target.
+  await Promise.all([editor.close(), visitor.close()]);
+  const visibilityHost = await browser.newPage();
+  await checkStandVisibility(visibilityHost, editorUrl, "Preview");
+  await checkStandVisibility(visibilityHost, visitorUrl, "Visitor");
   assert.deepEqual(saved.document(), project, "Viewing does not mutate the authored draft");
   console.log("PASS visitor wall lighting, hotspot and published interactions");
 } finally {

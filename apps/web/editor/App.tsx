@@ -94,6 +94,28 @@ function removalNotice(label: string, removedRules: number): string {
     : `${label}. Undo restores it.`;
 }
 
+function createThumbnailCache(assets: readonly CatalogueAsset[]) {
+  let snapshot = new Map<string, string>();
+  for (const asset of assets) {
+    if (asset.thumbnail) snapshot.set(asset.id, asset.thumbnail);
+  }
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: (): ReadonlyMap<string, string> => snapshot,
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    set(id: string, url: string) {
+      if (snapshot.get(id) === url) return;
+      snapshot = new Map(snapshot).set(id, url);
+      for (const listener of listeners) listener();
+    },
+  };
+}
+
 export function App({
   server,
   readOnlyPreview = false,
@@ -158,31 +180,23 @@ export function App({
   const [dragging, setDragging] = useState<string | null>(null);
   const [placingAssetId, setPlacingAssetId] = useState<string | null>(null);
   const usingPlacement = !!dragging || !!placingAssetId;
-  const generatedThumbnails = useMemo(() => new Map<string, string>(), [editorAssets]);
+  const thumbnailCache = useMemo(() => createThumbnailCache(editorAssets), [editorAssets]);
+  const thumbnails = useSyncExternalStore(thumbnailCache.subscribe, thumbnailCache.getSnapshot);
   const [sceneThumbnails, setSceneThumbnails] = useState<ReadonlySet<string>>(() => new Set());
   const requestThumbnail = useCallback(
     (id: string) => {
-      if (!generatedThumbnails.has(id))
+      if (!thumbnailCache.getSnapshot().has(id))
         setSceneThumbnails((previous) => (previous.has(id) ? previous : new Set(previous).add(id)));
     },
-    [generatedThumbnails],
+    [thumbnailCache],
   );
   const requestedThumbnails = previewPicker ? null : sceneThumbnails;
-  const [, refreshThumbnails] = useState(0);
-  const onThumbnail = useCallback(
-    (id: string, url: string) => {
-      if (generatedThumbnails.get(id) === url) return;
-      generatedThumbnails.set(id, url);
-      refreshThumbnails((previous) => previous + 1);
-    },
-    [generatedThumbnails],
-  );
   useEffect(() => {
     if (usingPlacement) return;
     const missing = editorAssets.filter(
       (asset) =>
         !asset.thumbnail &&
-        !generatedThumbnails.has(asset.id) &&
+        !thumbnailCache.getSnapshot().has(asset.id) &&
         (previewPicker
           ? belongsInAssetPicker(asset, previewPicker, editorAssets)
           : requestedThumbnails?.has(asset.id)),
@@ -195,7 +209,7 @@ export function App({
         if (!disposed)
           cleanup = generateLibraryPreviews(
             previewPicker ? missing : missing.map((asset) => ({ ...asset, sceneLighting: true })),
-            onThumbnail,
+            thumbnailCache.set,
             false,
             editorModelCache,
           );
@@ -207,16 +221,8 @@ export function App({
       disposed = true;
       cleanup?.();
     };
-  }, [
-    editorAssets,
-    generatedThumbnails,
-    onThumbnail,
-    previewPicker,
-    requestedThumbnails,
-    usingPlacement,
-  ]);
-  const thumbnailFor = (id: string) =>
-    editorAssets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails.get(id);
+  }, [editorAssets, thumbnailCache, previewPicker, requestedThumbnails, usingPlacement]);
+  const thumbnailFor = (id: string) => thumbnails.get(id);
   const [status, setStatus] = useState<ViewportStatus>("loading");
   const [attempt, setAttempt] = useState(0);
   const [audioLibrary, setAudioLibrary] = useState<AudioLibraryMode | null>(null);
@@ -985,7 +991,7 @@ export function App({
           status={status}
           attempt={attempt}
           onStatus={setStatus}
-          onThumbnail={onThumbnail}
+          onThumbnail={thumbnailCache.set}
           requestThumbnail={requestThumbnail}
           onSelect={onSceneSelect}
           onTransform={onTransform}

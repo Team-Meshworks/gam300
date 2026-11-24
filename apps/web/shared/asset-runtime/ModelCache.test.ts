@@ -277,7 +277,9 @@ it("evicts large idle models by decoded size and never evicts an active borrower
   const models = ["active", "old", "recent"].map((id) => {
     const model = new THREE.Group();
     const texture = new THREE.Texture({ width: 4096, height: 4096 });
-    model.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ map: texture })));
+    model.add(
+      new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ map: texture })),
+    );
     return { id, model, disposals: disposalCount(model) };
   });
   const signal = new AbortController().signal;
@@ -288,6 +290,10 @@ it("evicts large idle models by decoded size and never evicts an active borrower
   );
   old!.release();
   recent!.release();
-  expect(models.map(({ disposals }) => disposals())).toEqual([[0, 0], [1, 1], [0, 0]]);
+  expect(models.map(({ disposals }) => disposals())).toEqual([
+    [0, 0],
+    [1, 1],
+    [0, 0],
+  ]);
   active!.release();
 });

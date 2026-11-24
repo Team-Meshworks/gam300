@@ -142,7 +142,8 @@ try {
   assert.deepEqual(failures, [], "Teacher assignment creation regression checks failed");
 
   await page.goto(origin + "/home");
-  await page.getByRole("link", { name: "New Project", exact: true }).click();
+  await page.getByRole("link", { name: "+ New Project", exact: true }).click();
+  await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
   const coverType = page.getByRole("radio", { name: "Cover image" });
   const panoramaType = page.getByRole("radio", { name: "360°" });
   const gallery = page.getByRole("button", { name: "Gallery" });

@@ -199,7 +199,10 @@ try {
   await page.getByRole("button", { name: "Enter single room" }).click();
   await page.waitForFunction((viewer) => !viewer.isConnected, firstVisit);
   await page.getByRole("status").getByText("Exhibition ready").waitFor();
-  assert.ok(await firstCanvas.evaluate((canvas) => canvas.isConnected), "Visits reuse the WebGL context");
+  assert.ok(
+    await firstCanvas.evaluate((canvas) => canvas.isConnected),
+    "Visits reuse the WebGL context",
+  );
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
