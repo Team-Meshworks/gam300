@@ -324,7 +324,7 @@ jobs:
         with:
           context: .
           load: true
-          tags: vthere-ci:${{ github.sha }}
+          tags: spatia-ci:${{ github.sha }}
           build-args: |
             REVISION=${{ github.sha }}
             BUILD_MODE=${{ env.BUILD_MODE }}
@@ -334,18 +334,18 @@ jobs:
       - name: Check the packaged application
         id: packaged
         env:
-          APP_IMAGE: vthere-ci:${{ github.sha }}
+          APP_IMAGE: spatia-ci:${{ github.sha }}
           APP_PORT: "4173"
           REVISION: ${{ github.sha }}
           CHECK_SCREENSHOT: test-results/deployment.png
         run: |
-          docker compose -f ../../compose.yaml -p vthere-ci up -d --no-build --wait --wait-timeout 90
+          docker compose -f ../../compose.yaml -p spatia-ci up -d --no-build --wait --wait-timeout 90
           test "$(curl --fail --silent http://127.0.0.1:4173/version.txt)" = "$GITHUB_SHA"
           # Test files from the actual image, including the separate private catalogue root.
           # The Caddy harness first proves anonymous byte denial, then provides a synthetic
           # full session for the existing authoring browser checks.
           mkdir -p test-results "$RUNNER_TEMP/packaged-public" "$RUNNER_TEMP/packaged-restricted"
-          web=$(docker compose -f ../../compose.yaml -p vthere-ci ps -q web)
+          web=$(docker compose -f ../../compose.yaml -p spatia-ci ps -q web)
           docker cp "$web:/srv/." "$RUNNER_TEMP/packaged-public/"
           docker cp "$web:/srv-restricted/." "$RUNNER_TEMP/packaged-restricted/"
           docker run --rm --entrypoint /bin/cat caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b /usr/bin/caddy > "$RUNNER_TEMP/spatia-caddy"
@@ -356,15 +356,15 @@ jobs:
             2>&1 | tee test-results/packaged-catalogue.log
       - name: Check the editor API and database together
         env:
-          APP_IMAGE: vthere-ci:${{ github.sha }}
-          API_IMAGE: vthere-api-ci:${{ github.sha }}
-          MIGRATION_IMAGE: vthere-migrations-ci:${{ github.sha }}
+          APP_IMAGE: spatia-ci:${{ github.sha }}
+          API_IMAGE: spatia-api-ci:${{ github.sha }}
+          MIGRATION_IMAGE: spatia-migrations-ci:${{ github.sha }}
           APP_PORT: "4173"
           SERVER_PORT: "8444"
         run: |
           umask 077
           printf 'SPATIA_DATABASE_PASSWORD=%s\nSPATIA_API_PASSWORD=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > ../../.env
-          stack=(docker compose --env-file ../../.env -f ../../compose.yaml -f ../../compose.server.yaml -p vthere-ci)
+          stack=(docker compose --env-file ../../.env -f ../../compose.yaml -f ../../compose.server.yaml -p spatia-ci)
           "${stack[@]}" build api migrate
           "${stack[@]}" up -d --no-build --wait --wait-timeout 120
           "${stack[@]}" exec -T api node /app/tools/validate-intake.mjs < ../../assets/delivery/test-crate.glb > test-results/packaged-asset-validation.json
@@ -395,7 +395,7 @@ jobs:
           mkdir -p test-results
           extra=()
           if [[ -f ../../.env ]]; then extra=(--env-file ../../.env -f ../../compose.server.yaml); fi
-          docker compose -f ../../compose.yaml "${extra[@]}" -p vthere-ci logs --no-color --tail 100 > test-results/containers.log 2>&1 || true
+          docker compose -f ../../compose.yaml "${extra[@]}" -p spatia-ci logs --no-color --tail 100 > test-results/containers.log 2>&1 || true
       - name: Retain test diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -425,7 +425,7 @@ jobs:
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
         run: |
           mkdir -p ../../ci-artifacts/release
-          docker save "vthere-ci:$GITHUB_SHA" "vthere-api-ci:$GITHUB_SHA" "vthere-migrations-ci:$GITHUB_SHA" -o ../../ci-artifacts/image.tar
+          docker save "spatia-ci:$GITHUB_SHA" "spatia-api-ci:$GITHUB_SHA" "spatia-migrations-ci:$GITHUB_SHA" -o ../../ci-artifacts/image.tar
           cp ../../compose.yaml ../../deploy/deploy.sh ../../ci-artifacts/release/
           cp ../../compose.server.yaml ../../ci-artifacts/release/
           mkdir -p ../../ci-artifacts/release/deploy
@@ -443,7 +443,7 @@ jobs:
         run: |
           extra=()
           if [[ -f ../../.env ]]; then extra=(--env-file ../../.env -f ../../compose.server.yaml); fi
-          docker compose -f ../../compose.yaml "${extra[@]}" -p vthere-ci down --volumes
+          docker compose -f ../../compose.yaml "${extra[@]}" -p spatia-ci down --volumes
           rm -f ../../.env
 
   server:
@@ -581,7 +581,7 @@ jobs:
           tag="ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_REF_NAME-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           pids=()
           for suffix in '' -api -migrations; do
-            docker tag "vthere$suffix-ci:$GITHUB_SHA" "$tag$suffix"
+            docker tag "spatia$suffix-ci:$GITHUB_SHA" "$tag$suffix"
             docker push "$tag$suffix" &
             pids+=("$!")
           done

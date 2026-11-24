@@ -2,14 +2,11 @@
 
 Spatia is a browser tool that lets school-age children and
 teenagers arrange a virtual exhibition, attach information and define interactions
-without writing code. Meshworks (Team 32) develops it for VThere.
+without writing code.
 
-## Source and scope
+## Scope
 
-The supplied source is the **VThere x DigiPen — Detailed Student Brief** for this project.
-This Markdown record summarizes that student brief. It is distinct from VThere's
-commercial MVP brief. Sections 2, 4, 6, 7, 9, 10 and 14 provide the product,
-architecture, acceptance and delivery requirements below.
+This document describes the project's planned features, architecture and milestones.
 
 The brief calls for an M3 MVP and final delivery at the end of Project 6. The team
 roadmap stages some vocabulary, precision, QR and analytics work after M3. Those
