@@ -102,13 +102,10 @@ try {
   assert.equal(await destination.inputValue(), id(20));
   await page.keyboard.press("Control+y");
   assert.equal(await destination.inputValue(), id(21));
-  // Wait for the real session backup, then verify selected IDs survive reload.
-  let backedUp = false;
-  for (let attempt = 0; attempt < 100 && !backedUp; attempt++) {
-    backedUp = server.document().scenes[0].interactions[1]?.do.viewpointId === id(21);
-    if (!backedUp) await page.waitForTimeout(100);
-  }
-  assert.equal(backedUp, true, "Navigation choices reach the server before reload");
+  await server.waitForDocument(({ scenes }) => {
+    const [navigation, viewpoint] = scenes[0].interactions;
+    return navigation?.do.sceneId === second.id && viewpoint?.do.viewpointId === id(21);
+  });
   await page.reload();
   await openSavedProject(page);
   await page.getByRole("button", { name: "Interaction", exact: true }).click();
@@ -131,19 +128,24 @@ try {
       return update.apply(this, args);
     };
   });
+  const afterRender = () =>
+    page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
   // Frame A differently from its starting view before entering preview.
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
   await page.getByRole("button", { name: "Next saved view", exact: true }).click();
   // Walking keeps its own wider lens, so the saved view arrives by position only
   await page.waitForFunction(() => window.navigationCamera?.position[0] === 10);
-  await page.waitForTimeout(350);
   const editingCamera = await page.evaluate(() => window.navigationCamera);
   assert.notDeepEqual(editingCamera.position, first.startCamera.position);
   assert.notDeepEqual(editingCamera.rotation, first.startCamera.rotation);
   assert.notEqual(editingCamera.fov, first.startCamera.fovDegrees);
   const assertEditingCamera = async () => {
-    // Let the origin-scene React effect and subsequent controls/render frames finish.
-    await page.waitForTimeout(350);
+    await page
+      .getByRole("region", { name: "Exhibition", exact: true })
+      .waitFor({ state: "hidden" });
+    await afterRender();
     const restored = await page.evaluate(() => window.navigationCamera);
     for (const field of ["position", "rotation"]) {
       restored[field].forEach((value, index) =>
@@ -174,7 +176,7 @@ try {
         }),
       );
     });
-  await page.waitForTimeout(350);
+  await afterRender();
   assert.deepEqual(
     (await page.evaluate(() => window.navigationCamera)).position,
     pose(-5).position,
@@ -183,12 +185,14 @@ try {
   // Preview cant fly: holding Space at a raised view drops to the floor instead of climbing
   await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.down("Space");
-  await page.waitForTimeout(1000);
-  await page.keyboard.up("Space");
-  assert.ok(
-    (await page.evaluate(() => window.navigationCamera)).position[1] < pose(-5).position[1],
-    "Preview never flies above a saved view",
-  );
+  try {
+    await page.waitForFunction(
+      (start) => window.navigationCamera?.position[1] < start - 0.1,
+      pose(-5).position[1],
+    );
+  } finally {
+    await page.keyboard.up("Space");
+  }
   const canvas = await page.locator(".visitor-viewer canvas").elementHandle();
   // Scene readiness and its scene-start interaction complete asynchronously.
   const destinationAlert = page.waitForEvent("dialog", {

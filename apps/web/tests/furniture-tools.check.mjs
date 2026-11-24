@@ -90,13 +90,7 @@ try {
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll(".object-row").length === 3);
   await page.screenshot({ path: `${screenshots}/placed-benches.png` });
-  const deadline = Date.now() + 12000;
-  let saved;
-  while (Date.now() < deadline) {
-    saved = project.document();
-    if (saved?.scenes[0].objects.length === 3) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
+  const saved = await project.waitForDocument((doc) => doc.scenes[0]?.objects.length === 3);
   assert.deepEqual(saved.scenes[0].objects.map((object) => object.assetId).sort(), [
     "furniture-modern-bench-1-v1",
     "furniture-modern-bench-1-v1",

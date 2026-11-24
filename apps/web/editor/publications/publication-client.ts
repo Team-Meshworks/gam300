@@ -1,4 +1,5 @@
-import { isId, isRecord } from "../home/workspace-api";
+import { isId } from "../home/workspace-api";
+import { isRecord } from "../../shared/project/validation-helpers";
 
 // These checks run only after the server looks up the publication ID for replay
 const newEditionProblems = {
@@ -28,6 +29,41 @@ export interface PublicationRequest {
   confirmedRevision: number;
   intent: { audience: string; viewerIds: string[] };
 }
+
+export function parsePublicationRequest(value: unknown): PublicationRequest | null {
+  if (
+    !isRecord(value) ||
+    !("publicationId" in value) ||
+    !("confirmedRevision" in value) ||
+    !("intent" in value) ||
+    !isId(value.publicationId) ||
+    typeof value.confirmedRevision !== "number" ||
+    !Number.isSafeInteger(value.confirmedRevision) ||
+    value.confirmedRevision < 0 ||
+    !isRecord(value.intent) ||
+    !("audience" in value.intent) ||
+    !("viewerIds" in value.intent)
+  )
+    return null;
+
+  const { audience, viewerIds } = value.intent;
+  if (
+    (audience !== "Authenticated" && audience !== "Unlisted" && audience !== "Public") ||
+    !Array.isArray(viewerIds) ||
+    viewerIds.length > 100 ||
+    !viewerIds.every(isId) ||
+    new Set(viewerIds.map((id) => id.toLowerCase())).size !== viewerIds.length ||
+    Object.keys(value).length !== 3 ||
+    Object.keys(value.intent).length !== 2
+  )
+    return null;
+  return {
+    publicationId: value.publicationId,
+    confirmedRevision: value.confirmedRevision,
+    intent: { audience, viewerIds },
+  };
+}
+
 export interface PublicationAcknowledgement {
   publicationId: string;
   projectId: string;
@@ -43,6 +79,11 @@ export function publicationAcknowledgement(
 ): PublicationAcknowledgement | null {
   if (
     !isRecord(value) ||
+    !("publicationId" in value) ||
+    !("projectId" in value) ||
+    !("sourceRevision" in value) ||
+    !("createdAt" in value) ||
+    !("visitorUrl" in value) ||
     !isId(value.publicationId) ||
     value.publicationId !== request.publicationId ||
     value.projectId !== projectId ||

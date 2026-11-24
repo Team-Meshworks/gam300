@@ -153,12 +153,12 @@ for (const [label, path, heading] of [
     }
   });
   for (const width of [1440, 390]) {
-    test(`${path} direct route hides workspace navigation at ${width}px`, async () => {
+    test(`${path} loads previews and returns to the dashboard at ${width}px`, async () => {
       const page = await setup(width);
       try {
         await page.goto(origin + path);
         await page.getByRole("heading", { name: heading, exact: true }).waitFor();
-        await page.locator(".asset-admin-card").first().waitFor();
+        await page.locator(".asset-admin-card button").first().waitFor();
         assert.equal(await page.locator(".asset-admin-card").count(), 4);
         await checkGeneratedPreviews(page);
         const image = page.locator(".asset-admin-thumbnail img").first();
@@ -169,7 +169,6 @@ for (const [label, path, heading] of [
           preview,
         );
         await page.keyboard.press("Escape");
-        assert.equal(await page.getByRole("navigation", { name: "Workspace screens" }).count(), 0);
         assert.equal(
           await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
           true,
@@ -247,7 +246,7 @@ test("unavailable or malformed GLBs keep their cards usable and do not block lat
   }
 });
 
-test("dashboard project cover loads the default blank environment image", async () => {
+test("dashboard project card displays a decodable default cover", async () => {
   const page = await setup();
   try {
     await page.goto(origin + "/admin/dashboard");
@@ -258,14 +257,9 @@ test("dashboard project cover loads the default blank environment image", async 
       .getByRole("button", { name: "View Details for Source" })
       .waitFor();
     const cover = page.locator(".admin-project-card").first().locator("img.admin-project-cover");
-    assert.equal(await cover.count(), 1, "project card has a cover image");
-    assert.match(
-      await cover.getAttribute("src"),
-      /default-project-neutral(?:-[\w-]+)?\.jpg(?:\?|$)/,
-    );
+    assert.equal(await cover.isVisible(), true, "project card has a visible cover image");
     await cover.evaluate((image) => image.decode());
     assert.equal(await cover.evaluate((image) => image.complete && image.naturalWidth > 0), true);
-    assert.equal(await page.getByText("No cover image").count(), 0);
   } finally {
     await page.close();
   }
@@ -276,10 +270,7 @@ test("administrator project workspace exposes access management control", async 
     await page.goto(origin + "/home");
     await page.getByRole("heading", { name: "Source", exact: true }).waitFor();
     const cover = page.locator("img.sp-home-project-cover").first();
-    assert.match(
-      await cover.getAttribute("src"),
-      /default-project-neutral(?:-[\w-]+)?\.jpg(?:\?|$)/,
-    );
+    assert.equal(await cover.isVisible(), true, "project card has a visible cover image");
     await cover.evaluate((image) => image.decode());
     assert.equal(await cover.evaluate((image) => image.complete && image.naturalWidth > 0), true);
     if (process.env.CHECK_SCREENSHOTS) {

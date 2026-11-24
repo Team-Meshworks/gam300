@@ -210,6 +210,21 @@ action's package version and hash together when raising the security floor.
 The recovery check includes place–move–undo–save–reload and JSON transfer into a fresh
 browser context. Its output and the editor check output are retained under `apps/web/test-results/`.
 
+The packaged checks copy `/srv` and `/srv-restricted` from the editor image into separate
+runner temporary directories. `checks-<sha>` retains the available logs, JUnit XML,
+validation report, screenshots, test CA certificate and architecture graphs even on failure.
+After the Caddy access and browser checks pass, `web-<sha>` contains one copy of the
+verified public web root for 14 days, including on manual feature-branch runs. QA and M3
+reviewers can extract it and serve the static files. Signed-in authoring and catalogue
+access require the API, database and authenticated gateway.
+
+CI #421 stored 128.38 MiB in `checks-<sha>`. Its ZIP contained 118.54 MiB of compressed
+restricted files, two 3.57 MiB public trees and 2.63 MiB of diagnostics. Using those
+entries, the two new archives would total about 6.21 MiB plus ZIP overhead and the new
+catalogue test log. That saves about 122 MiB and projects 607.6 MiB of stored artifacts
+for a comparable run, down from 729.71 MiB. Organization billing covers a different scope.
+[Baseline run and artifacts](https://github.com/Team-Meshworks/gam300/actions/runs/44320426331)
+
 The server job uses the SDK pinned in `apps/server/global.json`, locked NuGet restore,
 Release build, both C# format checks, migration checks and the complete TUnit suite.
 Its disposable PostgreSQL 18.6 service publishes only to loopback and uses synthetic
@@ -227,6 +242,27 @@ test/web artifacts for 14 days and the small release bundle for 90 days. Retain 
 images and release bundles needed for reviewed recovery; old images may become unavailable.
 Feature branches can run validation through manual dispatch; run the relevant checks
 locally before requesting review.
+
+**Private GHCR handoff proposal.** The package API returned 403 for `gam300` with the
+available credential, which lacks `read:packages`. Its 404 for the proposed `gam300-ci`
+package leaves staging visibility and Actions grants unverified. Before enabling staging,
+verify private package visibility and repository access. Grant staging writes only on a
+push or manual dispatch of `dev` or `main` in `Team-Meshworks/gam300`. Run that job on
+a GitHub-hosted runner. Feature, PR and fork checks need only read access.
+[GitHub package access settings](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)
+
+Record the three tested local image IDs and match each against its staging manifest's
+config digest. Pass those immutable manifest references, the producing run and attempt,
+and deployment files to the gated publisher. After all required checks pass, including
+the selected architecture proof, copy each manifest by digest into the release package.
+Require all three destination digests to match before writing `release.json`.
+Test a publish-only retry with an earlier producer attempt and keep staging data available
+for at least the current two-day retry window. Deployment continues to use the manual
+environment gate, current branch head, selected CI run and release-package digests.
+
+To roll back the archive layout, revert this workflow change through review and rerun CI.
+That restores both public copies and the raw restricted catalogue to future private
+diagnostic archives.
 
 Superseded CI runs are cancelled. Deployments are serialized per environment, and a VM
 file lock also prevents concurrent changes to the same deployment.
@@ -250,7 +286,7 @@ gh workflow run ci.yml --ref dev
 ```
 
 Choose `dev` for a development release or `main` for a production release.
-Feature-branch checks must be run locally. Merging into either supported branch
+Feature branches can also be selected for manual validation. Merging into either supported branch
 automatically runs CI on the resulting commit. Deployment requires the selected
 run to match the current branch head and deploys that run's tested images.
 

@@ -15,7 +15,7 @@ import { StudentProjects } from "./StudentProjects";
 import { TeacherProjects } from "./TeacherProjects";
 import { ClassHome } from "./ClassHome";
 import { WorkspaceNavigation } from "./WorkspaceNavigation";
-import { AssignmentCreationScreen } from "../projects/AssignmentScreens";
+import { AssignmentCreationScreen } from "../projects/AssignmentCreationScreen";
 import type { FormNavigationState } from "../projects/NewProjectForm";
 import "./home.css";
 import "./dashboard.css";
@@ -59,12 +59,63 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
     () => new URLSearchParams(location.search).get("classId") ?? "",
   );
   const previousView = useRef(view);
+  const [routeVersion, setRouteVersion] = useState(0);
+  const historyIndex = useRef<number>(history.state?.spWorkspaceIndex ?? 0);
+  const restoringHistory = useRef<number | null>(null);
+  const confirmedHistory = useRef(false);
+  useEffect(() => {
+    history.replaceState({ ...history.state, spWorkspaceIndex: historyIndex.current }, "");
+  }, []);
   useEffect(() => {
     if (!navigation.dirty && !navigation.locked) return;
     const preventLoss = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener("beforeunload", preventLoss);
     return () => window.removeEventListener("beforeunload", preventLoss);
   }, [navigation.dirty, navigation.locked]);
+  useEffect(() => {
+    const restoreRoute = (event: PopStateEvent) => {
+      if (restoringHistory.current !== null) {
+        const direction = restoringHistory.current;
+        restoringHistory.current = null;
+        navigate(() => {
+          confirmedHistory.current = true;
+          history.go(direction);
+        });
+        return;
+      }
+      const targetIndex = event.state?.spWorkspaceIndex;
+      const direction =
+        typeof targetIndex === "number" && targetIndex > historyIndex.current ? 1 : -1;
+      if ((navigation.dirty || navigation.locked) && !confirmedHistory.current) {
+        restoringHistory.current = direction;
+        history.go(-direction);
+        return;
+      }
+      confirmedHistory.current = false;
+      historyIndex.current =
+        typeof targetIndex === "number" ? targetIndex : historyIndex.current + direction;
+      const path = location.pathname.replace(/\/$/, "");
+      setNewProject(path === "/new-project");
+      setAssignmentClassId(new URLSearchParams(location.search).get("classId") ?? "");
+      if (path === "/classes") setView("classes");
+      else if (path === "/new-project")
+        setView(session.role === "Educator" ? "assignment" : "denied");
+      else setView("projects");
+      setRouteVersion((version) => version + 1);
+    };
+    window.addEventListener("popstate", restoreRoute);
+    return () => window.removeEventListener("popstate", restoreRoute);
+  }, [active, navigate, navigation.dirty, navigation.locked, session.role, view]);
+  function pushWorkspaceRoute(href: string) {
+    historyIndex.current += 1;
+    history.pushState({ ...history.state, spWorkspaceIndex: historyIndex.current }, "", href);
+  }
+  function openWorkspaceRoute(href: string, target: "projects" | "classes") {
+    navigate(() => {
+      pushWorkspaceRoute(href);
+      setView(target);
+    });
+  }
   function openProject(projectId: string) {
     navigate(() => location.assign(`/?projectId=${encodeURIComponent(projectId)}`));
   }
@@ -160,7 +211,15 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
     </WorkspaceShell>
   );
   if (view === "projects" && session.role === "Educator")
-    return <TeacherProjects session={session} listVersion={0} renderWorkspace={renderWorkspace} />;
+    return (
+      <TeacherProjects
+        key={routeVersion}
+        session={session}
+        listVersion={0}
+        renderWorkspace={renderWorkspace}
+        onOpenOrganisation={(href) => openWorkspaceRoute(href, "classes")}
+      />
+    );
   if (view === "projects" && session.role === "Creator")
     return (
       <StudentProjects
@@ -181,6 +240,7 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
       />
     ) : view === "classes" ? (
       <ClassHome
+        key={routeVersion}
         session={session}
         active={active}
         onCreateAssignment={(classId) => {
@@ -194,18 +254,21 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
             const params = new URLSearchParams(location.search);
             const classId = params.get("classId");
             const assignmentId = params.get("assignmentId");
-            location.assign(
+            pushWorkspaceRoute(
               classId && assignmentId
                 ? `/home?${new URLSearchParams({ classId, assignmentId })}`
                 : "/home",
             );
+            setView("projects");
           })
         }
       />
     ) : view === "denied" ? (
       <h1>Access denied</h1>
     ) : (
-      <div className={newProject ? "sp-teacher-new-project" : "sp-assignment-page"}>
+      <div
+        className={newProject ? "sp-panel-surface sp-teacher-new-project" : "sp-assignment-page"}
+      >
         <div className="sp-page-heading sp-teacher-detail-head">
           <div>
             <h1>{newProject ? "New Project" : "New class assignment"}</h1>
@@ -229,7 +292,7 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
           {...(newProject
             ? {
                 onCreated: () => {
-                  history.replaceState(null, "", "/home");
+                  history.replaceState(history.state, "", "/home");
                   setNewProject(false);
                   setView("projects");
                 },

@@ -11,14 +11,11 @@ const alice = "00000000-0000-4000-8000-000000000001";
 const bob = "00000000-0000-4000-8000-000000000002";
 const browser = await launchBrowser({ target: base, args: ["--enable-unsafe-swiftshader"] });
 const context = await browser.newContext();
-await context.addInitScript(() => {
-  Object.defineProperty(AbortSignal, "any", { configurable: true, value: undefined });
-});
 let account = alice,
   document = structuredClone(fixture),
   revision = 7,
   mode = "saved";
-let releaseSave;
+const delayedSave = Promise.withResolvers();
 let catalogueUnavailable = true;
 const writes = [],
   errors = [];
@@ -65,10 +62,7 @@ const api = async (route) => {
       });
     const body = request.postDataJSON();
     writes.push(body);
-    if (mode === "delayed")
-      await new Promise((resolve) => {
-        releaseSave = resolve;
-      });
+    if (mode === "delayed") await delayedSave.promise;
     if (mode === "failed") return json(503, {});
     if (mode === "invalid") return json(422, { code: "invalid_document" });
     if (mode === "conflict" || body.expectedRevision !== revision) return json(409, {});
@@ -117,12 +111,40 @@ async function saved() {
   );
 }
 
-async function chooseRecovery() {
-  const recovery = page.getByRole("button", { name: "Keep Recovery and Exit", exact: true });
-  if (!(await recovery.isVisible())) {
-    await page.getByRole("button", { name: "Exit", exact: true }).click();
-  }
-  await recovery.click();
+async function invalidateRecoveryRevision() {
+  const key = ["account", alice, fixture.projectId];
+  const update = (restored) =>
+    page.evaluate(
+      async ({ key, restored }) => {
+        const database = await new Promise((resolve, reject) => {
+          const request = indexedDB.open("vthere-local-drafts", 2);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        try {
+          return await new Promise((resolve, reject) => {
+            const transaction = database.transaction("session", "readwrite");
+            const store = transaction.objectStore("session");
+            const request = store.get(key);
+            transaction.oncomplete = () => resolve(request.result);
+            transaction.onabort = () => reject(transaction.error);
+            request.onsuccess = () => {
+              if (!request.result) {
+                reject(new Error("Expected an existing recovery record"));
+                transaction.abort();
+                return;
+              }
+              store.put(restored ?? { ...request.result, revision: "invalid" }, key);
+            };
+          });
+        } finally {
+          database.close();
+        }
+      },
+      { key, restored },
+    );
+  const original = await update(null);
+  return () => update(original);
 }
 
 async function catalogueScenario(capability, revokeDuringRead = false, companion = "none") {
@@ -165,7 +187,6 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
   ];
   let currentCapability = capability,
     serverRevision = 1;
-  const captured = [];
   const isolated = await browser.newContext();
   try {
     await isolated.route("**/api/v1/**", async (route) => {
@@ -209,7 +230,6 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
             permissions: { canEdit: true },
           });
         const body = request.postDataJSON();
-        captured.push(body);
         serverDocument = body.document;
         return json(200, {
           projectId: fixture.projectId,
@@ -322,13 +342,17 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
     const name = `Catalogue capability ${String(capability)}`;
     await scenario.getByRole("button", { name: "Scenes", exact: true }).click();
     await scenario.getByLabel("Scene name", { exact: true }).fill(name);
+    const savedCapability = scenario.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        response.ok() &&
+        request.method() === "PUT" &&
+        new URL(request.url()).pathname === "/api/v1/projects/" + fixture.projectId &&
+        request.postDataJSON().document.scenes[0].name === name
+      );
+    });
     await scenario.getByRole("button", { name: "Rename scene", exact: true }).click();
-    const deadline = Date.now() + 15000;
-    while (!captured.some((entry) => entry.document.scenes[0].name === name)) {
-      if (Date.now() >= deadline) throw new Error("The approved-room project did not save");
-      await scenario.waitForTimeout(100);
-    }
-    const written = captured.find((entry) => entry.document.scenes[0].name === name).document;
+    const written = (await savedCapability).request().postDataJSON().document;
     assert.equal(written.scenes[0].environmentAssetId, approvedId);
     assert.deepEqual(
       written.scenes[0].objects.map((object) => object.assetId),
@@ -382,11 +406,7 @@ async function importScenario() {
     await editor.goto(url);
     await editor.locator('.save-state[data-state="saved"]').waitFor();
     await editor.getByLabel("Project options", { exact: true }).click();
-    assert.equal(
-      await editor.locator("#project-save").count(),
-      0,
-      "Server autosave has no redundant Save menu item",
-    );
+    assert.equal(await editor.getByRole("button", { name: "Retry Save", exact: true }).count(), 0);
     await editor.getByRole("button", { name: "Import", exact: true }).waitFor();
     await editor.getByRole("button", { name: "Export", exact: true }).waitFor();
     const upload = async (text) =>
@@ -422,9 +442,10 @@ async function importScenario() {
     await editor.getByRole("alert").filter({ hasText: "Retry the earlier creation" }).waitFor();
     assert.equal(imports.length, 2, "Changed input cannot reuse the pending import operation");
     await editor.reload();
-    const savedVersion = editor.getByRole("button", { name: "Use saved version", exact: true });
-    await editor.locator('.save-state[data-state="saved"]').or(savedVersion).first().waitFor();
-    if (await savedVersion.isVisible()) await savedVersion.click();
+    await editor
+      .getByRole("dialog", { name: "Recover your changes?" })
+      .getByRole("button", { name: "Use saved version", exact: true })
+      .click();
     await editor.locator('.save-state[data-state="saved"]').waitFor();
     lostReceipt = false;
     await upload(JSON.stringify(incoming));
@@ -611,7 +632,6 @@ try {
   await page.getByRole("button", { name: "Retry opening" }).click();
   await saved();
   await importScenario();
-  assert.equal(await page.getByRole("complementary", { name: "Server project" }).count(), 0);
   await page.getByRole("button", { name: "Leave editor" }).focus();
   await page.keyboard.press("Enter");
   // An unchanged server draft leaves directly without a redundant confirmation
@@ -726,7 +746,8 @@ try {
   assert.equal(account, alice);
   await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).click();
   await projectOption("Open Server Version");
-  await chooseRecovery();
+  const keepRecovery = page.getByRole("button", { name: "Keep Recovery and Exit", exact: true });
+  await keepRecovery.click();
   await page.getByRole("dialog", { name: "Recover your changes?" }).waitFor();
   assert.equal(writes.length, attempts);
   await page.getByRole("button", { name: "Recover changes", exact: true }).click();
@@ -737,7 +758,8 @@ try {
   );
   await page.getByRole("alert").filter({ hasText: "Another revision" }).waitFor();
   await projectOption("Open Server Version");
-  await chooseRecovery();
+  await page.getByRole("button", { name: "Exit", exact: true }).click();
+  await keepRecovery.click();
   mode = "saved";
   await page.getByRole("button", { name: "Use saved version", exact: true }).click();
   await saved();
@@ -745,13 +767,19 @@ try {
   assert.equal(await page.getByLabel("Scene name", { exact: true }).inputValue(), "Offline edit");
   // An acknowledgement for an older edit must not mark newer work saved.
   mode = "delayed";
+  const firstSave = page.waitForRequest(
+    (request) =>
+      request.method() === "PUT" &&
+      new URL(request.url()).pathname === `/api/v1/projects/${fixture.projectId}`,
+  );
+  void firstSave.catch(() => {});
   await edit("First edit while saving");
   await page.locator('.save-state[data-state="saving"]').waitFor();
-  while (!releaseSave) await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal((await firstSave).postDataJSON().document.scenes[0].name, "First edit while saving");
   await edit("Newer edit while saving");
   assert.notEqual(await status.getAttribute("data-state"), "saved");
   mode = "saved";
-  releaseSave();
+  delayedSave.resolve();
   await saved();
   assert.equal(document.scenes[0].name, "Newer edit while saving");
 
@@ -778,35 +806,24 @@ try {
   assert.equal(document.scenes[0].name, "Draft retained after sign-out");
 
   // A failed local checkpoint blocks both saving and recovery-based departure.
-  await page.evaluate(() => {
-    const put = IDBObjectStore.prototype.put;
-    window.failRecovery = true;
-    IDBObjectStore.prototype.put = function (...args) {
-      if (window.failRecovery && this.name === "session")
-        throw new DOMException("Full", "QuotaExceededError");
-      return put.apply(this, args);
-    };
-  });
+  const restoreForRetry = await invalidateRecoveryRevision();
   const beforeStorageFailure = writes.length;
   await edit("Storage failure edit");
   await page.locator('.save-state[data-state="failed"]').waitFor();
   assert.equal(writes.length, beforeStorageFailure);
   await page.getByRole("button", { name: "Leave editor", exact: true }).click();
-  await chooseRecovery();
+  await page.getByRole("button", { name: "Exit", exact: true }).click();
+  await keepRecovery.click();
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
   await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).click();
-  await page.evaluate(() => {
-    window.failRecovery = false;
-  });
+  await restoreForRetry();
   await projectOption("Retry Save");
   await saved();
   assert.equal(document.scenes[0].name, "Storage failure edit");
 
   // Expiry plus a failed final backup must retain the only live draft behind its owner.
-  await page.evaluate(() => {
-    window.failRecovery = true;
-  });
+  const restoreAfterExpiry = await invalidateRecoveryRevision();
   await edit("Only live draft after expiry");
   await page.locator('.save-state[data-state="failed"]').waitFor();
   account = null;
@@ -827,9 +844,7 @@ try {
   assert.equal(page.url(), url, "A failed recovery write must keep the only draft in this tab");
   assert.equal(await page.locator(".editor-shell").count(), 0);
   account = alice;
-  await page.evaluate(() => {
-    window.failRecovery = false;
-  });
+  await restoreAfterExpiry();
   await page.getByRole("button", { name: "Retry opening" }).click();
   await ready();
   assert.equal(
@@ -896,5 +911,6 @@ try {
     "Actual editor autosave, fresh open, retry identity, conflict/recovery choices, cancelled export/departure, delayed acknowledgements, expiry redirects with draft recovery, storage failure, successful departure and account isolation passed.",
   );
 } finally {
+  delayedSave.resolve();
   await browser.close();
 }

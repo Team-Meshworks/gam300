@@ -1,4 +1,5 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
+import { serveHttp, serveResponses } from "../../tests/http-fixture";
 import { createAccountClient } from "./account-client";
 
 const session = {
@@ -9,8 +10,6 @@ const session = {
   orgName: "Test school",
   mustChangePassword: false,
 };
-const json = (value: unknown) =>
-  new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
 
 it.each([
   [true, true],
@@ -23,124 +22,117 @@ it.each([
     ...session,
     ...(value === undefined ? {} : { developmentAssetsAllowed: value }),
   };
-  const client = createAccountClient(vi.fn<typeof fetch>().mockResolvedValue(json(response)));
-  expect(await client.getSession()).toMatchObject({ developmentAssetsAllowed: expected });
+  const http = await serveResponses(Response.json(response));
+  expect(await createAccountClient(http.fetch).getSession()).toMatchObject({
+    developmentAssetsAllowed: expected,
+  });
 });
 
 it("signs in with CSRF and verifies the session after rotating the request token", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({ requestToken: "anonymous-token" }))
-    .mockResolvedValueOnce(new Response(null, { status: 204 }))
-    .mockResolvedValueOnce(json({ requestToken: "account-token" }))
-    .mockResolvedValueOnce(json(session));
-  const client = createAccountClient(request);
-  expect(await client.signIn("teacher", " password unchanged ")).toEqual({
+  const http = await serveResponses(
+    Response.json({ requestToken: "anonymous-token" }),
+    new Response(null, { status: 204 }),
+    Response.json({ requestToken: "account-token" }),
+    Response.json(session),
+  );
+  expect(await createAccountClient(http.fetch).signIn("teacher", " password unchanged ")).toEqual({
     ...session,
     developmentAssetsAllowed: false,
   });
-  expect(request.mock.calls.map(([url]) => url)).toEqual([
+  expect(http.requests.map(({ url }) => new URL(url).pathname)).toEqual([
     "/api/v1/auth/csrf",
     "/api/v1/auth/login",
     "/api/v1/auth/csrf",
     "/api/v1/auth/session",
   ]);
-  expect(request.mock.calls[1]?.[1]).toMatchObject({
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "X-CSRF-TOKEN": "anonymous-token" },
-    body: JSON.stringify({ userName: "teacher", password: " password unchanged " }),
-  });
+  const login = http.requests[1]!;
+  expect(login).toMatchObject({ method: "POST", credentials: "same-origin" });
+  expect(login.headers.get("X-CSRF-TOKEN")).toBe("anonymous-token");
+  expect(await login.json()).toEqual({ userName: "teacher", password: " password unchanged " });
 });
+
 it("reports a rejected login without inventing a session", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({ requestToken: "token" }))
-    .mockResolvedValueOnce(new Response(null, { status: 401 }));
-  await expect(createAccountClient(request).signIn("teacher", "wrong password")).rejects.toThrow(
+  const http = await serveResponses(
+    Response.json({ requestToken: "token" }),
+    new Response(null, { status: 401 }),
+  );
+  await expect(createAccountClient(http.fetch).signIn("teacher", "wrong password")).rejects.toThrow(
     "username or password",
   );
-  expect(request).toHaveBeenCalledTimes(2);
+  expect(http.requests).toHaveLength(2);
 });
+
 it("rejects malformed and unsupported sessions", async () => {
-  for (const value of [
+  for (const invalid of [
     { ...session, role: "Superuser" },
+    { ...session, role: ["Educator"] },
     { ...session, orgId: null },
     { ...session, mustChangePassword: "false" },
   ]) {
-    await expect(
-      createAccountClient(vi.fn<typeof fetch>().mockResolvedValue(json(value))).getSession(),
-    ).rejects.toThrow("session");
+    const http = await serveResponses(Response.json(invalid));
+    await expect(createAccountClient(http.fetch).getSession()).rejects.toThrow("session");
   }
 });
+
 it("treats expired sessions as signed out and HTML as an unavailable API", async () => {
-  expect(
-    await createAccountClient(
-      vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 401 })),
-    ).getSession(),
-  ).toBeNull();
-  await expect(
-    createAccountClient(
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(
-          new Response("<html>editor</html>", { headers: { "Content-Type": "text/html" } }),
-        ),
-    ).getSession(),
-  ).rejects.toThrow("unavailable");
+  const http = await serveResponses(
+    new Response(null, { status: 401 }),
+    new Response("<html>editor</html>", { headers: { "Content-Type": "text/html" } }),
+  );
+  const client = createAccountClient(http.fetch);
+  expect(await client.getSession()).toBeNull();
+  await expect(client.getSession()).rejects.toThrow("unavailable");
 });
+
 it("changes a forced password then fetches authoritative session state", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({ requestToken: "old" }))
-    .mockResolvedValueOnce(new Response(null, { status: 204 }))
-    .mockResolvedValueOnce(json({ requestToken: "new" }))
-    .mockResolvedValueOnce(json(session));
+  const http = await serveResponses(
+    Response.json({ requestToken: "old" }),
+    new Response(null, { status: 204 }),
+    Response.json({ requestToken: "new" }),
+    Response.json(session),
+  );
+  const input = { currentPassword: "old password value", newPassword: "new password value" };
   expect(
-    await createAccountClient(request).changePassword(
-      "old password value",
-      "new password value",
+    await createAccountClient(http.fetch).changePassword(
+      input.currentPassword,
+      input.newPassword,
       session.userId,
     ),
   ).toEqual({ ...session, developmentAssetsAllowed: false });
-  expect(request.mock.calls[1]).toEqual([
-    "/api/v1/auth/password",
-    expect.objectContaining({
-      body: JSON.stringify({
-        currentPassword: "old password value",
-        newPassword: "new password value",
-      }),
-    }),
-  ]);
+  const change = http.requests[1]!;
+  expect(new URL(change.url).pathname).toBe("/api/v1/auth/password");
+  expect(await change.json()).toEqual(input);
 });
+
 it("binds a forced-password change and its confirmation to the displayed account", async () => {
   const changed = { ...session, userId: "6d0d9b7f-6851-4dc6-91e4-d41aadd299be" };
-  const request = vi.fn<typeof fetch>(async (url) => {
-    if (url === "/api/v1/auth/session") return json(changed);
-    if (url === "/api/v1/auth/password") return new Response(null, { status: 204 });
-    return json({ requestToken: "token" });
-  });
+  const http = await serveResponses(
+    Response.json({ requestToken: "token" }),
+    new Response(null, { status: 204 }),
+    Response.json({ requestToken: "new" }),
+    Response.json(changed),
+  );
   await expect(
-    createAccountClient(request).changePassword(
+    createAccountClient(http.fetch).changePassword(
       "old password value",
       "new password value",
       session.userId,
     ),
-  ).rejects.toThrow();
-  for (const [, init] of request.mock.calls.slice(0, 2)) {
-    expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe(session.userId);
+  ).rejects.toThrow("updated session");
+  for (const { headers } of http.requests.slice(0, 2)) {
+    expect(headers.get("X-Spatia-Account")).toBe(session.userId);
   }
 });
 
 it("only confirms logout after a fresh session check returns signed out", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({ requestToken: "old" }))
-    .mockResolvedValueOnce(new Response(null, { status: 204 }))
-    .mockResolvedValueOnce(json({ requestToken: "new" }))
-    .mockResolvedValueOnce(new Response(null, { status: 401 }));
-  await expect(createAccountClient(request).signOut(session.userId)).resolves.toBeUndefined();
-  expect(request.mock.calls.map(([url]) => url)).toEqual([
+  const http = await serveResponses(
+    Response.json({ requestToken: "old" }),
+    new Response(null, { status: 204 }),
+    Response.json({ requestToken: "new" }),
+    new Response(null, { status: 401 }),
+  );
+  await expect(createAccountClient(http.fetch).signOut(session.userId)).resolves.toBeUndefined();
+  expect(http.requests.map(({ url }) => new URL(url).pathname)).toEqual([
     "/api/v1/auth/csrf",
     "/api/v1/auth/logout",
     "/api/v1/auth/csrf",
@@ -149,18 +141,29 @@ it("only confirms logout after a fresh session check returns signed out", async 
 });
 
 it("binds logout token and mutation to the original account across a cookie switch", async () => {
-  let cookie = session.userId;
-  const request = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
-    if (url === "/api/v1/auth/csrf") {
-      expect(new Headers(init?.headers).get("X-Spatia-Account")).toBe(session.userId);
-      cookie = "another-account";
-      return json({ requestToken: "old-token" });
+  let activeAccount = session.userId;
+  const http = await serveHttp((request) => {
+    switch (new URL(request.url).pathname) {
+      case "/api/v1/auth/csrf":
+        activeAccount = "another-account";
+        return Response.json({ requestToken: "old-token" });
+      case "/api/v1/auth/logout":
+        return new Response(null, {
+          status: request.headers.get("X-Spatia-Account") === activeAccount ? 204 : 403,
+        });
+      default:
+        return new Response(null, { status: 404 });
     }
-    expect(url).toBe("/api/v1/auth/logout");
-    expect(new Headers(init?.headers).get("X-Spatia-Account")).not.toBe(cookie);
-    return new Response(null, { status: 403 });
   });
-  await expect(createAccountClient(request).signOut(session.userId)).rejects.toThrow();
-  expect(cookie).toBe("another-account");
-  expect(request).toHaveBeenCalledTimes(2);
+  await expect(createAccountClient(http.fetch).signOut(session.userId)).rejects.toThrow(
+    "account change could not be completed",
+  );
+  expect(activeAccount).toBe("another-account");
+  expect(http.requests.map(({ url }) => new URL(url).pathname)).toEqual([
+    "/api/v1/auth/csrf",
+    "/api/v1/auth/logout",
+  ]);
+  for (const { headers } of http.requests) {
+    expect(headers.get("X-Spatia-Account")).toBe(session.userId);
+  }
 });

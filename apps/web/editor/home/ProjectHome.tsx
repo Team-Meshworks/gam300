@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "@iconify/react/offline";
-import searchIcon from "@iconify-icons/ant-design/search-outlined";
 import type { AccountSession } from "../accounts/account-client";
 import { createAccountClient } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
 import { Dialog } from "../../shared/ui/Dialog";
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { PageState } from "../../shared/ui/PageState";
 import { SearchField } from "../../shared/ui/SearchField";
 import { Tabs } from "../../shared/ui/Tabs";
@@ -255,7 +254,6 @@ export function ProjectHome({
           value={search}
           onChange={setSearch}
           placeholder="Search projects"
-          icon={session.role === "Educator" ? <Icon icon={searchIcon} width={18} /> : undefined}
         />
         <Button onClick={() => setVersion((value) => value + 1)}>Refresh</Button>
       </div>
@@ -266,7 +264,7 @@ export function ProjectHome({
       )}
       <div id="projects-panel" role="tabpanel" aria-labelledby={`projects-${tab}`}>
         {!current ? (
-          <PageState state="loading" onRetry={() => {}} />
+          <LoadingSkeleton label="Loading projects" />
         ) : current.items === null ? (
           <PageState state="error" onRetry={() => setVersion((value) => value + 1)} />
         ) : !items?.length ? (

@@ -2,7 +2,11 @@ import type { AssignmentDetails } from "../projects/assignment-api";
 import type { ProjectSummary } from "./workspace-api";
 
 export type StudentAssignment = { className: string; details: AssignmentDetails };
-export type StudentProjectRow = { project: ProjectSummary; assignment: StudentAssignment | null };
+export type StudentProjectRow = {
+  project: ProjectSummary;
+  assignment: StudentAssignment | null;
+  assignmentUnavailable?: boolean;
+};
 
 export function studentProjectRows(
   studentId: string,

@@ -13,38 +13,35 @@ try {
   // Record the sounds the page really asks the browser to play
   await context.addInitScript(() => {
     // Kept in sessionStorage so sounds heard before leaving a page are not lost with it
-    window.heard = () => JSON.parse(sessionStorage.getItem("sounds") ?? "[]");
-    window.forget = () => sessionStorage.removeItem("sounds");
-    window.cancelPicker = false;
+    const heard = () => JSON.parse(sessionStorage.getItem("sounds") ?? "[]");
+    const starting = [];
+    window.takeSounds = async () => {
+      await Promise.all(starting);
+      starting.length = 0;
+      const names = heard();
+      sessionStorage.removeItem("sounds");
+      return names;
+    };
     const play = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
       const name = new URL(this.src).pathname
         .split("/")
         .pop()
         .replace(/-[\w-]{8}\.wav$/, ".wav");
-      sessionStorage.setItem("sounds", JSON.stringify([...window.heard(), name]));
-      return play.call(this);
-    };
-    window.showSaveFilePicker = async () => {
-      if (window.cancelPicker) throw new DOMException("Cancelled", "AbortError");
-      return (await navigator.storage.getDirectory()).getFileHandle("sounds.json", {
-        create: true,
+      const started = play.call(this).then(() => {
+        sessionStorage.setItem("sounds", JSON.stringify([...heard(), name]));
       });
+      starting.push(started);
+      return started;
     };
   });
   const errors = [];
 
   async function played(page, expected, message) {
-    // Sounds start straight after the click, a short wait lets any late one show up
-    await page.waitForTimeout(250);
-    const heard = await page.evaluate(() => {
-      const names = window.heard();
-      window.forget();
-      return names;
-    });
+    const heard = await page.evaluate(() => window.takeSounds());
     assert.deepEqual(heard, expected, message);
   }
-  const forget = (page) => page.evaluate(() => window.forget());
+  const forget = (page) => page.evaluate(() => window.takeSounds());
 
   // Entry pages
   const entry = await context.newPage();
@@ -60,6 +57,7 @@ try {
     entry.getByRole("link", { name: /back to home/i }).click({ modifiers: ["Control"] }),
   ]);
   assert.equal(new URL(entry.url()).pathname, "/login", "Ctrl-click keeps the page");
+  await played(entry, [], "Opening a new tab keeps the current page silent");
   await tab.close();
   await entry.close();
 

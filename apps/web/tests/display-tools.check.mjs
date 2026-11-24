@@ -189,7 +189,10 @@ try {
       });
       assert.ok(geometry.source.endsWith(filename));
       assert.deepEqual(geometry.natural, [40, 40]);
-      assert.deepEqual(geometry.rendered, [36, 36]);
+      assert.ok(
+        geometry.rendered.every((size) => Math.abs(size - 36) < 0.01),
+        `${filename} should render at 36 × 36 CSS pixels, got ${geometry.rendered.join(" × ")}`,
+      );
       assert.equal(geometry.contained, true);
       assert.equal(geometry.decorative, true);
       assert.equal(geometry.draggable, false);
@@ -231,13 +234,7 @@ try {
     }
   }
   assert.equal(placed, 8);
-  const deadline = Date.now() + 12000;
-  let saved;
-  while (Date.now() < deadline) {
-    saved = project.document();
-    if (saved?.scenes[0].objects.length === 8) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
+  const saved = await project.waitForDocument((doc) => doc.scenes[0]?.objects.length === 8);
   assert.deepEqual(
     saved.scenes[0].objects.map((object) => object.assetId).sort(),
     registeredDisplays.map((asset) => asset.id).sort(),

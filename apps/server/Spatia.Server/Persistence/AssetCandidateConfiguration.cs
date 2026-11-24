@@ -25,6 +25,11 @@ public sealed class AssetCandidateConfiguration : IEntityTypeConfiguration<Asset
         entity.Property(asset => asset.Name).HasColumnName("name").HasMaxLength(120);
         entity.Property(asset => asset.Kind).HasColumnName("kind").HasMaxLength(16);
         entity.Property(asset => asset.Category).HasColumnName("category").HasMaxLength(40);
+        entity.Property(asset => asset.CatalogueName).HasColumnName("catalogue_name").HasMaxLength(120);
+        entity.Property(asset => asset.CatalogueCategory).HasColumnName("catalogue_category").HasMaxLength(40);
+        entity.Property(asset => asset.CatalogueSource).HasColumnName("catalogue_source").HasMaxLength(2000);
+        entity.Property(asset => asset.CatalogueLicense).HasColumnName("catalogue_license").HasMaxLength(2000);
+        entity.Property(asset => asset.CatalogueReviewNotes).HasColumnName("catalogue_review_notes").HasMaxLength(2000);
         entity.Property(asset => asset.Sha256).HasColumnName("sha256").HasMaxLength(64);
         entity.Property(asset => asset.Bytes).HasColumnName("bytes");
 

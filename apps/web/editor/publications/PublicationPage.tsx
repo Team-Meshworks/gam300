@@ -1,10 +1,12 @@
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { Icon } from "@iconify/react/offline";
 import check from "@iconify-icons/lucide/check";
 import { useEffect, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import type { LeaveGuard } from "../workspace/useWorkspaceDeparture";
 import { createAccountClient } from "../accounts/account-client";
-import { createWorkspaceClient, isId, isRecord } from "../home/workspace-api";
+import { createWorkspaceClient, isId } from "../home/workspace-api";
+import { isRecord, readField } from "../../shared/project/validation-helpers";
 import { Button } from "../../shared/ui/Button";
 import { Select } from "../../shared/ui/Select";
 import { SearchField } from "../../shared/ui/SearchField";
@@ -13,6 +15,7 @@ import { PublicationShare } from "./PublicationShare";
 import { PublicationAccess } from "./PublicationAccess";
 import {
   isDefinitivePublicationRejection,
+  parsePublicationRequest,
   publicationAcknowledgement,
   publicationProblems,
   type PublicationAcknowledgement,
@@ -24,12 +27,12 @@ const api = createWorkspaceClient();
 const accounts = createAccountClient();
 type Saved = { title: string; revision: number; canPublish: boolean };
 type Readiness = {
-  state: string;
+  state: keyof typeof readinessMessages;
   completionConfirmed: boolean | null;
   approved: boolean | null;
   missingCapabilities: { capability: string; path: string }[];
 };
-const readinessMessages: Record<string, string> = {
+const readinessMessages = {
   Ready: "The saved revision is ready. Publishing checks these prerequisites again.",
   ApprovalRequired: "Educator approval of this saved revision is required before publishing.",
   UnsupportedRuntime:
@@ -40,38 +43,27 @@ const readinessMessages: Record<string, string> = {
     "Publishing is unavailable for this project until its origin and required services can be verified.",
   PolicyDenied: "Publication is unavailable under the current project policy.",
 };
+function isReadinessState(value: unknown): value is Readiness["state"] {
+  return typeof value === "string" && Object.hasOwn(readinessMessages, value);
+}
 type Viewer = { userId: string; userName: string };
 const uncertainMessage =
   "The publication result could not be confirmed. Retry this same request to check its outcome.";
 const storageMessage =
   "The browser could not safely store the publication request. Check browser storage before continuing.";
 
-function pendingRequest(key: string | null): {
+type PendingRequest = {
   request: PublicationRequest | null;
   error: boolean;
-} {
+};
+
+function pendingRequest(key: string | null): PendingRequest {
   if (!key) return { request: null, error: false };
   try {
     const raw = sessionStorage.getItem(key);
     if (raw === null) return { request: null, error: false };
-    const value: unknown = JSON.parse(raw);
-    if (
-      !isRecord(value) ||
-      !isId(value.publicationId) ||
-      !Number.isSafeInteger(value.confirmedRevision) ||
-      (value.confirmedRevision as number) < 0 ||
-      !isRecord(value.intent) ||
-      !["Authenticated", "Unlisted", "Public"].includes(String(value.intent.audience)) ||
-      !Array.isArray(value.intent.viewerIds) ||
-      value.intent.viewerIds.length > 100 ||
-      !value.intent.viewerIds.every(isId) ||
-      new Set(value.intent.viewerIds.map((id: string) => id.toLowerCase())).size !==
-        value.intent.viewerIds.length ||
-      Object.keys(value).length !== 3 ||
-      Object.keys(value.intent).length !== 2
-    )
-      return { request: null, error: true };
-    return { request: value as unknown as PublicationRequest, error: false };
+    const request = parsePublicationRequest(JSON.parse(raw));
+    return { request, error: request === null };
   } catch {
     return { request: null, error: true };
   }
@@ -138,20 +130,27 @@ export function PublicationPage({
           throw new Error("Your account changed. Sign in again before continuing.");
         if (
           !isRecord(value) ||
+          !("projectId" in value) ||
+          !("revision" in value) ||
+          !("document" in value) ||
+          !("permissions" in value) ||
           value.projectId !== projectId ||
+          typeof value.revision !== "number" ||
           !Number.isSafeInteger(value.revision) ||
-          (value.revision as number) < 0 ||
+          value.revision < 0 ||
           !isRecord(value.document) ||
+          !("title" in value.document) ||
           typeof value.document.title !== "string" ||
           !value.document.title.trim() ||
           !isRecord(value.permissions) ||
+          !("canPublish" in value.permissions) ||
           typeof value.permissions.canPublish !== "boolean"
         )
           throw new Error("The saved project could not be verified. Refresh before continuing.");
         if (!cancelled) {
           setSaved({
             title: value.document.title,
-            revision: value.revision as number,
+            revision: value.revision,
             canPublish: value.permissions.canPublish,
           });
           if (value.permissions.canPublish) {
@@ -164,10 +163,14 @@ export function PublicationPage({
                 latestSession?.userId !== session.userId ||
                 latestSession.mustChangePassword ||
                 !isRecord(status) ||
+                !("projectId" in status) ||
+                !("revision" in status) ||
+                !("state" in status) ||
+                !("completionConfirmed" in status) ||
+                !("approved" in status) ||
                 status.projectId !== projectId ||
                 status.revision !== value.revision ||
-                typeof status.state !== "string" ||
-                !Object.hasOwn(readinessMessages, status.state) ||
+                !isReadinessState(status.state) ||
                 !(
                   status.completionConfirmed === null ||
                   typeof status.completionConfirmed === "boolean"
@@ -179,12 +182,14 @@ export function PublicationPage({
                 throw new Error("Readiness changed");
               // Keep the server's ordered capability reasons beside the saved revision
               // Older responses may omit them; malformed details cannot become UI content
-              const missing = status.missingCapabilities ?? [];
+              const missing = readField(status, "missingCapabilities") ?? [];
               if (
                 !Array.isArray(missing) ||
                 !missing.every(
                   (issue) =>
                     isRecord(issue) &&
+                    "capability" in issue &&
+                    "path" in issue &&
                     typeof issue.capability === "string" &&
                     typeof issue.path === "string",
                 )
@@ -227,6 +232,8 @@ export function PublicationPage({
           .map((row) => {
             if (
               !isRecord(row) ||
+              !("userId" in row) ||
+              !("userName" in row) ||
               !isId(row.userId) ||
               typeof row.userName !== "string" ||
               !row.userName.trim() ||
@@ -375,6 +382,7 @@ export function PublicationPage({
                 ? "pending"
                 : "approved"
         }
+        loading={loading}
         titleId="creator-publish-title"
         closeLabel="Close publish project"
         onClose={onCancel}
@@ -405,11 +413,6 @@ export function PublicationPage({
           </>
         }
       >
-        {loading && (
-          <p role="status" className="publish-status-loading">
-            Preparing your saved project…
-          </p>
-        )}
         {(error ||
           readinessError ||
           (readiness && readiness.state !== "Ready") ||
@@ -435,7 +438,7 @@ export function PublicationPage({
           change this published edition.
         </p>
       )}
-      {loading && <p role="status">Loading saved project…</p>}
+      {loading && <LoadingSkeleton label="Loading saved project" />}
       {error && <p role="alert">{error}</p>}
       {saved && (
         <>
@@ -526,13 +529,13 @@ export function PublicationPage({
               <fieldset disabled={phase !== "ready" || viewersLoading}>
                 <legend>Publication audience</legend>
                 <div className="sp-publication-audience-field">
-                  {onCancel ? (
+                  {onCancel || session.role === "Creator" ? (
                     <Select
                       label="Who can open this publication"
                       value={audience}
-                      className="creator-publication-select"
+                      className="sp-admin-select creator-publication-select"
                       showSelectedIcon={false}
-                      menuClassName="creator-publication-options"
+                      menuClassName="sp-admin-select-menu creator-publication-options"
                       options={[
                         { value: "Authenticated", label: "Permitted signed-in accounts" },
                         { value: "Unlisted", label: "Anyone with the link" },
@@ -573,7 +576,7 @@ export function PublicationPage({
                 {audience === "Authenticated" && (
                   <>
                     {!onCancel && <p>Choose up to 100 viewers.</p>}
-                    {viewersLoading && <p role="status">Loading viewers…</p>}
+                    {viewersLoading && <LoadingSkeleton label="Loading viewers" />}
                     {viewersError && (
                       <p>Viewers could not be loaded. You can publish for yourself only.</p>
                     )}

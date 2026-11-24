@@ -198,7 +198,8 @@ try {
   await page.getByText("Class change confirmed.", { exact: true }).waitFor();
   assert.equal(classes.length, 2);
   await page.goto(origin + "/classes");
-  await chooseClass(page);
+  await page.getByRole("combobox", { name: "Class", exact: true }).click();
+  await page.getByRole("option", { name: "History", exact: true }).click();
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   assert.equal(await page.getByLabel("Source project").count(), 0);
   await page
@@ -232,7 +233,8 @@ try {
     .fill("Silk Road assignment");
   await page.getByRole("button", { name: "Log Out", exact: true }).click();
   await page.getByRole("button", { name: "Keep editing", exact: true }).click();
-  await chooseClass(page);
+  await page.getByRole("combobox", { name: /^Class/ }).click();
+  await page.getByRole("option", { name: "History", exact: true }).click();
   await page.getByLabel(/^Due date/).fill("2026-11-05");
   await page.getByLabel("Project description").fill("Research trade across the Silk Road.");
   await page.getByLabel("Project instructions").fill("Build an exhibit and explain each object.");
@@ -248,30 +250,34 @@ try {
   heldCreation = new Promise((resolve) => {
     releaseCreation = resolve;
   });
+  const assignmentRequest = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === `/api/v1/classes/${classId}/assignments`,
+  );
+  void assignmentRequest.catch(() => {});
   await page.evaluate(() => {
-    window.pendingNavigationGuard = new Promise((resolve) => {
-      const observer = new MutationObserver(() => {
-        if (!document.querySelector('form[aria-busy="true"]')) return;
-        observer.disconnect();
-        const classes = [...document.querySelectorAll('nav[aria-label="Workspace"] button')].find(
-          (button) => button.textContent.trim() === "Classes",
-        );
-        document.querySelector('a[aria-label="Spatia home"]').click();
-        resolve(classes.disabled);
-      });
-      observer.observe(document.body, { attributes: true, childList: true, subtree: true });
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector('form[aria-busy="true"]')) return;
+      observer.disconnect();
+      const classes = [...document.querySelectorAll('nav[aria-label="Workspace"] button')].find(
+        (button) => button.textContent.trim() === "Classes",
+      );
+      document.querySelector('a[aria-label="Spatia home"]').click();
+      window.pendingNavigationGuard = classes.disabled;
     });
+    observer.observe(document.body, { attributes: true, childList: true, subtree: true });
   });
   await page.getByRole("button", { name: "Create project", exact: true }).click();
+  await page.waitForFunction(() => typeof window.pendingNavigationGuard === "boolean");
   assert.equal(await page.evaluate(() => window.pendingNavigationGuard), true);
   await page.getByText("Creating project… Keep this page open.", { exact: true }).waitFor();
+  await assignmentRequest;
   assert.equal(await page.getByRole("button", { name: "Classes", exact: true }).isDisabled(), true);
   const logoutBeforeLocked = logoutPosts;
-  await page
-    .getByRole("button", { name: "Log Out", exact: true })
-    .evaluate((button) => button.click());
-  await page.waitForTimeout(200);
-  assert.equal(logoutPosts, logoutBeforeLocked, "A locked assignment must not send logout");
+  const logout = page.getByRole("button", { name: "Log Out", exact: true });
+  assert.equal(await logout.isDisabled(), true);
+  await logout.evaluate((button) => button.click());
   const lockedHome = page.getByRole("link", { name: "Spatia home" });
   assert.equal(await lockedHome.getAttribute("aria-disabled"), "true");
   await lockedHome.evaluate((link) => link.click());
@@ -279,6 +285,7 @@ try {
   releaseCreation();
   heldCreation = null;
   await page.getByRole("button", { name: "Retry same assignment", exact: true }).waitFor();
+  assert.equal(logoutPosts, logoutBeforeLocked, "A locked assignment must not send logout");
   assert.equal(attempts.length, 1);
   await page.reload();
   await page.getByRole("button", { name: "Classes", exact: true }).click();
@@ -302,7 +309,8 @@ try {
   const local = await localContext.newPage();
   local.on("pageerror", (error) => errors.push(error.message));
   await local.goto(origin + "/classes");
-  await chooseClass(local);
+  await local.getByRole("combobox", { name: "Class", exact: true }).click();
+  await local.getByRole("option", { name: "History", exact: true }).click();
   await local.getByRole("button", { name: "Silk Road assignment", exact: true }).click();
   await local.getByText("Build an exhibit and explain each object.", { exact: true }).waitFor();
   await local.getByText(/Nov 5, 2026/).waitFor();
@@ -327,14 +335,4 @@ try {
   );
 } finally {
   await browser.close();
-}
-
-async function chooseClass(page) {
-  const control = page.getByRole("combobox", { name: /^Class/ });
-  if (await control.evaluate((node) => node.tagName === "SELECT"))
-    await control.selectOption(classId);
-  else {
-    await control.click();
-    await page.getByRole("option", { name: "History", exact: true }).click();
-  }
 }

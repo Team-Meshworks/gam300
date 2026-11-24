@@ -145,6 +145,29 @@ public sealed class ProductionRoomBrowserTests
         var artifactDirectory = Path.Combine(
             serverDirectory, ".artifacts", "production-room-browser", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(artifactDirectory);
+        string[] arguments = [
+            Path.Combine(serverDirectory, "tests", "production-room-browser.check.mjs"),
+            fixture.Address.GetLeftPart(UriPartial.Authority),
+            userName,
+            projectId.ToString("D"),
+            environment.Id.ToString("D"),
+            model.Id.ToString("D"),
+            editorDirectory,
+            artifactDirectory,
+            JsonSerializer.Serialize(new { projectId = authoringId, crateId = crate.Id, audioId = audio.Id })
+        ];
+
+        // The rooms scenario builds the editor. Reuse it for authoring, with a fresh browser and deadline.
+        await RunBrowserScenarioAsync(serverDirectory, artifactDirectory, arguments,
+            "rooms", "production adjoining room saved and reopened");
+        await RunBrowserScenarioAsync(serverDirectory, artifactDirectory, arguments,
+            "authoring", "production new project Add, reopen, drag and retained spatial audio playback passed");
+        Console.WriteLine("Production room browser evidence: " + artifactDirectory);
+    }
+
+    private static async Task RunBrowserScenarioAsync(string serverDirectory, string artifactDirectory,
+        string[] arguments, string scenario, string successMessage)
+    {
         var start = new ProcessStartInfo("node")
         {
             WorkingDirectory = serverDirectory,
@@ -155,49 +178,42 @@ public sealed class ProductionRoomBrowserTests
         };
         start.Environment.Remove("SPATIA_TEST_DATABASE_CONNECTION");
         start.Environment.Remove("ConnectionStrings__Spatia");
-        start.ArgumentList.Add(Path.Combine(serverDirectory, "tests", "production-room-browser.check.mjs"));
-        start.ArgumentList.Add(fixture.Address.GetLeftPart(UriPartial.Authority));
-        start.ArgumentList.Add(userName);
-        start.ArgumentList.Add(projectId.ToString("D"));
-        start.ArgumentList.Add(environment.Id.ToString("D"));
-        start.ArgumentList.Add(model.Id.ToString("D"));
-        start.ArgumentList.Add(editorDirectory);
-        start.ArgumentList.Add(artifactDirectory);
-        start.ArgumentList.Add(JsonSerializer.Serialize(new
-        {
-            projectId = authoringId,
-            crateId = crate.Id,
-            audioId = audio.Id
-        }));
+        foreach (var argument in arguments)
+            start.ArgumentList.Add(argument);
+
+        start.ArgumentList.Add(scenario);
         using var process = Process.Start(start)
             ?? throw new InvalidOperationException("Could not start the production room browser check.");
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
+        var timedOut = false;
 
         try
         {
             await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(90));
         }
-        catch
+        catch (TimeoutException)
         {
-            process.Kill(true);
+            timedOut = true;
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+
             await process.WaitForExitAsync();
-            throw;
         }
 
         var browserOutput = await output;
         var browserError = await error;
-        await File.WriteAllTextAsync(Path.Combine(artifactDirectory, "stdout.log"), browserOutput);
-        await File.WriteAllTextAsync(Path.Combine(artifactDirectory, "stderr.log"), browserError);
+        await File.WriteAllTextAsync(Path.Combine(artifactDirectory, scenario + "-stdout.log"), browserOutput);
+        await File.WriteAllTextAsync(Path.Combine(artifactDirectory, scenario + "-stderr.log"), browserError);
+
+        if (timedOut)
+            throw new TimeoutException($"Production browser scenario '{scenario}' exceeded 90 seconds.\n{browserOutput}{browserError}");
 
         if (process.ExitCode != 0)
-            throw new InvalidOperationException("Production room browser check failed: " + browserError);
+            throw new InvalidOperationException($"Production browser scenario '{scenario}' failed.\n{browserOutput}{browserError}");
 
-        await Assert.That(browserOutput.Contains(
-            "production adjoining room saved and reopened", StringComparison.Ordinal)).IsTrue();
+        await Assert.That(browserOutput.Contains(successMessage, StringComparison.Ordinal)).IsTrue();
         await Assert.That(string.IsNullOrWhiteSpace(browserError)).IsTrue();
-
-        Console.WriteLine("Production room browser evidence: " + artifactDirectory);
     }
 
     private static async Task<AssetAdministrationRecord> ApproveAsync(

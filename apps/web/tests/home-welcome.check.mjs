@@ -99,10 +99,6 @@ try {
         .waitFor();
       assert.equal(await page.getByRole("region", { name: "Project details" }).isVisible(), true);
       await page.getByRole("button", { name: "Close project details" }).click();
-      assert.equal(
-        await page.getByText("Manage projects and archives", { exact: true }).count(),
-        0,
-      );
       assert.equal(await page.getByRole("button", { name: "New project", exact: true }).count(), 0);
     }
     for (const width of [390, 1440]) {
@@ -119,7 +115,7 @@ try {
       }
       const creation =
         role === "Educator"
-          ? page.getByRole("link", { name: "New Project", exact: true })
+          ? page.getByRole("link", { name: "+ New Project", exact: true })
           : page.getByRole("button", { name: "New project", exact: true });
       assert.equal(
         await creation.count(),

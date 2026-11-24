@@ -1,5 +1,4 @@
-import { Icon as UiIcon } from "@iconify/react/offline";
-import faMagnifyingGlass from "@iconify-icons/lucide/search";
+import searchIcon from "./assets/search-field-icon.svg";
 import type { ReactNode } from "react";
 
 export function SearchField({
@@ -35,7 +34,11 @@ export function SearchField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder ?? label}
       />
-      {icon ?? <UiIcon icon={faMagnifyingGlass} aria-hidden="true" />}
+      {icon ?? (
+        <span className="sp-search-icon" aria-hidden="true">
+          <img src={searchIcon} alt="" />
+        </span>
+      )}
     </div>
   );
 }

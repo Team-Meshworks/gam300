@@ -87,7 +87,7 @@
       "access": "development-only",
       "license": {
         "status": "pending-team-confirmation",
-        "provenance": "Existing teammate-provided snowglobe GLB, preserved unchanged from web/editor/public/models/snowglobe.glb. Licensing implementation belongs to the VThere team."
+        "provenance": "Existing teammate-provided snowglobe GLB, preserved unchanged from web/editor/public/models/snowglobe.glb."
       },
       "reviewNotes": "Original GLB contains animation; editor does not play animations. Preserve existing bottom-center placement and generated thumbnail. Bounds verification remains pending."
     },

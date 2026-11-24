@@ -1,0 +1,54 @@
+:root {
+  /* One intensity for every role: mix light surfaces toward black and dark surfaces toward white */
+  --sp-hover-strength: 8%;
+  --sp-hover-dark: #000;
+  --sp-hover-light: #fff;
+  --sp-admin-primary-surface: #332e2a;
+  --sp-close-surface: #f3f4f6;
+  --sp-hover: color-mix(in srgb, var(--sp-surface), var(--sp-hover-dark) var(--sp-hover-strength));
+  --sp-plain-hover-surface: var(--sp-hover);
+  --sp-selection-row-surface: transparent;
+  --sp-selection-row-active: var(--sp-hover);
+  --sp-primary-hover: color-mix(
+    in srgb,
+    var(--sp-ink),
+    var(--sp-hover-light) var(--sp-hover-strength)
+  );
+  --sp-danger-hover: color-mix(
+    in srgb,
+    var(--sp-hover-light),
+    var(--sp-danger-hover-ink) var(--sp-hover-strength)
+  );
+  --sp-danger-hover-border: #f4c5bc;
+  --sp-danger-hover-ink: #a51f24;
+  --sp-close-hover: color-mix(
+    in srgb,
+    var(--sp-close-surface),
+    var(--sp-hover-dark) var(--sp-hover-strength)
+  );
+  --sp-visibility-hover: var(--sp-hover);
+}
+
+/* Native row gradients and flat highlights otherwise round fractional channels differently */
+@supports (color: rgb(from white round(nearest, r, 1) g b)) {
+  :root {
+    --sp-hover: rgb(
+      from color-mix(in srgb, var(--sp-surface), var(--sp-hover-dark) var(--sp-hover-strength))
+        round(nearest, r, 1) round(nearest, g, 1) round(nearest, b, 1)
+    );
+  }
+}
+
+/* Red assignment-delete actions need a clearer change than neutral controls. */
+:is(
+  .admin-project-moderation,
+  .sp-teacher-assignment-actions,
+  .admin-student-actions,
+  .sp-teacher-student-actions,
+  .admin-selection-actions,
+  .sp-teacher-selection-actions
+) {
+  --sp-danger-hover: #fbe3df;
+  --sp-danger-hover-border: #df9b90;
+  --sp-danger-hover-ink: #9e2f24;
+}

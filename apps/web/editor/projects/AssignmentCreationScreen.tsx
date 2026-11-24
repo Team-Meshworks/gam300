@@ -1,17 +1,16 @@
+import { AssignmentDetailsScreen } from "./AssignmentDetailsScreen";
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
+import { SkeletonBox } from "skullet/react";
 import { ExistingProjectPicker } from "../home/ExistingProjectPicker";
 import { createExistingProjectClient } from "../home/existing-project";
 import { PendingCreateRecovery } from "../home/PendingCreateRecovery";
-import { Table } from "../../shared/ui/Table";
 import { encodeProjectImage, type EncodedProjectImage } from "./project-image";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "../../shared/ui/Button";
 import { Field } from "../../shared/ui/Field";
+import { Select } from "../../shared/ui/Select";
 import { NewProjectForm, type FormNavigationState } from "./NewProjectForm";
-import {
-  formatLocalDeadline,
-  localDateToDueUnixSeconds,
-  localDeadlineToUnixSeconds,
-} from "./deadline";
+import { localDateToDueUnixSeconds, localDeadlineToUnixSeconds } from "./deadline";
 import { createWorkspaceClient } from "../home/workspace-api";
 import { acknowledgeCreation, loadCreationHead } from "../home/create-operation";
 import {
@@ -27,16 +26,14 @@ import {
   blankSourceProject,
   clearBlankSource,
   createBlankSource,
+  readBlankSource,
 } from "./blank-source";
 import "./assignment-screens.css";
 import {
   assignmentChoices,
   assignmentSession,
   enrolledStudents,
-  listAssignments,
-  readAssignment,
   submitAssignment,
-  type AssignmentDetails,
   type AssignmentSession,
   type PendingAssignment,
   type SourceProject,
@@ -84,8 +81,16 @@ function loadPending(userId: string): PendingAssignment | null {
     value.body === null
   )
     throw new Error("Pending assignment is unavailable.");
-  const body = value.body as Record<string, unknown>;
+  const body = value.body;
   if (
+    !("requestId" in body) ||
+    !("sourceProjectId" in body) ||
+    !("sourceRevision" in body) ||
+    !("dueAtUnixSeconds" in body) ||
+    !("title" in body) ||
+    !("description" in body) ||
+    !("instructions" in body) ||
+    !("studentIds" in body) ||
     typeof body.requestId !== "string" ||
     typeof body.sourceProjectId !== "string" ||
     typeof body.sourceRevision !== "number" ||
@@ -145,7 +150,7 @@ export function AssignmentCreationScreen({
   } | null>(null);
   const [students, setStudents] = useState<EligibleStudent[]>([]);
   const [initialClass, setInitialClass] = useState("");
-  const [rosterMessage, setRosterMessage] = useState("");
+  const [rosterMessage, setRosterMessage] = useState<string | null>("");
   const [choicesMessage, setChoicesMessage] = useState("");
   const [pending, setPending] = useState<PendingAssignment | null>(null);
   const [restoredPending, setRestoredPending] = useState(false);
@@ -287,7 +292,7 @@ export function AssignmentCreationScreen({
   function changeClass(classId: string, actorId: string) {
     rosterController.current?.abort();
     setStudents([]);
-    setRosterMessage(classId ? "Loading enrolled students…" : "");
+    setRosterMessage(classId ? null : "");
     if (!classId) return;
     const controller = new AbortController();
     rosterController.current = controller;
@@ -334,6 +339,8 @@ export function AssignmentCreationScreen({
       )
         throw new Error("Account changed");
       setSetup({ session, ...choices });
+      if (initialClass && choices.classes.some((row) => row.id === initialClass))
+        changeClass(initialClass, session.userId);
       setChoicesMessage("Projects and classes refreshed.");
     } catch {
       setChoicesMessage("Projects and classes could not be refreshed. Your details are unchanged.");
@@ -546,23 +553,7 @@ export function AssignmentCreationScreen({
           setup.session.userId,
           draft.title.trim(),
           "",
-          async (actorId, projectId) => {
-            try {
-              const before = await assignmentSession();
-              if (before.userId !== actorId || before.mustChangePassword) return { kind: "retry" };
-              const projects = await workspace.projects(false, undefined, actorId);
-              const after = await assignmentSession();
-              if (after.userId !== actorId || after.mustChangePassword) return { kind: "retry" };
-              const current = projects.find(
-                (project) => project.projectId.toLowerCase() === projectId.toLowerCase(),
-              );
-              return current?.permissions.canManage
-                ? { kind: "available", revision: current.revision }
-                : { kind: "unavailable" };
-            } catch {
-              return { kind: "retry" };
-            }
-          },
+          readBlankSource,
           image,
         );
         const record =
@@ -636,8 +627,40 @@ export function AssignmentCreationScreen({
     return attempt(request, false, true);
   }
 
-  if (message) return <p role="alert">{message}</p>;
-  if (!setup) return <p role="status">Loading assignment choices…</p>;
+  if (message)
+    return (
+      <div role="alert">
+        <p>{message}</p>
+        <Button onClick={() => location.reload()}>Retry loading project setup</Button>
+        {onCancel && <Button onClick={onCancel}>Back to projects</Button>}
+      </div>
+    );
+  if (!setup)
+    return createBlank ? (
+      <div
+        className="sp-assignment-create sp-project-columns"
+        role="status"
+        aria-label="Loading project setup"
+        aria-busy="true"
+      >
+        <div className="sp-project-details" aria-hidden="true">
+          <SkeletonBox width="40%" height={44} radius={6} />
+          <SkeletonBox width="100%" height={70} radius={12} />
+          <SkeletonBox width="100%" height={74} radius={12} />
+          <SkeletonBox width="100%" height={74} radius={12} />
+          <SkeletonBox width="100%" height={74} radius={12} />
+          <SkeletonBox width="100%" height={132} radius={12} />
+          <SkeletonBox width="100%" height={158} radius={12} />
+        </div>
+        <div className="sp-students" aria-hidden="true">
+          <div className="sp-students-header">
+            <LoadingSkeleton label="Loading students" />
+          </div>
+        </div>
+      </div>
+    ) : (
+      <LoadingSkeleton label="Loading assignment choices" />
+    );
   if (confirmed && onCreated) return <p role="status">Opening projects…</p>;
   if (confirmed)
     return (
@@ -908,21 +931,39 @@ export function AssignmentCreationScreen({
         <>
           {!createBlank && (
             <>
-              <Field id="assignment-source" label="Source project" required>
-                <select
-                  id="assignment-source"
+              {setup.session.role === "Administrator" ? (
+                <Select
+                  label="Source project *"
+                  className="sp-field sp-admin-select"
+                  menuClassName="sp-admin-select-menu"
                   value={sourceId}
-                  disabled={!!pending}
-                  onChange={(event) => setSourceId(event.target.value)}
-                >
-                  <option value="">Choose a manageable project</option>
-                  {setup.projects.map((project) => (
-                    <option key={project.projectId} value={project.projectId}>
-                      {project.title}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+                  disabled={!!pending || !setup.projects.length}
+                  options={[
+                    { value: "", label: "Choose a manageable project" },
+                    ...setup.projects.map((project) => ({
+                      value: project.projectId,
+                      label: project.title,
+                    })),
+                  ]}
+                  onChange={setSourceId}
+                />
+              ) : (
+                <Field id="assignment-source" label="Source project" required>
+                  <select
+                    id="assignment-source"
+                    value={sourceId}
+                    disabled={!!pending}
+                    onChange={(event) => setSourceId(event.target.value)}
+                  >
+                    <option value="">Choose a manageable project</option>
+                    {setup.projects.map((project) => (
+                      <option key={project.projectId} value={project.projectId}>
+                        {project.title}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               {!setup.projects.length && (
                 <p role="status">No manageable source projects are available.</p>
               )}
@@ -938,176 +979,35 @@ export function AssignmentCreationScreen({
               {choicesMessage && <p role="status">{choicesMessage}</p>}
             </>
           )}
-          {rosterMessage && <p role="status">{rosterMessage}</p>}
           <NewProjectForm
             organizationName={setup.session.orgName ?? "Selected class's organisation"}
             creatorName={setup.session.userName ? `@${setup.session.userName}` : "Unavailable"}
             initialClassId={initialClass}
             classes={setup.classes}
             students={students}
+            rosterMessage={rosterMessage}
             showImageOptions={createBlank && !recoveredSource}
             dateOnly={createBlank}
-            onClassChange={(classId) => changeClass(classId, setup.session.userId)}
+            customClassSelect={createBlank || setup.session.role === "Administrator"}
+            onClassChange={(classId) => {
+              setInitialClass(classId);
+              changeClass(classId, setup.session.userId);
+            }}
+            {...(createBlank && setup.session.role === "Educator"
+              ? {
+                  manageClassesUrl: "/classes?organisation=1",
+                  onRefreshClasses: () => {
+                    void refreshChoices();
+                  },
+                  classesMessage: choicesMessage,
+                }
+              : {})}
             onSubmit={create}
             {...(onCancel ? { onCancel } : {})}
             onNavigationStateChange={setFormNavigation}
           />
         </>
       )}
-    </section>
-  );
-}
-
-export function AssignmentDetailsScreen({
-  classId,
-  assignmentId,
-  studentNames,
-  onOpenProject,
-  ownProject = false,
-}: {
-  classId: string;
-  assignmentId: string;
-  studentNames?: Record<string, string>;
-  onOpenProject?: (projectId: string) => void;
-  ownProject?: boolean;
-}) {
-  const key = `${classId}:${assignmentId}`;
-  const [result, setResult] = useState<{
-    key: string;
-    details: AssignmentDetails | null;
-  } | null>(null);
-  useEffect(() => {
-    const controller = new AbortController();
-    void readAssignment(classId, assignmentId, controller.signal)
-      .then((value) => {
-        if (!controller.signal.aborted) setResult({ key, details: value });
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setResult({ key, details: null });
-      });
-    return () => controller.abort();
-  }, [classId, assignmentId, key]);
-  if (!result || result.key !== key) return <p role="status">Loading assignment…</p>;
-  if (!result.details)
-    return <p role="alert">This assignment is unavailable for the current account.</p>;
-  const details = result.details;
-  return (
-    <section aria-label="Assignment details" className="sp-assignment-details">
-      <h2>{details.title}</h2>
-      <p>{details.description}</p>
-      <h3>Instructions</h3>
-      <p>{details.instructions}</p>
-      <p>Due: {formatLocalDeadline(details.dueAtUnixSeconds) ?? "Unavailable"}</p>
-      {details.projects.map((project) => (
-        <Button
-          key={project.projectId}
-          disabled={
-            !onOpenProject ||
-            (!ownProject && !(project.studentName ?? studentNames?.[project.studentId]))
-          }
-          onClick={() => onOpenProject?.(project.projectId)}
-        >
-          {ownProject
-            ? "Open your project"
-            : (project.studentName ?? studentNames?.[project.studentId])
-              ? `Open project for ${project.studentName ?? studentNames?.[project.studentId]}`
-              : "Student name unavailable"}
-        </Button>
-      ))}
-      {!onOpenProject && (
-        <p className="sp-hint">
-          Opening projects is not available yet. You can read your assignment and instructions here.
-        </p>
-      )}
-    </section>
-  );
-}
-
-export function AssignmentListScreen({
-  classId,
-  onOpenProject,
-  studentNames,
-  ownProject = false,
-  onOpenAssignment,
-}: {
-  classId: string;
-  onOpenProject?: (projectId: string) => void;
-  studentNames?: Record<string, string>;
-  ownProject?: boolean;
-  onOpenAssignment?: (assignmentId: string) => void;
-}) {
-  const [result, setResult] = useState<{
-    classId: string;
-    items: AssignmentDetails[] | null;
-  } | null>(null);
-  const [selected, setSelected] = useState<{
-    classId: string;
-    assignmentId: string;
-  } | null>(null);
-  useEffect(() => {
-    const controller = new AbortController();
-    void listAssignments(classId, controller.signal)
-      .then((items) => {
-        if (!controller.signal.aborted) setResult({ classId, items });
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setResult({ classId, items: null });
-      });
-    return () => controller.abort();
-  }, [classId]);
-  if (selected?.classId === classId)
-    return (
-      <>
-        <Button onClick={() => setSelected(null)}>Back to assignments</Button>
-        <AssignmentDetailsScreen
-          key={selected.assignmentId}
-          classId={classId}
-          assignmentId={selected.assignmentId}
-          ownProject={ownProject}
-          {...(studentNames ? { studentNames } : {})}
-          {...(onOpenProject ? { onOpenProject } : {})}
-        />
-      </>
-    );
-  if (!result || result.classId !== classId) return <p role="status">Loading assignments…</p>;
-  if (!result.items)
-    return <p role="alert">Assignments are unavailable for the current account.</p>;
-  if (!result.items.length) return <p role="status">No assignments are available.</p>;
-  if (onOpenAssignment)
-    return (
-      <section aria-label="Class assignments" className="sp-organisation-projects">
-        <h2>Class Projects</h2>
-        <Table caption="Projects in this class" headings={["Project", "Due Date", "Actions"]}>
-          {result.items.map((item) => (
-            <tr key={item.assignmentId}>
-              <th scope="row">{item.title}</th>
-              <td title={formatLocalDeadline(item.dueAtUnixSeconds) ?? "Unavailable"}>
-                {new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(
-                  new Date(item.dueAtUnixSeconds * 1000),
-                )}
-              </td>
-              <td>
-                <Button onClick={() => onOpenAssignment(item.assignmentId)}>View Details</Button>
-              </td>
-            </tr>
-          ))}
-        </Table>
-      </section>
-    );
-
-  return (
-    <section aria-label="Class assignments">
-      <h2>Assignments</h2>
-      <ul className="sp-assignment-list">
-        {result.items.map((item) => (
-          <li key={item.assignmentId}>
-            <Button onClick={() => setSelected({ classId, assignmentId: item.assignmentId })}>
-              {item.title}
-            </Button>
-            <span> Due: {formatLocalDeadline(item.dueAtUnixSeconds) ?? "Unavailable"}</span>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }

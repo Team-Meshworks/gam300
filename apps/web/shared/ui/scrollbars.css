@@ -1,5 +1,6 @@
 :root {
   --sp-scroll-size: 6px;
+  --sp-scroll-inset: 6px;
   --sp-scroll-thumb: #8f8981;
   --sp-scroll-hover: #6f6961;
 }
@@ -37,6 +38,22 @@ html[data-theme="dark"] {
   *::-webkit-scrollbar-thumb:hover {
     background: var(--sp-scroll-hover) !important;
   }
+  /* Give the visible thumb the same clearance from content and the outer edge. */
+  .sp-shell ::-webkit-scrollbar:vertical,
+  .creator-approval-dialog ::-webkit-scrollbar:vertical,
+  .facilitator-project-view .sp-dialog::-webkit-scrollbar:vertical,
+  .facilitator-project-view .sp-dialog ::-webkit-scrollbar:vertical {
+    width: calc(var(--sp-scroll-size) + 2 * var(--sp-scroll-inset)) !important;
+  }
+  .sp-shell ::-webkit-scrollbar-thumb:vertical,
+  .creator-approval-dialog ::-webkit-scrollbar-thumb:vertical,
+  .facilitator-project-view .sp-dialog::-webkit-scrollbar-thumb:vertical,
+  .facilitator-project-view .sp-dialog ::-webkit-scrollbar-thumb:vertical {
+    border-inline: var(--sp-scroll-inset) solid transparent !important;
+    --thumb-cap: calc(var(--sp-scroll-size) / 2);
+    border-radius: calc(var(--thumb-cap) + var(--sp-scroll-inset)) / var(--thumb-cap) !important;
+    background-clip: padding-box !important;
+  }
   *::-webkit-scrollbar-button {
     display: none !important;
     width: 0 !important;
@@ -45,4 +62,44 @@ html[data-theme="dark"] {
   *::-webkit-scrollbar-corner {
     background: transparent !important;
   }
+}
+@supports not selector(::-webkit-scrollbar) {
+  :is(.sp-shell, .creator-approval-dialog, .facilitator-project-view .sp-dialog) * {
+    scrollbar-color: var(--sp-scroll-thumb) transparent !important;
+  }
+  .sp-shell :is(.admin-progress-list, .sp-account-rows, .sp-teacher-student-list) {
+    border-inline-end: var(--sp-scroll-inset) solid transparent !important;
+  }
+}
+
+/* Card pages reserve one gutter: equal outer insets and 9px to the visible thumb. */
+:root {
+  --sp-card-scroll-clearance: 3px;
+}
+.sp-shell.sp-shell[data-account-role]
+  :is(
+    .admin-project-browser > [role="tabpanel"],
+    .asset-admin > .asset-admin-scroll,
+    .sp-organization-overview > .sp-organization-grid,
+    .sp-teacher-projects > [role="tabpanel"],
+    .sp-student-dashboard > [role="tabpanel"]:has(> .sp-student-list)
+  ) {
+  overflow: auto;
+  scrollbar-gutter: stable;
+  margin-inline-end: calc(-1 * var(--sp-scroll-inset));
+  padding-inline-end: var(--sp-card-scroll-clearance);
+}
+.sp-shell.sp-shell[data-account-role]
+  :is(
+    .admin-project-browser > [role="tabpanel"] > .admin-project-grid,
+    .asset-admin-scroll > .asset-admin-grid,
+    .sp-teacher-projects > [role="tabpanel"] > .sp-teacher-grid,
+    .sp-student-dashboard > [role="tabpanel"] > .sp-student-list
+  ) {
+  overflow: visible;
+  scrollbar-gutter: auto;
+}
+.sp-shell.sp-shell.sp-shell[data-account-role="Creator"]
+  > .sp-workspace:has(> .sp-student-dashboard) {
+  padding-inline: clamp(20px, 3.125vw, 45px);
 }

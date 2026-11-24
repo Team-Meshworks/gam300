@@ -1,5 +1,4 @@
 import { createBulkImport, ImportRejected, ImportRequestError } from "./bulk-import";
-import type { NewAccount } from "./account-csv";
 
 export interface ManagedAccount {
   userId: string;
@@ -41,23 +40,35 @@ export interface AccountChanges {
   role?: "Creator" | "Educator";
   newTemporaryPassword?: string;
 }
-const record = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+const isObject = (value: unknown): value is object =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 const id = (value: unknown): value is string =>
   typeof value === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
+const isCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+
 function account(value: unknown): ManagedAccount {
   if (
-    !record(value) ||
+    !isObject(value) ||
+    !("userId" in value) ||
     !id(value.userId) ||
+    !("userName" in value) ||
     typeof value.userName !== "string" ||
+    !("displayName" in value) ||
     typeof value.displayName !== "string" ||
+    !("isActive" in value) ||
     typeof value.isActive !== "boolean" ||
+    !("mustChangePassword" in value) ||
     typeof value.mustChangePassword !== "boolean" ||
-    !["Creator", "Educator", "Administrator"].includes(String(value.role)) ||
-    (value.role === "Administrator" ? value.orgId !== null : !id(value.orgId))
+    !("role" in value) ||
+    (value.role !== "Creator" && value.role !== "Educator" && value.role !== "Administrator") ||
+    !("orgId" in value) ||
+    (value.orgId !== null && !id(value.orgId)) ||
+    (value.role === "Administrator") !== (value.orgId === null)
   )
     throw new Error("The account service returned an invalid account.");
-  return value as unknown as ManagedAccount;
+  const { userId, userName, displayName, isActive, mustChangePassword, role, orgId } = value;
+  return { userId, userName, displayName, isActive, mustChangePassword, role, orgId };
 }
 export class DirectoryWriteUnconfirmed extends Error {}
 
@@ -90,36 +101,39 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
           "The save could not be confirmed. Refresh the directory.",
         );
       const problem: unknown = await response.json().catch(() => null);
+      const code = isObject(problem) && "code" in problem ? problem.code : undefined;
       if (
-        record(problem) &&
-        typeof problem.code === "string" &&
+        typeof code === "string" &&
         [
           "bulk_import_not_found",
           "bulk_import_abandoned",
           "bulk_import_committed",
           "bulk_import_conflict",
-        ].includes(problem.code)
+        ].includes(code)
       )
-        throw new ImportRequestError(problem.code);
-      const messages: Record<string, string> = {
-        organization_confirmation_required:
-          "Enter the organisation name exactly as shown to confirm deletion.",
-        organization_not_found:
-          "This organisation no longer exists. Close this window and refresh the directory.",
-        organization_delete_conflict:
-          "Nothing was deleted. Records changed or are linked outside this organisation. Refresh the directory before trying again.",
-        username_taken: "That username is already taken. Choose another username.",
-        account_role_in_use:
-          "This account has class or assignment history, so its account type cannot be changed.",
-        organization_unavailable:
-          "This organisation is inactive. Enable it before adding accounts.",
-        account_delete_forbidden: "This account cannot be deleted from the organisation directory.",
-        account_not_found:
-          "This account is no longer available. Close this window and refresh the directory.",
-        account_conflict:
-          "This account changed. Close this window and refresh before trying again.",
-        invalid_account_input: "Check the account details. Passwords need 12–128 characters.",
-      };
+        throw new ImportRequestError(code);
+      const messages = new Map(
+        Object.entries({
+          organization_confirmation_required:
+            "Enter the organisation name exactly as shown to confirm deletion.",
+          organization_not_found:
+            "This organisation no longer exists. Close this window and refresh the directory.",
+          organization_delete_conflict:
+            "Nothing was deleted. Records changed or are linked outside this organisation. Refresh the directory before trying again.",
+          username_taken: "That username is already taken. Choose another username.",
+          account_role_in_use:
+            "This account has class or assignment history, so its account type cannot be changed.",
+          organization_unavailable:
+            "This organisation is inactive. Enable it before adding accounts.",
+          account_delete_forbidden:
+            "This account cannot be deleted from the organisation directory.",
+          account_not_found:
+            "This account is no longer available. Close this window and refresh the directory.",
+          account_conflict:
+            "This account changed. Close this window and refresh before trying again.",
+          invalid_account_input: "Check the account details. Passwords need 12–128 characters.",
+        }),
+      );
       const message =
         response.status === 401
           ? "Your session has expired. Sign in again."
@@ -127,8 +141,8 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
             ? "Administrator access is required."
             : response.status === 429
               ? "Too many changes. Please wait before trying again."
-              : (record(problem) && typeof problem.code === "string" && messages[problem.code]) ||
-                "The directory request failed. Please try again.";
+              : ((typeof code === "string" ? messages.get(code) : undefined) ??
+                "The directory request failed. Please try again.");
       if (
         init.method === "PUT" &&
         path.includes("/bulk-imports/") &&
@@ -168,7 +182,12 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
     let csrf: unknown;
     try {
       csrf = await send("/api/v1/auth/csrf");
-      if (!record(csrf) || typeof csrf.requestToken !== "string" || !csrf.requestToken)
+      if (
+        !isObject(csrf) ||
+        !("requestToken" in csrf) ||
+        typeof csrf.requestToken !== "string" ||
+        !csrf.requestToken
+      )
         throw new Error("Your session could not be verified. Sign in again.");
     } catch (cause) {
       if (method === "PUT" && path.includes("/bulk-imports/"))
@@ -196,13 +215,15 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
       const params = new URLSearchParams({ limit: String(limit), ...(cursor ? { cursor } : {}) });
       const page = await send(`${path}${path.includes("?") ? "&" : "?"}${params}`);
       if (
-        !record(page) ||
+        !isObject(page) ||
+        !("items" in page) ||
         !Array.isArray(page.items) ||
+        !("nextCursor" in page) ||
         (page.nextCursor !== null && !id(page.nextCursor))
       )
         throw new Error("The directory returned an invalid page.");
       items.push(...page.items.map(parse));
-      cursor = page.nextCursor as string | null;
+      cursor = page.nextCursor;
       if (cursor && seen.has(cursor))
         throw new Error("The directory could not finish loading. Please refresh.");
       if (cursor) seen.add(cursor);
@@ -213,22 +234,50 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
     deletion: async (orgId: string): Promise<OrganizationDeletion> => {
       const value = await send(`/api/v1/admin/organizations/${encodeURIComponent(orgId)}/deletion`);
       if (
-        !record(value) ||
+        !isObject(value) ||
+        !("id" in value) ||
         value.id !== orgId ||
+        !("name" in value) ||
         typeof value.name !== "string" ||
         !value.name ||
-        ![
-          "accounts",
-          "classes",
-          "assignments",
-          "projects",
-          "submissions",
-          "reviews",
-          "publications",
-        ].every((key) => Number.isSafeInteger(value[key]) && (value[key] as number) >= 0)
+        !("accounts" in value) ||
+        !isCount(value.accounts) ||
+        !("classes" in value) ||
+        !isCount(value.classes) ||
+        !("assignments" in value) ||
+        !isCount(value.assignments) ||
+        !("projects" in value) ||
+        !isCount(value.projects) ||
+        !("submissions" in value) ||
+        !isCount(value.submissions) ||
+        !("reviews" in value) ||
+        !isCount(value.reviews) ||
+        !("publications" in value) ||
+        !isCount(value.publications)
       )
         throw new Error("The deletion details could not be verified. Refresh before trying again.");
-      return value as unknown as OrganizationDeletion;
+      const {
+        id,
+        name,
+        accounts,
+        classes,
+        assignments,
+        projects,
+        submissions,
+        reviews,
+        publications,
+      } = value;
+      return {
+        id,
+        name,
+        accounts,
+        classes,
+        assignments,
+        projects,
+        submissions,
+        reviews,
+        publications,
+      };
     },
     deleteOrganization: (orgId: string, confirmationName: string) =>
       write(`/api/v1/admin/organizations/${encodeURIComponent(orgId)}/deletion`, "POST", {
@@ -243,16 +292,23 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
         `/api/v1/admin/organizations${search ? `?q=${encodeURIComponent(search)}` : ""}`,
         (value): ManagedOrganization => {
           if (
-            !record(value) ||
+            !isObject(value) ||
+            !("id" in value) ||
             !id(value.id) ||
+            !("name" in value) ||
             typeof value.name !== "string" ||
+            !("isActive" in value) ||
             typeof value.isActive !== "boolean" ||
-            !["projectCount", "facilitatorCount", "creatorCount"].every(
-              (key) => Number.isSafeInteger(value[key]) && (value[key] as number) >= 0,
-            )
+            !("projectCount" in value) ||
+            !isCount(value.projectCount) ||
+            !("facilitatorCount" in value) ||
+            !isCount(value.facilitatorCount) ||
+            !("creatorCount" in value) ||
+            !isCount(value.creatorCount)
           )
             throw new Error("Invalid organisation details.");
-          return value as unknown as ManagedOrganization;
+          const { id: orgId, name, isActive, projectCount, facilitatorCount, creatorCount } = value;
+          return { id: orgId, name, isActive, projectCount, facilitatorCount, creatorCount };
         },
       );
     },
@@ -263,14 +319,19 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
         `/api/v1/admin/organizations/${encodeURIComponent(orgId)}/projects`,
         (value): ManagedProject => {
           if (
-            !record(value) ||
+            !isObject(value) ||
+            !("id" in value) ||
             !id(value.id) ||
+            !("title" in value) ||
             typeof value.title !== "string" ||
+            !("status" in value) ||
             typeof value.status !== "string" ||
+            !("isPublic" in value) ||
             typeof value.isPublic !== "boolean"
           )
             throw new Error("Invalid project details.");
-          return value as unknown as ManagedProject;
+          const { id: projectId, title, status, isPublic } = value;
+          return { id: projectId, title, status, isPublic };
         },
         20,
       ),
@@ -286,45 +347,18 @@ export function createDirectoryClient(request: typeof fetch = fetch, accountId?:
       },
     ) => account(await write("/api/v1/admin/users", "POST", { ...values, orgId })),
     bulkImport: (orgId: string) => createBulkImport(accountId ?? "", orgId, write, send),
-    createBulk: async (orgId: string, values: NewAccount[]) => {
-      const result = await write(
-        "/api/v1/admin/users/bulk",
-        "POST",
-        values.map((value) => ({ ...value, orgId })),
-        90000,
-      );
-      const unconfirmed = "Creation could not be verified. Refresh the directory before retrying.";
-      if (!Array.isArray(result) || result.length > values.length)
-        throw new DirectoryWriteUnconfirmed(unconfirmed);
-      let accounts: ManagedAccount[];
-      try {
-        accounts = result.map(account);
-      } catch (cause) {
-        throw new DirectoryWriteUnconfirmed(unconfirmed, { cause });
-      }
-      const expected = new Map(values.map((value) => [value.userName, value]));
-      if (
-        new Set(accounts.map((value) => value.userId)).size !== accounts.length ||
-        new Set(accounts.map((value) => value.userName)).size !== accounts.length ||
-        accounts.some(
-          (item) => item.orgId !== orgId || expected.get(item.userName)?.role !== item.role,
-        )
-      )
-        throw new DirectoryWriteUnconfirmed(unconfirmed);
-      return accounts;
-    },
     update: async (userId: string, values: AccountChanges) =>
       account(await write(`/api/v1/admin/users/${encodeURIComponent(userId)}`, "PATCH", values)),
-    hideStudents: (orgId: string, userIds: string[]) =>
+    hideAccounts: (orgId: string, userIds: string[]) =>
       write(
-        `/api/v1/admin/organizations/${encodeURIComponent(orgId)}/students/hide`,
+        `/api/v1/admin/organizations/${encodeURIComponent(orgId)}/accounts/hide`,
         "POST",
         { userIds },
         90000,
       ),
-    deleteStudents: (orgId: string, userIds: string[]) =>
+    deleteAccounts: (orgId: string, userIds: string[]) =>
       write(
-        `/api/v1/admin/organizations/${encodeURIComponent(orgId)}/students/delete`,
+        `/api/v1/admin/organizations/${encodeURIComponent(orgId)}/accounts/delete`,
         "POST",
         { userIds },
         90000,

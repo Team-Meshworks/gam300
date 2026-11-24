@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
@@ -79,7 +80,6 @@ export function ProgressReviews({
   educator,
   onGuard,
   autoOpen = false,
-  startEditing = false,
   onClose,
   decisions = [],
   decisionsLoading = false,
@@ -95,7 +95,6 @@ export function ProgressReviews({
   educator: boolean;
   onGuard: (guard: LeaveGuard) => void;
   autoOpen?: boolean;
-  startEditing?: boolean;
   onClose?: () => void;
   decisions?: readonly SubmissionFeedback[];
   decisionsLoading?: boolean;
@@ -117,7 +116,7 @@ export function ProgressReviews({
   const [loading, setLoading] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
   const [open, setOpen] = useState(autoOpen);
-  const [editing, setEditing] = useState(Boolean(publication) || startEditing);
+  const [editing, setEditing] = useState(Boolean(publication));
   const [feedback, setFeedback] = useState("");
   const [staged, setStaged] = useState<Array<ProgressIntent & { createdAt: string }>>([]);
   const [intent, setIntent] = useState<ProgressIntent | null>(null);
@@ -639,8 +638,8 @@ export function ProgressReviews({
   }
   const history = (
     <>
-      {loading && <p role="status">Loading reviews…</p>}
-      {decisionsLoading && <p role="status">Loading submission feedback…</p>}
+      {loading && <LoadingSkeleton label="Loading reviews" />}
+      {decisionsLoading && <LoadingSkeleton label="Loading submission feedback" />}
       {decisionsError && <p role="alert">{decisionsError}</p>}
       {historyError && <p role="alert">{historyError}</p>}
       {error && <p role="alert">{error}</p>}

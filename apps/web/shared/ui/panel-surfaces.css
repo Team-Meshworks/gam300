@@ -1,0 +1,75 @@
+/* Keep workspace lighting shared; opaque content panels mask the circles beneath them. */
+:root {
+  --sp-panel-fill: #fff;
+  --sp-panel-tint: rgb(203.51 185.898 168.287 / 10%);
+  --sp-panel-circle-left: url("./assets/workspace-ambient-top.svg");
+  --sp-panel-circle-right: url("./assets/workspace-ambient-bottom.svg");
+  --sp-panel-lighting:
+    inset -2px -2px 2px rgb(255 255 255 / 85%), inset -7px -7px 16px rgb(255 255 255 / 60%),
+    inset 2px 2px 5px rgb(41 39 35 / 3%), inset 5px 6px 16px rgb(41 39 35 / 6%);
+  --sp-panel-rim-light: rgb(255 255 255 / 92%);
+  --sp-panel-rim-mid: rgb(255 255 255 / 12%);
+  --sp-panel-rim-end: rgb(255 255 255 / 85%);
+  --sp-panel-mask: #000;
+}
+html[data-theme="dark"] {
+  --sp-panel-lighting:
+    inset -2px -2px 2px rgb(255 255 255 / 9%), inset -7px -7px 16px rgb(255 255 255 / 4%),
+    inset 2px 2px 5px rgb(0 0 0 / 12%), inset 5px 6px 16px rgb(0 0 0 / 20%);
+  --sp-panel-rim-light: rgb(255 255 255 / 12%);
+  --sp-panel-rim-mid: rgb(255 255 255 / 2%);
+  --sp-panel-rim-end: rgb(255 255 255 / 8%);
+}
+.sp-shell.sp-shell.sp-shell[data-account-role]
+  :is(.sp-panel-surface, .sp-workspace:not(:has(.sp-panel-surface))) {
+  position: relative;
+  border-color: transparent;
+  box-shadow: none;
+  background-color: var(--sp-panel-fill);
+  background-image:
+    linear-gradient(var(--sp-panel-tint), var(--sp-panel-tint)), var(--sp-panel-circle-left),
+    var(--sp-panel-circle-right);
+  background-position:
+    center,
+    var(--sp-wash-left-x) var(--sp-wash-left-y),
+    var(--sp-wash-right-x) var(--sp-wash-right-y);
+  background-size:
+    100% 100%,
+    993px 993px,
+    1004px 1004px;
+  background-repeat: no-repeat;
+  background-attachment: scroll, fixed, fixed;
+  background-blend-mode: normal;
+}
+.sp-shell.sp-shell.sp-shell[data-account-role]
+  :is(.sp-panel-surface, .sp-workspace:not(:has(.sp-panel-surface)))::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  background: none;
+  box-shadow: var(--sp-panel-lighting);
+  pointer-events: none;
+}
+.sp-shell.sp-shell.sp-shell[data-account-role]
+  :is(.sp-panel-surface, .sp-workspace:not(:has(.sp-panel-surface)))::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    var(--sp-panel-rim-light),
+    var(--sp-panel-rim-mid) 45%,
+    var(--sp-panel-rim-end)
+  );
+  mask:
+    linear-gradient(var(--sp-panel-mask) 0 0) content-box,
+    linear-gradient(var(--sp-panel-mask) 0 0);
+  mask-composite: exclude;
+}

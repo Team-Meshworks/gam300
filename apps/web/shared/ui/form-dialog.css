@@ -1,0 +1,52 @@
+/* Hallmark Â· polish Â· Spatia form dialogs Â· existing palette and controls retained */
+/* Balance outer insets and give a one-field form a lighter action hierarchy. */
+:root {
+  --sp-form-dialog-inset: 28px;
+  --sp-form-dialog-title-size: 20px;
+  --sp-form-dialog-label-size: 12px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-dialog.sp-dialog--form:where(:not(.sp-account-dialog)) {
+  padding-block: var(--sp-form-dialog-inset);
+}
+.sp-dialog.sp-dialog--form:where(:not(.sp-account-dialog)) > h2 {
+  text-box-trim: trim-start;
+  text-box-edge: cap alphabetic;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-dialog.sp-dialog--form:where(:not(.sp-account-dialog))
+  > .sp-dialog-dismiss {
+  top: var(--sp-form-dialog-inset);
+}
+.sp-dialog--form.admin-add-organisation-dialog > h2 {
+  font-size: var(--sp-form-dialog-title-size);
+  line-height: 28px;
+  font-weight: 600;
+  text-box-trim: trim-both;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-dialog.admin-add-organisation-dialog
+  > .sp-dialog-dismiss {
+  font-size: var(--sp-form-dialog-title-size);
+  top: calc(var(--sp-form-dialog-inset) + (1cap - 36px) / 2);
+  right: var(--sp-form-dialog-inset);
+}
+.admin-add-organisation-dialog .sp-dialog-body {
+  margin-top: 20px;
+}
+.admin-add-organisation-dialog .admin-organisation-form {
+  gap: 16px;
+}
+.sp-dialog--form .admin-organisation-form .sp-field > label {
+  font-size: var(--sp-form-dialog-label-size);
+  color: var(--sp-muted);
+  font-weight: 500;
+}
+.sp-dialog--form .admin-organisation-form .sp-field input {
+  height: 46px;
+  min-height: 46px;
+  padding-block: 0 0.25em;
+}
+.sp-dialog--form .sp-form-dialog-actions {
+  justify-content: flex-end;
+}

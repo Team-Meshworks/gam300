@@ -77,7 +77,8 @@ try {
     return route.fulfill({ status: 404 });
   });
   await page.goto(origin + "/classes");
-  await page.getByLabel("Class", { exact: true }).selectOption(classId);
+  await page.getByRole("combobox", { name: "Class", exact: true }).click();
+  await page.getByRole("option", { name: "History", exact: true }).click();
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
   await page.getByRole("heading", { name: "Project details" }).waitFor();
   await page.getByRole("checkbox", { name: /Alice/ }).waitFor();

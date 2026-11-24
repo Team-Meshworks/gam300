@@ -23,18 +23,7 @@ try {
     if (x === undefined) await placeAtRoomCenter(page);
     else await page.locator(".viewport-stage").click({ position: { x, y } });
   }
-  async function document() {
-    return project.document();
-  }
-  async function saved(predicate) {
-    const deadline = Date.now() + 15000;
-    while (Date.now() < deadline) {
-      const doc = await document();
-      if (doc && predicate(doc)) return doc;
-      await page.waitForTimeout(100);
-    }
-    throw new Error("Expected text did not reach server storage");
-  }
+  const saved = project.waitForDocument;
   await add("Rooms", "Starter room");
   await add("Display panels", "Square media stand");
   await page.locator(".object-row").first().click();
@@ -50,28 +39,22 @@ try {
   await dialog.getByRole("button", { name: "Text color", exact: true }).click();
   const palette = dialog.getByRole("group", { name: "Text colors", exact: true });
   assert.ok((await palette.boundingBox()).width <= 200);
-  const circles = await palette.locator("button").evaluateAll((buttons) =>
+  const swatches = await palette.getByRole("button").evaluateAll((buttons) =>
     buttons.map((button) => {
       const box = button.getBoundingClientRect();
-      return [box.width, box.height];
+      return {
+        width: box.width,
+        height: box.height,
+        radius: getComputedStyle(button).borderRadius,
+      };
     }),
   );
-  assert.ok(circles.every(([width, height]) => Math.abs(width - height) < 0.5));
+  assert.ok(swatches.length > 0, "The text palette must offer selectable colors");
   assert.ok(
-    await palette
-      .locator("button")
-      .evaluateAll((buttons) =>
-        buttons.every((button) => getComputedStyle(button).borderRadius === "50%"),
-      ),
-    "Swatches must be circles, not rounded squares",
-  );
-  const labels = await dialog
-    .locator(".content-format > .content-color-control > button")
-    .evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")));
-  assert.equal(
-    labels.indexOf("Text background"),
-    labels.indexOf("Text color") + 1,
-    "Background must be next to text color",
+    swatches.every(
+      ({ width, height, radius }) => Math.abs(width - height) < 0.5 && radius === "50%",
+    ),
+    "Swatches must be circles",
   );
   await palette.screenshot({ path: "test-results/text-placement/compact-colors.png" });
   await dialog.getByRole("button", { name: "Text color #cdbc43", exact: true }).click();
@@ -124,15 +107,23 @@ try {
       ".content-format > button,.content-format > .content-color-control > button,.content-font-size .asset-filter-trigger",
     )
     .evaluateAll((buttons) =>
-      buttons.map((button) => {
-        const box = button.getBoundingClientRect();
-        return {
-          width: box.width,
-          height: box.height,
-          radius: getComputedStyle(button).borderRadius,
-        };
-      }),
+      buttons.map((button) => ({
+        label: button.getAttribute("aria-label"),
+        radius: getComputedStyle(button).borderRadius,
+      })),
     );
+  assert.deepEqual(
+    controls.map(({ label }) => label),
+    [
+      "Font size",
+      "Text color",
+      "Text background",
+      "Clear text formatting",
+      "bold",
+      "italic",
+      "underline",
+    ],
+  );
   assert.ok(
     controls.every((control) => control.radius === "12px"),
     "Formatting controls share rounded-corner targets",
@@ -165,7 +156,7 @@ try {
   await draft();
   await page.keyboard.press("Escape");
   assert.equal(await page.locator("[data-placing-text]").count(), 0);
-  assert.deepEqual(await document(), before);
+  assert.deepEqual(project.document(), before);
   await draft();
   const stage = page.locator(".viewport-stage"),
     box = await stage.boundingBox(),
@@ -202,7 +193,7 @@ try {
     if (chosen) break;
   }
   assert.ok(chosen, "The case front must accept a placement preview");
-  assert.deepEqual(await document(), before);
+  assert.deepEqual(project.document(), before);
   await page.screenshot({ path: "test-results/text-placement/preview.png" });
   await page.mouse.click(chosen.x, chosen.y);
   await page.locator(".viewport-stage[data-placing-text]").waitFor({ state: "detached" });
@@ -234,13 +225,9 @@ try {
   );
   await page.reload();
   await openSavedProject(page);
-  const reopened = await document();
-  assert.deepEqual(
-    reopened.scenes[0].objects.find((object) => object.id === target.id).components[0],
-    text,
-  );
-  await page.locator(".object-row").last().click();
+  await page.locator(`.object-row[data-object-id="${target.id}"]`).click();
   await page.getByRole("button", { name: "Edit text", exact: true }).click();
+  assert.equal(await input.textContent(), text.runs.map((run) => run.text).join(""));
   await dialog.getByRole("button", { name: "Text background", exact: true }).click();
   await dialog
     .getByRole("group", { name: "Text background colors", exact: true })

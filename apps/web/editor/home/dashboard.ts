@@ -22,13 +22,10 @@ export type DashboardView =
 export type RenderWorkspace = (content: ReactNode, dashboard?: DashboardView) => ReactNode;
 export type WorkStatus = "Awaiting Approval" | "In Progress" | "Completed" | "Status unavailable";
 
-export function assignmentProgress(projects: readonly AssignmentProject[]): {
-  status: WorkStatus;
-  submitted: number | null;
-} {
+export function assignmentProgress(projects: readonly AssignmentProject[]) {
   const states = projects.map((project) => project.reviewState);
   const known = states.every((state) => state != null);
-  const status = states.includes("pending")
+  const status: WorkStatus = states.includes("pending")
     ? "Awaiting Approval"
     : !known
       ? "Status unavailable"

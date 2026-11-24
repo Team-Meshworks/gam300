@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { createServer as createBridge } from "node:http";
 import { request } from "node:https";
-import { readFileSync } from "node:fs";
-import { access, writeFile } from "node:fs/promises";
+import { on } from "node:events";
+import { existsSync, readFileSync, watch } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { launchBrowser } from "./browser-security.mjs";
 
@@ -13,7 +14,6 @@ const server = await createServer({ server: { port: 0 }, logLevel: "silent" });
 await server.listen();
 const upstream = `https://127.0.0.1:${server.httpServer.address().port}`;
 let removals = 0;
-let reconciliations = 0;
 let operationId;
 let committed;
 let disconnected;
@@ -28,8 +28,7 @@ const bridge = createBridge((incoming, outgoing) => {
     (incoming.method === "PUT" &&
       incoming.url.startsWith(`/api/v1/admin/assets/${assetId}/removals/`));
   if (incoming.method === "POST" && incoming.url.endsWith("/reconcile")) {
-    reconciliations++;
-    reconcileStarted();
+    reconcileStarted(incoming.url);
   }
   const removalNumber = isRemoval ? ++removals : 0;
   if (removalNumber === 1 && incoming.method === "PUT")
@@ -76,17 +75,14 @@ await new Promise((resolve) => bridge.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${bridge.address().port}`;
 const browser = await launchBrowser({ target: origin });
 async function waitForFile(name) {
-  for (let i = 0; i < 300; i++) {
-    if (
-      await access(join(sync, name)).then(
-        () => true,
-        () => false,
-      )
-    )
-      return;
-    await new Promise((resolve) => setTimeout(resolve, 50));
+  const watcher = watch(sync);
+  const changes = on(watcher, "change", { signal: AbortSignal.timeout(15_000) });
+  try {
+    while (!existsSync(join(sync, name))) await changes.next();
+  } finally {
+    await changes.return();
+    watcher.close();
   }
-  throw new Error(`Timed out waiting for ${name}`);
 }
 try {
   const page = await browser.newPage();
@@ -97,7 +93,7 @@ try {
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   await page.waitForURL(origin + "/admin/dashboard");
   await page.goto(origin + "/spaces");
-  await page.getByRole("button", { name: /^Deleted \(/ }).click();
+  await page.getByRole("tab", { name: /^Deleted\b/ }).click();
   const card = page
     .locator(".asset-admin-card")
     .filter({ has: page.getByRole("heading", { name: "Receipt race room", exact: true }) });
@@ -127,31 +123,27 @@ try {
     "Catalogue GET really completed before commit",
   );
   await page.goto(origin + "/spaces");
-  await page.getByRole("button", { name: /^Deleted \(/ }).click();
-  await Promise.race([reconciling, card.getByRole("button").waitFor()]);
-  if (
-    await card
+  await page.getByRole("tab", { name: /^Deleted\b/ }).click();
+  const path = await Promise.race([
+    reconciling,
+    card
       .getByRole("button")
-      .isVisible()
-      .catch(() => false)
-  ) {
-    await card.getByRole("button").click();
-    const remove = dialog.getByRole("button", { name: "Delete Permanently", exact: true });
-    if (await remove.isVisible().catch(() => false)) {
-      await remove.click();
-      await remove.click();
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  }
+      .waitFor()
+      .then(() => {
+        throw new Error("The stale removal action became reachable before reconciliation");
+      }),
+  ]);
+  assert.equal(path, `/api/v1/admin/assets/${assetId}/removals/${operationId}/reconcile`);
+  await page.getByRole("status", { name: "Loading 3d spaces" }).waitFor();
+  assert.equal(await card.getByRole("button").count(), 0);
   assert.equal(removals, 1, "No fresh removal may be sent before the first outcome is resolved");
-  assert.ok(reconciliations > 0, "The original removal is reconciled before another write");
   await writeFile(join(sync, "release"), "release");
   const result = await completed;
   assert.equal(result.status, 201);
   assert.equal(result.preference, "spatia-created-status");
   assert.equal(result.operation, operationId);
   await page.reload();
-  await page.getByRole("button", { name: /^Deleted \(/ }).click();
+  await page.getByRole("tab", { name: /^Deleted\b/ }).click();
   await card.getByRole("button").click();
   await dialog
     .getByText("Removed from projects. Affected published exhibitions are permanently unavailable.")

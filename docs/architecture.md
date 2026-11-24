@@ -1,6 +1,5 @@
 # Architecture v0.1
 
-Spatia, developed by Meshworks for VThere.
 Reviewed 26 September 2026 against `dev` at `fcf4cb4` and its current implementation.
 This is the M1 architecture baseline; the second diagram labels later product work.
 Recovery and viewport boundaries below were updated on 29 September against `ada62a1`
@@ -65,7 +64,7 @@ array order remain separate.
 block-beta
   %% Four components per row, folding right-to-left after the first row
   columns 7
-  wiki["Wiki.js"] space repo["Private GitHub"] space ci["GitHub Actions"] space registry["Private GHCR"]
+  wiki["Wiki.js"] space repo["GitHub"] space ci["GitHub Actions"] space registry["GHCR"]
   space:7
   api["API + Identity"] space player["Shared player"] space editor["Browser editor"] space host["Caddy hosting"]
   space:7

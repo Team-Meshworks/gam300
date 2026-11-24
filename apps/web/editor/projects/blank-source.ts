@@ -1,5 +1,12 @@
+import { assignmentSession } from "./assignment-api";
 import type { EncodedProjectImage } from "./project-image";
-import { isId, isRecord, projectReceipt, type WriteResult } from "../home/workspace-api";
+import {
+  createWorkspaceClient,
+  isId,
+  projectReceipt,
+  type WriteResult,
+} from "../home/workspace-api";
+import { isRecord, readField } from "../../shared/project/validation-helpers";
 
 import {
   acknowledgeCreation,
@@ -13,27 +20,48 @@ type ReadSource = (
   actorId: string,
   projectId: string,
 ) => Promise<{ kind: "available"; revision: number } | { kind: "unavailable" } | { kind: "retry" }>;
+export async function readBlankSource(
+  actorId: string,
+  projectId: string,
+  request: typeof fetch = fetch,
+): ReturnType<ReadSource> {
+  try {
+    const before = await assignmentSession(undefined, request);
+    if (before.userId !== actorId || before.mustChangePassword) return { kind: "retry" };
+    const projects = await createWorkspaceClient(request).projects(false, undefined, actorId);
+    const after = await assignmentSession(undefined, request);
+    if (after.userId !== actorId || after.mustChangePassword) return { kind: "retry" };
+    const current = projects.find(
+      (project) => project.projectId.toLowerCase() === projectId.toLowerCase(),
+    );
+    return current?.permissions.canManage
+      ? { kind: "available", revision: current.revision }
+      : { kind: "unavailable" };
+  } catch {
+    return { kind: "retry" };
+  }
+}
+
 export const blankSourceKey = (actorId: string) => `spatia.assignment.source:${actorId}`;
 
 // The old attemptId was local-only and cannot identify a server creation.
 export function historicalBlankSource(stored: string): boolean {
   try {
     const value: unknown = JSON.parse(stored);
+    if (!isRecord(value)) return false;
     if (
-      !isRecord(value) ||
-      value.operationId !== undefined ||
-      value.creationGuard !== undefined ||
-      value.actorId !== undefined ||
-      value.adopted !== undefined ||
-      value.selectedExisting !== undefined
+      ["operationId", "creationGuard", "actorId", "adopted", "selectedExisting"].some(
+        (field) => readField(value, field) !== undefined,
+      )
     )
       return false;
+    const imageKey = readField(value, "imageKey");
     return (
       blankSourceProject(stored) !== null ||
-      (isId(value.attemptId) &&
-        typeof value.title === "string" &&
-        typeof value.environmentAssetId === "string" &&
-        (value.imageKey === undefined || typeof value.imageKey === "string"))
+      (isId(readField(value, "attemptId")) &&
+        typeof readField(value, "title") === "string" &&
+        typeof readField(value, "environmentAssetId") === "string" &&
+        (imageKey === undefined || typeof imageKey === "string"))
     );
   } catch {
     return false;
@@ -46,26 +74,27 @@ export const uncorrelatedBlankSource = (stored: string) =>
 export function selectedExistingSource(stored: string, actorId: string) {
   try {
     const value: unknown = JSON.parse(stored);
+    if (!isRecord(value) || readField(value, "actorId") !== actorId) return null;
     if (
-      !isRecord(value) ||
-      value.actorId !== actorId ||
-      value.operationId !== undefined ||
-      value.receipt !== undefined ||
-      value.adopted !== undefined ||
-      value.attemptId !== undefined ||
-      value.creationGuard !== undefined ||
-      !isRecord(value.selectedExisting) ||
-      !isId(value.selectedExisting.projectId) ||
-      typeof value.selectedExisting.title !== "string" ||
-      !Number.isSafeInteger(value.selectedExisting.revision) ||
-      Number(value.selectedExisting.revision) < 0
+      ["operationId", "receipt", "adopted", "attemptId", "creationGuard"].some(
+        (field) => readField(value, field) !== undefined,
+      )
     )
       return null;
-    return {
-      projectId: value.selectedExisting.projectId,
-      title: value.selectedExisting.title,
-      revision: Number(value.selectedExisting.revision),
-    };
+    const selection = readField(value, "selectedExisting");
+    if (!isRecord(selection)) return null;
+    const projectId = readField(selection, "projectId");
+    const title = readField(selection, "title");
+    const revision = readField(selection, "revision");
+    if (
+      !isId(projectId) ||
+      typeof title !== "string" ||
+      typeof revision !== "number" ||
+      !Number.isSafeInteger(revision) ||
+      revision < 0
+    )
+      return null;
+    return { projectId, title, revision };
   } catch {
     return null;
   }
@@ -147,25 +176,22 @@ export function verifySelectedSource(
 export function adoptedBlankSource(stored: string, actorId: string) {
   try {
     const value: unknown = JSON.parse(stored);
+    if (!isRecord(value) || readField(value, "actorId") !== actorId) return null;
+    const receipt = readField(value, "receipt");
+    const operationId = readField(value, "operationId");
+    const title = readField(value, "title");
+    const revision = readField(value, "currentRevision");
     if (
-      !isRecord(value) ||
-      value.actorId !== actorId ||
-      value.adopted !== true ||
-      !isId(value.operationId) ||
-      !isRecord(value.receipt) ||
-      !projectReceipt(value.receipt) ||
-      !isId(value.receipt.projectId) ||
-      typeof value.title !== "string" ||
-      !Number.isSafeInteger(value.currentRevision) ||
-      Number(value.currentRevision) < 0
+      readField(value, "adopted") !== true ||
+      !isId(operationId) ||
+      !projectReceipt(receipt) ||
+      typeof title !== "string" ||
+      typeof revision !== "number" ||
+      !Number.isSafeInteger(revision) ||
+      revision < 0
     )
       return null;
-    return {
-      projectId: value.receipt.projectId,
-      title: value.title,
-      revision: Number(value.currentRevision),
-      operationId: value.operationId,
-    };
+    return { projectId: receipt.projectId, title, revision, operationId };
   } catch {
     return null;
   }
@@ -182,7 +208,6 @@ export async function adoptBlankSource(
 ) {
   if (
     !isId(operationId) ||
-    !isRecord(receipt) ||
     !projectReceipt(receipt) ||
     receipt.projectId !== source.projectId ||
     !Number.isSafeInteger(source.revision) ||
@@ -205,10 +230,11 @@ export async function adoptBlankSource(
           "Resolve the earlier browser source record before adopting another source.",
         );
       }
+      const priorOperationId = isRecord(prior) ? readField(prior, "operationId") : undefined;
       if (
         !isRecord(prior) ||
-        (prior.operationId !== undefined
-          ? prior.operationId !== operationId
+        (priorOperationId !== undefined
+          ? priorOperationId !== operationId
           : blankSourceProject(observed)?.projectId !== source.projectId)
       )
         throw new Error(
@@ -234,29 +260,30 @@ export async function adoptBlankSource(
   });
 }
 
+function validBlankSourceGuard(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!isRecord(value) || readField(value, "purpose") !== "assignment-source") return false;
+  const predecessor = readField(value, "previousOperationId");
+  return predecessor === null || isId(predecessor);
+}
+
 export function blankSourceProject(
   stored: string,
 ): { projectId: string; imageKey?: string } | null {
   try {
     const value: unknown = JSON.parse(stored);
+    if (!isRecord(value)) return null;
+    const receipt = readField(value, "receipt");
+    const imageKey = readField(value, "imageKey");
     if (
-      !isRecord(value) ||
-      !isRecord(value.receipt) ||
-      !projectReceipt(value.receipt) ||
-      typeof value.receipt.projectId !== "string" ||
-      (value.imageKey !== undefined && typeof value.imageKey !== "string") ||
-      (value.creationGuard !== undefined &&
-        (!isRecord(value.creationGuard) ||
-          value.creationGuard.purpose !== "assignment-source" ||
-          !(
-            value.creationGuard.previousOperationId === null ||
-            isId(value.creationGuard.previousOperationId)
-          )))
+      !projectReceipt(receipt) ||
+      (imageKey !== undefined && typeof imageKey !== "string") ||
+      !validBlankSourceGuard(readField(value, "creationGuard"))
     )
       return null;
     return {
-      projectId: value.receipt.projectId,
-      ...(value.imageKey !== undefined ? { imageKey: value.imageKey } : {}),
+      projectId: receipt.projectId,
+      ...(imageKey !== undefined ? { imageKey } : {}),
     };
   } catch {
     return null;
@@ -266,19 +293,14 @@ export function blankSourceProject(
 export function blankSourceAttempt(stored: string) {
   try {
     const value: unknown = JSON.parse(stored);
+    if (!isRecord(value)) return null;
+    const imageKey = readField(value, "imageKey");
     if (
-      !isRecord(value) ||
-      !isId(value.operationId) ||
-      typeof value.title !== "string" ||
-      typeof value.environmentAssetId !== "string" ||
-      (value.imageKey !== undefined && typeof value.imageKey !== "string") ||
-      (value.creationGuard !== undefined &&
-        (!isRecord(value.creationGuard) ||
-          value.creationGuard.purpose !== "assignment-source" ||
-          !(
-            value.creationGuard.previousOperationId === null ||
-            isId(value.creationGuard.previousOperationId)
-          )))
+      !isId(readField(value, "operationId")) ||
+      typeof readField(value, "title") !== "string" ||
+      typeof readField(value, "environmentAssetId") !== "string" ||
+      (imageKey !== undefined && typeof imageKey !== "string") ||
+      !validBlankSourceGuard(readField(value, "creationGuard"))
     )
       return null;
     return value as {
@@ -360,24 +382,18 @@ export async function createBlankSource(
       const receipt = blankSourceProject(saved);
       if (receipt) {
         const stored: unknown = JSON.parse(saved);
+        const operationId = isRecord(stored) ? readField(stored, "operationId") : undefined;
         if (
           isRecord(stored) &&
-          (isRecord(stored.creationGuard) || stored.adopted === true) &&
-          isId(stored.operationId)
+          (isRecord(readField(stored, "creationGuard")) || readField(stored, "adopted") === true) &&
+          isId(operationId)
         ) {
           discovering = true;
           await readHead(actorId, "assignment-source");
           discovering = false;
           if (
-            (
-              await acknowledgeCreation(
-                actorId,
-                "assignment-source",
-                stored.operationId,
-                write,
-                readHead,
-              )
-            ).kind !== "confirmed"
+            (await acknowledgeCreation(actorId, "assignment-source", operationId, write, readHead))
+              .kind !== "confirmed"
           )
             return { kind: "unknown" };
         }
@@ -451,8 +467,7 @@ export async function createBlankSource(
       if (saved === null && outcome.code !== "operation_conflict") storage.removeItem(key);
       return outcome;
     }
-    if (outcome.kind !== "confirmed" || !projectReceipt(outcome.value) || !isRecord(outcome.value))
-      return { kind: "unknown" };
+    if (outcome.kind !== "confirmed" || !projectReceipt(outcome.value)) return { kind: "unknown" };
     storage.setItem(
       key,
       JSON.stringify({

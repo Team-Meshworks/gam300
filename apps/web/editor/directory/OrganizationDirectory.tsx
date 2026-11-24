@@ -1,3 +1,6 @@
+import { adminPublishedReturnUrl } from "../projects/progress-navigation";
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
+import { SkeletonBox } from "skullet/react";
 import { Icon as UiIcon } from "@iconify/react/offline";
 import faGlobe from "@iconify-icons/lucide/globe";
 import faLock from "@iconify-icons/lucide/lock";
@@ -27,6 +30,7 @@ export function OrganizationDirectory({
   selectedId,
   onSelect,
   onDelete,
+  onCreate,
   onToggleActive,
   busy = false,
   accountActions,
@@ -38,12 +42,14 @@ export function OrganizationDirectory({
   onSearch,
   searching = false,
   searchError,
+  onRetrySearch,
 }: {
   organizations: readonly DirectoryOrganization[];
   onPreview: (title: string, body: ReactNode) => void;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onDelete?: (id: string) => void;
+  onCreate?: () => void;
   onToggleActive?: (id: string) => void;
   busy?: boolean;
   accountActions?: AccountActions;
@@ -55,6 +61,7 @@ export function OrganizationDirectory({
   onSearch?: (query: string) => void;
   searching?: boolean;
   searchError?: string;
+  onRetrySearch?: () => void;
 }) {
   const [localQuery, setLocalQuery] = useState("");
   const query = searchQuery ?? localQuery;
@@ -71,9 +78,36 @@ export function OrganizationDirectory({
             ? project.isPublic === true
             : project.isPublic === false)),
     ) ?? [];
+  if (administration && selectedId && !organization && searching) {
+    return (
+      <div
+        className="sp-directory sp-directory--administration sp-panel-surface sp-organization-detail-loading"
+        role="status"
+        aria-label="Loading organisation"
+        aria-busy="true"
+      >
+        <div className="sp-organization-detail-loading-left" aria-hidden="true">
+          <div className="sp-organization-detail-loading-identity">
+            <SkeletonBox width={50} height={50} radius={25} />
+            <SkeletonBox width="55%" height={24} radius={4} />
+          </div>
+          <div className="sp-organization-detail-loading-projects">
+            <SkeletonBox width="100%" height={45} radius={24} />
+            <SkeletonBox width="70%" height={18} radius={4} />
+          </div>
+        </div>
+        <div className="sp-organization-detail-loading-accounts" aria-hidden="true">
+          <SkeletonBox width="100%" height={45} radius={24} />
+          <SkeletonBox width="65%" height={18} radius={4} />
+        </div>
+      </div>
+    );
+  }
   if (organization) {
     return (
-      <div className={`sp-directory${administration ? " sp-directory--administration" : ""}`}>
+      <div
+        className={`sp-directory${administration ? " sp-directory--administration sp-panel-surface" : ""}`}
+      >
         {!administration && (
           <div>
             <Button
@@ -100,7 +134,11 @@ export function OrganizationDirectory({
               </div>
               <div className="sp-actions">
                 {administration && onToggleActive && (
-                  <Button disabled={busy} onClick={() => onToggleActive(organization.id)}>
+                  <Button
+                    className="sp-hide-action"
+                    disabled={busy}
+                    onClick={() => onToggleActive(organization.id)}
+                  >
                     <UiIcon icon={organization.isActive ? faEyeSlash : faEye} aria-hidden="true" />
                     <span className="sp-button-label">
                       {organization.isActive ? "Hide" : "Show"}
@@ -137,10 +175,10 @@ export function OrganizationDirectory({
             </section>
             <section className="sp-card sp-organization-projects">
               <SearchField
-                label="Search projects"
+                label={administration ? "Search published projects" : "Search projects"}
                 value={projectQuery}
                 onChange={setProjectQuery}
-                placeholder="Search projects"
+                placeholder={administration ? "Search published projects" : "Search projects"}
               />
               {administration ? (
                 <Tabs
@@ -149,7 +187,7 @@ export function OrganizationDirectory({
                   value={projectVisibility}
                   onChange={setProjectVisibility}
                   items={[
-                    { value: "All", label: "All Projects" },
+                    { value: "All", label: "All Published" },
                     { value: "Public", label: "Public" },
                     { value: "Private", label: "Private" },
                   ]}
@@ -169,7 +207,7 @@ export function OrganizationDirectory({
                   : {})}
               >
                 {loading ? (
-                  <p role="status">Loading organisation…</p>
+                  <LoadingSkeleton label="Loading organisation" layout="cards" />
                 ) : projectError ? (
                   <p role="alert">{projectError}</p>
                 ) : (
@@ -230,8 +268,12 @@ export function OrganizationDirectory({
                 {!loading && !projectError && !visibleProjects.length && (
                   <p role="status">
                     {organization.projects.length
-                      ? "No matching projects."
-                      : "No projects in this organisation."}
+                      ? administration
+                        ? "No matching published projects."
+                        : "No matching projects."
+                      : administration
+                        ? "No published projects in this organisation."
+                        : "No projects in this organisation."}
                   </p>
                 )}
               </div>
@@ -269,7 +311,7 @@ export function OrganizationDirectory({
         );
   return (
     <section
-      className={`sp-directory sp-organization-overview${administration ? " sp-directory--administration" : ""}`}
+      className={`sp-directory sp-organization-overview${administration ? " sp-directory--administration sp-panel-surface" : ""}`}
     >
       <div
         className={`sp-organization-overview-heading${administration ? " sp-admin-page-heading" : ""}`}
@@ -278,7 +320,7 @@ export function OrganizationDirectory({
           <h1>All Organisations</h1>
           <p className="sp-hint">
             {administration
-              ? "Review published experiences and control what visitors can explore."
+              ? "Manage organisations and their accounts."
               : "Browse organisations and inspect their projects and accounts."}
           </p>
         </div>
@@ -294,14 +336,54 @@ export function OrganizationDirectory({
         />
         <a
           className={`sp-button sp-directory-close${administration ? " sp-close-button" : ""}`}
-          href="/admin/dashboard"
+          href={
+            new URLSearchParams(location.search).has("returnProjectId")
+              ? adminPublishedReturnUrl(new URLSearchParams(location.search))
+              : "/admin/dashboard"
+          }
           aria-label="Close organisations"
         >
           <UiIcon icon={faXmark} aria-hidden="true" />
         </a>
       </div>
-      <h2>All Organisations</h2>
+      <div className="sp-actions sp-organization-overview-toolbar">
+        <h2>
+          <span className="sp-tab-content">
+            <span>All Organisations</span>
+          </span>
+        </h2>
+        {administration && onCreate && (
+          <Button variant="primary" disabled={busy} onClick={onCreate}>
+            Add Organisation
+          </Button>
+        )}
+      </div>
       <div className="sp-organization-grid">
+        {!searching && searchError && (
+          <div className="sp-list-empty" role="alert">
+            <p>{searchError}</p>
+            {onRetrySearch && <Button onClick={onRetrySearch}>Retry search</Button>}
+          </div>
+        )}
+        {searching && !visible.length && (
+          <div
+            className="sp-organization-loading"
+            role="status"
+            aria-label="Loading organisations"
+            aria-busy="true"
+          >
+            {[0, 1].map((index) => (
+              <div className="sp-organization-placeholder" key={index} aria-hidden="true">
+                <SkeletonBox width={50} height={50} radius={25} />
+                <div>
+                  <SkeletonBox width="70%" height={22} radius={4} />
+                  <SkeletonBox width="45%" height={22} radius={4} />
+                </div>
+                <SkeletonBox width={130} height={40} radius={20} />
+              </div>
+            ))}
+          </div>
+        )}
         {visible.map((item) => (
           <article key={item.id} className="sp-card sp-organization-card">
             <div className="sp-account">
@@ -314,7 +396,7 @@ export function OrganizationDirectory({
             {administration ? (
               item.counts ? (
                 <div className="sp-organization-counts sp-hint" aria-label="Organisation totals">
-                  <span>{countLabel(item.counts.projects, "Project")}</span>
+                  <span>{countLabel(item.counts.projects, "Published Project")}</span>
                   <span>{countLabel(item.counts.facilitators, "Facilitator")}</span>
                   <span>{countLabel(item.counts.creators, "Creator")}</span>
                 </div>
@@ -339,6 +421,7 @@ export function OrganizationDirectory({
             )}
             <Button
               variant="primary"
+              className="sp-catalogue-action"
               aria-label={`Open ${item.name}`}
               onClick={() => {
                 setProjectQuery("");
@@ -351,13 +434,25 @@ export function OrganizationDirectory({
           </article>
         ))}
         {!searching && !searchError && !visible.length && (
-          <p role="status" className="sp-list-empty">
-            No matching organisations. Try another name.
-          </p>
+          <div className="sp-list-empty">
+            <p role="status">
+              {query.trim()
+                ? "No matching organisations. Try another name."
+                : administration && onCreate
+                  ? "No organisations yet. Add the first organisation to get started."
+                  : "No organisations yet."}
+            </p>
+            {query.trim() && (
+              <Button onClick={() => (onSearch ?? setLocalQuery)("")}>Clear search</Button>
+            )}
+          </div>
         )}
       </div>
-      {searching && <p role="status">Searching organisations…</p>}
-      {searchError && <p role="alert">{searchError}</p>}
+      {searching && visible.length > 0 && (
+        <span role="status" className="sp-sr-only">
+          Searching organisations
+        </span>
+      )}
     </section>
   );
 }

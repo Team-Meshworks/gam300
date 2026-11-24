@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
+import { createServer } from "vite";
 
-const origin = process.argv[2] ?? "http://127.0.0.1:5181";
+const server = process.argv[2]
+  ? null
+  : await createServer({ server: { host: "127.0.0.1", port: 0 }, logLevel: "error" });
+await server?.listen();
+const origin = process.argv[2] ?? `http://127.0.0.1:${server.httpServer.address().port}`;
 const projectId = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const otherProject = "6ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const publicationId = "1ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
@@ -181,4 +186,5 @@ try {
   console.log("Publication access checks passed.");
 } finally {
   await browser.close();
+  await server?.close();
 }

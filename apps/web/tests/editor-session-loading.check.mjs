@@ -3,10 +3,12 @@ import { readFile, mkdir } from "node:fs/promises";
 import { launchPersistentBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import { serveProject } from "./authoring-project-fixture.mjs";
+import { waitForStoredDraft } from "./stored-draft.mjs";
 
 // Run against a built preview. Real bundled GLBs are delivered by HTTP; only the account
 // API is simulated here. Actual Identity/database coverage lives in the HTTPS server suite.
 const origin = new URL(process.argv[2] ?? "http://127.0.0.1:5194/").origin;
+const userId = "11111111-1111-4111-8111-111111111111";
 const manifest = JSON.parse(
   await readFile(new URL("../../../assets/manifest.json", import.meta.url)),
 );
@@ -40,7 +42,7 @@ try {
         signedIn
           ? {
               json: {
-                userId: "11111111-1111-4111-8111-111111111111",
+                userId,
                 displayName: "Browser check",
                 role: "Creator",
                 orgId: "22222222-2222-4222-8222-222222222222",
@@ -97,35 +99,48 @@ try {
     "Unused 94 MB model must not block scene rendering",
   );
   assert.notDeepEqual(await canvas.screenshot(), empty);
-  // Wait for the actual browser recovery transaction, not an arbitrary autosave delay.
-  let recovered = false;
-  for (let attempt = 0; attempt < 100 && !recovered; attempt++) {
-    recovered = await page.evaluate(
-      () =>
-        new Promise((resolve) => {
-          const open = indexedDB.open("vthere-local-drafts", 2);
+  const projectId = new URL(project.url).searchParams.get("projectId");
+  const objectId = await page.locator(".object-row[data-object-id]").getAttribute("data-object-id");
+  await waitForStoredDraft(page, () =>
+    page.evaluate(
+      async ({ userId, projectId, objectId }) => {
+        const database = "vthere-local-drafts";
+        if (!(await indexedDB.databases()).some(({ name }) => name === database)) return false;
+        const stored = await new Promise((resolve, reject) => {
+          const open = indexedDB.open(database, 2);
           open.onsuccess = () => {
             const db = open.result;
+            if (!db.objectStoreNames.contains("session")) {
+              db.close();
+              resolve(undefined);
+              return;
+            }
             const tx = db.transaction(["session"], "readonly");
-            const request = tx.objectStore("session").getAll();
+            const request = tx.objectStore("session").get(["account", userId, projectId]);
             tx.oncomplete = () => {
               db.close();
-              resolve(
-                request.result.some((r) => {
-                  const document =
-                    typeof r.document === "string" ? JSON.parse(r.document) : r.document;
-                  return document?.scenes?.[0]?.objects?.length === 1;
-                }),
-              );
+              resolve(request.result?.document);
+            };
+            tx.onabort = () => {
+              db.close();
+              reject(tx.error);
             };
           };
-          open.onerror = () => resolve(false);
-        }),
+          open.onerror = () => reject(open.error);
+          open.onblocked = () => reject(new Error("Recovery storage is blocked"));
+        });
+        const objects = JSON.parse(stored ?? "null")?.scenes?.[0]?.objects;
+        return objects?.length === 1 && objects[0].id === objectId;
+      },
+      { userId, projectId, objectId },
+    ),
+  ).catch(async (cause) => {
+    throw new Error(
+      "The placed object was not recovered from storage: " +
+        (await page.locator("body").innerText()),
+      { cause },
     );
-    if (!recovered) await page.waitForTimeout(100);
-  }
-  if (!recovered) console.error(await page.locator("body").innerText());
-  assert.ok(recovered, "The actual recovery transaction must finish before reload");
+  });
   denyCrate = true;
   await page.reload();
   await page.getByRole("button", { name: "Recover changes" }).click();

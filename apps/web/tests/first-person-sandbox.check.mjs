@@ -8,6 +8,17 @@ const fixture = JSON.parse(
 );
 const browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
 const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
+
+function armPointerEvent(target, type) {
+  return target.evaluate((type) => {
+    window.nextPointerEvent = new Promise((resolve) => {
+      const signal = AbortSignal.timeout(5000);
+      document.addEventListener(type, () => resolve(true), { once: true, signal });
+      signal.addEventListener("abort", () => resolve(false), { once: true });
+    });
+  }, type);
+}
+
 await page.route("**/sandbox-review-parent.html", (route) =>
   route.fulfill({
     contentType: "text/html",
@@ -67,8 +78,9 @@ try {
     };
   }, fixture);
   const canvas = frame.locator("canvas");
+  await armPointerEvent(child, "pointerlockerror");
   await canvas.click({ position: { x: 400, y: 300 } });
-  await page.waitForTimeout(250);
+  assert.equal(await child.evaluate(() => window.nextPointerEvent), true, "Sandbox denial event");
   assert.equal(
     await child.evaluate(() => document.pointerLockElement),
     null,
@@ -88,13 +100,55 @@ try {
   await page.mouse.down();
   await page.mouse.move(box.x + 170, box.y + 70, { steps: 5 });
   await page.mouse.up();
-  await page.waitForTimeout(100);
+  await child.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
   assert.notDeepEqual(
     await child.evaluate(() => window.review.handle.modeManager.camera.quaternion.toArray()),
     before,
     "Drag fallback still turns the camera",
   );
   console.log("PASS sandbox pointer-lock denial permits picking");
+
+  await page.goto(`${origin}/sandbox-review-child.html`);
+  await page.evaluate(async () => {
+    const { FpsControls } = await import("/controls/fpsControls.ts");
+    const { PerspectiveCamera } = await import("/@id/three");
+    const canvas = document.createElement("canvas");
+    document.querySelector("#host").append(canvas);
+    const controls = new FpsControls(new PerspectiveCamera(), canvas);
+    controls.engage();
+    window.review = { canvas, controls };
+  });
+  const surface = page.locator("canvas");
+  await armPointerEvent(page, "pointerlockchange");
+  await surface.click();
+  assert.equal(await page.evaluate(() => window.nextPointerEvent), true, "Pointer lock acquired");
+  assert.equal(await page.evaluate(() => window.review.controls.isCaptured()), true);
+  await armPointerEvent(page, "pointerlockchange");
+  await page.evaluate(() => document.exitPointerLock());
+  assert.equal(await page.evaluate(() => window.nextPointerEvent), true, "Pointer lock released");
+  assert.equal(await page.evaluate(() => window.review.controls.isCaptured()), false);
+  assert.equal(
+    await page.evaluate(() => {
+      const { canvas, controls } = window.review;
+      canvas.dispatchEvent(new MouseEvent("mousedown", { button: 0 }));
+      document.dispatchEvent(new Event("pointerlockerror"));
+      return controls.canCapture();
+    }),
+    true,
+    "A lock error after release still allows the visitor to retry",
+  );
+  await armPointerEvent(page, "pointerlockchange");
+  if (!(await page.evaluate(() => window.review.controls.isCaptured()))) {
+    await surface.click();
+    assert.equal(
+      await page.evaluate(() => window.nextPointerEvent),
+      true,
+      "Pointer lock reacquired",
+    );
+  }
+  assert.equal(await page.evaluate(() => window.review.controls.isCaptured()), true);
+  await page.evaluate(() => window.review.controls.dispose());
+  console.log("PASS pointer-lock release keeps retry available");
 } finally {
   await browser.close();
 }

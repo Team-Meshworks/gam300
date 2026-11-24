@@ -34,6 +34,7 @@ let saved = 0;
 let revision = 0;
 let savedDocument = structuredClone(doc);
 const publications = [];
+const submissionRequests = [];
 const submissionId = "77777777-7777-4777-8777-777777777777";
 const submittedDocument = structuredClone(doc);
 submittedDocument.title = "Submitted exhibition";
@@ -53,7 +54,6 @@ submittedDocument.scenes.push(secondScene);
 submittedDocument.scenes[0].interactions = [
   { when: { type: "scene-starts" }, do: { type: "print-hi" } },
 ];
-const previewAlerts = [];
 const submittedSummary = {
   submissionId,
   revision: 0,
@@ -76,6 +76,8 @@ try {
     const req = route.request(),
       path = new URL(req.url()).pathname;
     const reply = (json, status = 200) => route.fulfill({ json, status });
+    if (req.method() === "POST" && path.endsWith("/submissions"))
+      submissionRequests.push(req.postDataJSON());
     if (path === "/api/v1/auth/session")
       return reply({
         userId: role === "Educator" ? actor : student,
@@ -237,10 +239,11 @@ try {
       studentId: student,
       review: "1",
     });
-  page.on("dialog", async (dialog) => {
-    previewAlerts.push(dialog.message());
-    await dialog.accept();
+  page.on("dialog", (dialog) => dialog.accept());
+  const submittedInteraction = page.waitForEvent("dialog", {
+    predicate: (dialog) => dialog.type() === "alert" && dialog.message() === "hi",
   });
+  void submittedInteraction.catch(() => {});
   await page.goto(url);
   await page.getByRole("button", { name: "Review", exact: true }).waitFor();
   const failures = [];
@@ -281,12 +284,7 @@ try {
         submittedDocument.title,
       );
       assert.notEqual(submittedDocument.title, savedDocument.title);
-      for (let attempt = 0; attempt < 100 && !previewAlerts.includes("hi"); attempt++)
-        await page.waitForTimeout(20);
-      assert.ok(
-        previewAlerts.includes("hi"),
-        "The submitted scene-start interaction must run in educator preview",
-      );
+      await submittedInteraction;
       const submittedRoom = page
         .getByRole("navigation", { name: "Scenes", exact: true })
         .getByRole("button", { name: "Submitted second room", exact: true });
@@ -337,14 +335,10 @@ try {
     assert.equal(new URL(page.url()).pathname, "/");
     // Keep submission unavailable while the save and current revision are still being verified
     assert.equal(await dialog.getAttribute("aria-busy"), "true");
-    assert.equal(
-      await dialog.getByRole("button", { name: "Mark as Completed", exact: true }).count(),
-      0,
-    );
-    assert.equal(
-      await dialog.locator(".creator-approval-actions button").last().isDisabled(),
-      true,
-    );
+    const markCompleted = dialog.getByRole("button", { name: "Mark as Completed", exact: true });
+    assert.equal(await markCompleted.isDisabled(), true);
+    await markCompleted.evaluate((button) => button.click());
+    assert.equal(submissionRequests.length, 0);
     assert.equal(publications.length, 0);
     releaseSave();
     await dialog.getByRole("heading", { name: "Finish your work first", exact: true }).waitFor();
@@ -355,10 +349,17 @@ try {
     );
     assert.equal(saved, 1);
     assert.equal(savedDocument.scenes[0].name, "Saved before approval");
+    assert.equal(submissionRequests.length, 0);
     await dialog.getByRole("button", { name: "Close request approval", exact: true }).click();
-    await page.goto(origin + `/publish?projectId=${projectId}`);
   });
+  releaseSave();
+  await page.close();
+  page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+  page.setDefaultTimeout(15000);
+  await page.route("**/api/v1/**", mockApi);
+  await page.route("**/home?**", mockHome);
   await check("student publication route remains approval-gated", async () => {
+    await page.goto(origin + `/publish?projectId=${projectId}`);
     await page.getByRole("heading", { name: "Publish project", exact: true }).waitFor();
     assert.equal(
       await page.getByRole("button", { name: "Publish", exact: true }).isDisabled(),
@@ -376,7 +377,7 @@ try {
   });
   role = "Educator";
   await page.goto(origin + "/review");
-  await check("teacher review route does not show old workspace", async () => {
+  await check("teacher review route redirects to home", async () => {
     await page.waitForURL("**/home**");
     assert.equal(await page.getByRole("region", { name: "Submissions and reviews" }).count(), 0);
   });
@@ -386,8 +387,7 @@ try {
     await page.getByRole("heading", { name: "All Projects", exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: "Submissions and reviews" }).count(), 0);
   });
-  await check("teacher home has no legacy management footer or standalone Publish", async () => {
-    assert.equal(await page.getByText("Manage projects and archives", { exact: true }).count(), 0);
+  await check("teacher home excludes standalone publication", async () => {
     assert.equal(await page.getByRole("link", { name: "Publish project", exact: true }).count(), 0);
   });
   developmentAssetsAllowed = true;
@@ -442,7 +442,7 @@ try {
       0,
     );
     assert.equal(
-      await page.getByRole("link", { name: "Close student project" }).getAttribute("href"),
+      await page.getByRole("link", { name: "Close published project" }).getAttribute("href"),
       "/admin/dashboard?view=projects",
     );
     await page.getByText("Scene ready", { exact: true }).waitFor();

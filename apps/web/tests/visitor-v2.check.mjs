@@ -8,6 +8,8 @@ import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
 import { launchBrowser } from "./browser-security.mjs";
 import { blankProject } from "./authoring-project-fixture.mjs";
+import { checkNativeMedia } from "./native-media-cases.mjs";
+import { withVisibilityPage } from "./page-visibility.mjs";
 
 // Run the real-media component fixture independently while publication gates are being verified
 if (process.argv.includes("--playback-only")) {
@@ -36,6 +38,12 @@ if (process.argv.includes("--playback-only")) {
     rotation: [0, 1, 0, 0],
     scale: [1, 1, 1],
   };
+  const [exhibitX, , exhibitZ] = snapshot.scenes[0].objects[0].transform.position;
+  snapshot.scenes[0].startCamera = {
+    position: [exhibitX, 0.9, exhibitZ + 4],
+    rotation: [0, 0, 0, 1],
+    fovDegrees: 40,
+  };
   snapshot.scenes[0].objects[1].visible = true;
   snapshot.scenes[0].rules[0].enabled = true;
   snapshot.scenes[0].rules[0].actions = [
@@ -63,7 +71,7 @@ if (process.argv.includes("--playback-only")) {
     await checkFirstTouchAudio(browser, origin, publicationId);
     const page = await browser.newPage();
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.route("**/api/v1/publications/**", async (route) => {
+    const routePublication = async (route) => {
       const path = new URL(route.request().url()).pathname;
       if (path.endsWith("/manifest")) {
         await gate;
@@ -93,7 +101,8 @@ if (process.argv.includes("--playback-only")) {
         });
       }
       return route.fulfill({ json: snapshot });
-    });
+    };
+    await page.route("**/api/v1/publications/**", routePublication);
 
     // Observe the rendered scene and camera while keeping the real loader and controls
     const componentPath = new URL("../shared/player/ExhibitionCanvas.tsx", import.meta.url)
@@ -108,12 +117,9 @@ if (process.argv.includes("--playback-only")) {
     await page.addScriptTag({
       type: "module",
       content: `import * as THREE from ${JSON.stringify(threePath)};
-    const add = THREE.Object3D.prototype.add;
-    window.v2Raycaster = THREE.Raycaster;
-    THREE.Object3D.prototype.add = function (...objects) {
-      if (this.isScene) { window.v2Scene = this; }
-      return add.apply(this, objects);
-    };
+    THREE.Scene.prototype.addEventListener("childadded", ({ target }) => {
+      window.v2Scene = target;
+    });
     const update = THREE.PerspectiveCamera.prototype.updateProjectionMatrix;
     THREE.PerspectiveCamera.prototype.updateProjectionMatrix = function () {
       window.v2Camera = this;
@@ -125,51 +131,95 @@ if (process.argv.includes("--playback-only")) {
     release();
     await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
     await page.waitForFunction(() => window.v2Scene?.children.some((node) => node.isGroup));
-    const activations = await page.evaluate(() => {
-      const canvas = document.querySelector("canvas");
-      const content = document.querySelector("[data-exhibition-scene]");
-      let locked = false;
-      let count = 0;
-      const inspect = () => count++;
-      content.addEventListener("exhibit-inspect", inspect);
-      const previous = Object.getOwnPropertyDescriptor(document, "pointerLockElement");
-      Object.defineProperty(document, "pointerLockElement", {
-        configurable: true,
-        get: () => (locked ? canvas : null),
+    const refusalPage = await browser.newPage();
+    try {
+      await refusalPage.route("**/api/v1/publications/**", routePublication);
+      await refusalPage.route("**/visitor-without-lock.html", (route) =>
+        route.fulfill({
+          contentType: "text/html",
+          body: `<iframe title="Restricted exhibition" sandbox="allow-scripts allow-same-origin" src="/p/${publicationId}" style="width:100%;height:90vh;border:0"></iframe>`,
+        }),
+      );
+      await refusalPage.goto(`${origin}/visitor-without-lock.html`);
+      const embedded = refusalPage.frameLocator("iframe");
+      await embedded.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
+      const child = refusalPage
+        .frames()
+        .find((frame) => frame.url().endsWith(`/p/${publicationId}`));
+      await child.evaluate(() => {
+        window.refusal = { denied: false, clicks: 0 };
+        document.addEventListener(
+          "pointerlockerror",
+          () => {
+            window.refusal.denied = true;
+          },
+          { once: true },
+        );
+        document
+          .querySelector("[data-exhibition-scene]")
+          .addEventListener("exhibit-inspect", () => window.refusal.clicks++);
       });
-      const raycast = window.v2Raycaster.prototype.intersectObjects;
-      window.v2Raycaster.prototype.intersectObjects = function (roots) {
-        return roots.length ? [{ object: roots[1] }] : [];
-      };
-      const pointer = (type, extra = {}) =>
-        canvas.dispatchEvent(
+      await embedded.locator("canvas").click();
+      await child.waitForFunction(() => window.refusal.denied);
+      assert.deepEqual(
+        await child.evaluate(() => ({
+          ...window.refusal,
+          captured: !!document.pointerLockElement,
+        })),
+        { denied: true, clicks: 0, captured: false },
+        "A denied capture press cannot activate the exhibit",
+      );
+      await embedded.locator("canvas").click();
+      assert.equal(
+        await child.evaluate(() => window.refusal.clicks),
+        1,
+        "Refusal enables ordinary raycast clicks",
+      );
+    } finally {
+      await refusalPage.close();
+    }
+
+    await page.evaluate(() => {
+      window.nativeInspectCount = 0;
+      window.nativeInspect = () => window.nativeInspectCount++;
+      document
+        .querySelector("[data-exhibition-scene]")
+        .addEventListener("exhibit-inspect", window.nativeInspect);
+    });
+    const canvas = page.locator("canvas");
+    const box = await canvas.boundingBox();
+    assert.ok(box, "The exhibition canvas must be visible");
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    const inspections = () => page.evaluate(() => window.nativeInspectCount);
+    await page.mouse.click(x, y);
+    await page.waitForFunction(
+      () => document.pointerLockElement === document.querySelector("canvas"),
+    );
+    assert.equal(await inspections(), 0, "Capture click does not activate");
+    await page.mouse.down();
+    await page.mouse.move(x + 30, y, { steps: 4 });
+    await page.mouse.move(x, y, { steps: 4 });
+    await page.mouse.up();
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+    assert.equal(await inspections(), 0, "A locked drag out and back does not activate");
+    await page.mouse.click(x, y);
+    assert.equal(await inspections(), 1, "Native locked stationary click activates real geometry");
+    await page.evaluate(() => {
+      const canvas = document.querySelector("canvas");
+      const pointer = (type, init, target = canvas) =>
+        target.dispatchEvent(
           new PointerEvent(type, {
             bubbles: true,
             button: 0,
             pointerId: 1,
             pointerType: "mouse",
             isPrimary: true,
-            clientX: 200,
-            clientY: 200,
-            ...extra,
+            ...init,
           }),
         );
-      pointer("pointerdown");
-      pointer("pointerup");
-      const refusedCapture = count;
-      pointer("pointerdown");
-      locked = true;
-      document.dispatchEvent(new Event("pointerlockchange"));
-      pointer("pointerup");
-      const capture = count;
-      pointer("pointerdown");
-      pointer("pointermove", { movementX: 30 });
-      pointer("pointermove", { movementX: -30 });
-      pointer("pointerup");
-      const drag = count;
-      pointer("pointerdown");
-      pointer("pointerup");
-      const click = count;
       pointer("pointerdown");
       pointer("pointerup", { pointerId: 2 });
       pointer("pointerdown");
@@ -178,80 +228,25 @@ if (process.argv.includes("--playback-only")) {
       pointer("pointerdown", { isPrimary: false });
       pointer("pointerup", { isPrimary: false });
       pointer("pointerdown");
-      document.dispatchEvent(
-        new PointerEvent("pointerup", {
-          bubbles: true,
-          button: 0,
-          pointerId: 1,
-          pointerType: "mouse",
-          isPrimary: true,
-        }),
-      );
+      pointer("pointerup", {}, document);
       pointer("pointerup");
-      const invalid = count;
-      locked = false;
-      document.dispatchEvent(new Event("pointerlockchange"));
-      pointer("pointerdown", { altKey: true });
-      pointer("pointerup", { altKey: true });
-      const fallback = count;
-      window.v2Raycaster.prototype.intersectObjects = raycast;
-      content.removeEventListener("exhibit-inspect", inspect);
-      content.closest("details").open = false;
-      if (previous) Object.defineProperty(document, "pointerLockElement", previous);
-      else delete document.pointerLockElement;
-      document.dispatchEvent(new Event("pointerlockchange"));
-      return { refusedCapture, capture, drag, click, invalid, fallback };
-    });
-    assert.deepEqual(
-      activations,
-      { refusedCapture: 0, capture: 0, drag: 0, click: 1, invalid: 1, fallback: 2 },
-      "Only deliberate clicks activate an exhibit",
-    );
-    await page.evaluate(() => {
-      window.nativeInspectCount = 0;
-      window.nativeInspect = () => window.nativeInspectCount++;
-      document
-        .querySelector("[data-exhibition-scene]")
-        .addEventListener("exhibit-inspect", window.nativeInspect);
-      window.nativeRaycast = window.v2Raycaster.prototype.intersectObjects;
-      window.v2Raycaster.prototype.intersectObjects = function (roots) {
-        return roots.length ? [{ object: roots[1] }] : [];
-      };
-    });
-    await page.mouse.click(640, 360);
-    await page.waitForFunction(
-      () => document.pointerLockElement === document.querySelector("canvas"),
-    );
-    assert.equal(
-      await page.evaluate(() => window.nativeInspectCount),
-      0,
-      "Capture click does not activate",
-    );
-    await page.mouse.down();
-    await page.mouse.move(690, 360, { steps: 4 });
-    await page.mouse.up();
-    await page.evaluate(
-      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-    );
-    assert.equal(
-      await page.evaluate(() => window.nativeInspectCount),
-      0,
-      "Native locked drag does not activate",
-    );
-    await page.mouse.click(690, 360);
-    assert.equal(
-      await page.evaluate(() => window.nativeInspectCount),
-      1,
-      "Native locked stationary click activates",
-    );
-    await page.evaluate(() => {
       document.exitPointerLock();
+    });
+    assert.equal(await inspections(), 1, "Invalid pointer sequences cannot activate");
+    await page.waitForFunction(() => !document.pointerLockElement);
+    await page.keyboard.down("Alt");
+    try {
+      await page.mouse.click(x + 12, y);
+    } finally {
+      await page.keyboard.up("Alt");
+    }
+    assert.equal(await inspections(), 2, "Unlocked Alt click raycasts the exhibit");
+    await page.evaluate(() => {
       const content = document.querySelector("[data-exhibition-scene]");
       content.removeEventListener("exhibit-inspect", window.nativeInspect);
       content.closest("details").open = false;
-      window.v2Raycaster.prototype.intersectObjects = window.nativeRaycast;
     });
-    await page.waitForFunction(() => !document.pointerLockElement);
+
     const first = snapshot.scenes[0];
     const roots = await page.evaluate(() =>
       window.v2Scene.children
@@ -314,12 +309,17 @@ if (process.argv.includes("--playback-only")) {
     for (let repeat = 0; repeat < 2; repeat++) {
       await page.locator("canvas").focus();
       await page.keyboard.down("d");
-      await page.waitForTimeout(300);
-      await page.keyboard.up("d");
-      assert.notDeepEqual(
-        await page.evaluate(() => window.v2Camera.position.toArray()),
-        expected.position,
-      );
+      try {
+        await page.waitForFunction(
+          (position) =>
+            window.v2Camera.position
+              .toArray()
+              .some((value, index) => Math.abs(value - position[index]) > 0.1),
+          expected.position,
+        );
+      } finally {
+        await page.keyboard.up("d");
+      }
       await page.getByRole("button", { name: "Return to entrance", exact: true }).click();
       await page.waitForFunction(
         (position) =>
@@ -393,6 +393,10 @@ if (process.argv.includes("--playback-only")) {
         when: { type: "time-elapsed", seconds: 1 },
         do: { type: "navigate-scene", sceneId: first.id.toUpperCase() },
       },
+      {
+        when: { type: "time-elapsed", seconds: 1 },
+        do: { type: "print-hi" },
+      },
     ];
     second.rules = [
       {
@@ -422,7 +426,19 @@ if (process.argv.includes("--playback-only")) {
         attributeFilter: ["data-exhibition-scene"],
       });
     });
-    await page.reload();
+    const laterAction = page
+      .waitForEvent("dialog", (dialog) => dialog.type() === "alert")
+      .then(async (dialog) => {
+        const message = dialog.message();
+        await dialog.accept();
+        return message;
+      });
+    const [, message] = await Promise.all([page.reload(), laterAction]);
+    assert.equal(
+      message,
+      "hi",
+      "The next legacy action runs after automatic navigation is rejected",
+    );
     await page.waitForFunction(
       () =>
         window.enteredScenes.length >= 3 || document.querySelector(".visitor-information")?.open,
@@ -435,6 +451,13 @@ if (process.argv.includes("--playback-only")) {
         automatic: [first.id, second.id],
       },
     );
+    await page
+      .getByRole("status")
+      .getByText("Automatic scene navigation stopped at a repeated scene.", { exact: true })
+      .waitFor();
+    await page
+      .locator(`[data-exhibition-scene="${second.id}"] [data-component-id="${secondPanel.id}"]`)
+      .waitFor();
     await page.getByRole("button", { name: returnDoor.label, exact: true }).click();
     await page
       .getByRole("status")
@@ -537,15 +560,14 @@ if (process.argv.includes("--playback-only")) {
       .getByRole("status")
       .getByText(/automatic scene navigation/i)
       .waitFor();
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       window.v2Camera.position.set(10, 1.6, 5);
       window.v2Fps.syncFromCamera();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     });
-    await page.waitForTimeout(500);
     if (!(await page.locator(".visitor-information").evaluate((node) => node.open)))
       await page.locator(".visitor-information summary").click();
     await page.getByRole("button", { name: "Return to entrance", exact: true }).click();
-    await page.waitForTimeout(500);
     await page.waitForFunction(() => window.enteredScenes.length >= 3, null, { timeout: 5000 });
     assert.deepEqual((await page.evaluate(() => window.enteredScenes)).slice(0, 3), [
       first.id,
@@ -714,7 +736,6 @@ const roots=new Map(scene.objects.map(o=>{const root=new THREE.Group();root.visi
 const root=createRoot(document.getElementById("root"));
 const navigate=(scene,view)=>{calls.push([scene,view]);return true;};
 flushSync(()=>root.render(<><button id="start">Start exhibition</button><ExhibitionContent scene={scene as any} assets={data.assets} navigate={navigate} playbackReady={true}/></>));
-await new Promise(resolve=>requestAnimationFrame(resolve));
 const content=document.querySelector('[data-exhibition-scene]');
 const runtime=createVisitorPlayback(scene as any,camera,controls,roots,content,navigate,message=>reports.push(message),()=>{});
 document.querySelector('#start').addEventListener('click',()=>runtime.start());
@@ -726,6 +747,7 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
  restart:()=>createVisitorPlayback(scene as any,camera,controls,roots,content,navigate,message=>reports.push(message),()=>{}),
  hiddenPlay(){scene.rules.find(r=>r.id==="click").actions.splice(0,2,{type:"setVisible",objectId:"owner",visible:false},{type:"playMedia",mediaId:"spatial"});runtime.click("owner")},
 };
+document.dispatchEvent(new Event("visitor-playback-ready"));
 `;
   const media = {
     audio: ["../../assets/delivery/audio/calm-piano.m4a", "audio/mp4"],
@@ -742,6 +764,7 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
       .digest("hex"),
     thumbnail: null,
   }));
+  let audioGate;
   const server = await createServer({
     configFile: false,
     root: dir,
@@ -772,6 +795,13 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
         },
         configureServer(server) {
           server.middlewares.use(async (req, res, next) => {
+            if (req.url?.startsWith("/__native-media?")) {
+              res.setHeader("Content-Type", "text/html");
+              res.end(
+                '<!doctype html><html><body><button id="activate">Enable audio</button><script type="module" src="/tests/native-media-fixture.mjs"></script></body></html>',
+              );
+              return;
+            }
             if (req.url === "/__visitor-playback") {
               res.setHeader("Content-Type", "text/html");
               res.end(
@@ -789,6 +819,10 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
             }
             const id = req.url?.replace("/fixture-media/", "");
             if (media[id]) {
+              if (id === "audio" && audioGate) {
+                await audioGate;
+                if (res.destroyed) return;
+              }
               res.setHeader("Content-Type", media[id][1]);
               res.end(readFileSync(path.resolve(dir, media[id][0])));
               return;
@@ -810,6 +844,7 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
   let browser;
   try {
     browser = await launchBrowser({ target: origin });
+    await checkNativeMedia(browser, origin);
     const page = await browser.newPage({ viewport: { width: 1100, height: 850 } }),
       errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
@@ -839,17 +874,7 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
           { cause },
         );
       });
-    await page.evaluate(() => {
-      for (const id of ["bg", "spatial"]) {
-        const audio = document.querySelector(`[data-component-id="${id}"] audio`);
-        audio.realPlay = audio.play.bind(audio);
-        audio.play = () => Promise.reject(new DOMException("Blocked", "NotAllowedError"));
-      }
-      probe.runtime.begin();
-    });
-    await page.waitForFunction(
-      () => probe.reports.at(-1) === "Select Enable audio to allow playback",
-    );
+    await page.evaluate(() => probe.runtime.begin());
     assert.equal(await page.evaluate(() => probe.roots.get("other").visible), false);
     assert.equal(
       await page.locator('[data-component-id="panel"]').evaluate((node) => node.hidden),
@@ -858,31 +883,9 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
     await page.locator('[data-component-id="panel"]').evaluate((node) => {
       node.hidden = true;
     });
-    await page.evaluate(() => {
-      const audio = document.querySelector('[data-component-id="bg"] audio');
-      audio.play = audio.realPlay;
-    });
-    await page.locator("#start").click();
-    await page.waitForFunction(
-      () => document.querySelector('[data-component-id="bg"] audio').currentTime > 0,
-    );
-    assert.equal(
-      await page.evaluate(() => probe.reports.at(-1)),
-      "Select Enable audio to allow playback",
-      "A remaining blocked track keeps the warning",
-    );
-    await page.evaluate(() => {
-      const audio = document.querySelector('[data-component-id="spatial"] audio');
-      audio.play = audio.realPlay;
-    });
     await page.locator("#start").click();
     await page.waitForFunction(
       () => document.querySelector('[data-component-id="spatial"] audio').currentTime > 0,
-    );
-    assert.equal(
-      await page.evaluate(() => probe.reports.at(-1)),
-      "Exhibition ready",
-      "Successful retry clears the warning",
     );
     assert.equal(
       await page.locator('[data-component-id="panel"]').evaluate((node) => node.hidden),
@@ -1136,72 +1139,192 @@ const revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=
       probe.unmount();
     });
     // Start before verified audio arrives, including owners hidden or disposed while waiting
-    for (const state of ["playing", "hidden", "disposed", "backgrounded"]) {
-      let releaseAudio;
-      const audioGate = new Promise((resolve) => {
-        releaseAudio = resolve;
-      });
-      await page.route("**/fixture-media/audio", async (route) => {
-        await audioGate;
-        await route.continue();
-      });
-      await page.reload({ waitUntil: "domcontentloaded" });
-      await page.waitForFunction(
-        () => window.probe && document.querySelectorAll("audio").length === 3,
-      );
-      assert.equal(await page.locator('audio[src^="blob:"]').count(), 0);
-      await page.locator("#start").click();
-      if (state === "hidden") await page.evaluate(() => probe.hiddenPlay());
-      if (state === "disposed") await page.evaluate(() => probe.runtime.dispose());
-      if (state === "backgrounded") {
-        await page.evaluate(() => {
-          Object.defineProperty(document, "hidden", { configurable: true, value: true });
-          document.dispatchEvent(new Event("visibilitychange"));
-          window.hiddenPlays = 0;
-          document.querySelectorAll("audio").forEach((node) => {
-            node.addEventListener("play", () => {
-              if (document.hidden) window.hiddenPlays++;
+    for (const state of [
+      "playing",
+      "hidden",
+      "disposed",
+      "backgrounded",
+      "backgrounded-hidden",
+      "backgrounded-ready",
+    ]) {
+      const gate = Promise.withResolvers();
+      audioGate = gate.promise;
+      let phase = "opening";
+      try {
+        await withVisibilityPage(page, async (target) => {
+          await target.setVisible(true);
+          await target.goto(origin + "/__visitor-playback");
+          phase = "waiting for the runtime";
+          await target.evaluate(() => {
+            if (window.probe) return;
+            return new Promise((resolve) => {
+              document.addEventListener("visitor-playback-ready", () => resolve(), { once: true });
             });
           });
+          const hideOwner = state === "hidden" || state === "backgrounded-hidden";
+          const disposed = state === "disposed";
+          const startWhileHidden = state === "backgrounded-ready";
+          const expectedPlaying = disposed ? [] : hideOwner ? ["bg"] : ["bg", "spatial"];
+          const setup = await target.evaluate(
+            ({ hideOwner, disposed, startWhileHidden, expectedPlaying }) => {
+              const nodes = [...document.querySelectorAll("audio")];
+              const hiddenPlayAttempts = [];
+              for (const node of nodes) {
+                const play = node.play.bind(node);
+                node.play = () => {
+                  if (document.hidden) hiddenPlayAttempts.push(node.getAttribute("aria-label"));
+                  return play();
+                };
+              }
+              const waitForMedia = (node, event, ready) =>
+                new Promise((resolve, reject) => {
+                  const listeners = new AbortController();
+                  const check = () => {
+                    if (!ready()) return;
+                    listeners.abort();
+                    resolve();
+                  };
+                  node.addEventListener(event, check, { signal: listeners.signal });
+                  node.addEventListener(
+                    "error",
+                    () => {
+                      listeners.abort();
+                      reject(new Error(node.error?.message ?? "Audio did not load"));
+                    },
+                    { signal: listeners.signal },
+                  );
+                  check();
+                });
+              const loaded = Promise.all(
+                nodes.map((node) => waitForMedia(node, "loadeddata", () => node.readyState >= 2)),
+              );
+              const sources = new Promise((resolve) => {
+                const check = () => {
+                  if (!nodes.every((node) => node.src.startsWith("blob:"))) return;
+                  observer.disconnect();
+                  resolve();
+                };
+                const observer = new MutationObserver(check);
+                for (const node of nodes) observer.observe(node, { attributeFilter: ["src"] });
+                check();
+              });
+              const playing = Promise.all(
+                nodes
+                  .filter((node) => expectedPlaying.includes(node.getAttribute("aria-label")))
+                  .map((node) =>
+                    waitForMedia(node, "timeupdate", () => !node.paused && node.currentTime > 0),
+                  ),
+              );
+              window.delayedAudio = { loaded, playing, sources, hiddenPlayAttempts };
+              if (!startWhileHidden) document.querySelector("#start").click();
+              if (hideOwner) probe.hiddenPlay();
+              if (disposed) probe.runtime.dispose();
+              return {
+                visible: !document.hidden,
+                tracks: nodes.length,
+                available: nodes.filter((node) => node.hasAttribute("src")).length,
+              };
+            },
+            { hideOwner, disposed, startWhileHidden, expectedPlaying },
+            { userGesture: true },
+          );
+          assert.deepEqual(setup, { visible: true, tracks: 3, available: 0 });
+          const backgrounded = state.startsWith("backgrounded");
+          if (backgrounded && !startWhileHidden) await target.setVisible(false);
+          phase = "waiting for verified media sources";
+          gate.resolve();
+          await target.evaluate(async () => {
+            await window.delayedAudio.sources;
+          });
+          if (startWhileHidden) {
+            phase = "decoding audio before backgrounding";
+            await target.evaluate(async () => {
+              await window.delayedAudio.loaded;
+            });
+            await target.setVisible(false);
+            await target.evaluate(() => document.querySelector("#start").click(), undefined, {
+              userGesture: true,
+            });
+          }
+          if (backgrounded) {
+            assert.deepEqual(
+              await target.evaluate(() => ({
+                hidden: document.hidden,
+                playing: [...document.querySelectorAll("audio")].some((node) => !node.paused),
+                hiddenPlayAttempts: window.delayedAudio.hiddenPlayAttempts,
+              })),
+              { hidden: true, playing: false, hiddenPlayAttempts: [] },
+            );
+            if (startWhileHidden) {
+              assert.equal(
+                await target.evaluate(() =>
+                  [...document.querySelectorAll("audio")].every((node) => node.readyState >= 2),
+                ),
+                true,
+              );
+            }
+            await target.setVisible(true);
+          }
+          phase = "waiting for audio to decode";
+          await target.evaluate(async () => {
+            await window.delayedAudio.loaded;
+          });
+          phase = "waiting for playback";
+          await target.evaluate(async () => {
+            await window.delayedAudio.playing;
+          });
+          assert.deepEqual(
+            await target.evaluate(() =>
+              [...document.querySelectorAll("audio")]
+                .filter((node) => !node.paused)
+                .map((node) => node.getAttribute("aria-label")),
+            ),
+            expectedPlaying,
+            state,
+          );
+          if (state === "backgrounded-ready") {
+            phase = "pausing active spatial audio in the background";
+            await target.evaluate(() => {
+              const audio = document.querySelector('audio[aria-label="spatial"]');
+              const paused = new Promise((resolve) => {
+                audio.addEventListener("pause", () => resolve(), { once: true });
+              });
+              window.spatialVisibility = { audio, paused };
+            });
+            await target.setVisible(false);
+            assert.deepEqual(
+              await target.evaluate(async () => {
+                const { audio, paused } = window.spatialVisibility;
+                await paused;
+                window.spatialVisibility.resumed = new Promise((resolve) => {
+                  audio.addEventListener("playing", () => resolve(), { once: true });
+                });
+                return { hidden: document.hidden, paused: audio.paused };
+              }),
+              { hidden: true, paused: true },
+            );
+            phase = "resuming active spatial audio in the foreground";
+            await target.setVisible(true);
+            assert.deepEqual(
+              await target.evaluate(async () => {
+                const { audio, resumed } = window.spatialVisibility;
+                await resumed;
+                return { hidden: document.hidden, paused: audio.paused };
+              }),
+              { hidden: false, paused: false },
+            );
+          }
+          await target.evaluate((disposed) => {
+            if (!disposed) probe.runtime.dispose();
+            probe.unmount();
+          }, disposed);
         });
+      } catch (error) {
+        throw new Error(`Delayed audio (${state}) failed while ${phase}`, { cause: error });
+      } finally {
+        audioGate = undefined;
+        gate.resolve();
       }
-      releaseAudio();
-      await page.waitForFunction(() =>
-        [...document.querySelectorAll("audio")].every((node) => node.readyState >= 2),
-      );
-      if (state === "backgrounded") {
-        assert.equal(await page.evaluate(() => window.hiddenPlays), 0);
-        assert.equal(await page.locator('[aria-label="bg"]').evaluate((node) => node.paused), true);
-        await page.evaluate(() => {
-          delete document.hidden;
-          document.dispatchEvent(new Event("visibilitychange"));
-        });
-      }
-      if (state !== "disposed") {
-        await page.waitForFunction(() => {
-          const node = document.querySelector('[aria-label="bg"]');
-          return !node.paused && node.currentTime > 0;
-        });
-      }
-      if (state === "playing" || state === "backgrounded") {
-        await page.waitForFunction(() => !document.querySelector('[aria-label="spatial"]').paused);
-      } else {
-        assert.equal(
-          await page.locator('[aria-label="spatial"]').evaluate((node) => node.paused),
-          true,
-        );
-      }
-      if (state === "disposed")
-        assert.equal(await page.locator('[aria-label="bg"]').evaluate((node) => node.paused), true);
-      assert.equal(
-        await page.locator('[aria-label="hidden-audio"]').evaluate((node) => node.paused),
-        true,
-      );
-      await page.evaluate((disposed) => {
-        if (!disposed) probe.runtime.dispose();
-        probe.unmount();
-      }, state === "disposed");
-      await page.unroute("**/fixture-media/audio");
     }
     assert.deepEqual(errors, []);
     console.log(

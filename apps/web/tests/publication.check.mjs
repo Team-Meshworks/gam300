@@ -1,3 +1,4 @@
+import { exhaustStorage } from "./local-storage-quota.mjs";
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
 
@@ -105,6 +106,11 @@ try {
   await page.goto(`${origin}/publish?projectId=${projectId}`);
   await page.getByRole("heading", { name: "Publish project" }).waitFor();
   await page.getByText("Saved exhibition", { exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole("listbox").isVisible(),
+    false,
+    "Collapsed audience options stay hidden",
+  );
   const qr = page.getByRole("img", { name: /QR code/i });
   assert.equal(await qr.count(), 0, "No QR code before publication succeeds");
   assert.equal(await page.getByText(/revision 4/i).isVisible(), true);
@@ -141,10 +147,10 @@ try {
   await page
     .getByRole("button", { name: "Log Out", exact: true })
     .evaluate((button) => button.click());
-  await page.waitForTimeout(200);
-  assert.equal(logoutPosts, 0, "A pending publication must block header logout");
+  assert.equal(await qr.count(), 0, "An in-flight publication must not expose a QR code");
   releasePublish();
   await page.getByText(/could not be confirmed/i).waitFor();
+  assert.equal(logoutPosts, 0, "A pending publication must block header logout");
   assert.equal(await page.getByRole("link", { name: /open publication/i }).count(), 0);
   assert.equal(await qr.count(), 0, "An uncertain publication must not expose a QR code");
   assert.deepEqual(requests[0].intent, { audience: "Authenticated", viewerIds: [student] });
@@ -178,9 +184,7 @@ try {
   await linkField.focus();
   await page.keyboard.press("Tab");
   assert.equal(await copyButton.evaluate((element) => element === document.activeElement), true);
-  await page.evaluate(() => {
-    Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject() } });
-  });
+  await page.context().grantPermissions([], { origin });
   await page.keyboard.press("Enter");
   await page.getByText("Copy the link from the field above.").waitFor();
   const decoderAvailable = await page.evaluate(() => "BarcodeDetector" in window);
@@ -268,9 +272,15 @@ try {
   // Anonymous audience choices carry no stale named viewers and require fresh confirmation
   for (const audience of ["Public", "Unlisted"]) {
     await page.reload();
+    assert.equal(await page.getByRole("listbox").isVisible(), false);
+    await page.getByRole("combobox", { name: "Who can open this publication" }).click();
     await page
-      .getByRole("combobox", { name: "Who can open this publication" })
-      .selectOption(audience);
+      .getByRole("option", {
+        name: audience === "Public" ? "Anyone without signing in" : "Anyone with the link",
+        exact: true,
+      })
+      .click();
+    assert.equal(await page.getByRole("listbox").isVisible(), false);
     assert.equal(await page.getByRole("checkbox", { name: "Student 1", exact: true }).count(), 0);
     await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
     outcome = "conflict";
@@ -283,15 +293,12 @@ try {
   currentSession = session;
   await page.reload();
   await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
-  await page.evaluate(() => {
-    Storage.prototype.setItem = () => {
-      throw new DOMException("Blocked", "QuotaExceededError");
-    };
-  });
+  const restoreStorage = await exhaustStorage(page, "sessionStorage");
   const countBeforeStorageFailure = requests.length;
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await page.getByText(/could not safely store.*request/i).waitFor();
   assert.equal(requests.length, countBeforeStorageFailure);
+  await restoreStorage();
   // A confirmed modal publication must leave without its own pending guard blocking navigation
   outcome = "saved";
   await page.route("**/workspace/main.tsx*", async (route) => {

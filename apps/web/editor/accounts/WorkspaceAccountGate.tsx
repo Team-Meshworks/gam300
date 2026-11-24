@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react
 import { Button } from "../../shared/ui/Button";
 import { ModalActivity } from "../../shared/ui/useModal";
 import { createAccountClient, type AccountSession } from "./account-client";
+import { WorkspaceLoading } from "./WorkspaceLoading";
 import { LoginRedirect } from "./LoginRedirect";
 import { createWorkspaceAccount } from "./workspace-account";
 import "./workspace-account.css";
@@ -40,6 +41,7 @@ export function WorkspaceAccountGate({
   const session = state.workspace;
   const active = state.kind === "ready";
   const rechecking = state.kind === "checking" && session !== null;
+  if (state.kind === "checking" && !session) return <WorkspaceLoading />;
   return (
     <>
       {active && (
@@ -49,8 +51,8 @@ export function WorkspaceAccountGate({
       )}
       {!active && (
         <main className={`sp-account-gate${rechecking ? " sp-account-gate--rechecking" : ""}`}>
-          {state.kind === "checking" && (
-            <p role="status" className={rechecking ? "sp-sr-only" : undefined}>
+          {rechecking && (
+            <p role="status" className="sp-sr-only">
               Checking your session…
             </p>
           )}

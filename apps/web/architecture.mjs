@@ -151,6 +151,7 @@ export const modules = {
     uses: [],
     packages: [
       "react",
+      "skullet",
       "@fortawesome/react-fontawesome",
       "@fortawesome/free-solid-svg-icons",
       "@iconify/react",
@@ -158,20 +159,24 @@ export const modules = {
     ],
     public: [
       "shared/ui/Button.tsx",
+      "shared/ui/LoadingSkeleton.tsx",
       "shared/ui/Select.tsx",
       "shared/ui/Field.tsx",
       "shared/ui/Avatar.tsx",
       "shared/ui/Tabs.tsx",
+      "shared/ui/SelectionBar.tsx",
+      "shared/ui/SelectionToggle.tsx",
       "shared/ui/Dialog.tsx",
       "shared/ui/useModal.ts",
       "shared/ui/PageState.tsx",
       "shared/ui/SearchField.tsx",
       "shared/ui/Table.tsx",
       "shared/ui/WorkspaceShell.tsx",
-      "shared/ui/assets/facilitator-ambient-top.svg",
-      "shared/ui/assets/facilitator-ambient-bottom.svg",
+      "shared/ui/assets/workspace-ambient-top.svg",
+      "shared/ui/assets/workspace-ambient-bottom.svg",
       "shared/ui/WorkspaceHeader.tsx",
       "shared/ui/foundation.css",
+      "shared/ui/inter-font.css",
     ],
   },
   editor: {
@@ -290,7 +295,7 @@ export function scan(root = webRoot) {
     if (["virtual:asset-catalogue", "/@id/__x00__virtual:asset-catalogue"].includes(specifier)) {
       return "shared/asset-runtime/catalogue.ts";
     }
-    const clean = specifier.replace(/(?<=[^?#])[?#].*$/, "");
+    const clean = specifier.replace(/(?<=[^?#])[?#].*$/, "").replace(/^\/@id\/three$/, "three");
     const request = clean.startsWith("/") ? resolve(root, "editor", clean.slice(1)) : clean;
     const found = ts.resolveModuleName(
       request,

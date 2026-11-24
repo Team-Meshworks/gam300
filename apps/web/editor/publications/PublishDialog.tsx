@@ -70,18 +70,15 @@ export function PublishDialog({
       {!session && (
         <PublishStatus
           state="checking"
+          loading={!error}
           titleId="creator-publish-title"
           closeLabel="Close publish project"
           onClose={closeDialog}
           actions={null}
         >
-          {error ? (
+          {error && (
             <p role="alert" className="creator-approval-error">
               {error}
-            </p>
-          ) : (
-            <p role="status" className="publish-status-loading">
-              Preparing your saved project…
             </p>
           )}
         </PublishStatus>

@@ -1,5 +1,6 @@
-import { expect, it, vi } from "vitest";
-import { createDirectoryClient, DirectoryWriteUnconfirmed } from "./directory-client";
+import { expect, it } from "vitest";
+import { serveHttp, serveResponses } from "../../tests/http-fixture";
+import { createDirectoryClient } from "./directory-client";
 
 const user = {
   userId: "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e",
@@ -12,53 +13,7 @@ const user = {
 };
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
-it("requires directory reconciliation only when a dispatched import lacks a valid receipt", async () => {
-  const values = [
-    {
-      displayName: "Sample",
-      userName: "sample",
-      role: "Creator" as const,
-      initialPassword: "sample initial value",
-    },
-  ];
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({}, 503))
-    .mockResolvedValueOnce(json({ requestToken: "token" }))
-    .mockResolvedValueOnce(json({ code: "invalid_account_input" }, 400))
-    .mockResolvedValueOnce(json({ requestToken: "token" }))
-    .mockResolvedValueOnce(json([], 503))
-    .mockResolvedValueOnce(json({ requestToken: "token" }))
-    .mockResolvedValueOnce(json([user], 201));
-  const client = createDirectoryClient(request, user.userId);
-  await expect(client.createBulk(user.orgId, values)).rejects.not.toBeInstanceOf(
-    DirectoryWriteUnconfirmed,
-  );
-  await expect(client.createBulk(user.orgId, values)).rejects.not.toBeInstanceOf(
-    DirectoryWriteUnconfirmed,
-  );
-  await expect(client.createBulk(user.orgId, values)).rejects.toBeInstanceOf(
-    DirectoryWriteUnconfirmed,
-  );
-  await expect(client.createBulk(user.orgId, values)).rejects.toBeInstanceOf(
-    DirectoryWriteUnconfirmed,
-  );
-  expect(request.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(3);
-});
-
 it("loads every page within the selected organisation", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({ items: [user], nextCursor: user.userId }))
-    .mockResolvedValueOnce(json({ items: [], nextCursor: null }));
-  expect(await createDirectoryClient(request).accounts(user.orgId)).toEqual([user]);
-  expect(String(request.mock.calls[1]?.[0])).toContain(
-    `orgId=${user.orgId}&limit=100&cursor=${user.userId}`,
-  );
-  expect(request.mock.calls[0]?.[1]).toMatchObject({
-    credentials: "same-origin",
-    cache: "no-store",
-  });
   const organization = {
     id: user.orgId,
     name: "School",
@@ -67,35 +22,45 @@ it("loads every page within the selected organisation", async () => {
     facilitatorCount: 1,
     creatorCount: 3,
   };
-  request.mockResolvedValueOnce(json({ items: [organization], nextCursor: null }));
-  expect(
-    await createDirectoryClient(request, user.userId).organizations("Aisyah 100%_ School"),
-  ).toEqual([organization]);
-  expect(String(request.mock.calls[2]?.[0])).toContain("q=Aisyah%20100%25_%20School&limit=100");
-  expect(request.mock.calls[2]?.[1]?.headers).toMatchObject({ "X-Spatia-Account": user.userId });
+
   const project = { id: user.userId, title: "Project", status: "Draft", isPublic: true };
-  request.mockResolvedValueOnce(json({ items: [project], nextCursor: null }));
-  expect(await createDirectoryClient(request, user.userId).projects(user.orgId)).toEqual([project]);
+  const request = await serveResponses(
+    json({ items: [user], nextCursor: user.userId }),
+    json({ items: [], nextCursor: null }),
+    json({ items: [organization], nextCursor: null }),
+    json({ items: [project], nextCursor: null }),
+  );
+  expect(await createDirectoryClient(request.fetch).accounts(user.orgId)).toEqual([user]);
+  expect(new URL(request.requests[1]!.url).search).toBe(
+    `?orgId=${user.orgId}&limit=100&cursor=${user.userId}`,
+  );
+  expect(request.requests[0]).toMatchObject({ credentials: "same-origin", cache: "no-store" });
+  expect(
+    await createDirectoryClient(request.fetch, user.userId).organizations("Aisyah 100%_ School"),
+  ).toEqual([organization]);
+  expect(new URL(request.requests[2]!.url).search).toBe("?q=Aisyah%20100%25_%20School&limit=100");
+  expect(request.requests[2]?.headers.get("X-Spatia-Account")).toBe(user.userId);
+  expect(await createDirectoryClient(request.fetch, user.userId).projects(user.orgId)).toEqual([
+    project,
+  ]);
 });
 it("sends only overridden fields with a fresh CSRF token", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
-    .mockResolvedValueOnce(json(user));
-  await createDirectoryClient(request).update(user.userId, { displayName: "Aisyah Abdullah" });
-  expect(request.mock.calls[1]?.[1]).toMatchObject({
-    method: "PATCH",
-    headers: { "X-CSRF-TOKEN": "csrf" },
-    body: JSON.stringify({ displayName: "Aisyah Abdullah" }),
+  const request = await serveResponses(json({ requestToken: "csrf" }), json(user));
+  await createDirectoryClient(request.fetch).update(user.userId, {
+    displayName: "Aisyah Abdullah",
   });
+  const mutation = request.requests[1]!;
+  expect(mutation.method).toBe("PATCH");
+  expect(mutation.headers.get("X-CSRF-TOKEN")).toBe("csrf");
+  expect(await mutation.json()).toEqual({ displayName: "Aisyah Abdullah" });
 });
 it("reports duplicate usernames without returning a successful account", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
-    .mockResolvedValueOnce(json({ code: "username_taken" }, 409));
+  const request = await serveResponses(
+    json({ requestToken: "csrf" }),
+    json({ code: "username_taken" }, 409),
+  );
   await expect(
-    createDirectoryClient(request).create(user.orgId, {
+    createDirectoryClient(request.fetch).create(user.orgId, {
       displayName: user.displayName,
       userName: user.userName,
       role: "Creator",
@@ -104,22 +69,20 @@ it("reports duplicate usernames without returning a successful account", async (
   ).rejects.toThrow("already taken");
 });
 it("rejects malformed accounts, repeated cursors and unverified CSRF responses", async () => {
-  const invalid = vi.fn<typeof fetch>().mockResolvedValue(json({ ...user, role: "Superuser" }));
-  await expect(createDirectoryClient(invalid).getAccount(user.userId)).rejects.toThrow(
+  const invalid = await serveResponses(json({ ...user, role: "Superuser" }));
+  await expect(createDirectoryClient(invalid.fetch).getAccount(user.userId)).rejects.toThrow(
     "invalid account",
   );
-  const repeated = vi
-    .fn<typeof fetch>()
-    .mockImplementation(async () => json({ items: [user], nextCursor: user.userId }));
-  await expect(createDirectoryClient(repeated).accounts(user.orgId)).rejects.toThrow(
+  const repeated = await serveHttp(async () => json({ items: [user], nextCursor: user.userId }));
+  await expect(createDirectoryClient(repeated.fetch).accounts(user.orgId)).rejects.toThrow(
     "finish loading",
   );
-  const csrf = vi.fn<typeof fetch>().mockResolvedValue(json({ requestToken: "" }));
+  const csrf = await serveResponses(json({ requestToken: "" }));
   await expect(
-    createDirectoryClient(csrf).update(user.userId, { displayName: "Name" }),
+    createDirectoryClient(csrf.fetch).update(user.userId, { displayName: "Name" }),
   ).rejects.toThrow("verified");
-  expect(csrf).toHaveBeenCalledTimes(1);
-  const malformedTotals = vi.fn<typeof fetch>().mockResolvedValue(
+  expect(csrf.requests).toHaveLength(1);
+  const malformedTotals = await serveResponses(
     json({
       items: [
         {
@@ -134,19 +97,16 @@ it("rejects malformed accounts, repeated cursors and unverified CSRF responses",
       nextCursor: null,
     }),
   );
-  await expect(createDirectoryClient(malformedTotals).organizations()).rejects.toThrow(
+  await expect(createDirectoryClient(malformedTotals.fetch).organizations()).rejects.toThrow(
     "Invalid organisation",
   );
 });
 it("does not retry an unconfirmed write automatically", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
-    .mockRejectedValueOnce(new Error("network"));
+  const request = await serveResponses(json({ requestToken: "csrf" }), Response.error());
   await expect(
-    createDirectoryClient(request).update(user.userId, { userName: "new" }),
+    createDirectoryClient(request.fetch).update(user.userId, { userName: "new" }),
   ).rejects.toThrow("refresh the directory");
-  expect(request).toHaveBeenCalledTimes(2);
+  expect(request.requests).toHaveLength(2);
 });
 
 const deletion = {
@@ -161,77 +121,71 @@ const deletion = {
   publications: 1,
 };
 it("loads deletion counts and requires a valid summary for the selected organisation", async () => {
-  const request = vi.fn<typeof fetch>().mockResolvedValue(json(deletion));
-  expect(await createDirectoryClient(request).deletion(user.orgId)).toEqual(deletion);
-  for (const invalid of [
+  const invalid = [
     { ...deletion, id: user.userId },
     { ...deletion, accounts: -1 },
     { ...deletion, projects: 0.5 },
     { ...deletion, publications: null },
-  ]) {
-    request.mockResolvedValueOnce(json(invalid));
-    await expect(createDirectoryClient(request).deletion(user.orgId)).rejects.toThrow();
+  ];
+  const request = await serveResponses(json(deletion), ...invalid.map((value) => json(value)));
+  const client = createDirectoryClient(request.fetch);
+  expect(await client.deletion(user.orgId)).toEqual(deletion);
+  for (const _value of invalid) {
+    await expect(client.deletion(user.orgId)).rejects.toThrow("deletion details");
   }
 });
 it("binds deletion and its fresh CSRF token to the administrator who opened the screen", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
-    .mockResolvedValueOnce(new Response(null, { status: 204 }));
-  await createDirectoryClient(request, user.userId).deleteOrganization(user.orgId, deletion.name);
-  expect(request.mock.calls[0]?.[1]).toMatchObject({
-    headers: { "X-Spatia-Account": user.userId },
-  });
-  expect(request.mock.calls[1]).toEqual([
-    `/api/v1/admin/organizations/${user.orgId}/deletion`,
-    expect.objectContaining({
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-TOKEN": "csrf",
-        "X-Spatia-Account": user.userId,
-      },
-      body: JSON.stringify({ confirmationName: deletion.name }),
-      credentials: "same-origin",
-      cache: "no-store",
-    }),
-  ]);
+  const request = await serveResponses(
+    json({ requestToken: "csrf" }),
+    new Response(null, { status: 204 }),
+  );
+  await createDirectoryClient(request.fetch, user.userId).deleteOrganization(
+    user.orgId,
+    deletion.name,
+  );
+  expect(request.requests[0]?.headers.get("X-Spatia-Account")).toBe(user.userId);
+  const mutation = request.requests[1]!;
+  expect(new URL(mutation.url).pathname).toBe(`/api/v1/admin/organizations/${user.orgId}/deletion`);
+  expect(mutation).toMatchObject({ method: "POST", credentials: "same-origin", cache: "no-store" });
+  expect(mutation.headers.get("Content-Type")).toBe("application/json");
+  expect(mutation.headers.get("X-CSRF-TOKEN")).toBe("csrf");
+  expect(mutation.headers.get("X-Spatia-Account")).toBe(user.userId);
+  expect(await mutation.json()).toEqual({ confirmationName: deletion.name });
 });
 it("reports deletion conflicts and never retries an uncertain delete", async () => {
-  const request = vi
-    .fn<typeof fetch>()
-    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
-    .mockResolvedValueOnce(json({ code: "organization_delete_conflict" }, 409))
-    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
-    .mockRejectedValueOnce(new Error("network"));
-  const client = createDirectoryClient(request);
+  const request = await serveResponses(
+    json({ requestToken: "csrf" }),
+    json({ code: "organization_delete_conflict" }, 409),
+    json({ requestToken: "csrf" }),
+    Response.error(),
+    json({ requestToken: "csrf" }),
+    Response.error(),
+  );
+  const client = createDirectoryClient(request.fetch);
   await expect(client.deleteOrganization(user.orgId, deletion.name)).rejects.toThrow(
     "Nothing was deleted",
   );
   await expect(client.deleteOrganization(user.orgId, deletion.name)).rejects.toThrow(
     "Deletion could not be confirmed",
   );
-  expect(request).toHaveBeenCalledTimes(4);
-  request
-    .mockResolvedValueOnce(json({ requestToken: "csrf" }))
-    .mockRejectedValueOnce(new Error("network"));
+  expect(request.requests).toHaveLength(4);
   await expect(client.deleteAccount(user.userId)).rejects.toThrow(
     "Deletion could not be confirmed",
   );
-  expect(request).toHaveBeenCalledTimes(6);
-  expect(request.mock.calls[5]?.[1]).toMatchObject({ method: "DELETE" });
+  expect(request.requests).toHaveLength(6);
+  expect(request.requests[5]).toMatchObject({ method: "DELETE" });
 });
 it.each([200, 404, 405])(
   "requires a confirmed deletion without falling back on HTTP %d",
   async (status) => {
-    const request = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(json({ requestToken: "csrf" }))
-      .mockResolvedValueOnce(json({}, status));
+    const request = await serveResponses(json({ requestToken: "csrf" }), json({}, status));
     await expect(
-      createDirectoryClient(request, user.userId).deleteOrganization(user.orgId, deletion.name),
+      createDirectoryClient(request.fetch, user.userId).deleteOrganization(
+        user.orgId,
+        deletion.name,
+      ),
     ).rejects.toThrow();
-    expect(request).toHaveBeenCalledTimes(2);
-    expect(request.mock.calls[1]?.[1]?.method).toBe("POST");
+    expect(request.requests).toHaveLength(2);
+    expect(request.requests[1]?.method).toBe("POST");
   },
 );

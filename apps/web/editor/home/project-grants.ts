@@ -1,7 +1,8 @@
 import { combineAbortSignals } from "../../shared/network/abort-signals";
 import { createAccountClient } from "../accounts/account-client";
 import { createDirectoryClient, type ManagedAccount } from "../directory/directory-client";
-import { createWorkspaceClient, isId, isRecord } from "./workspace-api";
+import { createWorkspaceClient, isId } from "./workspace-api";
+import { isRecord } from "../../shared/project/validation-helpers";
 
 export type ProjectGrantSnapshot = {
   projectId: string;
@@ -20,26 +21,52 @@ export type ProjectGrantDraft = {
 export function parseProjectGrants(value: unknown, projectId: string): ProjectGrantSnapshot {
   if (
     !isRecord(value) ||
+    !("projectId" in value) ||
+    !("organizationId" in value) ||
+    !("revision" in value) ||
+    !("archived" in value) ||
+    !("assignments" in value) ||
     !isId(value.projectId) ||
     value.projectId !== projectId ||
     !isId(value.organizationId) ||
+    typeof value.revision !== "number" ||
     !Number.isSafeInteger(value.revision) ||
-    (value.revision as number) < 0 ||
+    value.revision < 0 ||
     typeof value.archived !== "boolean" ||
-    !Array.isArray(value.assignments) ||
-    value.assignments.some(
-      (row) =>
-        !isRecord(row) ||
-        !isId(row.userId) ||
-        typeof row.canEdit !== "boolean" ||
-        typeof row.canManage !== "boolean" ||
-        typeof row.canPublish !== "boolean",
-    ) ||
-    new Set(value.assignments.map((row: { userId: string }) => row.userId)).size !==
-      value.assignments.length
+    !Array.isArray(value.assignments)
   )
     throw new Error("The project's current access could not be verified.");
-  return value as unknown as ProjectGrantSnapshot;
+  const assignments = value.assignments.map((row: unknown) => {
+    if (
+      !isRecord(row) ||
+      !("userId" in row) ||
+      !("canEdit" in row) ||
+      !("canManage" in row) ||
+      !("canPublish" in row) ||
+      !isId(row.userId) ||
+      typeof row.canEdit !== "boolean" ||
+      typeof row.canManage !== "boolean" ||
+      typeof row.canPublish !== "boolean"
+    )
+      throw new Error("The project's current access could not be verified.");
+    return {
+      ...row,
+      userId: row.userId,
+      canEdit: row.canEdit,
+      canManage: row.canManage,
+      canPublish: row.canPublish,
+    };
+  });
+  if (new Set(assignments.map((row) => row.userId)).size !== assignments.length)
+    throw new Error("The project's current access could not be verified.");
+  return {
+    ...value,
+    projectId: value.projectId,
+    organizationId: value.organizationId,
+    revision: value.revision,
+    archived: value.archived,
+    assignments,
+  };
 }
 
 const unavailable = () =>
