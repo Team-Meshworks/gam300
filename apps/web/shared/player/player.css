@@ -82,6 +82,9 @@
   max-height: 65dvh;
   overflow: auto;
 }
+.visitor-information.is-hidden {
+  display: none;
+}
 .visitor-information summary {
   list-style: none;
 }
@@ -121,7 +124,7 @@
 .visitor-media-dialog {
   width: min(90vw, 960px);
   max-width: none;
-  max-height: 86dvh;
+  max-height: 92dvh;
   padding: 2.75rem 1.5rem 1.5rem;
   border: 1px solid #ded7cc;
   border-radius: 1rem;
@@ -144,7 +147,7 @@
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: 70dvh;
+  max-height: 78dvh;
   object-fit: contain;
   margin-inline: auto;
 }

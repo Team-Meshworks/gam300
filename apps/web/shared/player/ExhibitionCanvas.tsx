@@ -100,6 +100,18 @@ export function ExhibitionCanvas({
     fps.setFlightAllowed(false);
     fps.onNavigationInput = beginNavigationEvent;
     fps.onCaptureChange = () => setCaptured(fps.isCaptured());
+    let resumeInput = false;
+    const modalInput = (event: Event) => {
+      if ((event as CustomEvent<boolean>).detail) {
+        resumeInput = fps.isEngaged();
+        fps.disengage();
+      } else if (resumeInput) {
+        resumeInput = false;
+        fps.engage();
+      }
+    };
+    const preview = host.closest(".visitor-preview");
+    preview?.addEventListener("exhibit-modal", modalInput);
     const controls = {
       target: new THREE.Vector3(),
       update: () => fps.syncFromCamera(),
@@ -464,6 +476,7 @@ export function ExhibitionCanvas({
     });
     return () => {
       controller.abort();
+      preview?.removeEventListener("exhibit-modal", modalInput);
       document.removeEventListener("visibilitychange", visibilityChanged);
       onPlaybackReady(false);
       playback?.dispose();

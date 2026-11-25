@@ -161,8 +161,13 @@ export function ExhibitionContent({
   useEffect(() => {
     const node = dialog.current;
     if (!node) return;
-    if (modalItem && !node.open) node.showModal();
-    if (!modalItem && node.open) node.close();
+    if (modalItem) {
+      if (document.pointerLockElement) document.exitPointerLock();
+      if (!node.open) node.showModal();
+    } else if (node.open) node.close();
+    node.dispatchEvent(
+      new CustomEvent("exhibit-modal", { detail: Boolean(modalItem), bubbles: true }),
+    );
   }, [modalItem]);
   useEffect(() => {
     setModalItem(null);
@@ -175,16 +180,18 @@ export function ExhibitionContent({
       const id = (event as CustomEvent<string>).detail;
       const object = scene.objects.find((item) => item.id === id);
       if (!object || !("components" in object) || !Array.isArray(object.components)) return;
-      if (object.components.length) open();
       const asset = assets.find((entry) => entry.id === object.assetId);
-      if (asset?.displayRole !== "digital" && !asset?.displaySurface) return;
-      const item = object.components.find(
-        (entry): entry is DisplayComponent =>
-          entry.type === "text" || entry.type === "image" || entry.type === "video",
-      );
-      if (!item) return;
-      open();
-      setModalItem(item);
+      if (asset?.displayRole === "digital" || asset?.displaySurface) {
+        const item = object.components.find(
+          (entry): entry is DisplayComponent =>
+            entry.type === "text" || entry.type === "image" || entry.type === "video",
+        );
+        if (item) {
+          setModalItem(item);
+          return;
+        }
+      }
+      if (object.components.length) open();
     };
     content?.addEventListener("exhibit-inspect", inspect);
     content?.addEventListener("exhibit-show-panel", open);
@@ -257,7 +264,7 @@ export function ExhibitionContent({
   }
   return (
     <>
-      <details className="visitor-information" ref={details}>
+      <details className={`visitor-information${modalItem ? " is-hidden" : ""}`} ref={details}>
         <summary>Exhibit information</summary>
         <section ref={section} aria-label="Exhibit information" data-exhibition-scene={scene.id}>
           {("audio" in scene ? scene.audio : [])?.map((item) => component(item))}

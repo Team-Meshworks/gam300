@@ -735,6 +735,7 @@ const controls={target:new THREE.Vector3(),update(){}};
 const roots=new Map(scene.objects.map(o=>{const root=new THREE.Group();root.visible=o.visible;return[o.id,root]}));
 const root=createRoot(document.getElementById("root"));
 const navigate=(scene,view)=>{calls.push([scene,view]);return true;};
+(window as any).modalEvents=[];document.addEventListener("exhibit-modal",e=>(window as any).modalEvents.push(e.detail));
 flushSync(()=>root.render(<><button id="start">Start exhibition</button><ExhibitionContent scene={scene as any} assets={data.assets} navigate={navigate} playbackReady={true}/></>));
 const content=document.querySelector('[data-exhibition-scene]');
 const runtime=createVisitorPlayback(scene as any,camera,controls,roots,content,navigate,message=>reports.push(message),()=>{});
@@ -968,6 +969,8 @@ document.dispatchEvent(new Event("visitor-playback-ready"));
     const displayModal = page.locator(".visitor-media-dialog");
     await displayModal.waitFor({ state: "visible" });
     assert.equal(await displayModal.evaluate((node) => node.matches(":modal")), true);
+    assert.equal(await page.locator(".visitor-information").isVisible(), false);
+    assert.equal(await page.evaluate(() => window.modalEvents.at(-1)), true);
     await displayModal.locator("img").waitFor();
     const centering = await displayModal.evaluate((node) => {
       const imageBox = node.querySelector("img").getBoundingClientRect();
@@ -985,6 +988,8 @@ document.dispatchEvent(new Event("visitor-playback-ready"));
     );
     await displayModal.getByRole("button", { name: "Close exhibit media" }).click();
     await displayModal.waitFor({ state: "hidden" });
+    assert.equal(await page.locator(".visitor-information").isVisible(), true);
+    assert.equal(await page.evaluate(() => window.modalEvents.at(-1)), false);
     // Gaze requires a continuous dwell and resets when the visitor looks away
     await page.evaluate(() => probe.runtime.update(0.5, "owner"));
     assert.equal(await page.locator('[data-component-id="panel"]').evaluate((n) => n.hidden), true);
