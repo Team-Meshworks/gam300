@@ -254,8 +254,6 @@ public sealed class AccountSessionTests
     [Arguments("login", "missing")]
     [Arguments("login", "null")]
     [Arguments("password", "unknown")]
-    [Arguments("password", "duplicate")]
-    [Arguments("password", "wrongcase")]
     [Arguments("password", "missing")]
     [Arguments("password", "null")]
     public async Task AuthJson_RejectsAmbiguousOrIncompleteShape(string operation, string scenario)

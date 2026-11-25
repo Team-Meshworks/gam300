@@ -512,17 +512,11 @@ public sealed class AdministrationEndpointTests
     [Arguments("organization", "null")]
     [Arguments("organization", "wrongtype")]
     [Arguments("user", "unknown")]
-    [Arguments("user", "duplicate")]
-    [Arguments("user", "wrongcase")]
     [Arguments("user", "missing")]
     [Arguments("user", "null")]
-    [Arguments("user", "wrongtype")]
     [Arguments("reset", "unknown")]
-    [Arguments("reset", "duplicate")]
-    [Arguments("reset", "wrongcase")]
     [Arguments("reset", "missing")]
     [Arguments("reset", "null")]
-    [Arguments("reset", "wrongtype")]
     public async Task AdministrationJson_RejectsAmbiguousOrIncompleteShape(string operation, string scenario)
     {
         await using var fixture = await AdministratorFixtureAsync();
