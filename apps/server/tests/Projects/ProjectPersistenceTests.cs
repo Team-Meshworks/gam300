@@ -191,7 +191,7 @@ public sealed class ProjectPersistenceTests
     public async Task ProjectDatabase_FreshSchemaMigrations_RoundTripProjectAndAssignments()
     {
         var digest = Enumerable.Range(0, 32).Select(index => (byte)index).ToArray();
-        await using var fixture = await PostgresAccountFixture.CreateAsync();
+        await using var fixture = await PostgresAccountFixture.CreateAsync(targetMigration: null);
 
         await using (var scope = fixture.Services.CreateAsyncScope())
         {

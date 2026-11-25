@@ -11,7 +11,7 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel("Browser")]
+[NotInParallel(nameof(RequestSecurityTests))]
 public sealed class RequestSecurityTests
 {
     [Test]
@@ -110,6 +110,7 @@ public sealed class RequestSecurityTests
     }
 
     [Test]
+    [NotInParallel("Browser")]
     public async Task Browser_RealLoginPasswordAdministrationAndLogout_EnforceSessionBoundary()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync();

@@ -10,6 +10,7 @@ namespace Spatia.Server.Tests;
 
 internal sealed class PostgresAccountFixture : IAsyncDisposable
 {
+    private static string? _currentMigrationSql;
     private readonly string _databaseConnectionString;
     private bool _schemaCreated;
 
@@ -56,10 +57,10 @@ internal sealed class PostgresAccountFixture : IAsyncDisposable
         return builder;
     }
 
-    public static Task<PostgresAccountFixture> CreateAsync(string? targetMigration = null) =>
+    public static Task<PostgresAccountFixture> CreateAsync(string? targetMigration) =>
         CreateAsync(targetMigration, useMigrationScript: false);
 
-    public static Task<PostgresAccountFixture> CreateForApplicationAsync() =>
+    public static Task<PostgresAccountFixture> CreateAsync() =>
         CreateAsync(targetMigration: null, useMigrationScript: true);
 
     private static async Task<PostgresAccountFixture> CreateAsync(string? targetMigration, bool useMigrationScript)
@@ -82,11 +83,16 @@ internal sealed class PostgresAccountFixture : IAsyncDisposable
             var migrator = database.GetService<IMigrator>();
 
             if (useMigrationScript)
+            {
                 // Apply the real migrations in one batch to this fresh, exclusively owned schema
                 // Migration tests retain MigrateAsync for upgrade, history and locking behavior
-                await ExecuteMigrationScriptAsync(database, migrator.GenerateScript());
+                var script = LazyInitializer.EnsureInitialized(ref _currentMigrationSql, () => migrator.GenerateScript());
+                await ExecuteMigrationScriptAsync(database, script);
+            }
             else
+            {
                 await migrator.MigrateAsync(targetMigration);
+            }
 
             return fixture;
         }

@@ -10,6 +10,12 @@
   "categories": {
     "correctness": "off"
   },
+  "rules": {
+    "array-callback-return": "error",
+    "no-self-compare": "error",
+    "no-template-curly-in-string": "error",
+    "no-unreachable-loop": "error"
+  },
   "ignorePatterns": ["dist/**", "test-results/**"],
   "overrides": [
     {

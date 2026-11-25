@@ -31,7 +31,7 @@ internal sealed class PublicationCoordinatorFixture(PostgresAccountFixture postg
     public static async Task<PublicationCoordinatorFixture> CreateAsync(int version = 1,
         string role = ApplicationRoles.Creator, long revision = 0)
     {
-        var postgres = await PostgresAccountFixture.CreateForApplicationAsync();
+        var postgres = await PostgresAccountFixture.CreateAsync();
 
         try
         {

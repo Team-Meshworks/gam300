@@ -17,7 +17,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel("Browser")]
+[NotInParallel(nameof(ProjectReadEndpointTests))]
 public sealed class ProjectReadEndpointTests
 {
     private const string BodyMarker = "private-read-document-sentinel";
@@ -355,6 +355,7 @@ public sealed class ProjectReadEndpointTests
     }
 
     [Test]
+    [NotInParallel("Browser")]
     public async Task Browser_ProjectListOpenAndAccountSwitchUseCurrentSession()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(map: app =>

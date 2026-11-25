@@ -49,7 +49,7 @@ public sealed class ReviewPersistenceTests
     [Test]
     public async Task ReviewEvidence_RollbackCannotDiscardStoredHistory()
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync();
+        await using var fixture = await PostgresAccountFixture.CreateAsync(targetMigration: null);
         var data = await SeedAsync(fixture);
 
         await using (var scope = fixture.Services.CreateAsyncScope())

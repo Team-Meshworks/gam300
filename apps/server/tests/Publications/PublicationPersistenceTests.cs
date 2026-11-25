@@ -163,7 +163,7 @@ public sealed class PublicationPersistenceTests
     [Arguments(2, Project.MaxRevision)]
     public async Task PublicationDatabase_FreshMigrationRoundTripsCompleteEditionInANewContext(int version, long revision)
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync();
+        await using var fixture = await PostgresAccountFixture.CreateAsync(targetMigration: null);
         await SeedAsync(fixture, version, revision);
 
         await using (var scope = fixture.Services.CreateAsyncScope())
@@ -227,7 +227,7 @@ public sealed class PublicationPersistenceTests
     [Test]
     public async Task PublicationDatabase_MigrationDownAndReapplyPreservePreexistingDraft()
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync();
+        await using var fixture = await PostgresAccountFixture.CreateAsync(targetMigration: null);
         await SeedAsync(fixture);
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = Db(scope);

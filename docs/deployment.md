@@ -11,15 +11,13 @@ full-stack release `a5fb998dca0b7ff8fffd8c9dd985a64819a8d0c3`. No application im
 or database was promoted, and existing publication and QR records were not rewritten.
 
 Integrate feature work into `dev`. Release through a `dev` to `main` pull request.
-CI runs automatically only after pushes to `dev` or `main`, including merge commits.
-Pull requests do not start CI. Manual CI dispatch runs test jobs on the selected
-branch, including feature and hardening branches. Publishing remains restricted to
-`dev` and `main`. Deployment is a separate manual action and never rebuilds the image.
+CI runs read-only checks on pull requests into `dev` and `main`. Pushes to either
+branch, including merge commits, run full validation before image publication.
+Manual dispatch also runs full validation on feature branches. Deployment is a
+separate manual action that consumes the verified image.
 
-The promotion rule still requires a PR into `main` to come from this repository's
-`dev` branch. Removing PR-triggered CI also removes its automatic source-branch
-check, so reviewers must verify the source repository and branch before merging.
-This is a manual safeguard, not an equivalent automated enforcement mechanism.
+The promotion rule requires a PR into `main` to come from this repository's
+`dev` branch. Reviewers verify the source repository and branch before merging.
 The GitHub environments allow only their matching branches.
 
 CI builds `dev` with `NODE_ENV=development` and Vite's `development` mode, including
@@ -177,30 +175,28 @@ Do not add `--volumes` when keeping project or account data.
 
 ## What CI does
 
-`.github/workflows/ci.yml` runs automatically on pushes to `main` or `dev`.
-Manual `workflow_dispatch` also runs validation on other branches; PRs do not
-trigger runs. Only `main` and `dev` runs publish an image. CI restores LFS and
-locked dependencies; checks formatting, lint, asset
-integrity, deployment isolation/rollback and unit tests; builds the image; and runs the
-authoring and recovery/file checks against Vite's development server and deployment checks against the
-image, including its real web-server configuration. The packaged-build browser check verifies
-that the sample control loads its project in development and is absent in production.
-The Docker build includes TypeScript checking. Both build modes retain the 500 kB
-JavaScript chunk-budget check.
+Pushes to `main` and `dev` and manual dispatches run the full build and regression suites.
+Pull requests targeting either branch get a read-only web check. It runs Oxlint, Bun type checking,
+the full Vitest suite and both Vite builds in parallel with the other source checks.
+The native builds and standalone Docker build also typecheck. npm installs the pinned Bun binary.
+The release image is built concurrently with the source checks and is tested behind Caddy.
+Both build modes enforce the 500 kB JavaScript chunk budget.
 
-Lint, formatting and the full web unit suite run once on Linux. Native Windows and macOS jobs retain setup,
-dependency-boundary, browser-policy and build checks. Module-removal experiments run when
-architecture tooling, package manifests, compiler/build configuration or CI changes,
-and on manual runs. Every run still checks live imports for forbidden dependencies
-and cycles. CI generates the detailed architecture graph as a test artifact; comment
-and line-number changes do not require regenerating a tracked graph to pass.
+The PR selector skips browser fixtures for documentation and web unit-test changes. It selects
+the fixtures that own changed browser entry scripts or preview HTML routes. Application code,
+shared helpers, configuration, assets, server changes and an unavailable comparison run the
+full browser set. Each browser group runs against its own Vite server. The catalog in
+[`browser-checks.json`](../.github/ci/browser-checks.json) records seconds per command and its
+optional route. CI assigns the longest commands first to the least-loaded of six runners.
+Each group retains logs, screenshots and measured durations in `browser-seconds.tsv`.
+Update the catalog with representative full-run timings when the workload changes.
 
-Browser, integration, caching, recovery and history checks run in six grouped fixture jobs
-against Vite. Each script retains its own URL and evidence; a group continues after a script
-failure and fails overall. Workspace routes and the admin dashboard run against the packaged
-Caddy application. The caching check verifies GLB HTTP revalidation; `npm run measure:caching`
-remains an on-demand benchmark. Publishing waits for every fixture job and all required build/test
-jobs; the architecture proof may be skipped only when its selector reports it unnecessary.
+Windows and macOS validate setup, dependency boundaries, browser policy and native builds
+on full runs. Every source check validates imports and cycles. The separate module-removal
+proof runs on architecture tooling, dependency, build configuration or CI planner changes,
+and on manual runs. The packaged checks exercise workspace routes, the admin dashboard,
+development-only sample controls and the real Caddy configuration. Publishing requires
+successful source, packaging, native, server, fixture and applicable architecture checks.
 CI reuses the runner's Chrome only when browser verification passes the version and
 sandbox policy. Otherwise it restores or downloads the pinned official Chrome `.deb`,
 checks its SHA-256, installs it and verifies the browser again. Package absence, hash
@@ -211,8 +207,9 @@ The recovery check includes place–move–undo–save–reload and JSON transfe
 browser context. Its output and the editor check output are retained under `apps/web/test-results/`.
 
 The packaged checks copy `/srv` and `/srv-restricted` from the editor image into separate
-runner temporary directories. `checks-<sha>` retains the available logs, JUnit XML,
-validation report, screenshots, test CA certificate and architecture graphs even on failure.
+runner temporary directories. `checks-<sha>` retains package logs, validation results, screenshots
+and the test CA certificate. `source-<sha>` retains the web check logs, JUnit XML and architecture
+graphs. Both jobs upload available diagnostics on failure.
 After the Caddy access and browser checks pass, `web-<sha>` contains one copy of the
 verified public web root for 14 days, including on manual feature-branch runs. QA and M3
 reviewers can extract it and serve the static files. Signed-in authoring and catalogue
@@ -225,13 +222,13 @@ catalogue test log. That saves about 122 MiB and projects 607.6 MiB of stored ar
 for a comparable run, down from 729.71 MiB. Organization billing covers a different scope.
 [Baseline run and artifacts](https://github.com/Team-Meshworks/gam300/actions/runs/44320426331)
 
-The server job uses the SDK pinned in `apps/server/global.json`, locked NuGet restore,
-Release build, both C# format checks, migration checks and the complete TUnit suite.
-Its disposable PostgreSQL 18.6 service publishes only to loopback and uses synthetic
-test credentials. The suite applies migrations in isolated schemas and includes the
-existing Chrome account flow. Test reports and browser-version evidence are retained
-for 14 days. The separate account cold-restart acceptance remains a local operator check;
-see the [server setup](../apps/server/README.md).
+Two server test runners each use a disposable, loopback-only PostgreSQL 18.6 service on
+a memory-backed volume. They restore locked dependencies, build in Release and discover
+the full TUnit inventory. Recorded class durations determine each partition. The format
+checks run once alongside project-format validation. EF migration checks run once on the first
+server runner. Each runner verifies its TRX against its selected cases. Both runners must report
+the same partition digest. Full runs always exercise both shards. PRs also exercise both for
+changes outside documentation and web unit tests. See the [server guide](../apps/server/README.md#toolchain-and-checks).
 
 The check job has no package-write permission. After a successful push or manual run on
 `dev` or `main`, and after the web, native compatibility and server jobs pass, a separate

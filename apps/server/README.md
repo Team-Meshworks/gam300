@@ -171,19 +171,20 @@ the lockfiles.
 
 Run the canonical check block below from `apps/server/` so the scoped SDK pin applies.
 
-The repository CI also runs that block on Ubuntu with a disposable PostgreSQL 18.6
-service and the Chromium account and project-read checks. Server failures block image publishing;
-reports are retained as `server-checks-<commit>`. The bootstrap process tests use the
-server assembly referenced by the running test build, including Debug builds. The
-standalone cold-restart acceptance below still targets an explicitly prebuilt Release
-application and is not part of the CI job.
+CI executes the full suite across two Ubuntu runners with independent PostgreSQL 18.6 services.
+Each discovers the current assembly and assigns whole classes using the recorded case durations
+in [`server-class-seconds.json`](../../.github/ci/server-class-seconds.json). New classes start with
+a weight of one second per discovered case. Both runners verify their TRX results against the
+assigned cases and must agree on every UID in the partition. Each `server-checks-<shard>-<commit>`
+artifact contains its report and case selection. The standalone cold-restart acceptance remains
+a local operator check.
 
-The TUnit assembly limiter caps concurrent tests at four. Tests with the same
-`NotInParallel` key remain exclusive: database-backed classes use class-specific keys,
-while browser-launching classes and `ProxyChainTests` share `Browser`. The unkeyed
-`AccountModelTests` exclusion remains global because those tests change environment variables.
-CI runs proxy preparation, restore/build, formatting, migrations and tests as separate
-steps in the same server job.
+The assembly caps concurrency at four per runner. Browser scenarios and proxy checks share the
+`Browser` lock. The API cases in mixed classes use their class lock, and only tests that change
+process-wide configuration require global exclusion. Each fixture gets a fresh schema. Ordinary
+fixtures apply the same generated migration SQL in one batch. Migration tests use the EF migrator
+for their specific starting states, upgrades and rollbacks. The fixture keeps physical connections
+independent for tests that exercise competing transactions.
 
 The full suite includes `ProxyChainTests`, which starts two Caddy processes and a
 local ASP.NET test host. Provide the pinned Caddy **2.11.4** executable through

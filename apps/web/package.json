@@ -12,10 +12,11 @@
     "predev": "node prepare-dashboard-font.mjs",
     "dev": "vite",
     "build": "npm run build:editor && npm run build:visitor",
-    "prebuild:editor": "node prepare-dashboard-font.mjs",
-    "build:editor": "npm run typecheck && vite build",
+    "build:editor": "npm run typecheck && npm run bundle:editor --",
+    "prebundle:editor": "node prepare-dashboard-font.mjs",
+    "bundle:editor": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b",
+    "typecheck": "bun check --no-script -b",
     "check:architecture": "node architecture.mjs",
     "graph:architecture": "node architecture.mjs --write",
     "test:architecture": "node architecture.check.mjs",
@@ -122,6 +123,7 @@
     "@types/react-dom": "19.2.7",
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "6.1.1",
+    "bun": "1.4.5",
     "eslint-plugin-react-hooks": "7.1.1",
     "fake-indexeddb": "6.2.8",
     "gltf-validator": "2.0.0-dev.3.10",
@@ -133,5 +135,8 @@
     "typescript": "6.0.2",
     "vite": "8.3.3",
     "vitest": "5.0.1"
+  },
+  "allowScripts": {
+    "bun@1.4.5": true
   }
 }

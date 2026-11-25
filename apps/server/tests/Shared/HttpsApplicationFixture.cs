@@ -96,7 +96,7 @@ internal sealed class HttpsApplicationFixture : IAsyncDisposable
     public static async Task<HttpsApplicationFixture> CreateAsync(Action<WebApplicationBuilder>? configure = null,
         Action<WebApplication>? map = null, string environmentName = "Testing")
     {
-        var database = await PostgresAccountFixture.CreateForApplicationAsync();
+        var database = await PostgresAccountFixture.CreateAsync();
         // Disposable keys must not inherit a checkout's delete restrictions or sync policies.
         var artifactsRoot = Path.Combine(Path.GetTempPath(), "spatia-test-keys");
         string? directory = null;

@@ -45,7 +45,7 @@ public sealed class PostgresAccountFixtureTests
     [Test]
     public async Task ApplicationSchema_MatchesMigrationsAndKeepsStoredDataAndCleanupIsolated()
     {
-        await using var migrated = await PostgresAccountFixture.CreateAsync();
+        await using var migrated = await PostgresAccountFixture.CreateAsync(targetMigration: null);
         var organizationId = Guid.NewGuid();
         string disposedSchema;
         NpgsqlDataSource applicationPool;
