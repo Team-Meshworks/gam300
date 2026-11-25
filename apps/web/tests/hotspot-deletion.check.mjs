@@ -40,9 +40,13 @@ try {
   const server = await serveProject(page, url, project);
   await page.goto(server.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+  const row = page.locator(`.scene-root:has(.object-row[data-object-id="${hotspot.objectId}"])`);
+  const indicator = page.locator(
+    `.object-row[data-object-id="${hotspot.objectId}"] .hotspot-indicator`,
+  );
   await page.locator(".object-row[data-object-id]").first().click();
-  await page.getByRole("button", { name: "Interaction", exact: true }).click();
-  await page.getByRole("button", { name: /^Remove hotspot from / }).click();
+  assert.equal(await indicator.count(), 1);
+  await row.getByRole("button", { name: /^Remove hotspot from / }).click();
   const notice = await page.locator(".draft-feedback").textContent();
   assert.match(notice, /1 related rule\b/i, "Hotspot deletion reports the affected rule count");
   assert.match(notice, /undo restores/i, "Hotspot deletion explains how to restore the rule");
@@ -50,6 +54,7 @@ try {
     ({ scenes }) => (scenes[0].hotspots?.length ?? 0) === 0,
   );
   assert.equal(deleted.scenes[0].rules?.length ?? 0, 0);
+  assert.equal(await indicator.count(), 0);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   const restored = (
     await server.waitForDocument(({ scenes }) =>
@@ -58,6 +63,7 @@ try {
   ).scenes[0];
   assert.deepEqual(restored.hotspots, [hotspot]);
   assert.deepEqual(restored.rules, [rule]);
+  assert.equal(await indicator.count(), 1);
   console.log("PASS: hotspot deletion reports related rules and Undo restores both");
 } finally {
   await browser.close();
