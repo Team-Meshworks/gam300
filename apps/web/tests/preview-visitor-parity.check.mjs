@@ -496,10 +496,10 @@ try {
   await visitor.keyboard.press("Shift");
   await waitForStand(visitor, true);
   for (const page of [editor, visitor]) {
-    const oldCanvas = await page.locator(".visitor-canvas canvas").elementHandle();
+    const oldVisit = await page.locator(".visitor-viewer").elementHandle();
     await page.locator(".visitor-information > summary").click();
     await page.getByRole("button", { name: revisit.label }).click();
-    await page.waitForFunction((canvas) => !canvas.isConnected, oldCanvas);
+    await page.waitForFunction((viewer) => !viewer.isConnected, oldVisit);
     await page.getByRole("status").getByText("Exhibition ready").waitFor();
     await waitForStand(page, true);
     assert.equal(
@@ -610,8 +610,12 @@ try {
       await page.getByRole("status").getByText("Exhibition ready").waitFor();
     }
   }
-  await checkStandVisibility(editor, editorUrl, "Preview");
-  await checkStandVisibility(visitor, visitorUrl, "Visitor");
+  // Each visibility check opens its own native hidden target. Release the two
+  // completed WebGL players before starting another renderer in that target.
+  await Promise.all([editor.close(), visitor.close()]);
+  const visibilityHost = await browser.newPage();
+  await checkStandVisibility(visibilityHost, editorUrl, "Preview");
+  await checkStandVisibility(visibilityHost, visitorUrl, "Visitor");
   assert.deepEqual(saved.document(), project, "Viewing does not mutate the authored draft");
   console.log("PASS visitor wall lighting, hotspot and published interactions");
 } finally {

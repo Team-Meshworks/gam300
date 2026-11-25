@@ -253,3 +253,47 @@ it("keeps acquired resources beyond idle expiry", async () => {
   cache.invalidate();
   expect(disposals()).toEqual([1, 1]);
 });
+
+it("reuses verified parses without issuing a request or applying the placement twice", async () => {
+  const { origin } = await serveHttp(() => {
+    throw new Error("Unexpected model download");
+  });
+  const model = new THREE.Group();
+  const object = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+  model.add(object);
+  const parseVerified = vi.fn(async () => model);
+  const asset = { ...descriptor(origin), placement: "bottom-center" as const };
+  const signal = new AbortController().signal;
+  const first = await cache.acquire(asset, signal, parseVerified);
+  first.release();
+  const second = await cache.acquire(asset, signal, parseVerified);
+  expect(second.value.model).toBe(model);
+  expect(model.position.y).toBe(0.5);
+  expect(parseVerified).toHaveBeenCalledTimes(1);
+  second.release();
+});
+
+it("evicts large idle models by decoded size and never evicts an active borrower", async () => {
+  const models = ["active", "old", "recent"].map((id) => {
+    const model = new THREE.Group();
+    const texture = new THREE.Texture({ width: 4096, height: 4096 });
+    model.add(
+      new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ map: texture })),
+    );
+    return { id, model, disposals: disposalCount(model) };
+  });
+  const signal = new AbortController().signal;
+  const [active, old, recent] = await Promise.all(
+    models.map(({ id, model }) =>
+      cache.acquire({ ...descriptor("http://localhost"), id }, signal, async () => model),
+    ),
+  );
+  old!.release();
+  recent!.release();
+  expect(models.map(({ disposals }) => disposals())).toEqual([
+    [0, 0],
+    [1, 1],
+    [0, 0],
+  ]);
+  active!.release();
+});

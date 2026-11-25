@@ -66,6 +66,7 @@ export function BottomBar({
   ready,
   thumbnailFor,
   onAdd,
+  onChoose,
   onAudio,
   onDragChange,
   tool,
@@ -78,6 +79,7 @@ export function BottomBar({
   ready: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
   onAdd: (assetId: string) => void;
+  onChoose?: ((assetId: string | null) => void) | undefined;
   onAudio: (mode: AudioLibraryMode) => void;
   onDragChange: (assetId: string | null) => void;
   tool: NavigationTool;
@@ -265,6 +267,7 @@ export function BottomBar({
             ready={ready}
             thumbnailFor={thumbnailFor}
             onAdd={onAdd}
+            onChoose={onChoose}
             onDragChange={(assetId) => {
               setDraggingAsset(assetId !== null);
               onDragChange(assetId);
