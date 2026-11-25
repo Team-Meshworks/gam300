@@ -42,7 +42,10 @@ public sealed class ProjectDocumentServiceTests
             }).ToArray(),
         };
 
-        var saved = development.Serialize(template with { Scenes = [furnished] });
+        var saved = development.Serialize(template with
+        {
+            Scenes = [furnished]
+        });
 
         await Assert.That(saved.Error).IsNull();
         await Assert.That(development.Read(id, saved.Value!).Ok).IsTrue();
