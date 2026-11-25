@@ -137,6 +137,8 @@ export function App({
     objectId: string;
     kind: ContentKind;
   } | null>(null);
+  // Start inside the scene, the overview button switch to the orbit camera
+  const [view, setView] = useState<CameraView>("first");
   const [pendingTextDraft, setPendingText] = useState<{
     objectId: string;
     before: SceneObject;
@@ -197,12 +199,13 @@ export function App({
     function cancel(event: KeyboardEvent) {
       if (event.key === "Escape") {
         cancelPlacement();
+        if (pendingTextDraft) setView((current) => (current === "third" ? "first" : current));
         setPendingText(null);
       }
     }
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
-  }, [cancelPlacement]);
+  }, [cancelPlacement, pendingTextDraft]);
   const [feedback, setFeedback] = useState({ text: "", sequence: 0 });
   const notice = feedback.text;
   const [error, setError] = useState("");
@@ -272,8 +275,6 @@ export function App({
   const visitor = previewSnapshot !== null || readOnlyPreview || modeState?.mode === "visitor";
   const mobileDevice = isMobileTouchDevice();
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
-  // Start inside the scene, the overview button switch to the orbit camera
-  const [view, setView] = useState<CameraView>("first");
   const walking = visitor || view === "first";
   const captured = modeState?.captured ?? false;
   const canCapture = modeState?.canCapture ?? true;
@@ -872,6 +873,7 @@ export function App({
               return;
             }
             reportRuleRemoval(before, "Updated content");
+            setView((current) => (current === "third" ? "first" : current));
             setPendingText(null);
             setShowExhibitTools(true);
           }}
