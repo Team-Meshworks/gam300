@@ -122,10 +122,11 @@
   margin-inline: auto;
 }
 .visitor-media-dialog {
-  width: min(90vw, 960px);
+  box-sizing: border-box;
+  width: min(94vw, 1120px);
   max-width: none;
-  max-height: 92dvh;
-  padding: 2.75rem 1.5rem 1.5rem;
+  max-height: 96dvh;
+  padding: 3rem 1.75rem 1.5rem;
   border: 1px solid #ded7cc;
   border-radius: 1rem;
   background: #fffdf9;
@@ -144,10 +145,9 @@
 .visitor-media-dialog img,
 .visitor-media-dialog video {
   display: block;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: min(84dvh, calc(96dvh - 7rem));
   max-width: 100%;
-  max-height: 78dvh;
   object-fit: contain;
   margin-inline: auto;
 }
@@ -162,11 +162,6 @@
 }
 .visitor-media-dialog-caption {
   color: #4b4740;
-}
-.visitor-media-dialog-close {
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
 }
 @media (max-width: 600px) {
   .visitor-preview button,

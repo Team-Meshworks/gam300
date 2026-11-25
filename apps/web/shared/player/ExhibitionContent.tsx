@@ -307,17 +307,20 @@ export function ExhibitionContent({
         className="visitor-media-dialog"
         aria-label="Exhibit media"
         onClose={() => setModalItem(null)}
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (
+            event.clientX < rect.left ||
+            event.clientX > rect.right ||
+            event.clientY < rect.top ||
+            event.clientY > rect.bottom
+          ) {
+            event.currentTarget.close();
+          }
+        }}
       >
         {modalItem && (
           <>
-            <button
-              type="button"
-              className="visitor-media-dialog-close"
-              aria-label="Close exhibit media"
-              onClick={() => setModalItem(null)}
-            >
-              Close
-            </button>
             {modalItem.type === "text" ? (
               <Text component={modalItem} />
             ) : modalItem.type === "image" || modalItem.type === "video" ? (

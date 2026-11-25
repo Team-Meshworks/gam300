@@ -986,7 +986,7 @@ document.dispatchEvent(new Event("visitor-playback-ready"));
       true,
       `Display media is centered: ${JSON.stringify(centering)}`,
     );
-    await displayModal.getByRole("button", { name: "Close exhibit media" }).click();
+    await page.mouse.click(5, 5);
     await displayModal.waitFor({ state: "hidden" });
     assert.equal(await page.locator(".visitor-information").isVisible(), true);
     assert.equal(await page.evaluate(() => window.modalEvents.at(-1)), false);
