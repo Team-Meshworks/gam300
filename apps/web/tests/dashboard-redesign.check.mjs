@@ -67,6 +67,8 @@ const failures = [];
 await mkdir("../../.artifacts/dashboard-check", { recursive: true });
 try {
   for (const role of ["Educator", "Creator"]) {
+    const educator = role === "Educator";
+    const displayName = educator ? "Ms Tan" : "Student";
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     page.setDefaultTimeout(5000);
     const errors = [];
@@ -117,7 +119,7 @@ try {
             userId,
             orgId,
             role,
-            displayName: role === "Educator" ? "Ms Tan" : "Student",
+            displayName,
             mustChangePassword: false,
           },
         });
@@ -202,21 +204,35 @@ try {
         return route.fulfill({ json: { items: [] } });
       return route.fulfill({ status: 404 });
     });
+    const cards = page.locator(educator ? ".sp-teacher-card" : ".sp-student-card");
     async function capture(name) {
+      const visibleCards = await cards.all();
+      assert.ok(visibleCards.length);
+      const creation = page.getByRole("link", { name: /^\+?\s*new project$/i });
       for (const width of [1440, 390]) {
         await page.setViewportSize({ width, height: 900 });
         assert.ok(
           await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
           `${name} overflows at ${width}`,
         );
-        const card = await page
-          .locator(role === "Educator" ? ".sp-teacher-card" : ".sp-student-card")
-          .first()
-          .boundingBox();
-        assert.ok(
-          card && card.width > 0 && card.x >= 0 && card.x + card.width <= width,
-          `${name} card is clipped at ${width}`,
-        );
+        for (const card of visibleCards) {
+          const box = await card.boundingBox();
+          assert.ok(
+            box && box.width > 0 && box.x >= 0 && box.x + box.width <= width,
+            `${name} card is clipped at ${width}`,
+          );
+          if (educator)
+            assert.ok(await card.getByRole("button", { name: "View Details" }).isVisible());
+        }
+        if (educator) {
+          assert.ok(await creation.isVisible());
+          assert.equal(await creation.getAttribute("href"), "/new-project");
+        } else {
+          assert.equal(
+            await creation.or(page.getByRole("button", { name: /^new project$/i })).count(),
+            0,
+          );
+        }
         await page.screenshot({
           path: `../../.artifacts/dashboard-check/${name}-${width}.png`,
           fullPage: true,
@@ -233,6 +249,23 @@ try {
       assert.equal(await skip.evaluate((node) => node === document.activeElement), true);
       assert.ok((await skip.boundingBox()).y >= 0);
       await page.locator("body").click({ position: { x: 1, y: 1 } });
+      await page
+        .getByRole("heading", {
+          name: educator ? `Welcome Back, ${displayName}` : "Projects",
+          exact: true,
+        })
+        .waitFor();
+      await cards.filter({ hasText: titles[1] }).waitFor();
+      assert.equal(await cards.count(), projects.length);
+      const first = await cards.nth(0).boundingBox();
+      const second = await cards.nth(1).boundingBox();
+      assert.ok(first && second);
+      if (educator)
+        assert.ok(
+          Math.abs(first.y - second.y) < 2 && second.x >= first.x + first.width,
+          "Teacher cards share a row at desktop width",
+        );
+      else assert.ok(second.y >= first.y + first.height, "Student cards stack at desktop width");
       if (process.env.CHECK_PACKAGED_CSP) {
         assert.ok(
           (await page.evaluate(() => document.fonts.load("16px Satoshi"))).length > 0,

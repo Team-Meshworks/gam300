@@ -66,54 +66,56 @@ try {
   await outcome.waitFor();
   assert.equal(await outcome.inputValue(), "unavailable");
   const create = page.getByRole("button", { name: "Create project" });
-  assert.equal(await create.isDisabled(), true);
 
-  await page.getByLabel("Project title").fill("A project for review");
-  await page.getByLabel("Project description").fill("A description");
-  await page.getByLabel("Project instructions").fill("Follow the instructions");
-  await page.getByLabel("Due date and time").fill("2026-12-01T15:30");
-  await page
-    .getByRole("group", { name: "New project details" })
-    .getByLabel(/^Class/)
-    .selectOption("4A");
-  await page.getByLabel("Search students").fill("Aisyah");
-  await page.getByRole("button", { name: "Select all" }).click();
-  await page.getByLabel("Search students").fill("");
-  assert.equal(await page.getByRole("checkbox", { name: /Aisyah/ }).isChecked(), true);
-  assert.equal(await page.getByRole("checkbox", { name: /Christopher Low/ }).isChecked(), false);
-  assert.equal(await create.isDisabled(), true, "Unavailable must not create a project");
+  const newProject = page.getByRole("link", { name: "New project", exact: true });
+  const classSelect = page.getByRole("group", { name: "New project details" }).getByLabel(/^Class/);
+  const student = page.getByRole("checkbox", { name: /Aisyah/ });
+  const preview = page.getByRole("button", { name: "Preview project" });
+  await preview.click();
+  assert.equal(await page.getByRole("dialog").count(), 0, "Required fields block an empty preview");
 
-  await page.getByRole("tab", { name: /Selected/ }).click();
-  await page.getByLabel("Search students").fill("Aisyah");
-  await page
-    .getByRole("group", { name: "New project details" })
-    .getByLabel(/^Class/)
-    .selectOption("4B");
-  assert.equal(await page.getByLabel("Search students").inputValue(), "");
-  assert.equal(
-    await page.getByRole("tab", { name: /All students/ }).getAttribute("aria-selected"),
-    "true",
-  );
-  assert.equal(await page.getByRole("checkbox", { name: /Aisyah/ }).count(), 0);
-  assert.equal(await page.getByRole("checkbox", { name: /Song Yu Qian/ }).isChecked(), false);
-  await page
-    .getByRole("group", { name: "New project details" })
-    .getByLabel(/^Class/)
-    .selectOption("4A");
-  await page.getByRole("checkbox", { name: /Aisyah/ }).check();
-
-  await outcome.selectOption("success");
   async function fillProject() {
     await page.getByLabel("Project title").fill("A project for review");
     await page.getByLabel("Project description").fill("A description");
     await page.getByLabel("Project instructions").fill("Follow the instructions");
     await page.getByLabel("Due date and time").fill("2026-12-01T15:30");
-    await page
-      .getByRole("group", { name: "New project details" })
-      .getByLabel(/^Class/)
-      .selectOption("4A");
-    await page.getByRole("checkbox", { name: /Aisyah/ }).check();
+    await classSelect.selectOption("4A");
+    await student.check();
   }
+  await fillProject();
+  assert.equal(await create.isDisabled(), true, "Unavailable must not create a project");
+  await preview.click();
+  const dialog = page.getByRole("dialog", { name: "Project preview" });
+  await dialog.waitFor();
+  assert.equal(await dialog.getByText("A project for review").isVisible(), true);
+  assert.equal(await dialog.evaluate((node) => node.contains(document.activeElement)), true);
+  for (let i = 0; i < 5; i += 1) {
+    await page.keyboard.press("Tab");
+    assert.equal(await newProject.evaluate((node) => node === document.activeElement), false);
+  }
+  await newProject.focus();
+  assert.equal(await newProject.evaluate((node) => node === document.activeElement), false);
+  await page.keyboard.press("Escape");
+  assert.equal(await dialog.isVisible(), false);
+  assert.equal(await preview.evaluate((node) => node === document.activeElement), true);
+  assert.equal(await page.getByLabel("Project title").inputValue(), "A project for review");
+  await preview.click();
+  await dialog.getByRole("button", { name: "Close" }).click();
+  assert.equal(await preview.evaluate((node) => node === document.activeElement), true);
+
+  await page.getByRole("tab", { name: /Selected/ }).click();
+  await page.getByLabel("Search students").fill("Aisyah");
+  await classSelect.selectOption("4B");
+  assert.equal(await page.getByLabel("Search students").inputValue(), "");
+  assert.equal(
+    await page.getByRole("tab", { name: /All students/ }).getAttribute("aria-selected"),
+    "true",
+  );
+  assert.equal(await student.count(), 0);
+  await classSelect.selectOption("4A");
+  assert.equal(await student.isChecked(), false, "Changing classes clears the previous selection");
+
+  await outcome.selectOption("success");
   await fillProject();
   assert.equal(await create.isEnabled(), true);
   await page.clock.pauseAt(new Date("2026-11-14T00:00:00Z"));
@@ -153,7 +155,6 @@ try {
   assert.equal(await page.getByLabel("Project title").isDisabled(), true);
   assert.equal(await page.getByLabel("Project title").inputValue(), "A project for review");
   await outcome.selectOption("success");
-  await fillProject();
   assert.equal(await create.isEnabled(), true, "Changing the simulation permits another try");
   assert.deepEqual(errors, []);
   console.log("New project browser checks passed");

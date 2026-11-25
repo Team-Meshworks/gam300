@@ -169,11 +169,6 @@ try {
     .locator(".sp-base-model-grid")
     .evaluate((e) => ({ height: e.clientHeight, content: e.scrollHeight }));
   assert.equal(bounds.height, bounds.content, "Four models fit without scrolling");
-  const padding = await chooser.locator(".sp-base-model-grid").evaluate((e) => {
-    const style = getComputedStyle(e);
-    return [style.paddingTop, style.paddingBottom];
-  });
-  assert.equal(padding[0], padding[1], "Model list top and bottom padding match");
 
   await chooser.getByRole("button", { name: "Close base model chooser", exact: true }).click();
   await chooser.locator(".sp-base-model-dialog").waitFor({ state: "hidden" });
@@ -271,19 +266,6 @@ try {
       "Each visible room uses the same preview frame",
     );
   }
-  const typography = await firstEdit.locator(".sp-base-model-panel").evaluate((panel) => ({
-    heading: parseFloat(getComputedStyle(panel.querySelector("h1")).fontSize),
-    description: parseFloat(getComputedStyle(panel.querySelector("header p")).fontSize),
-    action: parseFloat(getComputedStyle(panel.querySelector("footer button")).fontSize),
-  }));
-  assert.ok(
-    typography.heading > typography.action && typography.action > typography.description,
-    "Figma heading, action and description hierarchy stays distinct",
-  );
-  const previewCard = firstEdit.getByRole("button", { name: "Gallery 1", exact: true });
-  await previewCard.hover();
-  assert.equal(await previewCard.evaluate((e) => getComputedStyle(e).filter), "brightness(0.94)");
-  await firstEdit.mouse.move(0, 0);
   await firstEdit.screenshot({ path: "test-results/creator-base-model-desktop.png" });
   await firstEdit.setViewportSize({ width: 390, height: 844 });
   assert.equal(

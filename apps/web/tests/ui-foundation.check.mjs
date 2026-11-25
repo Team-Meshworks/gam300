@@ -39,45 +39,12 @@ try {
     await page.locator("#workspace").evaluate((node) => node === document.activeElement),
     true,
   );
-  const preview = page.getByRole("button", { name: "Preview project" });
-  await preview.click();
-  assert.equal(await page.getByRole("dialog").count(), 0, "Required fields block an empty preview");
   await page.getByLabel("Project title").fill("A project for review");
-  await page.getByLabel("Project description").fill("A description");
-  await page.getByLabel("Project instructions").fill("Follow the instructions");
-  await page.getByLabel("Due date and time").fill("2026-12-01T15:30");
   await page
     .getByRole("group", { name: "New project details" })
     .getByLabel(/^Class/)
-    .selectOption({ index: 1 });
-  await page.getByLabel("Search students").fill("Aisyah");
+    .selectOption("4A");
   await page.getByRole("checkbox", { name: /Aisyah/ }).check();
-  assert.equal(await page.getByRole("checkbox", { name: /Christopher Low/ }).count(), 0);
-  await page.getByLabel("Search students").fill("");
-  assert.equal(await page.getByRole("checkbox", { name: /Aisyah/ }).isChecked(), true);
-  await page.getByRole("tab", { name: /Selected/ }).click();
-  assert.equal(await page.getByRole("checkbox", { name: /Aisyah/ }).isChecked(), true);
-  assert.equal(await page.getByRole("checkbox", { name: /Christopher Low/ }).count(), 0);
-  await page.getByRole("tab", { name: /All students/ }).click();
-
-  await preview.click();
-  const dialog = page.getByRole("dialog", { name: "Project preview" });
-  await dialog.waitFor();
-  assert.equal(await dialog.getByText("A project for review").isVisible(), true);
-  assert.equal(await dialog.evaluate((node) => node.contains(document.activeElement)), true);
-  for (let i = 0; i < 5; i += 1) {
-    await page.keyboard.press("Tab");
-    assert.equal(await newProject.evaluate((node) => node === document.activeElement), false);
-  }
-  await newProject.focus();
-  assert.equal(await newProject.evaluate((node) => node === document.activeElement), false);
-  await page.keyboard.press("Escape");
-  assert.equal(await dialog.isVisible(), false);
-  assert.equal(await preview.evaluate((node) => node === document.activeElement), true);
-  assert.equal(await page.getByLabel("Project title").inputValue(), "A project for review");
-  await preview.click();
-  await dialog.getByRole("button", { name: "Close" }).click();
-  assert.equal(await preview.evaluate((node) => node === document.activeElement), true);
 
   await page.getByRole("link", { name: "Review", exact: true }).click();
   await page.getByLabel("Your review").fill("Helpful feedback");

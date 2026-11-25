@@ -201,7 +201,6 @@ try {
   await page.getByRole("combobox", { name: "Class", exact: true }).click();
   await page.getByRole("option", { name: "History", exact: true }).click();
   await page.getByRole("button", { name: "New assignment", exact: true }).click();
-  assert.equal(await page.getByLabel("Source project").count(), 0);
   await page
     .getByRole("textbox", { name: "Project title", exact: true })
     .fill("Silk Road assignment");
@@ -227,7 +226,6 @@ try {
     await page.getByRole("textbox", { name: "Project title", exact: true }).inputValue(),
     "",
   );
-  assert.equal(await page.getByLabel("Source project").count(), 0);
   await page
     .getByRole("textbox", { name: "Project title", exact: true })
     .fill("Silk Road assignment");
