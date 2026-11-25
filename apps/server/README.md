@@ -278,9 +278,9 @@ schema it created. It never uses `EnsureCreated`, resets `public`, or clears oth
 data. Direct fixture connections disable pooling so reopened-scope durability uses new
 connections. Duplicate-insert races use separate contexts.
 
-HTTPS application fixtures apply freshly generated production migration SQL as one
-batch to each new schema, avoiding repeated migration-history probes and locking.
-Direct database tests retain the EF migrator for upgrade and reapplication coverage.
+Ordinary database and HTTPS application fixtures cache the current production migration
+SQL and apply it in one batch to each new schema. Tests for upgrades, reapplication and
+rollback use the EF migrator against their chosen starting state.
 `PostgresAccountFixtureTests` compares both schema catalogs, seeds and history, then
 checks independent same-ID records and cleanup. Independent fixtures share the
 disposable test database but use separate schemas, application hosts and schema-scoped

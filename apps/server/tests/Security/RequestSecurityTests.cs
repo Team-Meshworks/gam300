@@ -146,7 +146,8 @@ public sealed class RequestSecurityTests
 
         await Assert.That(browserOutput.Contains("browser csrf boundary passed", StringComparison.Ordinal)).IsTrue();
 
-        await File.WriteAllTextAsync(Path.Combine(serverDirectory, ".artifacts/scrum45-browser-version.txt"), browserOutput);
+        var artifacts = Directory.CreateDirectory(Path.Combine(serverDirectory, ".artifacts"));
+        await File.WriteAllTextAsync(Path.Combine(artifacts.FullName, "scrum45-browser-version.txt"), browserOutput);
 
         await Assert.That(string.IsNullOrWhiteSpace(await error)).IsTrue();
         await Assert.That(fixture.Writes).IsEqualTo(1);
