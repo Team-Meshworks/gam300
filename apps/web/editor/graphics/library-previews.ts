@@ -11,16 +11,22 @@ export function generateLibraryPreviews(
   fitFrame = false,
   sharedCache?: ModelCache,
 ): () => void {
+  const pending = assets.filter(
+    (asset) => !asset.thumbnail && (asset.kind === "model" || asset.kind === "environment"),
+  );
+  if (pending.length === 0) return () => {};
   if (fitFrame || typeof Worker === "undefined" || typeof OffscreenCanvas === "undefined")
-    return generateOnMain(assets, onPreview, fitFrame, sharedCache);
+    return generateOnMain(pending, onPreview, fitFrame, sharedCache);
 
-  const remaining = new Map(assets.map((asset) => [asset.id, asset]));
+  const remaining = new Map(pending.map((asset) => [asset.id, asset]));
   let worker: Worker | undefined;
   let stopFallback: (() => void) | undefined;
-  function fallback() {
+  function finishWorker() {
     worker?.terminate();
     worker = undefined;
-    stopFallback = generateOnMain([...remaining.values()], onPreview, fitFrame, sharedCache);
+    // A worker can finish normally after skipping an individual model.
+    if (remaining.size > 0)
+      stopFallback = generateOnMain([...remaining.values()], onPreview, fitFrame, sharedCache);
   }
   try {
     worker = new Worker(new URL("./library-preview.worker.ts", import.meta.url), {
@@ -28,24 +34,19 @@ export function generateLibraryPreviews(
     });
     worker.onmessage = ({ data }: MessageEvent<PreviewResult>) => {
       if (!worker) return;
-      if (data.type === "unavailable") return fallback();
-      if (data.type === "done") {
-        worker.terminate();
-        worker = undefined;
-      } else {
-        remaining.delete(data.id);
-        onPreview(data.id, data.image);
-      }
+      if (data.type !== "preview") return finishWorker();
+      remaining.delete(data.id);
+      onPreview(data.id, data.image);
     };
     worker.onerror = (event) => {
       event.preventDefault();
-      if (worker) fallback();
+      if (worker) finishWorker();
     };
     worker.postMessage(
-      assets.map((asset) => ({ ...asset, url: new URL(asset.url, document.baseURI).href })),
+      pending.map((asset) => ({ ...asset, url: new URL(asset.url, document.baseURI).href })),
     );
   } catch {
-    fallback();
+    finishWorker();
   }
   return () => {
     worker?.terminate();
@@ -79,7 +80,6 @@ function generateOnMain(
       renderer.setClearColor(0, 0);
       for (const asset of assets) {
         if (controller.signal.aborted) break;
-        if (asset.thumbnail || (asset.kind !== "model" && asset.kind !== "environment")) continue;
         try {
           const lease = await cache.acquire(asset, controller.signal);
           try {
