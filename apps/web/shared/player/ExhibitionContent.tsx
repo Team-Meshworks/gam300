@@ -5,6 +5,34 @@ import type { VisitorScene } from "./playback";
 import type { CatalogueAsset } from "../asset-runtime/catalogue";
 import { fetchPlayerAsset } from "./player-asset";
 
+type DisplayComponent = Extract<ContentComponent, { type: "text" | "image" | "video" }>;
+
+function Text({ component }: { component: Extract<ContentComponent, { type: "text" }> }) {
+  return (
+    <p
+      style={{
+        whiteSpace: "pre-wrap",
+        fontSize: component.fontSize,
+        color: component.color,
+        backgroundColor: component.background,
+      }}
+    >
+      {component.runs.map((run, index) => (
+        <span
+          key={index}
+          style={{
+            fontWeight: run.marks.includes("bold") ? "bold" : undefined,
+            fontStyle: run.marks.includes("italic") ? "italic" : undefined,
+            textDecoration: run.marks.includes("underline") ? "underline" : undefined,
+          }}
+        >
+          {run.text}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 function Media({
   component,
   assets,
@@ -128,7 +156,16 @@ export function ExhibitionContent({
     "components" in object ? (object.components as readonly ContentComponent[]) : [];
   const section = useRef<HTMLElement>(null);
   const details = useRef<HTMLDetailsElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [modalItem, setModalItem] = useState<DisplayComponent | null>(null);
   useEffect(() => {
+    const node = dialog.current;
+    if (!node) return;
+    if (modalItem && !node.open) node.showModal();
+    if (!modalItem && node.open) node.close();
+  }, [modalItem]);
+  useEffect(() => {
+    setModalItem(null);
     const content = section.current;
     const open = () => {
       if (details.current) details.current.open = true;
@@ -137,13 +174,17 @@ export function ExhibitionContent({
     const inspect = (event: Event) => {
       const id = (event as CustomEvent<string>).detail;
       const object = scene.objects.find((item) => item.id === id);
-      if (
-        object &&
-        "components" in object &&
-        Array.isArray(object.components) &&
-        object.components.length
-      )
-        open();
+      if (!object || !("components" in object) || !Array.isArray(object.components)) return;
+      if (object.components.length) open();
+      const asset = assets.find((entry) => entry.id === object.assetId);
+      if (asset?.displayRole !== "digital" && !asset?.displaySurface) return;
+      const item = object.components.find(
+        (entry): entry is DisplayComponent =>
+          entry.type === "text" || entry.type === "image" || entry.type === "video",
+      );
+      if (!item) return;
+      open();
+      setModalItem(item);
     };
     content?.addEventListener("exhibit-inspect", inspect);
     content?.addEventListener("exhibit-show-panel", open);
@@ -151,7 +192,7 @@ export function ExhibitionContent({
       content?.removeEventListener("exhibit-inspect", inspect);
       content?.removeEventListener("exhibit-show-panel", open);
     };
-  }, [scene]);
+  }, [scene, assets]);
   const activate = (id: string) =>
     section.current?.dispatchEvent(new CustomEvent("exhibit-activate", { detail: id }));
   // Keep literal text and native media controls accessible beside the 3D view
@@ -186,27 +227,7 @@ export function ExhibitionContent({
     return (
       <figure key={item.id} data-component-id={item.id}>
         {item.type === "text" ? (
-          <p
-            style={{
-              whiteSpace: "pre-wrap",
-              fontSize: item.fontSize,
-              color: item.color,
-              backgroundColor: item.background,
-            }}
-          >
-            {item.runs.map((run, index) => (
-              <span
-                key={index}
-                style={{
-                  fontWeight: run.marks.includes("bold") ? "bold" : undefined,
-                  fontStyle: run.marks.includes("italic") ? "italic" : undefined,
-                  textDecoration: run.marks.includes("underline") ? "underline" : undefined,
-                }}
-              >
-                {run.text}
-              </span>
-            ))}
-          </p>
+          <Text component={item} />
         ) : (
           <Media
             key={item.assetId}
@@ -235,43 +256,78 @@ export function ExhibitionContent({
     );
   }
   return (
-    <details className="visitor-information" ref={details}>
-      <summary>Exhibit information</summary>
-      <section ref={section} aria-label="Exhibit information" data-exhibition-scene={scene.id}>
-        {("audio" in scene ? scene.audio : [])?.map((item) => component(item))}
-        {scene.objects
-          .filter(
-            (object) =>
-              components(object).length ||
-              hotspots.some(
-                (hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase(),
-              ),
-          )
-          .map((object) => (
-            <article
-              key={object.id}
-              data-owner-id={object.id}
-              hidden={"visible" in object && object.visible === false}
-            >
-              <h2>{object.name}</h2>
-              {hotspots.some(
-                (hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase(),
-              ) && (
-                <button disabled={!playbackReady} onClick={() => activate(object.id)}>
-                  Activate {object.name}
-                </button>
-              )}
-              {components(object).map((item) =>
-                component(
-                  item,
-                  object.id,
-                  item.type === "video" &&
-                    assets.some((asset) => asset.id === object.assetId && !!asset.displaySurface),
+    <>
+      <details className="visitor-information" ref={details}>
+        <summary>Exhibit information</summary>
+        <section ref={section} aria-label="Exhibit information" data-exhibition-scene={scene.id}>
+          {("audio" in scene ? scene.audio : [])?.map((item) => component(item))}
+          {scene.objects
+            .filter(
+              (object) =>
+                components(object).length ||
+                hotspots.some(
+                  (hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase(),
                 ),
-              )}
-            </article>
-          ))}
-      </section>
-    </details>
+            )
+            .map((object) => (
+              <article
+                key={object.id}
+                data-owner-id={object.id}
+                hidden={"visible" in object && object.visible === false}
+              >
+                <h2>{object.name}</h2>
+                {hotspots.some(
+                  (hotspot) => hotspot.objectId.toLowerCase() === object.id.toLowerCase(),
+                ) && (
+                  <button disabled={!playbackReady} onClick={() => activate(object.id)}>
+                    Activate {object.name}
+                  </button>
+                )}
+                {components(object).map((item) =>
+                  component(
+                    item,
+                    object.id,
+                    item.type === "video" &&
+                      assets.some((asset) => asset.id === object.assetId && !!asset.displaySurface),
+                  ),
+                )}
+              </article>
+            ))}
+        </section>
+      </details>
+      <dialog
+        ref={dialog}
+        className="visitor-media-dialog"
+        aria-label="Exhibit media"
+        onClose={() => setModalItem(null)}
+      >
+        {modalItem && (
+          <>
+            <button
+              type="button"
+              className="visitor-media-dialog-close"
+              aria-label="Close exhibit media"
+              onClick={() => setModalItem(null)}
+            >
+              Close
+            </button>
+            {modalItem.type === "text" ? (
+              <Text component={modalItem} />
+            ) : modalItem.type === "image" || modalItem.type === "video" ? (
+              <Media
+                key={modalItem.assetId}
+                component={modalItem}
+                assets={assets}
+                standVideo={false}
+                visit={0}
+              />
+            ) : null}
+            {modalItem.caption && (
+              <p className="visitor-media-dialog-caption">{modalItem.caption}</p>
+            )}
+          </>
+        )}
+      </dialog>
+    </>
   );
 }

@@ -101,12 +101,69 @@
   margin: 0.75rem 0;
 }
 .visitor-preview figure img,
-.visitor-preview figure video {
+.visitor-preview figure video,
+.visitor-preview figure audio {
+  display: block;
+  margin-inline: auto;
   max-width: 100%;
+}
+.visitor-preview figure img,
+.visitor-preview figure video {
   height: auto;
 }
-.visitor-preview audio {
+.visitor-preview figure figcaption {
+  text-align: center;
+}
+.visitor-preview figure > button {
+  display: block;
+  margin-inline: auto;
+}
+.visitor-media-dialog {
+  width: min(90vw, 960px);
+  max-width: none;
+  max-height: 86dvh;
+  padding: 2.75rem 1.5rem 1.5rem;
+  border: 1px solid #ded7cc;
+  border-radius: 1rem;
+  background: #fffdf9;
+  color: #292522;
+  box-shadow: var(--shadow);
+}
+.visitor-media-dialog::backdrop {
+  background: rgb(41 39 35 / 55%);
+}
+.visitor-media-dialog[open] {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.75rem;
+}
+.visitor-media-dialog img,
+.visitor-media-dialog video {
+  display: block;
+  width: auto;
+  height: auto;
   max-width: 100%;
+  max-height: 70dvh;
+  object-fit: contain;
+  margin-inline: auto;
+}
+.visitor-media-dialog audio {
+  max-width: 100%;
+}
+.visitor-media-dialog p {
+  margin: 0;
+  max-width: 100%;
+  white-space: pre-wrap;
+  text-align: center;
+}
+.visitor-media-dialog-caption {
+  color: #4b4740;
+}
+.visitor-media-dialog-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
 }
 @media (max-width: 600px) {
   .visitor-preview button,
