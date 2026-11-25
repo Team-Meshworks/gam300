@@ -65,8 +65,9 @@ The Dockerfile builds with pinned Node/npm and serves the result through pinned 
 The launchers restore Git LFS delivery assets and check prerequisites. The container
 build runs lint, formatting, browser-policy and unit tests, TypeScript and build
 checks before the web service starts. Real browser proof runs separately on a
-non-root sandbox-capable host. CI sets `RUN_BUILD_CHECKS=false` after its source
-checks pass, then tests the final Caddy image from that host. Host Node/npm and
+non-root sandbox-capable host. CI sets `RUN_BUILD_CHECKS=false` and runs the source
+checks alongside packaging. The image still typechecks its own inputs before bundling.
+CI tests the final Caddy image from that host. Host Node/npm and
 Chrome are unnecessary just to start the container. This launcher starts the web service
 only; use the API Compose configuration below to include PostgreSQL and the API required
 for authoring.
@@ -176,13 +177,16 @@ Do not add `--volumes` when keeping project or account data.
 ## What CI does
 
 Pushes to `main` and `dev` and manual dispatches run the full build and regression suites.
-Pull requests targeting either branch get a read-only web check. It runs Oxlint, Bun type checking,
-the full Vitest suite and both Vite builds in parallel with the other source checks.
+Pull requests targeting either branch get a read-only web check. Oxlint, Bun type checking,
+Vitest and both Vite builds run in parallel with the other source checks. For PRs that only
+edit web unit tests or TypeScript modules with a colocated test, Vitest uses its import graph
+to run the related tests. Other changes and full runs exercise the entire unit suite.
 The native builds and standalone Docker build also typecheck. npm installs the pinned Bun binary.
 The release image is built concurrently with the source checks and is tested behind Caddy.
 Both build modes enforce the 500 kB JavaScript chunk budget.
 
-The PR selector skips browser fixtures for documentation and web unit-test changes. It selects
+The PR selector skips the frontend browser fixtures for documentation, web unit-test and
+C# test-only changes. C# test edits still run both server shards. The selector chooses
 the fixtures that own changed browser entry scripts or preview HTML routes. Application code,
 shared helpers, configuration, assets, server changes and an unavailable comparison run the
 full browser set. Each browser group runs against its own Vite server. The catalog in

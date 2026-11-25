@@ -176,8 +176,9 @@ Each discovers the current assembly and assigns whole classes using the recorded
 in [`server-class-seconds.json`](../../.github/ci/server-class-seconds.json). New classes start with
 a weight of one second per discovered case. Both runners verify their TRX results against the
 assigned cases and must agree on every UID in the partition. Each `server-checks-<shard>-<commit>`
-artifact contains its report and case selection. The standalone cold-restart acceptance remains
-a local operator check.
+artifact contains its report, case selection and measured class durations in `class-seconds.json`.
+Use both shards from representative full runs to refresh the weights. The standalone cold-restart
+acceptance remains a local operator check.
 
 The assembly caps concurrency at four per runner. Browser scenarios and proxy checks share the
 `Browser` lock. The API cases in mixed classes use their class lock, and only tests that change

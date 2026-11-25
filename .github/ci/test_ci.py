@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from browser_matrix import changed_paths, plan
+from server_shard import trx_display_name
 from sharding import balance
 
 
@@ -19,8 +20,24 @@ class CiSelectionTests(unittest.TestCase):
         self.assertCountEqual(self.checks(result), ["assignment-screen /ui-preview/assignment-test.html", "player-parity"])
 
     def test_documentation_and_full_unit_changes_leave_expensive_pr_jobs_idle(self):
-        result = plan("pull_request", ["docs/deployment.md", "apps/web/shared/project/model.test.ts"])
-        self.assertEqual(result, {"browser": [], "proof": False, "server": False})
+        result = plan("pull_request", ["docs/deployment.md", "apps/web/editor/controls/fpsControls.test.ts"])
+        self.assertEqual(result, {"browser": [], "proof": False, "server": False,
+                                  "unit_files": ["editor/controls/fpsControls.test.ts"]})
+
+    def test_csharp_test_edits_exercise_the_server_and_embedded_browser_suite(self):
+        result = plan("pull_request", ["apps/server/tests/Integration/ProductionRoomBrowserTests.cs"])
+        self.assertEqual(result, {"browser": [], "proof": False, "server": True, "unit_files": []})
+
+    def test_related_units_need_a_known_test_and_broader_prs_get_the_full_suite(self):
+        module = "apps/web/editor/controls/fpsControls.ts"
+        self.assertEqual(plan("pull_request", [module])["unit_files"], ["editor/controls/fpsControls.ts"])
+        for event, paths in [("push", [module]), ("pull_request", [module, "assets/manifest.json"]),
+                             ("pull_request", ["apps/web/editor/deleted.ts"]), ("pull_request", None)]:
+            self.assertEqual(plan(event, paths)["unit_files"], [])
+
+    def test_trx_escapes_the_nul_in_the_username_case_and_preserves_valid_unicode(self):
+        self.assertEqual(trx_display_name("login(nul\0name)"), r"login(nul\u0000name)")
+        self.assertEqual(trx_display_name("login(测试 🧪)"), "login(测试 🧪)")
 
     def test_uncertain_diffs_and_full_events_keep_all_fixtures(self):
         full = self.checks(plan("workflow_dispatch", None))

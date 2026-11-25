@@ -319,7 +319,7 @@ public sealed class CreationGenerationTests
     public async Task AdditiveMigrationPreservesLegacyReceiptsAndRefusesDestructiveDowngrades()
     {
         const string previous = "20261114135210_AddCreationReceipts";
-        await using var fixture = await PostgresAccountFixture.CreateAsync(previous);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync(previous);
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var actor = new ApplicationUser { Id = Guid.NewGuid(), UserName = "generation-upgrade", NormalizedUserName = "GENERATION-UPGRADE" };

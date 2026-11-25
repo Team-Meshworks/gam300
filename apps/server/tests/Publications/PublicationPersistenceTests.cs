@@ -88,7 +88,7 @@ public sealed class PublicationPersistenceTests
     [Test]
     public async Task PublicationDatabase_RuntimePolicyIdentityIsImmutable()
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync("20261104191214_ProtectPublicationHistory");
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync("20261104191214_ProtectPublicationHistory");
         await SeedAsync(fixture);
         await InsertAsync(fixture, Edition());
         var other = Guid.NewGuid();
@@ -133,7 +133,7 @@ public sealed class PublicationPersistenceTests
     [Arguments("20261106140000_AddOrganizationDeletion", true)]
     public async Task PublicationDatabase_PolicyIdentityRemainsProtectedAtMigrationTarget(string target, bool downgrade)
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync(downgrade ? null : target);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync(downgrade ? null : target);
         await SeedAsync(fixture);
         await InsertAsync(fixture, Edition());
         var other = Guid.NewGuid();
@@ -163,7 +163,7 @@ public sealed class PublicationPersistenceTests
     [Arguments(2, Project.MaxRevision)]
     public async Task PublicationDatabase_FreshMigrationRoundTripsCompleteEditionInANewContext(int version, long revision)
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync(targetMigration: null);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync();
         await SeedAsync(fixture, version, revision);
 
         await using (var scope = fixture.Services.CreateAsyncScope())
@@ -194,7 +194,7 @@ public sealed class PublicationPersistenceTests
     [Test]
     public async Task PublicationDatabase_UpgradeAndRepeatedIdempotentScriptPreserveExistingDraftAndPublication()
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync(DraftMigration);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync(DraftMigration);
         await SeedAsync(fixture);
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = Db(scope);
@@ -227,7 +227,7 @@ public sealed class PublicationPersistenceTests
     [Test]
     public async Task PublicationDatabase_MigrationDownAndReapplyPreservePreexistingDraft()
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync(targetMigration: null);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync();
         await SeedAsync(fixture);
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = Db(scope);
@@ -446,7 +446,7 @@ public sealed class PublicationPersistenceTests
     [Arguments(true)]
     public async Task PublicationDatabase_RuntimeRoleCannotDeleteCommittedEdition(bool upgrade)
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync(
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync(
             upgrade ? "20261103080036_AddAccountDisplayName" : null);
         await SeedAsync(fixture);
         await InsertAsync(fixture, Edition());

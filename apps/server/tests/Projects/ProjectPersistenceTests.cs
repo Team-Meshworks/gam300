@@ -21,7 +21,7 @@ public sealed class ProjectPersistenceTests
     [Test]
     public async Task ProjectDatabase_ReceiptUpgradeBackfillsOnlyTheRetainedLatestMutation()
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync("20261018091152_AddProjectDraftStorage");
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync("20261018091152_AddProjectDraftStorage");
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var project = await SeedProjectAsync(database);
@@ -66,7 +66,7 @@ public sealed class ProjectPersistenceTests
     [Test]
     public async Task ProjectDatabase_ReceiptUpgradeRejectsPopulatedRevisionZeroWithoutPartialMigration()
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync("20261029094707_AddPublicationSnapshots");
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync("20261029094707_AddPublicationSnapshots");
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var project = await SeedProjectAsync(database);
@@ -191,7 +191,7 @@ public sealed class ProjectPersistenceTests
     public async Task ProjectDatabase_FreshSchemaMigrations_RoundTripProjectAndAssignments()
     {
         var digest = Enumerable.Range(0, 32).Select(index => (byte)index).ToArray();
-        await using var fixture = await PostgresAccountFixture.CreateAsync(targetMigration: null);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync();
 
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
@@ -244,7 +244,7 @@ public sealed class ProjectPersistenceTests
     [Test]
     public async Task ProjectDatabase_UpgradeActualIdentityMigration_PreservesExistingAccountAndMembership()
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync("20261014103716_InitialIdentityAndOrganizations");
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync("20261014103716_InitialIdentityAndOrganizations");
         string? originalHash;
         string? originalStamp;
 

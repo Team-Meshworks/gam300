@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -12,6 +13,11 @@ from sharding import balance
 
 HERE = Path(__file__).resolve().parent
 ASSEMBLY = "tests/bin/Release/net10.0/Spatia.Server.Tests.dll"
+INVALID_XML_CHARACTER = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
+
+
+def trx_display_name(name):
+    return INVALID_XML_CHARACTER.sub(lambda match: f"\\u{ord(match[0]):04x}", name)
 
 
 def run(shard):
@@ -52,7 +58,7 @@ def run(shard):
         observed[class_name, node.attrib["testName"]] += 1
         hours, minutes, fraction = node.attrib["duration"].split(":")
         seconds[class_name.rsplit(".", 1)[-1]] += int(hours) * 3600 + int(minutes) * 60 + float(fraction)
-    expected = Counter((test["type"]["namespace"] + "." + test["type"]["typeName"], test["displayName"])
+    expected = Counter((test["type"]["namespace"] + "." + test["type"]["typeName"], trx_display_name(test["displayName"]))
                        for test in cases)
     if observed != expected:
         raise ValueError(f"TRX inventory mismatch: missing {expected - observed}, extra {observed - expected}")

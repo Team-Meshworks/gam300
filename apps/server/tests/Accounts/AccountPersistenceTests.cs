@@ -15,7 +15,7 @@ public sealed class AccountPersistenceTests
     [Test]
     public async Task Migration_RealPostgres_CreatesIdentityStoresAndSeededRolesInOwnedSchema()
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync(targetMigration: null);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync();
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 

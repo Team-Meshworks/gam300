@@ -25,13 +25,22 @@ static_checks() {
 }
 
 unit_tests() {
-  npm run test:unit -- --reporter=default --reporter=junit --outputFile=test-results/unit.xml
+  local reporters=(--reporter=default --reporter=junit --outputFile=test-results/unit.xml)
+  if [[ ${UNIT_FILES:-[]} == '[]' ]]; then
+    npm run test:unit -- "${reporters[@]}"
+  else
+    local files
+    mapfile -t files < <(jq -r '.[]' <<< "$UNIT_FILES")
+    npm exec -- vitest related --run "${files[@]}" "${reporters[@]}"
+  fi
   node tests/restricted-catalogue.check.mjs
 }
 
 bundle() {
-  npm run bundle:editor
-  npm run build:visitor
+  local mode=development
+  if [[ ${GITHUB_BASE_REF:-} == main ]]; then mode=production; fi
+  NODE_ENV="$mode" npm run bundle:editor -- --mode "$mode"
+  NODE_ENV="$mode" npm run build:visitor -- --mode "$mode"
 }
 
 run_check lint npm run lint

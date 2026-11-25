@@ -94,6 +94,7 @@ jobs:
       proof: ${{ steps.plan.outputs.proof }}
       browser: ${{ steps.plan.outputs.browser }}
       server: ${{ steps.plan.outputs.server }}
+      unit_files: ${{ steps.plan.outputs.unit_files }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -213,6 +214,7 @@ jobs:
 
   source:
     name: Web source checks
+    needs: select
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
@@ -234,6 +236,8 @@ jobs:
           npm install --global npm@11.21.1
           npm ci --no-audit --no-fund
       - name: Check lint, types, units and source in parallel
+        env:
+          UNIT_FILES: ${{ needs.select.outputs.unit_files }}
         run: bash ../../.github/ci/web-checks.sh
       - name: Retain source-check evidence
         if: always()

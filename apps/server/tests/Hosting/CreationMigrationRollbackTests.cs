@@ -23,7 +23,7 @@ public sealed partial class ReceiptMigrationRollbackTests
     [Arguments(Generations, Receipts)]
     public async Task ConcurrentFirstCreationReceiptSurvivesDowngrade(string current, string previous)
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync(current);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync(current);
         await using var migrationScope = fixture.Services.CreateAsyncScope();
         var db = migrationScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await using var writeScope = fixture.Services.CreateAsyncScope();

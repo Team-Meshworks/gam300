@@ -37,6 +37,20 @@ def unit_test(path):
     return path.startswith(("apps/web/editor/", "apps/web/shared/", "apps/web/visitor/")) and path.endswith(".test.ts")
 
 
+def related_unit_files(changes):
+    files = []
+    for path in changes or []:
+        if documentation(path):
+            continue
+        if not re.fullmatch(r"apps/web/(editor|shared|visitor)/[\w./-]+\.tsx?", path):
+            return []
+        source = ROOT / path
+        if not source.is_file() or not (unit_test(path) or source.with_suffix(".test.ts").is_file()):
+            return []
+        files.append(path.removeprefix("apps/web/"))
+    return files
+
+
 def browser_checks(catalog, scripts, changes):
     if changes is None:
         return set(catalog)
@@ -51,6 +65,8 @@ def browser_checks(catalog, scripts, changes):
     selected = set()
     for path in changes:
         if documentation(path) or unit_test(path):
+            continue
+        if path.startswith("apps/server/tests/") and path.endswith(".cs"):
             continue
         if path not in owners or not (ROOT / path).is_file():
             return set(catalog)
@@ -75,7 +91,8 @@ def plan(event, changes):
     server = event != "pull_request" or changes is None or any(
         not documentation(path) and not unit_test(path) for path in changes
     )
-    return {"browser": matrix, "proof": proof, "server": server}
+    return {"browser": matrix, "proof": proof, "server": server,
+            "unit_files": related_unit_files(changes) if event == "pull_request" else []}
 
 
 if __name__ == "__main__":

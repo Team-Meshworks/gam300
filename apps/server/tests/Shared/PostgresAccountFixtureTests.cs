@@ -15,7 +15,7 @@ public sealed class PostgresAccountFixtureTests
     [Test]
     public async Task MigrationScript_JsonBraces_AreExecutedVerbatimAndPersisted()
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync(Migration.InitialDatabase);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync(Migration.InitialDatabase);
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var script = database.GetService<IMigrator>().GenerateScript();
@@ -45,7 +45,7 @@ public sealed class PostgresAccountFixtureTests
     [Test]
     public async Task ApplicationSchema_MatchesMigrationsAndKeepsStoredDataAndCleanupIsolated()
     {
-        await using var migrated = await PostgresAccountFixture.CreateAsync(targetMigration: null);
+        await using var migrated = await PostgresAccountFixture.CreateMigratedAsync();
         var organizationId = Guid.NewGuid();
         string disposedSchema;
         NpgsqlDataSource applicationPool;

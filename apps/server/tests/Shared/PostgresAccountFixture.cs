@@ -57,7 +57,7 @@ internal sealed class PostgresAccountFixture : IAsyncDisposable
         return builder;
     }
 
-    public static Task<PostgresAccountFixture> CreateAsync(string? targetMigration) =>
+    public static Task<PostgresAccountFixture> CreateMigratedAsync(string? targetMigration = null) =>
         CreateAsync(targetMigration, useMigrationScript: false);
 
     public static Task<PostgresAccountFixture> CreateAsync() =>

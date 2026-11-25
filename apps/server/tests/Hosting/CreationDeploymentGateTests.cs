@@ -13,7 +13,7 @@ public sealed class CreationDeploymentGateTests
     [Arguments("20261114150108_AddCreationGenerations", "SELECT actor_id, intent_digest, kind, purpose, organization_id, source_project_id", PostgresErrorCodes.UndefinedTable)]
     public async Task DeploymentRuntimeRoleGateRejectsOldSchemaAndReadsFinalGenerationColumnsWithoutDataChanges(string migration, string projectionStart, string errorCode)
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync(migration);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync(migration);
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var root = new DirectoryInfo(AppContext.BaseDirectory);
