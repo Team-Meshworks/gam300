@@ -1,3 +1,4 @@
+import "../shared/ui/inter-font.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { ServerProjectEditor } from "./ServerProjectEditor";

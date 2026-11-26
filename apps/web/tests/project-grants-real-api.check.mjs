@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { createServer } from "vite";
+import { blankProject } from "./authoring-project-fixture.mjs";
 import { launchBrowser } from "./browser-security.mjs";
 
 assert.ok(
@@ -45,53 +46,50 @@ try {
   const project = page.getByRole("listitem").filter({
     has: page.getByRole("heading", { name: "Grant browser project", exact: true }),
   });
-  assert.equal(
-    await project.getByRole("button", { name: "Manage access", exact: true }).count(),
-    0,
+  await page.getByRole("heading", { name: "All Projects", exact: true }).waitFor();
+  await page
+    .getByText("No projects are available for your account yet.", { exact: true })
+    .waitFor();
+  assert.equal(await project.count(), 0);
+  const adminDenied = await page.evaluate(
+    async ({ projectId, document }) => {
+      const path = `/api/v1/projects/${projectId}`;
+      const draft = await fetch(path);
+      const csrf = await (await fetch("/api/v1/auth/csrf")).json();
+      const send = async (url, method, body) =>
+        (
+          await fetch(url, {
+            method,
+            headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
+            body: JSON.stringify(body),
+          })
+        ).status;
+      return {
+        read: draft.status,
+        edit: await send(path, "PUT", {
+          expectedRevision: 0,
+          clientMutationId: crypto.randomUUID(),
+          document,
+        }),
+        publish: await send(path + "/publications", "POST", {
+          publicationId: crypto.randomUUID(),
+          confirmedRevision: 0,
+          intent: { audience: "Public", viewerIds: [] },
+        }),
+        grants: await send(path + "/assignments", "PATCH", {
+          expectedRevision: 0,
+          managedByUserIds: [],
+          assignedCreatorIds: [],
+          canPublishUserIds: [],
+        }),
+      };
+    },
+    {
+      projectId: process.env.SPATIA_TEST_PROJECT,
+      document: { ...blankProject, projectId: process.env.SPATIA_TEST_PROJECT },
+    },
   );
-  assert.equal(
-    await project.getByRole("button", { name: "Continue editing", exact: true }).count(),
-    0,
-  );
-  assert.equal(await project.getByRole("button", { name: "Publish", exact: true }).count(), 0);
-  const adminDenied = await page.evaluate(async (projectId) => {
-    const path = `/api/v1/projects/${projectId}`;
-    const draft = await (await fetch(path)).json();
-    const csrf = await (await fetch("/api/v1/auth/csrf")).json();
-    const send = async (url, method, body) =>
-      (
-        await fetch(url, {
-          method,
-          headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
-          body: JSON.stringify(body),
-        })
-      ).status;
-    return {
-      permissions: draft.permissions,
-      edit: await send(path, "PUT", {
-        expectedRevision: draft.revision,
-        clientMutationId: crypto.randomUUID(),
-        document: draft.document,
-      }),
-      publish: await send(path + "/publications", "POST", {
-        publicationId: crypto.randomUUID(),
-        confirmedRevision: draft.revision,
-        intent: { audience: "Public", viewerIds: [] },
-      }),
-      grants: await send(path + "/assignments", "PATCH", {
-        expectedRevision: draft.revision,
-        managedByUserIds: [],
-        assignedCreatorIds: [],
-        canPublishUserIds: [],
-      }),
-    };
-  }, process.env.SPATIA_TEST_PROJECT);
-  assert.deepEqual(adminDenied.permissions, {
-    canEdit: false,
-    canManage: false,
-    canPublish: false,
-  });
-  assert.deepEqual([adminDenied.edit, adminDenied.publish, adminDenied.grants], [403, 403, 403]);
+  assert.deepEqual(adminDenied, { read: 403, edit: 403, publish: 403, grants: 403 });
   const creatorContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const creatorPage = await creatorContext.newPage();
   await creatorPage.goto(`${origin}/login`);

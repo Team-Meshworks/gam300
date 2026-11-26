@@ -101,7 +101,8 @@ try {
   await student.waitForURL(`${origin}/home`);
   await student.goto(`${origin}/publish?projectId=${data.projectId}`);
   await student.getByRole("heading", { name: "Publish project" }).waitFor();
-  await student.locator("select").selectOption("Unlisted");
+  await student.getByRole("combobox", { name: "Who can open this publication" }).click();
+  await student.getByRole("option", { name: "Anyone with the link", exact: true }).click();
   await student.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
   const posted = student.waitForResponse(
     (response) =>

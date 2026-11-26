@@ -1,0 +1,186 @@
+:root {
+  --sp-admin-select-menu-shadow: 0 8px 24px rgb(41 39 35 / 12%);
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  .sp-admin-select {
+  min-width: 0;
+  display: grid;
+  gap: 9px;
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  .sp-admin-select
+  > label {
+  font: var(--sp-weight-emphasis) 14px/20px var(--sp-font);
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  .sp-admin-select
+  > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  height: 52px;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 1px solid var(--sp-border);
+  border-radius: 12px;
+  background: var(--sp-surface);
+  color: var(--sp-ink);
+  text-align: left;
+  font: var(--sp-weight-body) 14px/20px var(--sp-font);
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  .sp-admin-select
+  > button
+  > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  .sp-admin-select
+  > button
+  > svg {
+  flex: none;
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  .asset-admin-select-menu {
+  --sp-admin-select-value-size: 13px;
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  :is(
+    .sp-admin-select-menu,
+    .sp-account-type-menu,
+    .asset-admin-select-menu,
+    .sp-project-class-menu
+  ) {
+  position: fixed;
+  inset: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--sp-border);
+  border-radius: 8px;
+  background: var(--sp-surface);
+  color: var(--sp-ink);
+  box-shadow: var(--sp-admin-select-menu-shadow);
+  font: var(--sp-weight-body) var(--sp-admin-select-value-size, 14px)/20px var(--sp-font);
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  :is(
+    .sp-admin-select-menu,
+    .sp-account-type-menu,
+    .asset-admin-select-menu,
+    .sp-project-class-menu
+  )
+  [role="option"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  :is(
+    .sp-admin-select-menu,
+    .sp-account-type-menu,
+    .asset-admin-select-menu,
+    .sp-project-class-menu
+  )
+  [role="option"][data-active="true"] {
+  background: var(--sp-soft);
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  :is(
+    .sp-admin-select-menu,
+    .sp-account-type-menu,
+    .asset-admin-select-menu,
+    .sp-project-class-menu
+  )
+  [role="option"][aria-selected="true"] {
+  font-weight: var(--sp-weight-action);
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  :is(
+    .sp-admin-select-menu,
+    .sp-account-type-menu,
+    .asset-admin-select-menu,
+    .sp-project-class-menu
+  )
+  [role="option"]:hover:not(:disabled) {
+  background: var(--sp-hover);
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  :is(.sp-admin-select, .sp-project-class, .sp-account-type-select, .asset-admin-select)
+  > button[role="combobox"] {
+  font-family: var(--sp-font);
+  font-weight: var(--sp-weight-body);
+  line-height: 20px;
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  .sp-project-class
+  > button {
+  height: 52px;
+  min-height: 52px;
+  font-size: 14px;
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  .asset-admin-dialog
+  .asset-admin-select
+  > output {
+  font-weight: var(--sp-weight-body);
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  :is(.sp-admin-select, .sp-project-class, .sp-account-type-select, .asset-admin-select)
+  > button[role="combobox"]:disabled {
+  cursor: default;
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  .sp-admin-select
+  > button:disabled {
+  background: var(--sp-soft);
+  color: var(--sp-muted);
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  :is(.sp-admin-select, .sp-project-class, .sp-account-type-select, .asset-admin-select)
+  > button[role="combobox"]:focus-visible {
+  outline: 2px solid var(--sp-focus);
+  outline-offset: 2px;
+}
+
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  :is(.sp-admin-select, .sp-project-class, .sp-account-type-select, .asset-admin-select)
+  > button[role="combobox"]:hover:not(:disabled) {
+  background: var(--sp-hover);
+}
+
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  :is(.sp-admin-select, .sp-project-class, .sp-account-type-select, .asset-admin-select)
+  > button[role="combobox"]:disabled {
+  background: var(--sp-soft);
+  color: var(--sp-muted);
+  opacity: 1;
+}
+:is(.sp-shell[data-account-role="Administrator"], .sp-shell[data-account-role="Creator"])
+  :is(.sp-admin-select, .sp-project-class, .sp-account-type-select, .asset-admin-select)
+  > button[role="combobox"]:disabled
+  > svg {
+  opacity: 0.4;
+}
+
+/* Layout grids must not expose a collapsed popover or its options */
+.sp-select-menu[popover]:not(:popover-open) {
+  display: none;
+}

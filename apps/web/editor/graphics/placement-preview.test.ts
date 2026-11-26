@@ -1,6 +1,23 @@
 import { expect, it, vi } from "vitest";
 import * as THREE from "three";
-import { createPlacementPreview } from "./placement-preview";
+import { createPlacementModel, createPlacementPreview } from "./placement-preview";
+
+it("uses the prepared ghost for each drag and leaves its lifetime with the model lease", () => {
+  const scene = new THREE.Scene();
+  const model = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+  const prepared = createPlacementModel(model);
+  const dispose = vi.spyOn(prepared.materials[0]!, "dispose");
+  const preview = createPlacementPreview(scene, new Map([["crate", model]]), () => prepared);
+  preview.show("crate", [1, 0, 2]);
+  expect(scene.getObjectByName("placement-preview")).toBe(prepared.model);
+  preview.clear();
+  expect(dispose).not.toHaveBeenCalled();
+  preview.show("crate", [2, 0, 3]);
+  expect(prepared.model.position.toArray()).toEqual([2, 0, 3]);
+  preview.clear();
+  prepared.dispose();
+  expect(dispose).toHaveBeenCalledOnce();
+});
 it("previews without mutating borrowed assets and disposes only owned materials", () => {
   const scene = new THREE.Scene();
   const material = new THREE.MeshStandardMaterial({ color: "red" });

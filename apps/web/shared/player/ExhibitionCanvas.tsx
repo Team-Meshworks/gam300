@@ -5,10 +5,9 @@ import { createActiveClock } from "../preview/active-clock";
 import { FpsControls, type FpsMobileControls } from "../preview/FpsControls";
 import { MobileControls } from "../preview/MobileControls";
 import { standOnPreviewFloor } from "../preview/preview-start";
-import { createWalkSpace } from "../preview/walk-space";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { createWalkSpace, type WalkProp } from "../preview/walk-space";
 import { isRoomModel, knownRoomGeometry, STARTER_ROOM_SHA256 } from "../asset-runtime/catalogue";
-import { disposeModels } from "../asset-runtime/ModelCache";
+import { disposeModels, visibleModelBounds } from "../asset-runtime/ModelCache";
 import { createExhibitAppearance } from "../asset-runtime/exhibit-appearance";
 import { containDisplay } from "../asset-runtime/display-layout";
 import { createDisplayText } from "../asset-runtime/display-text";
@@ -21,9 +20,10 @@ import {
 import { fitRoomFog, lightExhibitionScene } from "../asset-runtime/scene-lighting";
 import type { PlayerSnapshot } from "./player-snapshot";
 import { createVisitorPlayback } from "./playback";
-import { fetchPlayerAsset } from "./player-asset";
+import type { createPlayerGraphics } from "./player-graphics";
 
 export function ExhibitionCanvas({
+  graphics,
   exhibition,
   sceneIndex,
   viewpoint,
@@ -31,6 +31,7 @@ export function ExhibitionCanvas({
   beginNavigationEvent,
   onPlaybackReady,
 }: {
+  graphics: ReturnType<typeof createPlayerGraphics>;
   exhibition: PlayerSnapshot;
   sceneIndex: number;
   navigate: (sceneId: string, viewpointId: string, deliberate: boolean) => boolean;
@@ -62,10 +63,10 @@ export function ExhibitionCanvas({
     const source = exhibition.document.scenes[sceneIndex];
     if (!host || !source) return;
     const controller = new AbortController();
-    const scene = new THREE.Scene();
+    const { scene, camera } = graphics;
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer = graphics.getRenderer();
     } catch {
       queueMicrotask(() => {
         if (!controller.signal.aborted)
@@ -95,7 +96,6 @@ export function ExhibitionCanvas({
             entryView?.id ?? ("startViewpointId" in source ? source.startViewpointId : undefined)
           )?.toLowerCase(),
       )?.camera ?? source.startCamera;
-    const camera = new THREE.PerspectiveCamera(starting.fovDegrees, 1, 0.01, 2000);
     const fps = new FpsControls(camera, renderer.domElement);
     fps.setFlightAllowed(false);
     fps.onNavigationInput = beginNavigationEvent;
@@ -156,7 +156,10 @@ export function ExhibitionCanvas({
     const waitingForMedia = new Set<() => boolean>();
     let lastFrame = performance.now();
     const clock = createActiveClock(lastFrame, !document.hidden);
-    const visibilityChanged = () => clock.setActive(performance.now(), !document.hidden);
+    const visibilityChanged = () => {
+      lastFrame = performance.now();
+      clock.setActive(lastFrame, !document.hidden);
+    };
     document.addEventListener("visibilitychange", visibilityChanged);
     // Resolve visible model owners from child geometry for click and gaze triggers
     const picked = () => {
@@ -241,12 +244,17 @@ export function ExhibitionCanvas({
     document.addEventListener("pointerlockchange", cancelPress);
     document.addEventListener("visibilitychange", cancelPress);
     window.addEventListener("blur", cancelPress);
+    const hasGaze =
+      "rules" in source &&
+      source.rules.some((rule) => rule.enabled && rule.trigger.type === "gaze");
+    const center = new THREE.Vector2();
     renderer.setAnimationLoop(() => {
+      if (document.hidden) return;
       const now = performance.now();
-      if (!document.hidden) fps.update(Math.min(0.1, (now - lastFrame) / 1000));
-      ray.setFromCamera(new THREE.Vector2(), camera);
+      fps.update(Math.min(0.1, (now - lastFrame) / 1000));
       const elapsed = clock.tick(now);
-      playback?.update(elapsed, picked());
+      if (hasGaze && playback) ray.setFromCamera(center, camera);
+      playback?.update(elapsed, hasGaze ? picked() : undefined);
       lastFrame = now;
       for (const bind of waitingForMedia) if (bind()) waitingForMedia.delete(bind);
       renderer.render(scene, camera);
@@ -266,25 +274,28 @@ export function ExhibitionCanvas({
         : []),
       ...source.objects,
     ];
-    const manager = new THREE.LoadingManager();
-    manager.setURLModifier((url) => {
-      if (!url.startsWith("blob:") && !url.startsWith("data:"))
-        throw new Error("External exhibition resources are unsupported.");
-      return url;
-    });
-    const loader = new GLTFLoader(manager);
+    const models = graphics.openScene(controller.signal);
     const entrances = createRoomEntrances();
     const appearances = createExhibitAppearance();
     const rooms = new Map<THREE.Object3D, { model: THREE.Object3D; starter: boolean }>();
+    const assetsById = new Map(exhibition.assets.map((asset) => [asset.id, asset]));
+    const props: WalkProp[] = [];
+    const propBounds = new Map<string, THREE.Box3>();
     function syncRooms() {
       const visible = [...rooms].filter(([root]) => root.visible);
       entrances.sync(visible.filter(([, room]) => room.starter).map(([root]) => root));
       fps.setWalkSpace(
-        visible.length ? createWalkSpace(visible.map(([, room]) => room.model)) : undefined,
+        visible.length || props.length
+          ? createWalkSpace(
+              visible.map(([, room]) => room.model),
+              props,
+            )
+          : undefined,
       );
     }
     const hotspots = "hotspots" in source ? source.hotspots : [];
     let hotspotTemplate: THREE.Sprite | undefined;
+    let failed = false;
     void (async () => {
       if (hotspots.length) {
         const sprite = await loadHotspotSprite();
@@ -295,38 +306,35 @@ export function ExhibitionCanvas({
         hotspotTemplate = sprite;
       }
       for (const object of objects) {
-        const asset = exhibition.assets.find((row) => row.id === object.assetId);
+        const asset = assetsById.get(object.assetId);
         if (!asset) throw new Error("An exhibition asset is missing.");
-        const response = await fetchPlayerAsset(asset.url, controller.signal);
-        if (!response.ok)
-          throw new Error("An exhibition asset is unavailable. Your access may have changed.");
-        const bytes = await response.arrayBuffer();
-        const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
-          .map((byte) => byte.toString(16).padStart(2, "0"))
-          .join("");
-        if (digest !== asset.sha256.toLowerCase())
-          throw new Error("An exhibition asset could not be verified.");
-        const gltf = await loader.parseAsync(bytes, "");
-        if (controller.signal.aborted) {
-          disposeModels(gltf.scene);
-          return;
-        }
-        // Approved rooms use the same floor-centered model origin as the editor
-        // Apply it inside the authored root so its saved world transform stays unchanged
-        if (asset.placement === "bottom-center") {
-          const box = new THREE.Box3().setFromObject(gltf.scene);
-          const center = box.getCenter(new THREE.Vector3());
-          gltf.scene.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
-        }
+        const model = await models.instantiate(asset);
+        if (controller.signal.aborted) return;
+        const digest = asset.sha256.toLowerCase();
         const root = new THREE.Group();
 
         // Keep authored IDs on the rendered roots without changing the saved object data
         root.name = object.id;
         root.visible = !("visible" in object) || object.visible !== false;
-        root.add(gltf.scene);
+        root.add(model);
+        scene.add(root);
+        if (
+          asset.kind === "environment" ||
+          (asset.kind === "model" &&
+            (knownRoomGeometry.has(digest) || isRoomModel(exhibition.assets, asset.id)))
+        ) {
+          rooms.set(root, { model: model, starter: digest === STARTER_ROOM_SHA256 });
+        } else if (asset.kind === "model") {
+          let bounds = propBounds.get(asset.id);
+          if (!bounds) {
+            bounds = visibleModelBounds(model);
+            propBounds.set(asset.id, bounds);
+          }
+          if (!bounds.isEmpty()) props.push({ root, bounds });
+        }
         // Measure display surfaces in model-local coordinates before applying the authored root transform
         const localSurface =
-          asset.displayRole === "physical" ? new THREE.Box3().setFromObject(gltf.scene) : undefined;
+          asset.displayRole === "physical" ? new THREE.Box3().setFromObject(model) : undefined;
         if (object.transform) {
           root.position.fromArray(object.transform.position);
           root.quaternion.fromArray(object.transform.rotation);
@@ -396,19 +404,11 @@ export function ExhibitionCanvas({
             );
           }
         }
-        scene.add(root);
         roots.set(object.id, root);
         // Markers attach in object-local coordinates and follow the saved model transform
         for (const hotspot of hotspots) {
           if (hotspotTemplate && hotspot.objectId.toLowerCase() === object.id.toLowerCase())
             attachHotspotSprite(hotspotTemplate.clone(), root, hotspot.position);
-        }
-        if (
-          asset.kind === "environment" ||
-          (asset.kind === "model" &&
-            (knownRoomGeometry.has(digest) || isRoomModel(exhibition.assets, asset.id)))
-        ) {
-          rooms.set(root, { model: gltf.scene, starter: digest === STARTER_ROOM_SHA256 });
         }
       }
       if (!controller.signal.aborted) {
@@ -438,6 +438,7 @@ export function ExhibitionCanvas({
             "Click or tap the scene to enable audio",
             (root) => {
               if (rooms.has(root)) syncRooms();
+              else fps.refreshWalkObstacles();
             },
           );
           playback.begin();
@@ -455,8 +456,12 @@ export function ExhibitionCanvas({
       }
     })().catch((failure: unknown) => {
       if (!controller.signal.aborted) {
+        failed = true;
         entrances.dispose();
         appearances.dispose();
+        models.dispose();
+        waitingForMedia.clear();
+        renderer.setAnimationLoop(null);
         disposeModels(scene);
         scene.clear();
         setResult({
@@ -495,12 +500,23 @@ export function ExhibitionCanvas({
       if (hotspotTemplate) disposeHotspotSprite(hotspotTemplate);
       entrances.dispose();
       appearances.dispose();
+      models.dispose();
       disposeModels(scene);
-      renderer.dispose();
+      scene.clear();
       renderer.domElement.remove();
+      if (failed) graphics.resetRenderer();
       selectView.current = () => {};
     };
-  }, [exhibition, sceneIndex, entryView, attempt, navigate, beginNavigationEvent, onPlaybackReady]);
+  }, [
+    exhibition,
+    graphics,
+    sceneIndex,
+    entryView,
+    attempt,
+    navigate,
+    beginNavigationEvent,
+    onPlaybackReady,
+  ]);
   useEffect(() => {
     if (viewpoint && viewpoint !== entryView) selectView.current(viewpoint.id);
   }, [viewpoint, entryView]);

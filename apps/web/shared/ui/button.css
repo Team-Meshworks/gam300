@@ -1,0 +1,48 @@
+/* Shared button surfaces, states and label layout */
+.sp-button {
+  --sp-primary-hover: color-mix(
+    in srgb,
+    var(--sp-button-primary-base, var(--sp-ink)),
+    var(--sp-button-primary-toward, var(--sp-hover-light)) var(--sp-hover-strength)
+  );
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 1px solid var(--sp-border);
+  background: var(--sp-surface);
+  border-radius: 20px;
+  min-height: 44px;
+  padding: 10px 28px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sp-button-label {
+  display: block;
+  line-height: 1;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+.sp-button:hover:not(:disabled) {
+  background: var(--sp-hover);
+}
+.sp-button--primary {
+  background: var(--sp-ink);
+  color: var(--sp-button-primary-ink);
+  border-color: var(--sp-ink);
+}
+.sp-button--primary:hover:not(:disabled) {
+  background: var(--sp-primary-hover);
+}
+.sp-button--quiet {
+  padding: 4px 0;
+  min-height: 32px;
+  border-color: transparent;
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 12px;
+}

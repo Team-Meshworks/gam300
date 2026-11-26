@@ -585,7 +585,19 @@ public sealed class ProjectReadEndpointTests
             organization: role == ApplicationRoles.Administrator ? otherProject.OrganizationId : null);
         var archived = await SeedAsync(fixture, actor, manage: true, archived: true, organization: own.OrganizationId);
         await fixture.SignInAsync(actor);
-        var expected = role == ApplicationRoles.Administrator ? new[] { own.Id, otherProject.Id } : [own.Id];
+
+        if (role == ApplicationRoles.Administrator)
+        {
+            await AssertIdsAsync(await GetAsync(fixture.Client, "/api/v1/projects"));
+            await AssertIdsAsync(await GetAsync(fixture.Client, "/api/v1/projects?archived=true"));
+
+            using var draft = await fixture.Client.GetAsync(Path(own.Id));
+
+            await ProblemAsync(draft, HttpStatusCode.Forbidden, "access_denied");
+            return;
+        }
+
+        var expected = new[] { own.Id };
         await AssertIdsAsync(await GetAsync(fixture.Client, "/api/v1/projects"), expected.Order().ToArray());
         await AssertPermissionsAsync(await GetAsync(fixture.Client, Path(own.Id)), role != ApplicationRoles.Administrator, role == ApplicationRoles.Educator, role != ApplicationRoles.Administrator);
         var archivedPage = await GetAsync(fixture.Client, "/api/v1/projects?archived=true");

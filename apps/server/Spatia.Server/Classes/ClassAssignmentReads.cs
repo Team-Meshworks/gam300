@@ -50,7 +50,8 @@ internal static class ClassAssignmentReads
         if (account.MustChangePassword)
             return ProjectHttpResults.FromAccessFailure(context, ProjectAccessFailure.PasswordChangeRequired);
 
-        var visibleProjects = access.VisibleProjects(account);
+        var visibleProjects = account.Role == ApplicationRoles.Administrator
+            ? ProjectAccessService.PublishedProjects(database) : access.VisibleProjects(account);
         var mappings = database.ClassAssignmentStudents.AsNoTracking().Where(row => row.ClassroomId == id && row.IsActive
             && visibleProjects.Any(project => project.Id == row.ProjectId));
         var assignments = database.ClassAssignments.AsNoTracking().Where(row => row.ClassroomId == id
@@ -143,7 +144,7 @@ internal static class ClassAssignmentReads
                         _ => approval,
                     };
                     return new StudentProject(project.StudentId, project.ProjectId, project.StudentName, project.StudentUserName, reviewState,
-                        creator ? null : approval, creator ? null : status?.Published,
+                        creator || account.Role == ApplicationRoles.Administrator ? null : approval, creator ? null : status?.Published,
                         account.Role == ApplicationRoles.Administrator ? status?.IsPublic : null);
                 }).ToArray(),
             projects.Where(project => project.AssignmentId == row.Id)

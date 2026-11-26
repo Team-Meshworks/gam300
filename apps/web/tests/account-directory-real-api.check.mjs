@@ -4,6 +4,7 @@ import { createServer } from "vite";
 import { createLoopbackBridge } from "./browser-network.mjs";
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { checkAdminAssets, captureAdminPreview } from "./admin-asset-details.mjs";
 
 assert.ok(process.env.SPATIA_API_ORIGIN && process.env.SPATIA_TEST_ADMIN);
 const started = performance.now();
@@ -43,16 +44,38 @@ try {
     "Unpublished drafts must not appear in the admin published-project list",
   );
   await page.getByRole("button", { name: "+ Add Organisations", exact: true }).click();
-  await page
-    .getByLabel("Organisation name", { exact: true })
-    .fill("Dashboard browser organisation");
-  await page.getByRole("button", { name: "Create Organisation", exact: true }).click();
-  await page.waitForURL(origin + "/organisations");
-  await page
-    .getByRole("button", { name: "Open Dashboard browser organisation", exact: true })
-    .waitFor();
+  await page.getByLabel("Organisation name", { exact: true }).fill("Museum Studies Studio");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.waitForURL(/\/organisations\?organisation=[a-f0-9-]{36}$/);
+  await page.getByRole("heading", { name: "Museum Studies Studio", exact: true }).waitFor();
+  await page.getByText("No accounts yet.", { exact: false }).waitFor();
+  if (process.env.SPATIA_TEST_FORCED_ADMIN !== "true") {
+    await captureAdminPreview(page, "organisation-created");
+    const library = await context.newPage();
+    try {
+      await checkAdminAssets(library, origin);
+    } finally {
+      await library.close();
+    }
+  }
+  await page.getByRole("button", { name: "Close organisation", exact: true }).click();
+  await page.getByRole("button", { name: "Add Organisation", exact: true }).click();
+  await page.getByLabel("Organisation name", { exact: true }).fill("Directory Studio");
+  const created = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/v1/admin/organizations" &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  const receipt = await (await created).json();
+  await page.waitForURL(origin + "/organisations?organisation=" + receipt.id);
+  await page.getByRole("heading", { name: "Directory Studio", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Add Accounts", exact: true }).click();
+  await page.getByRole("dialog", { name: "Account Creation" }).waitFor();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Close organisation", exact: true }).click();
   await page.getByRole("button", { name: "Open Synthetic organization" }).click();
-  await page.getByRole("button", { name: "+ Add Accounts" }).click();
+  await page.getByRole("button", { name: "Add Accounts" }).click();
   let dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name", { exact: true }).fill("Browser Created");
   await dialog.getByLabel("Username", { exact: true }).fill("browser.created");
@@ -118,7 +141,7 @@ try {
     importOrganizationId = new URL(route.request().url()).pathname.split("/").at(-3);
     await route.abort("failed");
   });
-  await page.getByRole("button", { name: "+ Add Accounts", exact: true }).click();
+  await page.getByRole("button", { name: "Add Accounts", exact: true }).click();
   let importer = page.getByRole("dialog", { name: "Account Creation", exact: true });
   const picker = page.waitForEvent("filechooser");
   await importer.getByRole("button", { name: "Upload CSV", exact: true }).click();

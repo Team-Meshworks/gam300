@@ -1,6 +1,7 @@
 import { Icon as UiIcon } from "@iconify/react/offline";
 import faXmark from "@iconify-icons/lucide/x";
 import { useId, type ReactNode } from "react";
+import { Skeleton } from "skullet/react";
 import { Button } from "./Button";
 import { useModal } from "./useModal";
 
@@ -13,6 +14,7 @@ export function Dialog({
   className = "",
   closeDisabled = false,
   hideFooterClose = false,
+  loadingLabel,
 }: {
   title: string;
   children: ReactNode;
@@ -21,12 +23,14 @@ export function Dialog({
   className?: string;
   closeDisabled?: boolean;
   hideFooterClose?: boolean;
+  loadingLabel?: string | undefined;
 }) {
-  const ref = useModal(true);
+  const ref = useModal(true, variant === "admin");
   const titleId = useId();
+  const body = <div className="sp-dialog-body">{children}</div>;
   return (
     <dialog
-      className={`sp-dialog${variant === "account" ? " sp-account-dialog" : variant === "wide" ? " sp-dialog--wide" : variant === "display" ? " sp-display-dialog" : variant === "progress" ? " sp-progress-dialog" : ""} ${className}`}
+      className={`sp-dialog${variant === "account" ? " sp-account-dialog sp-dialog--form" : variant === "wide" ? " sp-dialog--wide" : variant === "display" ? " sp-display-dialog" : variant === "progress" ? " sp-progress-dialog" : ""} ${className}`}
       ref={ref}
       aria-labelledby={titleId}
       onCancel={(event) => {
@@ -48,7 +52,13 @@ export function Dialog({
           <UiIcon icon={faXmark} aria-hidden="true" />
         </Button>
       )}
-      <div className="sp-dialog-body">{children}</div>
+      {loadingLabel ? (
+        <Skeleton loading label={loadingLabel} className="sp-dialog-loading">
+          {body}
+        </Skeleton>
+      ) : (
+        body
+      )}
       {!hideFooterClose &&
         variant !== "account" &&
         variant !== "display" &&

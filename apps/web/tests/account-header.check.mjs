@@ -30,12 +30,18 @@ async function waitForSignal(signal, label) {
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   page.setDefaultTimeout(4000);
+  let holdColdSession = false;
+  let releaseColdSession;
+  const coldSession = new Promise((resolve) => {
+    releaseColdSession = resolve;
+  });
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/v1/auth/session") {
       sessionReads++;
       if (sessionFailure) return route.fulfill({ status: 503 });
       const snapshot = current;
+      if (holdColdSession) await coldSession;
       if (holdNextSession) {
         holdNextSession = false;
         sessionStarted(route.request());
@@ -103,6 +109,17 @@ try {
         }),
       );
   await mkdir("../../.artifacts/account-header", { recursive: true });
+  holdColdSession = true;
+  await page.goto(origin + "/review", { waitUntil: "commit" });
+  try {
+    await page.getByRole("status", { name: "Checking your session…" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Log Out" }).count(), 0);
+    await page.screenshot({ path: "../../.artifacts/account-header/loading.png" });
+  } finally {
+    holdColdSession = false;
+    releaseColdSession();
+  }
+  await page.getByText(session.displayName, { exact: true }).waitFor();
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     let shared;
@@ -286,7 +303,7 @@ try {
   await page.goto(`${origin}/home`);
   await page.getByText(current.displayName, { exact: true }).waitFor();
   assert.equal(await page.locator(".sp-header-account .sp-avatar").textContent(), "👩‍🎨");
-  const emptyProjects = page.getByText("No projects are available yet.", { exact: true });
+  const emptyProjects = page.getByText("No projects assigned yet.", { exact: true });
   await emptyProjects.waitFor();
   holdNextSession = true;
   const creatorRecheck = new Promise((resolve) => {
@@ -306,7 +323,7 @@ try {
   releaseSession();
   await page.waitForFunction(() => !document.querySelector(".sp-shell").closest("[inert]"));
   await page.getByRole("tab", { name: "Published", exact: true }).click();
-  await page.getByText("No published projects are available yet.", { exact: true }).waitFor();
+  await page.getByText("No published projects yet.", { exact: true }).waitFor();
   console.log(
     "Shared header parity, account rechecks, stale responses and uncertain logout are guarded.",
   );

@@ -21,6 +21,11 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             Name = asset.Name,
             Kind = asset.Kind,
             Category = asset.Category,
+            CatalogueName = asset.CatalogueName,
+            CatalogueCategory = asset.CatalogueCategory,
+            CatalogueSource = asset.CatalogueSource,
+            CatalogueLicense = asset.CatalogueLicense,
+            CatalogueReviewNotes = asset.CatalogueReviewNotes,
             Sha256 = asset.Sha256,
             Bytes = Array.Empty<byte>(),
             Status = asset.Status,
@@ -41,22 +46,24 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         Record(await CandidateMetadata.SingleAsync(asset => asset.Id == id, token));
 
     public async Task<(AssetAdministrationRecord? Record, bool Created, bool QuotaExceeded)?> SubmitAsync(string name, string kind, string? category,
-        byte[] bytes, Guid actor, AssetReviewRequest? metadata, CancellationToken token)
+        byte[] bytes, Guid actor, AssetReviewRequest? metadata, CancellationToken token, string? displayName = null)
     {
         if (database.Database.CurrentTransaction is null)
             throw new InvalidOperationException("Asset uploads require a caller-owned transaction.");
 
         // Repeat input bounds here because the service can be called outside the HTTP upload handler
-        if (!AssetIntakePolicy.Accepts(name, kind, category) || bytes.Length is < 1 or > AssetIntakePolicy.MaxBytes || actor == Guid.Empty)
+        if (!AssetIntakePolicy.Accepts(name, kind, category) || (displayName is not null && !AssetIntakePolicy.ValidDisplayName(displayName))
+            || bytes.Length is < 1 or > AssetIntakePolicy.MaxBytes || actor == Guid.Empty)
+        {
             return null;
+        }
 
-        var label = name[..^4];
+        var label = displayName?.Trim() ?? name[..^4];
         var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
         // Validation stays outside the quota lock so other uploads can validate concurrently.
         var validation = kind == "audio" ? AssetAudioValidator.Validate(bytes) : await validator.ValidateAsync(bytes, token);
         await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(167168)", token);
-        // Review and retirement never change these catalogue fields. Keep every historical ID
-        // addressable and choose a stable original when a pre-existing catalogue has duplicates.
+        // Replaying the original upload must still resolve the same ID after a rename or recategorisation.
         var existing = await CandidateMetadata
             .Where(asset => asset.Sha256 == digest && asset.Name == label && asset.Kind == kind && asset.Category == category)
             .OrderBy(asset => asset.CreatedAt).ThenBy(asset => asset.Id)
@@ -99,6 +106,31 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         return (Record(asset), true, false);
     }
 
+    public async Task<AssetAdministrationRecord?> UpdateDetailsAsync(Guid id, AssetDetailsRequest details, CancellationToken token)
+    {
+        var changed = await database.AssetCandidates.Where(asset => asset.Id == id && !asset.Deleted && asset.Kind == details.Kind)
+            .ExecuteUpdateAsync(update => update
+                .SetProperty(asset => asset.CatalogueName, details.Name.Trim())
+                .SetProperty(asset => asset.CatalogueCategory, details.Category)
+                .SetProperty(asset => asset.CatalogueSource, details.Review.Source ?? "")
+                .SetProperty(asset => asset.CatalogueLicense, details.Review.License ?? "")
+                .SetProperty(asset => asset.CatalogueReviewNotes, details.Review.ReviewNotes ?? ""), token);
+        return changed == 1 ? await ReadRecordAsync(id, token) : null;
+    }
+
+    // Changing media type creates a new validated version. Saved projects can still use the original ID and bytes.
+    public async Task<AssetAdministrationRecord?> ReplaceTypeAsync(Guid id, AssetAdministrationRecord replacement, CancellationToken token)
+    {
+        var original = await database.AssetCandidates
+            .FromSqlInterpolated($"SELECT * FROM asset_candidates WHERE id = {id} FOR NO KEY UPDATE")
+            .Select(asset => new { asset.Kind, asset.Hidden, asset.Deleted }).SingleOrDefaultAsync(token);
+        if (original is null || original.Deleted || (original.Kind, replacement.Kind) is not (("audio", "model") or ("model", "audio")))
+            return null;
+
+        await ChangeAsync(id, "delete", token);
+        return original.Hidden ? await ChangeAsync(replacement.Id, "hide", token) : replacement;
+    }
+
     public async Task<AssetAdministrationRecord?> ReviewAsync(Guid id, AssetReviewRequest review, Guid actor, CancellationToken token)
     {
         // Record the explicit administrator decision; omitted details use empty strings for the stored approval contract
@@ -106,6 +138,8 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             .ExecuteUpdateAsync(update => update.SetProperty(asset => asset.Status, "approved")
                 .SetProperty(asset => asset.Hidden, false).SetProperty(asset => asset.Source, review.Source ?? "")
                 .SetProperty(asset => asset.License, review.License ?? "").SetProperty(asset => asset.ReviewNotes, review.ReviewNotes ?? "")
+                .SetProperty(asset => asset.CatalogueSource, (string?)null).SetProperty(asset => asset.CatalogueLicense, (string?)null)
+                .SetProperty(asset => asset.CatalogueReviewNotes, (string?)null)
                 .SetProperty(asset => asset.ReviewedBy, actor), token);
 
         // Return the persisted record so the client replaces its state only after the database accepts review
@@ -204,9 +238,10 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
     }
 
     // Derive available actions from confirmed lifecycle state and expose inspection only through the admin route
-    public static AssetAdministrationRecord Record(AssetCandidate asset) => new(asset.Id, asset.Name, asset.Kind, asset.Category,
+    public static AssetAdministrationRecord Record(AssetCandidate asset) => new(asset.Id, asset.CatalogueName ?? asset.Name, asset.Kind, asset.CatalogueCategory ?? asset.Category,
         asset.Status, asset.Hidden, asset.Deleted, asset.RemovedFromProjects, null,
         JsonSerializer.Deserialize<string[]>(asset.ValidationJson) ?? [],
         asset.Deleted ? (asset.RemovedFromProjects || asset.Status != "approved" ? [] : ["remove"])
-            : asset.Status == "approved" ? [asset.Hidden ? "show" : "hide", "delete"] : ["delete"], asset.Sha256, asset.Source, asset.License, asset.ReviewNotes, $"{ApiV1Endpoints.Prefix}/admin/assets/{asset.Id}/bytes");
+            : asset.Status == "approved" ? [asset.Hidden ? "show" : "hide", "delete"] : ["delete"], asset.Sha256, asset.CatalogueSource ?? asset.Source,
+        asset.CatalogueLicense ?? asset.License, asset.CatalogueReviewNotes ?? asset.ReviewNotes, $"{ApiV1Endpoints.Prefix}/admin/assets/{asset.Id}/bytes");
 }

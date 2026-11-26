@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { useEffect, useRef, useState } from "react";
 import type { AccountSession } from "../accounts/account-client";
 import { Button } from "../../shared/ui/Button";
@@ -161,7 +162,7 @@ export function ProjectGrantEditor({
       ) : (
         <>
           <h3>{project.title}</h3>
-          {phase === "loading" && <p role="status">Loading project access…</p>}
+          {phase === "loading" && <LoadingSkeleton label="Loading project access" />}
           {message && <p role="alert">{message}</p>}
           {loaded && phase !== "loading" && phase !== "error" && (
             <form

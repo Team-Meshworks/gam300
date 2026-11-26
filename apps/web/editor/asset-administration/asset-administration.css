@@ -1,10 +1,6 @@
 /* Hallmark · Meshworks admin reference pages 6 and 8–10 · existing catalogue wiring retained */
 /* Keep gallery controls aligned and task dialogs large enough to inspect the selected asset */
-@import "@fontsource/inter/latin-400.css";
-@import "@fontsource/inter/latin-500.css";
-@import "@fontsource/inter/latin-600.css";
-@import "@fontsource/inter/latin-700.css";
-
+@import "../../shared/ui/control-colors.css";
 :root {
   --aa-font: var(--sp-font, "Inter", sans-serif);
   /* Share the same hierarchy across library pages, dialogs and menus */
@@ -40,9 +36,6 @@
   --aa-inset-edge: #817a7014;
   --aa-close-surface: var(--sp-close-surface, #f3f4f6);
   --aa-close-ink: var(--sp-close-ink, #4b5563);
-  --aa-scroll-track: #efede9;
-  --aa-scroll-thumb: #8f8981;
-  --aa-scroll-hover: #6f6961;
   --aa-avatar: var(--sp-avatar-surface, #ede4d8);
   --aa-avatar-ink: var(--sp-avatar-ink, #77604b);
   --aa-panel: #f7f7f7;
@@ -71,7 +64,7 @@ html.asset-admin-preview-page,
   overflow: clip;
   isolation: isolate;
   height: 100dvh;
-  padding: 100px 80px 64px;
+  padding: 100px 80px var(--sp-workspace-bottom-space, 80px);
   margin: auto;
   font-family: var(--aa-font);
   color: var(--aa-ink);
@@ -92,14 +85,14 @@ html.asset-admin-preview-page,
   top: var(--sp-wash-left-y);
   width: 993px;
   height: 993px;
-  background-image: url("../../shared/ui/assets/facilitator-ambient-top.svg");
+  background-image: url("../../shared/ui/assets/workspace-ambient-top.svg");
 }
 .asset-admin-preview::after {
   left: var(--sp-wash-right-x);
   top: var(--sp-wash-right-y);
   width: 1004px;
   height: 1004px;
-  background-image: url("../../shared/ui/assets/facilitator-ambient-bottom.svg");
+  background-image: url("../../shared/ui/assets/workspace-ambient-bottom.svg");
 }
 .asset-admin-preview-header {
   z-index: 2;
@@ -241,6 +234,7 @@ html.asset-admin-preview-page,
   cursor: not-allowed;
 }
 .asset-admin .asset-admin-primary {
+  --sp-button-primary-base: var(--aa-primary);
   background: var(--aa-primary);
   color: var(--aa-paper);
   border-color: var(--aa-primary);
@@ -253,6 +247,11 @@ html.asset-admin-preview-page,
 }
 .asset-admin-heading > div:first-child {
   flex: 0 0 35%;
+}
+.asset-admin-heading h1 {
+  letter-spacing: -0.5px;
+  text-box-trim: trim-start;
+  text-box-edge: cap alphabetic;
 }
 .asset-admin-heading p {
   margin-top: 8px;
@@ -351,31 +350,13 @@ html.asset-admin-preview-page,
   padding-bottom: 16px;
   border-bottom: 1px solid var(--aa-border);
 }
-.asset-admin-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.asset-admin-tabs button {
-  padding-inline: 12px;
-  background: transparent;
-  border-color: transparent;
-  color: var(--aa-muted);
-  font-weight: 400;
-}
-.asset-admin-tabs button[aria-pressed="true"] {
-  color: var(--aa-ink);
-  font-weight: 700;
-}
-
 /* Keep the toolbar fixed while the catalogue alone grows and scrolls */
 .asset-admin-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: clip;
-  padding: 2px 10px 8px 2px;
-  margin-right: 2px;
+  padding: 6px 0 8px 2px;
 }
 .asset-admin-grid {
   display: grid;
@@ -391,7 +372,7 @@ html.asset-admin-preview-page,
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--aa-card);
 }
 .asset-admin-thumbnail {
@@ -424,7 +405,8 @@ html.asset-admin-preview-page,
 .asset-admin-card-content > div {
   display: flex;
   justify-content: space-between;
-  align-items: start;
+  align-items: center;
+  min-height: 24px;
   gap: 12px;
   margin-bottom: 12px;
 }
@@ -451,8 +433,19 @@ html.asset-admin-preview-page,
   padding: 4px 20px;
   font-size: var(--aa-text-small);
 }
+@media (min-width: 1101px) {
+  .asset-admin-card-content button {
+    min-width: 110px;
+    min-height: 26px;
+    padding: 0 12px;
+  }
+  .asset-admin:not(.asset-admin-models) .asset-admin-card {
+    min-height: 250px;
+  }
+}
 .asset-admin-card-content .asset-admin-primary,
 .asset-admin-dialog .asset-admin-primary {
+  --sp-button-primary-base: var(--aa-primary);
   background: var(--aa-primary);
   border-color: var(--aa-primary);
 }
@@ -465,12 +458,7 @@ html.asset-admin-preview-page,
   margin: 12px 0 20px;
   color: var(--aa-muted);
 }
-.asset-admin-skeleton {
-  height: 240px;
-  border-radius: 18px;
-  background: var(--aa-placeholder);
-  opacity: 0.4;
-}
+
 .asset-admin-denied {
   align-items: center;
   justify-content: center;
@@ -489,17 +477,11 @@ html.asset-admin-preview-page,
   padding: 48px;
   border: 1px solid var(--aa-dialog-border);
   border-radius: 20px;
-  scrollbar-gutter: auto;
   background: var(--aa-paper);
   color: var(--aa-heading);
   box-shadow: 0 16px 40px var(--aa-shadow);
 }
 /* Upload and inspection share the reference frame */
-.asset-admin-dialog.asset-admin-dialog-upload {
-  --aa-text-title: 25px;
-  width: min(960px, calc(100% - 32px));
-  padding: 48px;
-}
 /* Both upload and inspection use the same wide preview area */
 .asset-admin-dialog .asset-admin-upload,
 .asset-admin-dialog .asset-admin-detail-preview {
@@ -527,14 +509,12 @@ html.asset-admin-preview-page,
   min-height: 36px;
   padding-block: 8px;
   line-height: 20px;
-}
-.asset-admin-metadata > summary {
   width: fit-content;
   color: var(--aa-muted);
   cursor: pointer;
 }
 .asset-admin-metadata .asset-admin-review {
-  margin-block: 2px 0;
+  margin-block: 1px 0;
 }
 
 .asset-admin-dialog::backdrop {
@@ -543,7 +523,7 @@ html.asset-admin-preview-page,
 .asset-admin-dialog-heading {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 24px;
   margin-bottom: 16px;
 }
@@ -583,7 +563,8 @@ html.asset-admin-preview-page,
   width: 44px;
   height: 44px;
 }
-.asset-admin-upload input {
+.asset-admin-upload input,
+.asset-admin-upload input:disabled {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -782,69 +763,11 @@ html.asset-admin-preview-page,
   min-width: 140px;
 }
 
-/* Firefox uses these colours; Chromium gets a drawn track and rounded thumb below */
 .asset-admin-scroll,
 .asset-admin-dialog,
 .asset-admin-select-menu,
 .asset-admin-preview-controls {
-  scrollbar-width: thin;
-  scrollbar-color: var(--aa-scroll-thumb) var(--aa-scroll-track);
   scrollbar-gutter: stable;
-}
-@supports selector(::-webkit-scrollbar) {
-  .asset-admin-scroll,
-  .asset-admin-dialog,
-  .asset-admin-select-menu,
-  .asset-admin-preview-controls {
-    scrollbar-width: auto;
-    scrollbar-color: auto;
-  }
-}
-:is(
-  .asset-admin-scroll,
-  .asset-admin-dialog,
-  .asset-admin-select-menu,
-  .asset-admin-preview-controls
-)::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-:is(
-  .asset-admin-scroll,
-  .asset-admin-dialog,
-  .asset-admin-select-menu,
-  .asset-admin-preview-controls
-)::-webkit-scrollbar-track {
-  background: var(--aa-scroll-track);
-  border-radius: 8px;
-}
-:is(
-  .asset-admin-scroll,
-  .asset-admin-dialog,
-  .asset-admin-select-menu,
-  .asset-admin-preview-controls
-)::-webkit-scrollbar-thumb {
-  background: var(--aa-scroll-thumb);
-  border: 2px solid var(--aa-scroll-track);
-  border-radius: 8px;
-}
-:is(
-    .asset-admin-scroll,
-    .asset-admin-dialog,
-    .asset-admin-select-menu,
-    .asset-admin-preview-controls
-  )::-webkit-scrollbar-thumb:hover {
-  background: var(--aa-scroll-hover);
-}
-:is(
-  .asset-admin-scroll,
-  .asset-admin-dialog,
-  .asset-admin-select-menu,
-  .asset-admin-preview-controls
-)::-webkit-scrollbar-button {
-  display: none;
-  width: 0;
-  height: 0;
 }
 
 @media (max-width: 1050px) {
@@ -957,7 +880,7 @@ html.asset-admin-preview-page,
 /* Keep field boundaries visible while preserving the reference's neutral inset surfaces */
 .asset-admin-preview-controls input,
 .asset-admin-select input {
-  border-color: var(--aa-scroll-thumb);
+  border-color: var(--sp-scroll-thumb);
 }
 
 .asset-admin-text-link {
@@ -1015,9 +938,6 @@ html.asset-admin-preview-page,
 .asset-admin-confirmation-warning {
   color: var(--aa-danger);
 }
-.asset-admin-dialog-confirmation .asset-admin-actions {
-  margin-top: 20px;
-}
 .asset-admin-dialog-confirmation .asset-admin-actions svg {
   display: none;
 }
@@ -1038,14 +958,21 @@ html.asset-admin-preview-page,
   line-height: 1.5;
 }
 /* Keep the title separate from the decision content */
+.asset-admin-dialog-confirmation .asset-admin-dialog-heading h2 {
+  text-box-trim: trim-start;
+  text-box-edge: cap alphabetic;
+}
 .asset-admin-dialog-confirmation .asset-admin-dialog-heading {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 .asset-admin-dialog-confirmation .asset-admin-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
-  margin-top: 16px;
+  margin-top: 33px;
+}
+.asset-admin-dialog-confirmation:has(.asset-admin-confirmation-warning) .asset-admin-actions {
+  margin-top: 30px;
 }
 .asset-admin-dialog-confirmation .asset-admin-actions button {
   width: 100%;
@@ -1061,31 +988,6 @@ html.asset-admin-preview-page,
   }
 }
 
-/* Separate preview, metadata and lifecycle actions without a stranded half-width field */
-.asset-admin-dialog-detail h3 {
-  margin-top: 24px;
-}
-.asset-admin-dialog-detail .asset-admin-retired-status {
-  margin-top: 20px;
-}
-.asset-admin-dialog-detail:not(.asset-admin-dialog-confirmation) .asset-admin-actions {
-  margin-top: 20px;
-}
-
-@media (max-width: 520px) {
-  /* Keep a long retained-use action from stranding Cancel on a separate right-aligned row */
-  .asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
-    .asset-admin-actions {
-    display: flex;
-    flex-direction: column-reverse;
-  }
-  .asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
-    .asset-admin-actions
-    > button {
-    width: 100%;
-  }
-}
-
 /* Preserve fixed metadata while matching the form's white surface and navy values */
 .asset-admin-dialog .asset-admin-select > :is(input, button):disabled {
   background: var(--aa-paper);
@@ -1093,21 +995,6 @@ html.asset-admin-preview-page,
   -webkit-text-fill-color: var(--aa-heading);
   border-color: var(--aa-dialog-border);
 }
-/* Keep retired details compact while preserving the regular view and confirmation spacing */
-.asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
-  h3 {
-  margin-top: 16px;
-  margin-bottom: 8px;
-}
-.asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
-  .asset-admin-retired-status {
-  margin-top: 12px;
-}
-.asset-admin-dialog-detail:has(.asset-admin-retired-status):not(.asset-admin-dialog-confirmation)
-  .asset-admin-actions {
-  margin-top: 12px;
-}
-
 /* Center empty and unavailable states within the remaining catalogue area, not the whole page */
 .asset-admin-scroll:has(.asset-admin-state) {
   display: grid;
@@ -1129,14 +1016,19 @@ html.asset-admin-preview-page,
 }
 
 @media (max-width: 700px) {
+  .asset-admin-dialog-confirmation .asset-admin-actions {
+    margin-top: 31px;
+  }
+  .asset-admin-dialog-confirmation:has(.asset-admin-confirmation-warning) .asset-admin-actions {
+    margin-top: 28px;
+  }
+  .asset-admin-dialog-upload .asset-admin-actions:has(.asset-admin-metadata:not([open])) {
+    row-gap: 8px;
+  }
   .asset-admin-review {
     grid-template-columns: minmax(0, 1fr);
   }
   .asset-admin-dialog {
-    --aa-text-title: 22px;
-    padding: 20px;
-  }
-  .asset-admin-dialog.asset-admin-dialog-upload {
     --aa-text-title: 22px;
     padding: 20px;
   }
@@ -1171,7 +1063,7 @@ html.asset-admin-preview-page,
 .asset-admin-detail-preview .asset-admin-audio-icon {
   height: auto;
 }
-.asset-admin-detail-preview audio {
+.asset-admin-detail-preview :is(audio, .asset-admin-audio-loading) {
   width: min(100%, 360px);
 }
 
@@ -1180,6 +1072,17 @@ html.asset-admin-preview-page,
   .asset-admin-toolbar {
     margin-top: 40px;
     margin-bottom: 20px;
+  }
+  .asset-admin-tabs {
+    transform: translateY(7px);
+  }
+  .asset-admin-tabs button:first-child {
+    margin-left: -13px;
+  }
+  .asset-admin-heading > .asset-admin-close {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
   }
 }
 
@@ -1190,35 +1093,36 @@ html.asset-admin-preview-page,
 
 /* Preserve action colours while giving every enabled control a visible hover surface. */
 .asset-admin button:hover:not(:disabled) {
-  background: #eae5df;
+  background: var(--sp-hover);
 }
 .asset-admin .asset-admin-primary:hover:not(:disabled) {
-  background: #51473d;
+  background: var(--sp-primary-hover);
 }
 .asset-admin .asset-admin-danger:hover:not(:disabled) {
-  background: #fbe2dd;
+  background: var(--sp-danger-hover);
 }
 .asset-admin .asset-admin-close:hover:not(:disabled) {
-  background: #e4e5e7;
+  background: var(--sp-close-hover);
 }
 .asset-admin-tabs button {
   border-radius: 8px;
 }
+.asset-admin-tabs button:hover:not(:disabled),
 .asset-admin-tabs button[aria-pressed="true"]:hover:not(:disabled) {
-  background: #ddd7cf;
+  background: var(--sp-hover);
 }
 .asset-admin-select-menu button:hover:not(:disabled) {
-  background: #eae5df;
+  background: var(--sp-hover);
 }
 .asset-admin-select-menu button[aria-selected="true"]:hover:not(:disabled) {
-  background: #ddd7cf;
+  background: var(--sp-hover);
 }
 .asset-admin-text-link {
   border-radius: 8px;
   padding: 8px;
 }
 .asset-admin-text-link:hover {
-  background: #eae5df;
+  background: var(--sp-hover);
 }
 .asset-admin input:not([type="file"]):not(:disabled):not([readonly]) {
   cursor: text;
@@ -1233,27 +1137,21 @@ html.asset-admin-preview-page,
 }
 
 /* Preserve the PDF's page/card/form/hint hierarchy instead of one form-and-action size. */
-.asset-admin-tabs button,
 .asset-admin-toolbar > .asset-admin-primary {
   font-size: 15px;
   line-height: 20px;
 }
-.asset-admin-fields > .asset-admin-select > :is(label, span) {
+.asset-admin-fields .asset-admin-select > :is(label, span) {
   font-size: 15px;
   line-height: 20px;
 }
-.asset-admin-fields > .asset-admin-select > :is(input, output, button) {
+.asset-admin-fields .asset-admin-select > :is(input, output, button) {
   font-size: 15px;
   line-height: 20px;
   font-weight: 600;
 }
 .asset-admin-upload > span:not(.asset-admin-upload-symbol, .asset-admin-help) {
   font-size: 13px;
-  line-height: 20px;
-}
-.asset-admin-dialog-upload .asset-admin-actions > button,
-.asset-admin-dialog-detail .asset-admin-actions > button:not(.asset-admin-danger):has(svg) {
-  font-size: 15px;
   line-height: 20px;
 }
 
@@ -1274,60 +1172,142 @@ html.asset-admin-preview-page,
   pointer-events: none;
 }
 
-/* Upload tasks use a compact frame and scroll inside its rounded padding. */
-.asset-admin-dialog.asset-admin-dialog-upload {
-  --aa-text-title: 22px;
-  width: min(600px, calc(100% - 32px));
-  padding: 16px;
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation) {
+  --aa-text-title: 20px;
+  --aa-scroll-track: #efede9;
+  --aa-scroll-thumb: #8f8981;
+  width: min(780px, calc(100% - 32px));
+  padding: 32px;
   overflow: hidden;
 }
-.asset-admin-dialog-upload > form {
-  max-height: calc(100dvh - 90px);
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation) > form {
+  max-height: calc(100dvh - 106px);
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-gutter: stable both-edges;
   scrollbar-width: thin;
   scrollbar-color: var(--aa-scroll-thumb) var(--aa-scroll-track);
   padding: 8px;
 }
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation) .asset-admin-dialog-heading {
+  position: relative;
+  align-items: flex-start;
+  min-height: 27px;
+  margin-bottom: 16px;
+  padding-right: 52px;
+}
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation) .asset-admin-dialog-heading h2 {
+  text-box-trim: none;
+}
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation)
+  .asset-admin-dialog-heading
+  > .asset-admin-close {
+  position: absolute;
+  top: -4.5px;
+  right: 0;
+  font-size: var(--aa-text-title);
+  line-height: 1.25;
+}
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation)
+  .asset-admin-dialog-heading
+  > .asset-admin-close
+  svg {
+  width: 18px;
+  height: 18px;
+}
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation) .asset-admin-dialog-heading h2,
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation) h3 {
+  font-weight: 600;
+}
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation)
+  :is(.asset-admin-upload, .asset-admin-detail-preview) {
+  aspect-ratio: 2.23;
+  min-height: 140px;
+  border-radius: 16px;
+}
+.asset-admin-dialog-upload .asset-admin-upload {
+  padding: 16px;
+}
+.asset-admin-dialog-upload .asset-admin-upload-symbol {
+  width: 36px;
+  height: 36px;
+}
+.asset-admin-dialog-upload .asset-admin-upload-symbol svg {
+  width: 36px;
+  height: 36px;
+}
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation) h3 {
+  margin: 20px 0 12px;
+  line-height: 25px;
+}
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation) .asset-admin-fields {
+  gap: 12px;
+}
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation) .asset-admin-select {
+  gap: 6px;
+}
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation) .asset-admin-select > :is(span, label) {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+}
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation)
+  .asset-admin-select
+  > :is(input, output, button) {
+  min-height: 40px;
+  padding: 9px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.asset-admin-dialog-upload .asset-admin-actions {
+  margin-top: 12px;
+}
+.asset-admin-dialog-upload form > .asset-admin-metadata {
+  margin-top: 12px;
+}
+.asset-admin-dialog-upload .asset-admin-metadata:not([open]) + .asset-admin-actions {
+  margin-top: 4px;
+}
+.asset-admin-dialog :is(.asset-admin-actions, .asset-admin-review) > button {
+  min-height: 32px;
+  padding-inline: 16px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.asset-admin-dialog-upload .asset-admin-metadata > summary {
+  min-height: 18px;
+  padding-block: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+.asset-admin-dialog-upload .asset-admin-metadata > summary:focus-visible {
+  outline: 3px solid var(--aa-focus);
+  outline-offset: 3px;
+}
+.asset-admin-dialog-upload .asset-admin-metadata[open] + .asset-admin-actions {
+  margin-top: 16px;
+}
+.asset-admin-dialog-upload .asset-admin-metadata .asset-admin-review {
+  margin-block: 4px 0;
+}
+@media (max-width: 700px) {
+  .asset-admin-dialog:not(.asset-admin-dialog-confirmation) {
+    padding: 12px;
+  }
+  .asset-admin-dialog:not(.asset-admin-dialog-confirmation) > form {
+    max-height: calc(100dvh - 66px);
+  }
+}
+
 .asset-admin-heading > .asset-admin-close {
-  background: #e4e1dc;
+  background: var(--sp-close-surface);
   color: #292723;
 }
 .asset-admin-heading > .asset-admin-close:hover:not(:disabled) {
-  background: #d7d2cb;
+  background: var(--sp-close-hover);
 }
-@media (max-width: 700px) {
-  .asset-admin-dialog.asset-admin-dialog-upload {
-    padding: 20px;
-  }
-  .asset-admin-dialog-upload > form {
-    max-height: calc(100dvh - 82px);
-  }
-}
-
-.asset-admin-dialog-upload .asset-admin-upload {
-  aspect-ratio: 2.6;
-  min-height: 140px;
-}
-.asset-admin-dialog-upload h3 {
-  margin-top: 20px;
-  margin-bottom: 24px;
-}
-
-.asset-admin-dialog-upload .asset-admin-actions {
-  margin-top: 16px;
-}
-
-.asset-admin-dialog-upload .asset-admin-metadata > summary {
-  min-height: 28px;
-  padding-block: 4px;
-}
-.asset-admin-dialog-upload .asset-admin-actions:has(.asset-admin-metadata[open]) {
-  margin-top: 20px;
-  row-gap: 16px;
-}
-
 .asset-admin-scroll .asset-admin-state h2 {
   font-size: 14px;
   line-height: 20px;
@@ -1335,4 +1315,190 @@ html.asset-admin-preview-page,
 .asset-admin-scroll .asset-admin-state p {
   font-size: 13px;
   line-height: 18px;
+}
+
+.asset-admin-loading-card .asset-admin-card-content {
+  gap: 12px;
+}
+
+.asset-admin-dialog-detail:not(.asset-admin-dialog-confirmation) .asset-admin-actions {
+  margin-top: 16px;
+}
+.asset-admin-dialog-detail:not(.asset-admin-dialog-confirmation)
+  .asset-admin-metadata[open]
+  + .asset-admin-actions {
+  margin-top: 16px;
+}
+.asset-admin-dialog-detail .asset-admin-actions > button svg {
+  width: 16px;
+  height: 16px;
+}
+.asset-admin-dialog-detail .asset-admin-metadata {
+  margin-top: 16px;
+}
+.asset-admin-dialog-detail .asset-admin-metadata > summary {
+  font-size: 12px;
+  line-height: 18px;
+  min-height: 0;
+  padding-block: 0;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+.asset-admin-dialog-detail .asset-admin-text-link {
+  min-height: 32px;
+  height: 32px;
+  padding: 0;
+  align-self: center;
+  font-size: 13px;
+  line-height: 20px;
+}
+.asset-admin-dialog-detail .asset-admin-metadata > summary:focus-visible {
+  outline: 3px solid var(--aa-focus);
+  outline-offset: 3px;
+}
+.asset-admin-dialog-detail .asset-admin-metadata .asset-admin-review {
+  margin-block: 12px 0;
+  gap: 16px;
+  font-size: 12px;
+  line-height: 18px;
+}
+.asset-admin-dialog-detail .asset-admin-metadata dt {
+  color: var(--aa-dialog-muted);
+  font-weight: 500;
+}
+.asset-admin-dialog-detail .asset-admin-metadata dd {
+  margin-top: 6px;
+  color: var(--aa-heading);
+  font-weight: 400;
+}
+.asset-admin-dialog-detail
+  :is(.asset-admin-retired-status, .asset-admin-validation, .asset-admin-message) {
+  font-size: 12px;
+  line-height: 18px;
+}
+.asset-admin-dialog-detail .asset-admin-retired-status {
+  margin-top: 16px;
+}
+@media (max-width: 520px) {
+  .asset-admin-dialog-detail:not(.asset-admin-dialog-confirmation) .asset-admin-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .asset-admin-dialog-detail:not(.asset-admin-dialog-confirmation) .asset-admin-text-link {
+    justify-self: start;
+    margin-right: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .asset-admin-dialog-detail:not(.asset-admin-dialog-confirmation)
+    .asset-admin-actions
+    > button:last-child:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}
+
+.asset-admin-card {
+  position: relative;
+}
+.asset-admin-card-identity {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.asset-admin-card-identity a {
+  color: inherit;
+  text-decoration: none;
+}
+.asset-admin-card-identity a:hover,
+.asset-admin-card-identity a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.asset-admin-card-identity .asset-admin-card-type,
+.asset-admin-card-identity small {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  color: var(--aa-muted);
+  font-size: var(--aa-text-small);
+}
+.asset-admin-dialog .asset-admin-edit-title {
+  justify-content: flex-start;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.asset-admin-edit-title svg {
+  width: 15px;
+  flex-shrink: 0;
+  color: var(--aa-muted);
+}
+.asset-admin-name {
+  grid-column: 1 / -1;
+}
+.asset-admin-field-wrapper {
+  min-width: 0;
+}
+.asset-admin-dialog-edit .asset-admin-dialog-heading {
+  margin-bottom: 24px;
+}
+.asset-admin-dialog .asset-admin-replacement-help {
+  margin-bottom: 12px;
+  color: var(--aa-muted);
+}
+.asset-admin-dialog-edit .asset-admin-upload {
+  margin-bottom: 20px;
+}
+.asset-admin-bulk-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 16px;
+  color: var(--aa-muted);
+}
+.asset-admin-bulk-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--aa-ink);
+  font-weight: 600;
+}
+.asset-admin-bulk-bar button {
+  margin-left: auto;
+}
+.asset-admin-bulk-bar input,
+.asset-admin input.asset-admin-card-check {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--aa-primary);
+  cursor: pointer;
+}
+.asset-admin input.asset-admin-card-check {
+  position: absolute;
+  z-index: 1;
+  top: 14px;
+  left: 14px;
+  box-shadow: 0 0 0 3px white;
+}
+.asset-admin-card:has(.asset-admin-card-check:checked) {
+  outline: 2px solid var(--aa-primary);
+  outline-offset: -2px;
+}
+.asset-admin-bulk-names {
+  max-height: 25dvh;
+  overflow-y: auto;
+  margin: 12px 0;
+  padding-left: 24px;
+  font-weight: 600;
+}
+.asset-admin .asset-admin-bulk-outcome {
+  margin-bottom: 12px;
 }

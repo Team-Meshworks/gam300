@@ -138,7 +138,7 @@ export function isStarterRoomEnvironment(
   return !!environment && environment.sha256.toLowerCase() === STARTER_ROOM_SHA256;
 }
 
-export const assetDragType = "application/x-vthere-asset";
+export const assetDragType = "application/x-spatia-asset";
 
 // Keep the catalogue order and asset IDs used by placement
 // Match literal text so search never evaluates user-supplied patterns

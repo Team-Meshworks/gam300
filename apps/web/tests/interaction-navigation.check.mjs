@@ -193,7 +193,9 @@ try {
   } finally {
     await page.keyboard.up("Space");
   }
-  const canvas = await page.locator(".visitor-viewer canvas").elementHandle();
+  const viewport = page.getByRole("region", { name: "Exhibition viewer", exact: true });
+  const firstViewport = await viewport.elementHandle();
+  const canvas = await viewport.locator("canvas").elementHandle();
   // Scene readiness and its scene-start interaction complete asynchronously.
   const destinationAlert = page.waitForEvent("dialog", {
     predicate: (dialog) => dialog.type() === "alert",
@@ -206,9 +208,15 @@ try {
   );
   assert.equal(await page.getByRole("region", { name: "Exhibition", exact: true }).count(), 1);
   assert.equal(
-    await canvas.evaluate((element) => element.isConnected),
+    await firstViewport.evaluate((element) => element.isConnected),
     false,
     "Scene changes replace the previous scene viewport",
+  );
+  assert.equal(await targets.getAttribute("data-exhibition-scene"), second.id);
+  assert.equal(
+    await viewport.locator("canvas").evaluate((current, previous) => current === previous, canvas),
+    true,
+    "The destination viewport renders on the existing canvas",
   );
   assert.deepEqual(alerts, ["hi"], "Destination scene-start fires exactly once");
   // Hold the returning room's model so both hotspot controls render before playback is ready.

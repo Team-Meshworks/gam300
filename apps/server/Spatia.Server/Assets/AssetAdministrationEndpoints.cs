@@ -70,6 +70,31 @@ public static partial class AssetAdministrationEndpoints
         group.MapPost("", UploadAsync).WithMetadata(new RequestSizeLimitAttribute(AssetIntakePolicy.MaxBytes))
             .RequireRateLimiting("AssetIntake");
 
+        group.MapPut("/{id:guid}/details", async (Guid id, AssetDetailsRequest request, HttpContext context,
+            AssetAdministrationService service, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
+        {
+            if (!AssetIntakePolicy.ValidDisplayName(request.Name) || !AssetIntakePolicy.AcceptsCategory(request.Kind, request.Category)
+                || request.Review is null || !ValidReview(request.Review))
+            {
+                return Invalid(context);
+            }
+
+            await using var transaction = await database.Database.BeginTransactionAsync(token);
+            if (await RecheckAdministratorAsync(context, access, token) is { } denied)
+                return denied;
+
+            var record = await service.UpdateDetailsAsync(id, request, token);
+            if (await RecheckAdministratorAsync(context, access, token) is { } changed)
+                return changed;
+            if (record is null)
+                return ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before editing it");
+
+            await transaction.CommitAsync(token);
+            if (await RecheckAdministratorAsync(context, access, token) is not null)
+                return CommittedWrite.WithoutRepresentation(context);
+            return Results.Ok(record);
+        }).WithMetadata(new RequestSizeLimitAttribute(40 * 1024));
+
         // Allow the bounded review fields even when JSON escapes non-ASCII text
         group.MapPost("/{id:guid}/approve", async (Guid id, AssetReviewRequest request, HttpContext context,
             AssetAdministrationService service, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
@@ -162,15 +187,23 @@ public static partial class AssetAdministrationEndpoints
 
         var query = context.Request.Query;
 
-        if (query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("name" or "kind" or "category")))
+        if (query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("name" or "kind" or "category" or "displayName" or "replaces")))
             return Invalid(context);
 
         // Check metadata before reading the body; uploaded names remain labels rather than filesystem paths
         var name = query["name"].ToString();
         var kind = query["kind"].ToString();
         var category = query.TryGetValue("category", out var raw) ? raw.ToString() : null;
+        var displayName = query.TryGetValue("displayName", out var label) ? label.ToString() : null;
+        Guid? replaces = null;
+        if (query.TryGetValue("replaces", out var previous))
+        {
+            if (!Guid.TryParseExact(previous.ToString(), "D", out var id) || kind is not ("audio" or "model"))
+                return Invalid(context);
+            replaces = id;
+        }
 
-        if (!AssetIntakePolicy.Accepts(name, kind, category))
+        if (!AssetIntakePolicy.Accepts(name, kind, category) || (displayName is not null && !AssetIntakePolicy.ValidDisplayName(displayName)))
             return Invalid(context);
 
         if (!MediaTypeHeaderValue.TryParse(context.Request.ContentType, out var contentType)
@@ -202,8 +235,7 @@ public static partial class AssetAdministrationEndpoints
             return denied;
 
         // Validation or storage unavailability leaves no approved entry and must remain retryable to the client
-        var result = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token);
-
+        var result = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token, displayName);
         if (await RecheckAdministratorAsync(context, access, token) is { } changed)
             return changed;
 
@@ -215,12 +247,27 @@ public static partial class AssetAdministrationEndpoints
         if (result is null)
             return ApiProblems.Create(context, 503, "asset_intake_unavailable", "Asset validation or storage is unavailable");
 
+        var record = result.Value.Record!;
+        if (replaces is { } originalId)
+        {
+            if (record.Status != "approved")
+                return ApiProblems.Create(context, 400, "invalid_replacement", "Choose a valid file for the new asset type");
+            if (!result.Value.Created)
+                return ApiProblems.Create(context, 409, "replacement_exists", "This file, name and category already have a catalogue entry");
+            var replacement = await service.ReplaceTypeAsync(originalId, record, token);
+            if (await RecheckAdministratorAsync(context, access, token) is { } revoked)
+                return revoked;
+            if (replacement is null)
+                return ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before changing its type");
+            record = replacement;
+        }
+
         await transaction.CommitAsync(token);
 
         if (await RecheckAdministratorAsync(context, access, token) is not null)
             return CommittedWrite.WithoutRepresentation(context);
 
-        return Results.Json(result.Value.Record, statusCode: result.Value.Created ? StatusCodes.Status201Created : StatusCodes.Status200OK);
+        return Results.Json(record, statusCode: result.Value.Created ? StatusCodes.Status201Created : StatusCodes.Status200OK);
     }
 
     private static async Task<IResult?> RecheckAdministratorAsync(HttpContext context, ProjectAccessService access, CancellationToken token)

@@ -561,7 +561,7 @@ try {
   await page.getByText("Drop to place", { exact: true }).waitFor({ state: "hidden" });
   const externalPayload = await page.evaluateHandle(() => {
     const transfer = new DataTransfer();
-    transfer.setData("application/x-vthere-asset", "unrecognized-asset");
+    transfer.setData("application/x-spatia-asset", "unrecognized-asset");
     return transfer;
   });
   await stage.dispatchEvent("drop", { dataTransfer: externalPayload });

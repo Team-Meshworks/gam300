@@ -276,6 +276,15 @@ public sealed class ProjectAccessService(
         return row is null ? null : Snapshot(account, row.Project, row.CanPublish);
     }
 
+    // Include hidden publications for moderation, but never draft-only or retired projects.
+    internal static IQueryable<Project> PublishedProjects(ApplicationDbContext database)
+    {
+        var retired = database.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM retired_publication_ids");
+        return database.Projects.AsNoTracking().Where(project => database.Publications.Any(edition =>
+            edition.ProjectId == project.Id && !retired.Contains(edition.Id)
+            && !database.PublicationAccess.Any(state => state.PublicationId == edition.Id && state.Deleted)));
+    }
+
     internal IQueryable<Project> VisibleProjects(CurrentAccount account)
     {
         var projects = database.Projects.AsNoTracking();

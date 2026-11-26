@@ -1,12 +1,7 @@
-@import "@fontsource/inter/latin-400.css";
-@import "@fontsource/inter/latin-500.css";
-@import "@fontsource/inter/latin-600.css";
-@import "@fontsource/inter/latin-700.css";
-
 .sp-account-header {
   --header-ink: var(--sp-ink, #292723);
-  --header-control-size: 36px;
-  --header-control: #f6f4f2;
+  --header-control: var(--sp-soft);
+  --header-account-size: 32px;
   box-sizing: border-box;
   width: min(1280px, calc(100% - 2 * clamp(20px, 5.56vw, 80px)));
   height: 100px;
@@ -29,20 +24,33 @@
   font-weight: 400;
   text-decoration: none;
 }
+.sp-header-wordmark {
+  position: relative;
+  top: -2px;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+.sp-header-name {
+  position: relative;
+  top: -1px;
+}
+.sp-account-header:not([data-role="Administrator"]) .sp-header-logout > .sp-button-label {
+  position: relative;
+  top: -2px;
+}
 .sp-header-mark {
   display: grid;
   place-items: center;
-  width: var(--header-control-size);
-  height: var(--header-control-size);
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
   background: #292723;
   color: #fff;
 }
 .sp-header-mark svg {
   display: block;
-  width: 26px;
-  height: 26px;
-  transform: translateY(-1px);
+  width: 22px;
+  height: 22px;
 }
 .sp-header-account {
   display: flex;
@@ -55,8 +63,8 @@
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: var(--header-control-size);
-  height: var(--header-control-size);
+  width: var(--header-account-size);
+  height: var(--header-account-size);
   border-radius: 50%;
   background: #ede4d8;
   color: #77604b;
@@ -73,13 +81,13 @@
 .sp-account-header .sp-header-account .sp-header-logout {
   box-sizing: border-box;
   flex: none;
-  height: var(--header-control-size);
+  height: var(--header-account-size);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 0;
-  width: 80px;
-  padding: 0;
+  min-height: var(--header-account-size);
+  width: auto;
+  padding-inline: 14px;
   border: 0;
   border-radius: 8px;
   background: var(--header-control);
@@ -88,8 +96,13 @@
   white-space: nowrap;
   cursor: pointer;
 }
-.sp-account-header .sp-header-logout:hover:not(:disabled) {
-  filter: brightness(0.94);
+.sp-account-header .sp-header-account .sp-header-logout:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--header-control),
+    var(--sp-hover-dark) var(--sp-hover-strength)
+  );
+  filter: none;
 }
 .sp-account-header :is(:disabled, [aria-disabled="true"]) {
   opacity: 0.52;
@@ -103,6 +116,12 @@
   .sp-account-header {
     position: relative;
     left: 3px;
+  }
+}
+@media (min-width: 601px) {
+  .sp-shell:has(.admin-greeting, .admin-home-session-loading) > .sp-account-header {
+    padding-top: 30px;
+    left: 0;
   }
 }
 @media (max-width: 600px) {

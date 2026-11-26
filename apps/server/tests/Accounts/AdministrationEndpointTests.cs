@@ -19,6 +19,66 @@ public sealed class AdministrationEndpointTests
     private const string ReplacementPassword = "Synthetic replacement password 2!";
 
     [Test]
+    [Arguments("Preview School")]
+    [Arguments("PREVIEW SCHOOL")]
+    [Arguments("  preview school  ")]
+    public async Task Organization_CreateReusesNameIgnoringCaseAndSurroundingSpaces(string duplicateName)
+    {
+        await using var fixture = await AdministratorFixtureAsync();
+        using var created = await SendAsync(fixture, "/api/v1/admin/organizations", new
+        {
+            name = "  Preview School  "
+        });
+        await Assert.That(created.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var organization = await created.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(organization.GetProperty("name").GetString()).IsEqualTo("  Preview School  ");
+        using var duplicate = await SendAsync(fixture, "/api/v1/admin/organizations", new
+        {
+            name = duplicateName
+        });
+        await Assert.That(duplicate.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var reused = await duplicate.Content.ReadFromJsonAsync<JsonElement>();
+        await Assert.That(reused.GetProperty("id").GetGuid()).IsEqualTo(organization.GetProperty("id").GetGuid());
+        await using var scope = fixture.App.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That(await database.Organizations.CountAsync()).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task Organization_ConcurrentCaseVariants_CreateOnlyOneRow()
+    {
+        await using var fixture = await AdministratorFixtureAsync();
+        var token = await fixture.GetCsrfAsync();
+        var responses = await Task.WhenAll(
+            SendAsync(fixture, "/api/v1/admin/organizations", new
+            {
+                name = "Concurrent School"
+            }, token),
+            SendAsync(fixture, "/api/v1/admin/organizations", new
+            {
+                name = "  CONCURRENT SCHOOL  "
+            }, token));
+        try
+        {
+            await Assert.That(responses.Count(response => response.StatusCode == HttpStatusCode.Created)).IsEqualTo(1);
+            await Assert.That(responses.Count(response => response.StatusCode == HttpStatusCode.OK)).IsEqualTo(1);
+            var created = await responses.Single(response => response.StatusCode == HttpStatusCode.Created).Content.ReadFromJsonAsync<OrganizationResponse>();
+            var reused = await responses.Single(response => response.StatusCode == HttpStatusCode.OK).Content.ReadFromJsonAsync<OrganizationResponse>();
+            await Assert.That(reused!.Id).IsEqualTo(created!.Id);
+            await using var scope = fixture.App.Services.CreateAsyncScope();
+            var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await Assert.That(await database.Organizations.CountAsync()).IsEqualTo(1);
+        }
+        finally
+        {
+            foreach (var response in responses)
+            {
+                response.Dispose();
+            }
+        }
+    }
+
+    [Test]
     public async Task BulkAccounts_SkipExistingUserNamesAndRejectInvalidRoles()
     {
         await using var fixture = await AdministratorFixtureAsync();

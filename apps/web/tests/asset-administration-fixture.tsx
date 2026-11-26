@@ -4,6 +4,8 @@ import { assets } from "virtual:asset-catalogue";
 import { WorkspaceHeader } from "../shared/ui/WorkspaceHeader";
 import { AssetSelect } from "../editor/asset-administration/AssetSelect";
 import { AssetAdministration } from "../editor/asset-administration/AssetAdministration";
+import "../shared/ui/inter-font.css";
+import "../shared/ui/tabs.css";
 import "../editor/styles.css";
 import type {
   AssetAdministrationData,
@@ -111,18 +113,44 @@ function AssetAdministrationPreview() {
         }
         const value: AssetCandidate = {
           id: crypto.randomUUID(),
-          name: input.file.name,
+          name: input.name ?? input.file.name.replace(/\.[^.]*$/, ""),
           kind: input.kind,
           category: input.category,
-          status: "pending",
-          hidden: true,
+          status: input.replaces ? "approved" : "pending",
+          hidden: !input.replaces,
           deleted: false,
           removedFromProjects: false,
           thumbnail: null,
-          validation: ["Pending validation"],
-          actions: ["delete"],
+          validation: input.replaces ? [] : ["Pending validation"],
+          actions: input.replaces ? ["hide", "delete"] : ["delete"],
         };
-        records.current = { ...records.current, assets: [...records.current.assets, value] };
+        records.current = {
+          ...records.current,
+          assets: [
+            ...records.current.assets.map((asset): AssetCandidate =>
+              asset.id === input.replaces
+                ? { ...asset, hidden: true, deleted: true, actions: ["remove"] }
+                : asset,
+            ),
+            value,
+          ],
+        };
+        return { ok: true, value };
+      },
+      async updateDetails(id, details) {
+        const previous = records.current.assets.find((asset) => asset.id === id);
+        if (!previous || previous.deleted || failure === "save")
+          return { ok: false, kind: "unavailable", message: "The details could not be saved." };
+        const value = {
+          ...previous,
+          ...details.review,
+          name: details.name,
+          category: details.category,
+        };
+        records.current = {
+          ...records.current,
+          assets: records.current.assets.map((asset) => (asset.id === id ? value : asset)),
+        };
         return { ok: true, value };
       },
       async review(id, input) {
