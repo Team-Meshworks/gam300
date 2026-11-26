@@ -78,6 +78,15 @@ doorway.rules = [
 ];
 const project = { ...blankProject, scenes: [doorway] };
 
+async function assertStoppedOnOpenFloor(page, label) {
+  const [start, end] = await page.evaluate(async () => {
+    const start = window.walkCamera.position.x;
+    for (let frame = 0; frame < 12; frame++) await new Promise(requestAnimationFrame);
+    return [start, window.walkCamera.position.x];
+  });
+  assert.ok(start < 5.5 && Math.abs(end - start) < 1e-5, `${label}: drift from ${start} to ${end}`);
+}
+
 const server = await createServer({
   configFile: fileURLToPath(new URL("../vite.config.ts", import.meta.url)),
   server: { host: "127.0.0.1", port: 0 },
@@ -192,15 +201,28 @@ try {
     );
     await page.keyboard.up("w");
     await canvas.focus();
-    const [start, end] = await page.evaluate(async () => {
-      const start = window.walkCamera.position.x;
-      for (let frame = 0; frame < 12; frame++) await new Promise(requestAnimationFrame);
-      return [start, window.walkCamera.position.x];
-    });
-    assert.ok(
-      start < 10 && Math.abs(end - start) < 1e-5,
-      `${name}: drift on open floor ${start} to ${end}`,
-    );
+    await assertStoppedOnOpenFloor(page, `${name} after opening the panel`);
+
+    for (const key of ["w", "ArrowUp"]) {
+      const startX = await page.evaluate(() => window.walkCamera.position.x);
+      await page.keyboard.down(key);
+      await page.waitForFunction((x) => window.walkCamera.position.x > x + 0.2, startX);
+      // Consume the release on the focused canvas so only the capture listener can see it.
+      await canvas.evaluate((node) => {
+        node.addEventListener(
+          "keyup",
+          (event) => {
+            event.stopPropagation();
+            node.dataset.stoppedKey = event.key;
+          },
+          { once: true },
+        );
+      });
+      await page.keyboard.up(key);
+      assert.equal(await canvas.getAttribute("data-stopped-key"), key);
+      assert.ok(await canvas.evaluate((node) => node === document.activeElement));
+      await assertStoppedOnOpenFloor(page, `${name} after releasing ${key}`);
+    }
     await canvas.click();
     await page.keyboard.down("w");
     await page.waitForFunction(() => window.walkCamera.position.x > 5.5);
