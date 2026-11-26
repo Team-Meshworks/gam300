@@ -1,3 +1,4 @@
+import { LoadingSummary } from "../../shared/ui/LoadingSkeleton";
 import { useEffect, useState } from "react";
 import { createAccountClient, type AccountSession } from "../accounts/account-client";
 import { createReviewClient } from "./review-client";
@@ -30,10 +31,14 @@ export function EducatorReviewLink({ session }: { session: AccountSession }) {
     };
   }, [ids, session]);
   return (
-    <main className="sp-workspace">
+    <section className="sp-review-workspace">
       <h1>Open student review</h1>
-      {error ? <p role="alert">{error}</p> : <p role="status">Checking the assigned project…</p>}
+      {error ? (
+        <p role="alert">{error}</p>
+      ) : (
+        <LoadingSummary label="Checking the assigned project…" />
+      )}
       <a href="/home">Home</a>
-    </main>
+    </section>
   );
 }

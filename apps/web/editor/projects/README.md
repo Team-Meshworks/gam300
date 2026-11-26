@@ -4,7 +4,7 @@
 
 The types in `new-project-form.ts` describe UI data, not the backend wire format. The educator New Project flow accepts a local calendar date and converts it to 23:59:59 on that date in the entering device's timezone; the API stores the resulting Unix seconds. The existing date-and-time conversion remains available for other assignment entry points. This date-only behavior follows the user's 8 November request and differs from the current SCRUM-161/162 Jira deadline criteria, which specify an exact selected local date and time without end-of-day rounding. A request contains at most 20 selected students, and the server enforces authorization and roster eligibility.
 
-Gallery sits beside Cover image and 360° in equally sized, 52px-high controls and opens the device's file chooser for an optional cover image. The draft may contain a local `coverImage` File; the preview does not upload or persist it. `imageType` accepts Cover image or 360°; Gallery is an action, not an image type. The cover preview releases its object URL when replaced, removed or unmounted. The 360° option remains unconnected. A host integrating storage must define the file upload and persistence contract separately.
+Gallery opens the device file chooser beside the Cover image and 360° options. The selected radio determines how the local image is used, and the preview releases its object URL when replaced, removed or unmounted. The integrated educator creation flow encodes the image as a cover or panorama and saves it with the source project. A panorama must be twice as wide as it is high. The standalone preview does not persist files.
 
 `onSubmit` is optional. Without it, creation is unavailable and the create button is disabled. An integration returns one of these outcomes:
 

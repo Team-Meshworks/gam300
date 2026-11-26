@@ -144,7 +144,6 @@
 }
 .sp-facilitator-submission.sp-dialog {
   width: min(414px, calc(100% - 32px));
-  padding: 24px;
   border-radius: 12px;
 }
 .sp-facilitator-submission > h2,
@@ -208,7 +207,6 @@
 /* Keep the history action beside its heading and leave room for the close control */
 .sp-progress-dialog .sp-progress-add {
   position: absolute;
-  top: 44px;
   right: 100px;
   width: 36px;
   height: 36px;
@@ -234,7 +232,6 @@
 .sp-facilitator-submission.sp-dialog {
   --sp-surface: #ffffff;
   --review-heading-font: Inter, sans-serif;
-  min-height: 0;
 }
 .sp-facilitator-submission .sp-progress-add {
   top: 18px;
@@ -242,7 +239,6 @@
 }
 @media (max-width: 640px) {
   .sp-progress-dialog .sp-progress-add {
-    top: 22px;
     right: 72px;
   }
   .sp-facilitator-submission .sp-progress-add {
@@ -298,13 +294,11 @@
 }
 .sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-draft textarea {
   display: block;
-  min-height: 40px;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: inherit;
-  resize: vertical;
 }
 .sp-progress-dialog:not(.sp-facilitator-submission) .sp-progress-draft:focus-within {
   outline: 1px solid var(--sp-border);
@@ -435,4 +429,22 @@
     top: 20px;
     right: 24px;
   }
+}
+
+/* Keep the review card stable while composing and staging feedback. */
+.sp-review-history-dialog.sp-progress-dialog .sp-progress-entry {
+  min-height: 84px;
+}
+.sp-review-history-dialog.sp-progress-dialog:not(.sp-facilitator-submission)
+  .sp-progress-draft
+  textarea {
+  box-sizing: border-box;
+  min-height: 32px;
+  height: 32px;
+  padding: 4px 0;
+  line-height: 20px;
+}
+.sp-review-history-dialog #progress-feedback:focus-visible {
+  outline: none;
+  box-shadow: none;
 }

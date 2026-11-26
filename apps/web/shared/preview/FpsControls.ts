@@ -76,7 +76,7 @@ export class FpsControls {
   private lookHeld = false;
   // Preview walks like a visitor, nothing starts flying there
   private flightAllowed = true;
-  // Preview holds every authored pose until the visitor requests movement
+  // Keep the authored pose until movement places a grounded camera in the walkable space
   private perched = false;
   private readonly _euler = new THREE.Euler(0, 0, 0, "YXZ");
   private readonly physicsPosition = new THREE.Vector3();
@@ -103,8 +103,7 @@ export class FpsControls {
       if (this.engaged) this.onNavigationInput?.();
       const now = performance.now();
       if (this.flightAllowed && now - this.lastMobileJump < DOUBLE_TAP_MS) {
-        this.flying = !this.flying;
-        this.velocity.y = 0;
+        this.toggleFlight();
         this.lastMobileJump = -Infinity;
       } else {
         this.lastMobileJump = now;
@@ -142,22 +141,26 @@ export class FpsControls {
     this.ownerDocument.addEventListener("visibilitychange", this.onVisibilityChange);
   }
 
+  private syncWalkFloor(position: THREE.Vector3): void {
+    const floor = this.walkSpace?.place(position.clone());
+    this.walkingUnavailable = this.walkSpace !== undefined && floor === undefined;
+    this.standingHeight = EYE_HEIGHT + (floor ?? 0);
+    // Preserve authored viewpoints below normal standing height.
+    this.minimumHeight = Math.min(this.standingHeight, position.y);
+  }
+
   // Pick up from wherever the camera is now. Starting in the air means flying, so nothing drops.
   // Preview cant fly, so a raised camera is held there instead
   sync(): void {
-    const floor = this.walkSpace?.place(this.camera.position.clone());
-    this.walkingUnavailable = this.walkSpace !== undefined && floor === undefined;
-    this.standingHeight = EYE_HEIGHT + (floor ?? 0);
+    this.syncWalkFloor(this.camera.position);
     this.stopMotion();
     const raised = this.camera.position.y > this.standingHeight + 1e-4;
     this.flying = raised && this.flightAllowed;
-    this.perched = !this.flightAllowed;
+    this.perched = !this.flightAllowed || this.walkSpace !== undefined;
     this._euler.setFromQuaternion(this.camera.quaternion, "YXZ");
     this.yaw = this._euler.y;
     this.pitch = this._euler.x;
     this.roll = this._euler.z;
-    // Below eye height is an authored low viewpoint, stand there rather than jump up
-    this.minimumHeight = Math.min(this.standingHeight, this.camera.position.y);
     this.applyRotation();
   }
 
@@ -235,19 +238,43 @@ export class FpsControls {
 
   setFlightAllowed(allowed: boolean): void {
     this.flightAllowed = allowed;
-    if (allowed) {
-      this.walkSpace = undefined;
-      this.walkingUnavailable = false;
-      this.perched = false;
-    } else if (this.flying) {
+    if (!allowed) {
       this.flying = false;
       this.perched = true;
     }
   }
 
   setWalkSpace(space: ReturnType<typeof createWalkSpace> | undefined): void {
+    const previous = this.walkSpace;
     this.walkSpace = space;
-    if (this.engaged) this.sync();
+    if (!this.engaged) return;
+    if (!previous && space && this.velocity.y === 0) this.sync();
+    else this.refreshWalkPlacement();
+  }
+
+  refreshWalkObstacles(): void {
+    if (
+      this.engaged &&
+      (this.walkingUnavailable || this.walkSpace?.insideProp(this.physicsPosition))
+    )
+      this.refreshWalkPlacement();
+  }
+
+  private refreshWalkPlacement(): void {
+    if (!this.flightAllowed) {
+      this.sync();
+      return;
+    }
+    // An edit can change support under the camera. Keep jump velocity and flight state.
+    this.syncWalkFloor(this.physicsPosition);
+    if (this.physicsPosition.y <= this.standingHeight + 1e-4) this.flying = false;
+    this.perched = this.walkSpace !== undefined;
+  }
+
+  private toggleFlight(): void {
+    this.flying = !this.flying;
+    this.velocity.y = 0;
+    this.perched = this.walkSpace !== undefined;
   }
 
   // A viewpoint or saved camera just moved the camera, carry on from exactly that pose
@@ -303,14 +330,18 @@ export class FpsControls {
 
   private step(delta: number): void {
     // Keep look and viewpoint navigation available without walking through unsupported rooms
-    if (this.walkingUnavailable) return;
+    if (this.walkingUnavailable && !this.flying) return;
     const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
     const space = this.keys.has("Space") || this.mobileJump;
     const maxSpeed = sprint ? SPRINT_SPEED : WALK_SPEED;
     if (!this.flightAllowed) this.flying = false;
-    if (this.perched) {
-      // Looking alone keeps the authored view, even outside the walkable room
-      if (!space && !this.hasMovementInput()) {
+    if (this.perched && !this.flying) {
+      // Looking alone keeps an authored pose. An editor already in motion keeps moving.
+      if (
+        !space &&
+        !this.hasMovementInput() &&
+        (!this.flightAllowed || (this.onFloor() && this.velocity.lengthSq() < 1e-8))
+      ) {
         this.velocity.set(0, 0, 0);
         return;
       }
@@ -358,7 +389,7 @@ export class FpsControls {
       this.velocity.y = fall;
     }
     this.physicsPosition.addScaledVector(previous.lerp(this.velocity, 0.5), delta);
-    if (this.walkSpace) {
+    if (this.walkSpace && !this.flying) {
       const targetY = this.physicsPosition.y;
       const eyeClearance = EYE_HEIGHT + this.minimumHeight - this.standingHeight;
       this.standingHeight =
@@ -371,7 +402,8 @@ export class FpsControls {
     if (this.physicsPosition.y <= this.minimumHeight) {
       this.physicsPosition.y = this.minimumHeight;
       this.velocity.y = Math.max(this.velocity.y, 0);
-      // Touching the floor stops flying, same as Minecraft
+      // Re-enter the walkable area on the next move after landing a free flight.
+      if (this.flying && this.walkSpace) this.perched = true;
       this.flying = false;
     }
   }
@@ -485,8 +517,7 @@ export class FpsControls {
     if (event.repeat && !this.keys.has(event.code)) return;
     if (event.code === "Space" && !event.repeat) {
       if (this.flightAllowed && event.timeStamp - this.lastSpace < DOUBLE_TAP_MS) {
-        this.flying = !this.flying;
-        this.velocity.y = 0;
+        this.toggleFlight();
         this.lastSpace = -Infinity;
       } else {
         this.lastSpace = event.timeStamp;

@@ -2,7 +2,7 @@ import { Icon as UiIcon } from "@iconify/react/offline";
 import faEye from "@iconify-icons/lucide/eye";
 import faEyeSlash from "@iconify-icons/lucide/eye-off";
 import faTrashCan from "@iconify-icons/lucide/trash-2";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
 import { createDashboardClient, type ProjectPublicationState } from "./dashboard-client";
@@ -18,6 +18,8 @@ export function ProjectModeration({
   requiresFreshApproval = false,
   deleteOnly = false,
   selection = false,
+  showSelectionCount = true,
+  showLoadingDialog = false,
   onCompleted,
 }: {
   projectId: string;
@@ -28,13 +30,32 @@ export function ProjectModeration({
   requiresFreshApproval?: boolean;
   deleteOnly?: boolean;
   selection?: boolean;
-  onCompleted?: () => void | Promise<void>;
+  showSelectionCount?: boolean;
+  showLoadingDialog?: boolean;
+  onCompleted?: (action: Action) => void | Promise<void>;
 }) {
   const [action, setAction] = useState<Action | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [uncertain, setUncertain] = useState(false);
   const busy = useRef(false);
+  const checkGeneration = useRef(0);
+  const [checking, setChecking] = useState(false);
+  useEffect(
+    () => () => {
+      checkGeneration.current++;
+    },
+    [],
+  );
+
+  function closeDialog() {
+    if (busy.current) return;
+    checkGeneration.current++;
+    setChecking(false);
+    setPending(false);
+    setAction(null);
+    setError("");
+  }
   const managesDraft =
     typeof state?.publishingBlocked === "boolean" && typeof state?.removed === "boolean";
   const hidden = managesDraft
@@ -42,6 +63,7 @@ export function ProjectModeration({
     : Boolean(state?.publicationCount && state.hiddenCount === state.publicationCount);
   const unavailable =
     !state || state.removed === true || (!managesDraft && state.publicationCount === 0);
+  const selectionSuffix = showSelectionCount && projectIds?.length ? ` (${projectIds.length})` : "";
   const label = action === "delete" ? "Delete" : action === "show" ? "Show" : "Hide";
 
   async function readState() {
@@ -69,18 +91,22 @@ export function ProjectModeration({
     if (busy.current) {
       return;
     }
-    busy.current = true;
+    const generation = ++checkGeneration.current;
+    setAction(requested);
+    setChecking(true);
     setPending(true);
     setError("");
     setUncertain(false);
     try {
       // Refresh visibility before confirmation so a stale row cannot choose the opposite action
       const current = await readState();
+      if (generation !== checkGeneration.current) return;
       onChanged(current);
       if (
         current.removed ||
         (current.publishingBlocked === undefined && current.publicationCount === 0)
       ) {
+        setAction(null);
         setError(
           current.removed
             ? "This student project has been removed."
@@ -97,17 +123,21 @@ export function ProjectModeration({
             : "hide",
       );
     } catch (reason) {
+      if (generation !== checkGeneration.current) return;
+      setAction(null);
       setError(
         reason instanceof Error ? reason.message : "Publication visibility could not be checked.",
       );
     } finally {
-      busy.current = false;
-      setPending(false);
+      if (generation === checkGeneration.current) {
+        setChecking(false);
+        setPending(false);
+      }
     }
   }
 
   async function confirm() {
-    if (busy.current || !action || uncertain) {
+    if (busy.current || checking || !action || uncertain) {
       return;
     }
     busy.current = true;
@@ -128,7 +158,7 @@ export function ProjectModeration({
       }
       const current = await readState();
       onChanged(current);
-      await onCompleted?.();
+      await onCompleted?.(action);
       setAction(null);
     } catch {
       // A lost response may follow a committed change; require a fresh read before another attempt
@@ -146,6 +176,7 @@ export function ProjectModeration({
     <>
       {!deleteOnly && (
         <Button
+          className="sp-hide-action"
           disabled={pending || unavailable}
           title={
             managesDraft
@@ -165,7 +196,7 @@ export function ProjectModeration({
           <UiIcon icon={hidden ? faEye : faEyeSlash} aria-hidden="true" />
           <span className="sp-button-label">
             {hidden ? "Show" : "Hide"}
-            {selection ? ` selected${projectIds?.length ? ` (${projectIds.length})` : ""}` : ""}
+            {selection ? ` selected${selectionSuffix}` : ""}
           </span>
         </Button>
       )}
@@ -185,9 +216,7 @@ export function ProjectModeration({
       >
         <UiIcon icon={faTrashCan} aria-hidden="true" />
         <span className="sp-button-label">
-          {deleteOnly || selection
-            ? `Delete selected${projectIds?.length ? ` (${projectIds.length})` : ""}`
-            : "Delete"}
+          {deleteOnly || selection ? `Delete selected${selectionSuffix}` : "Delete"}
         </span>
       </Button>
       {error && !action && (
@@ -195,17 +224,14 @@ export function ProjectModeration({
           {error}
         </p>
       )}
-      {action && (
+      {action && (!checking || showLoadingDialog) && (
         <Dialog
           title={`${label} ${deleteOnly || selection ? "Selected Projects" : projectIds ? "Assignment Projects" : managesDraft ? "Student Project" : "Publications"}?`}
           variant="admin"
           className="sp-project-moderation-dialog"
-          onClose={() => {
-            if (!busy.current) {
-              setAction(null);
-              setError("");
-            }
-          }}
+          loadingLabel={checking ? "Checking project visibility" : undefined}
+          closeDisabled={pending && !checking}
+          onClose={closeDialog}
         >
           <p>
             {projectIds && selection
@@ -213,13 +239,13 @@ export function ProjectModeration({
                 ? action === "delete"
                   ? `Remove ${projectIds.length} selected student project${projectIds.length === 1 ? "" : "s"}? Stored work and reviews remain. Existing publication links will stop working.`
                   : action === "show"
-                    ? `Restore publishing eligibility for ${projectIds.length} selected projects? Approval of each current submission is still required.`
-                    : `Hide ${projectIds.length} selected projects? Students can keep editing. Publishing and visitor access will be blocked until you show the projects again.`
+                    ? `Restore publishing eligibility for ${projectIds.length} selected project${projectIds.length === 1 ? "" : "s"}? Approval of each current submission is still required.`
+                    : `Hide ${projectIds.length} selected project${projectIds.length === 1 ? "" : "s"}? Students can keep editing. Publishing and visitor access will be blocked until you show the projects again.`
                 : action === "delete"
-                  ? `Permanently disable publication links for ${projectIds.length} selected projects? Saved work and reviews will be retained. This cannot be undone.`
+                  ? `Permanently disable publication links for ${projectIds.length} selected project${projectIds.length === 1 ? "" : "s"}? Saved work and reviews will be retained. This cannot be undone.`
                   : action === "show"
-                    ? `Restore visibility for ${projectIds.length} selected projects? Revoked and deleted editions remain unavailable.`
-                    : `Hide publications for ${projectIds.length} selected projects? Existing visitor links will stop working until visibility is restored.`
+                    ? `Restore visibility for ${projectIds.length} selected project${projectIds.length === 1 ? "" : "s"}? Revoked and deleted editions remain unavailable.`
+                    : `Hide publications for ${projectIds.length} selected project${projectIds.length === 1 ? "" : "s"}? Existing visitor links will stop working until visibility is restored.`
               : projectIds
                 ? action === "delete"
                   ? deleteOnly
@@ -245,13 +271,7 @@ export function ProjectModeration({
           )}
           {error && <p role="alert">{error}</p>}
           <div className="sp-actions admin-moderation-dialog-actions">
-            <Button
-              disabled={pending}
-              onClick={() => {
-                setAction(null);
-                setError("");
-              }}
-            >
+            <Button disabled={pending} onClick={closeDialog}>
               Cancel
             </Button>
             <Button
@@ -260,7 +280,7 @@ export function ProjectModeration({
               disabled={pending || uncertain}
               onClick={() => void confirm()}
             >
-              {pending ? "Updating…" : label}
+              {pending && !checking ? "Updating…" : label}
             </Button>
           </div>
         </Dialog>

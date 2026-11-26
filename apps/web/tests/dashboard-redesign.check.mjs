@@ -35,6 +35,34 @@ const assignments = ids.map((projectId, index) => ({
   assignedBy: "Ms Tan",
   projects: [{ projectId, studentId: userId, studentName: "Student", reviewState: states[index] }],
 }));
+async function checkPlainHover(page) {
+  const tabs = page.getByRole("tab");
+  const first = tabs.first();
+  const before = await first.boundingBox();
+  const icons = await first.locator("svg").count();
+  await first.hover();
+  if (await first.evaluate((node) => Boolean(node.closest(".sp-student-dashboard")))) {
+    assert.notEqual(
+      await first.evaluate((node) => getComputedStyle(node).backgroundColor),
+      "rgba(0, 0, 0, 0)",
+    );
+  } else {
+    assert.notEqual(
+      await first.evaluate((node) => getComputedStyle(node, "::before").content),
+      "none",
+    );
+  }
+  assert.deepEqual(await first.boundingBox(), before, "Hover preserves the tab's hit area");
+  assert.equal(
+    await first.locator("svg").count(),
+    icons,
+    "Hover does not insert content into the label",
+  );
+  await tabs.nth(1).hover();
+  await page.mouse.move(0, 0);
+  assert.equal(await first.evaluate((node) => getComputedStyle(node, "::before").content), "none");
+}
+
 const failures = [];
 await mkdir("../../.artifacts/dashboard-check", { recursive: true });
 try {
@@ -52,6 +80,8 @@ try {
         errors.push(`${response.status()} ${response.url()}`);
     });
     let publicationFailure = false;
+    let classFailure = false;
+    let assignmentFailure = false;
     let emptyPublications = false;
     let revoked = false;
     let grantOnPublication = false;
@@ -99,10 +129,13 @@ try {
           json: { items: revoked ? projects.slice(1) : projects, nextCursor: null },
         });
       }
+      if (path === "/api/v1/classes" && classFailure) return route.fulfill({ status: 503 });
       if (path === "/api/v1/classes")
         return route.fulfill({
           json: { items: [{ id: classId, name: "History" }], nextCursor: null },
         });
+      if (path === `/api/v1/classes/${classId}/assignments` && assignmentFailure)
+        return route.fulfill({ status: 503 });
       if (path === `/api/v1/classes/${classId}/assignments`)
         return route.fulfill({ json: { items: assignments, nextCursor: null } });
       if (path.endsWith("/submissions") || path.endsWith("/progress-reviews"))
@@ -209,6 +242,7 @@ try {
       }
       if (role === "Educator") {
         await page.getByText(titles[0], { exact: true }).waitFor();
+        await checkPlainHover(page);
         await capture("facilitator");
         for (const [name, visible, hidden] of [
           ["Awaiting Approval", titles[0], [titles[1], titles[2]]],
@@ -246,6 +280,68 @@ try {
         await page.getByRole("button", { name: "Close project details" }).click();
       } else {
         await page.getByText(titles[0], { exact: true }).waitFor();
+        // Class metadata failures must not hide independently authorized project rows
+        for (const failure of ["classes", "assignments"]) {
+          classFailure = failure === "classes";
+          assignmentFailure = failure === "assignments";
+          await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+          const retry = page.getByRole("button", { name: "Retry class details", exact: true });
+          await retry.waitFor();
+          assert.ok(await page.getByRole("heading", { name: titles[0], exact: true }).isVisible());
+          assert.ok(
+            await page.getByText("Status unavailable", { exact: true }).first().isVisible(),
+          );
+          await page
+            .getByRole("button", { name: /view details/i })
+            .first()
+            .click();
+          const unavailableDetails = page.getByRole("dialog", {
+            name: "Project details",
+            exact: true,
+          });
+          await unavailableDetails.waitFor();
+          await unavailableDetails.getByText("Couldn’t load project details.").waitFor();
+          assert.equal(
+            await unavailableDetails.getByRole("heading", { name: "Project Description:" }).count(),
+            0,
+          );
+          assert.equal(
+            await unavailableDetails.getByRole("heading", { name: "Reviews:" }).count(),
+            0,
+          );
+          assert.ok(
+            await unavailableDetails.getByRole("button", { name: "Open project" }).isEnabled(),
+          );
+          classFailure = false;
+          assignmentFailure = false;
+          await unavailableDetails.getByRole("button", { name: "Retry", exact: true }).click();
+          await unavailableDetails
+            .getByRole("heading", { name: "Project Description:", exact: true })
+            .waitFor();
+          await unavailableDetails.getByRole("button", { name: "Close project details" }).click();
+          await retry.waitFor({ state: "hidden" });
+        }
+        // Reopening details must read approval granted since the previous visit
+        const details = page.getByRole("dialog", { name: "Project details", exact: true });
+        await page.getByRole("button", { name: "View details", exact: true }).first().click();
+        await details.waitFor();
+        assert.equal(
+          await details.getByRole("button", { name: "Publish", exact: true }).count(),
+          0,
+        );
+        await details.getByRole("button", { name: "Close project details", exact: true }).click();
+        assignments[0].projects[0].reviewState = "approved";
+        await page.getByRole("button", { name: "View details", exact: true }).first().click();
+        await details.getByRole("button", { name: "Publish", exact: true }).waitFor();
+        await details.getByRole("button", { name: "Close project details", exact: true }).click();
+        assignments[0].projects[0].reviewState = states[0];
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await page
+          .locator(".sp-student-card")
+          .first()
+          .getByText("Awaiting Approval", { exact: true })
+          .waitFor();
+        await checkPlainHover(page);
         await page
           .getByRole("button", { name: /^Read more about / })
           .first()
@@ -413,7 +509,8 @@ try {
         const emptyPublication = page
           .getByRole("status")
           .filter({ hasText: /no published projects/i });
-        await emptyPublication.locator("svg").waitFor();
+        await emptyPublication.waitFor();
+        assert.equal(await emptyPublication.locator("svg").count(), 0);
         assert.match(await emptyPublication.textContent(), /no published projects/i);
         assert.equal(await page.getByText(titles[0], { exact: true }).count(), 0);
         assert.ok(

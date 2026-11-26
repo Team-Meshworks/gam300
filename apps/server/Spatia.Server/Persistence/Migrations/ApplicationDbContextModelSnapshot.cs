@@ -371,6 +371,31 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasColumnType("bytea")
                         .HasColumnName("bytes");
 
+                    b.Property<string>("CatalogueCategory")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("catalogue_category");
+
+                    b.Property<string>("CatalogueLicense")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("catalogue_license");
+
+                    b.Property<string>("CatalogueName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("catalogue_name");
+
+                    b.Property<string>("CatalogueReviewNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("catalogue_review_notes");
+
+                    b.Property<string>("CatalogueSource")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("catalogue_source");
+
                     b.Property<string>("Category")
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)")

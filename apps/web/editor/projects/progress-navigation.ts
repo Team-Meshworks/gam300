@@ -50,6 +50,13 @@ export function reviewReturnUrl(params: URLSearchParams, role?: string): string 
   return `/home?${destination}`;
 }
 
+export function requestedProjectId() {
+  const id = new URLSearchParams(location.search).get("projectId");
+  return id && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)
+    ? id.toLowerCase()
+    : undefined;
+}
+
 export function adminPublishedReturnUrl(params: URLSearchParams): string {
   const destination = new URLSearchParams();
   if (params.get("returnView") === "projects") destination.set("view", "projects");

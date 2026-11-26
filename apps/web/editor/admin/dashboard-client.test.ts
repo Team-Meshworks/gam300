@@ -136,7 +136,7 @@ it("creates organisations with CSRF protection and the originating account on bo
     new Response(null, { status: 204 }),
   );
   const client = createDashboardClient(actor, request.fetch);
-  await client.createOrganization(" School ");
+  await expect(client.createOrganization(" School ")).resolves.toBe(actor);
   expect(request.requests[0]?.headers.get("X-Spatia-Account")).toBe(actor);
   const create = request.requests[1]!;
   expect(create.method).toBe("POST");
@@ -338,6 +338,17 @@ it("sends a selected moderation action as one authenticated batch request", asyn
     projectIds: ids,
     action: "hide",
   });
+});
+
+it("does not retry a conflicting organisation name", async () => {
+  const request = await serveResponses(
+    json({ requestToken: "csrf" }),
+    json({ code: "organization_name_taken" }, 409),
+  );
+  await expect(
+    createDashboardClient(actor, request.fetch).createOrganization("SCHOOL"),
+  ).rejects.toThrow("That organisation name is in use. Check the organisation directory.");
+  expect(request.requests).toHaveLength(2);
 });
 
 it("retains an organisation attempt when its dispatched write returns 401", async () => {

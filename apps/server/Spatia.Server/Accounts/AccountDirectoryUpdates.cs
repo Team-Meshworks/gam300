@@ -142,7 +142,7 @@ public static partial class AccountDirectoryEndpoints
         if (!await database.Organizations.AnyAsync(row => row.Id == id, cancellationToken))
             return ApiProblems.Create(context, 404, "organization_not_found", "The organization was not found.");
 
-        var query = database.Projects.AsNoTracking().Where(row => row.OrganizationId == id);
+        var query = ProjectAccessService.PublishedProjects(database).Where(row => row.OrganizationId == id);
 
         if (page.Cursor is { } cursor)
             query = query.Where(row => row.Id.CompareTo(cursor) > 0);
@@ -161,11 +161,18 @@ public static partial class AccountDirectoryEndpoints
                                           && !retired.Contains(edition.Id)
                                       select edition.Id).Any()
                                select project.Id).ToListAsync(cancellationToken);
+        var editions = await database.Publications.AsNoTracking().Where(edition => pageIds.Contains(edition.ProjectId)
+            && !retired.Contains(edition.Id)
+            && !database.PublicationAccess.Any(state => state.PublicationId == edition.Id && state.Deleted))
+            .GroupBy(edition => edition.ProjectId)
+            .Select(group => group.OrderByDescending(edition => edition.CreatedAt).ThenByDescending(edition => edition.Id).First())
+            .ToDictionaryAsync(edition => edition.ProjectId, cancellationToken);
         var items = new List<object>();
 
         foreach (var row in rows.Take(page.Limit))
         {
-            var document = documents.ReadStored(row.Id, row.SchemaVersion, row.DocumentJson);
+            var edition = editions[row.Id];
+            var document = documents.ReadStored(row.Id, edition.SchemaVersion, edition.DocumentJson);
 
             if (!document.Ok)
                 return ApiProblems.Create(context, 503, "project_unavailable", "Project details could not be loaded.");
@@ -179,7 +186,7 @@ public static partial class AccountDirectoryEndpoints
             {
                 id = row.Id,
                 title,
-                status = row.IsArchived ? "Archived" : "Draft",
+                status = "Published",
                 isPublic = publicIds.Contains(row.Id)
             });
         }

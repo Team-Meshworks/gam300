@@ -207,10 +207,62 @@ public sealed class AssetUploadIdentityTests
         await Assert.That(await database.AssetCandidates.CountAsync()).IsEqualTo(1000);
     }
 
+    [Test]
+    public async Task EditingMetadataPreservesIdentityAndRejectsInvalidReplacements()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        var token = await fixture.GetCsrfAsync();
+        var bytes = AssetIntakeTests.CreateMinimalGlb();
+        using var upload = await UploadAsync(fixture.Client, token, bytes, displayName: "Gallery bench");
+        await Assert.That(upload.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var original = (await upload.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+        await Assert.That(original.Name).IsEqualTo("Gallery bench");
+        var path = $"/api/v1/admin/assets/{original.Id}/details";
+        var details = new AssetDetailsRequest("North gallery bench", "model", "Furniture", new("Museum collection", "CC0", "Reviewed"));
+        using var save = await AuthTestRequests.PutAsync(fixture.Client, path, details, token);
+        await Assert.That(save.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var replay = await UploadAsync(fixture.Client, token, bytes, displayName: original.Name);
+        var saved = (await replay.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+        await Assert.That(replay.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((saved.Id, saved.Sha256, saved.Name, saved.Category, saved.Source))
+            .IsEqualTo((original.Id, original.Sha256, details.Name, details.Category, details.Review.Source));
+        using var catalogue = await fixture.Client.GetAsync("/api/v1/assets");
+        var entry = (await catalogue.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().Single();
+        await Assert.That(entry.GetProperty("name").GetString()).IsEqualTo(details.Name);
+        await Assert.That(entry.GetProperty("category").GetString()).IsEqualTo(details.Category);
+        using var badCategory = await AuthTestRequests.PutAsync(fixture.Client, path, details with
+        {
+            Category = "BGM"
+        }, token);
+        await AuthTestRequests.AssertProblemAsync(badCategory, HttpStatusCode.BadRequest, "invalid_asset_input");
+        using var blank = await AuthTestRequests.PutAsync(fixture.Client, path, details with
+        {
+            Name = " "
+        }, token);
+        await AuthTestRequests.AssertProblemAsync(blank, HttpStatusCode.BadRequest, "invalid_asset_input");
+        using var incompatible = await UploadAsync(fixture.Client, token, bytes, "track.m4a", "audio", "BGM", replaces: original.Id);
+        await AuthTestRequests.AssertProblemAsync(incompatible, HttpStatusCode.BadRequest, "invalid_replacement");
+        await using var scope = fixture.Database.Services.CreateAsyncScope();
+        var persisted = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().AssetCandidates.SingleAsync();
+        await Assert.That(persisted.Deleted || persisted.Hidden).IsFalse();
+        await Assert.That(persisted.Bytes.SequenceEqual(bytes)).IsTrue();
+        await Assert.That((persisted.Name, persisted.Category, persisted.Source)).IsEqualTo((original.Name, original.Category, original.Source));
+        using var retired = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{original.Id}/availability", new AssetAvailabilityRequest("delete"));
+        await Assert.That(retired.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var stale = await AuthTestRequests.PutAsync(fixture.Client, path, details, token);
+        await AuthTestRequests.AssertProblemAsync(stale, HttpStatusCode.Conflict, "asset_conflict");
+    }
+
     private static async Task<HttpResponseMessage> UploadAsync(HttpClient client, string token, byte[] bytes,
-        string name = "Exhibit.glb", string kind = "model", string? category = "Objects", AssetReviewRequest? metadata = null)
+        string name = "Exhibit.glb", string kind = "model", string? category = "Objects", AssetReviewRequest? metadata = null,
+        string? displayName = null, Guid? replaces = null)
     {
         var path = $"/api/v1/admin/assets?name={name}&kind={kind}" + (category is null ? "" : $"&category={category}");
+        if (displayName is not null)
+            path += "&displayName=" + Uri.EscapeDataString(displayName);
+        if (replaces is not null)
+            path += $"&replaces={replaces:D}";
         using var request = new HttpRequestMessage(HttpMethod.Post, path);
         request.Headers.Add("X-CSRF-TOKEN", token);
 
@@ -218,7 +270,7 @@ public sealed class AssetUploadIdentityTests
             request.Headers.Add("X-Spatia-Asset-Metadata", Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(metadata)));
 
         request.Content = new ByteArrayContent(bytes);
-        request.Content.Headers.ContentType = new("model/gltf-binary");
+        request.Content.Headers.ContentType = new(AssetIntakePolicy.MediaType(kind));
         return await client.SendAsync(request);
     }
 

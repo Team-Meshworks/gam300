@@ -27,13 +27,22 @@ public static class AssetIntakePolicy
 
     public static string Extension(string kind) => kind == "audio" ? ".m4a" : ".glb";
 
+    public static bool ValidDisplayName(string? name) =>
+        !string.IsNullOrWhiteSpace(name) && name.Length <= 120 && !name.Any(char.IsControl);
+
+    public static bool AcceptsCategory(string kind, string? category) => kind switch
+    {
+        "environment" => category is null,
+        "model" => ModelCategories.Contains(category, StringComparer.Ordinal),
+        "audio" => AudioCategories.Contains(category, StringComparer.Ordinal),
+        _ => false
+    };
+
     // File names are display metadata only and never become disk paths or immutable identities
     public static bool Accepts(string name, string kind, string? category) =>
         name.Length is > 4 and <= 120 && !string.IsNullOrWhiteSpace(name[..^4])
         && name.EndsWith(Extension(kind), StringComparison.OrdinalIgnoreCase)
         && !name.Any(character => char.IsControl(character) || character is '/' or '\\' or ':')
         && !name.Contains("..", StringComparison.Ordinal)
-        && (kind == "environment" ? category is null
-            : kind == "model" ? ModelCategories.Contains(category, StringComparer.Ordinal)
-            : kind == "audio" && AudioCategories.Contains(category, StringComparer.Ordinal));
+        && AcceptsCategory(kind, category);
 }

@@ -14,6 +14,7 @@ const [
   editorDirectory,
   artifactDirectory,
   authoringJson,
+  scenario = "all",
 ] = process.argv.slice(2);
 const authoring = JSON.parse(authoringJson);
 const target = new URL(origin);
@@ -22,14 +23,19 @@ assert.equal(target.hostname, "127.0.0.1");
 assert.ok(
   userName && projectId && environmentId && modelId && editorDirectory && artifactDirectory,
 );
+assert.ok(["rooms", "authoring", "all"].includes(scenario));
 await mkdir(artifactDirectory, { recursive: true });
-const webRoot = fileURLToPath(new URL("../../web/", import.meta.url)).replaceAll("\\", "/");
-const { build } = await import("../../web/node_modules/vite/dist/node/index.js");
-await build({
-  configFile: webRoot + "vite.config.ts",
-  logLevel: "silent",
-  build: { write: true, outDir: editorDirectory, emptyOutDir: false },
-});
+// Both scenarios exercise the same production build in the fixture's private directory.
+if (scenario !== "authoring") {
+  console.log("Building the production editor");
+  const webRoot = fileURLToPath(new URL("../../web/", import.meta.url)).replaceAll("\\", "/");
+  const { build } = await import("../../web/node_modules/vite/dist/node/index.js");
+  await build({
+    configFile: webRoot + "vite.config.ts",
+    logLevel: "silent",
+    build: { write: true, outDir: editorDirectory, emptyOutDir: false },
+  });
+}
 const browser = await launchBrowser({
   target: origin,
   args: ["--enable-unsafe-swiftshader"],
@@ -107,7 +113,7 @@ function waitForSave(current) {
   );
 }
 
-try {
+async function checkRooms() {
   page = await openEditor();
   const thirdPerson = page.getByRole("button", { name: "Third person", exact: true });
   if ((await thirdPerson.getAttribute("aria-pressed")) !== "true") await thirdPerson.click();
@@ -205,8 +211,14 @@ try {
     path: path.join(artifactDirectory, "02-reopened.png"),
     animations: "disabled",
   });
-  // A new real project must keep normal asset placement working after reopening
   await page.context().close();
+  console.log(
+    "production adjoining room saved and reopened with approved UUID, position and rotation",
+  );
+}
+
+async function checkAssetAuthoring() {
+  // A new real project must keep normal asset placement working after reopening
   page = await openEditor(authoring.projectId);
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
   await page
@@ -214,7 +226,7 @@ try {
     .getByRole("button", { name: "Approved sample crate", exact: true })
     .click();
   await page.locator(".asset-picker").getByRole("button", { name: "Add", exact: true }).click();
-  saved = waitForSave(page);
+  let saved = waitForSave(page);
   await placeAtRoomCenter(page);
   assert.equal((await saved).status(), 200);
   await page.locator('.save-state[data-state="saved"]').waitFor();
@@ -252,6 +264,7 @@ try {
     (object) => object.assetId === authoring.crateId,
   );
   assert.equal(crates.length, 2);
+  console.log("Production asset placement saved through both Add and drag");
 
   // Approved production audio must survive saving and use its retained bytes after reopening
   await page.locator(`.object-row[data-object-id="${crates[0].id}"]`).click();
@@ -310,10 +323,12 @@ try {
   console.log(
     "production new project Add, reopen, drag and retained spatial audio playback passed",
   );
+}
+
+try {
+  if (scenario !== "authoring") await checkRooms();
+  if (scenario !== "rooms") await checkAssetAuthoring();
   assert.deepEqual(errors, []);
-  console.log(
-    "production adjoining room saved and reopened with approved UUID, position and rotation",
-  );
 } catch (error) {
   if (page && !page.isClosed()) {
     console.error(

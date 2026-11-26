@@ -94,7 +94,7 @@ public sealed class HostBoundaryTests
         await using var app = SpatiaApplication.Build(CreateConfigurationBuilder());
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
         var expected = new[] { "GET /api/v1/auth/csrf", "POST /api/v1/auth/login", "GET /api/v1/auth/session", "GET /api/v1/auth/asset-access", "POST /api/v1/auth/logout", "POST /api/v1/auth/password",
-            "POST /api/v1/admin/organizations", "POST /api/v1/admin/users", "POST /api/v1/admin/users/bulk", "POST /api/v1/admin/organizations/{id:guid}/students/delete", "POST /api/v1/admin/organizations/{id:guid}/students/hide", "POST /api/v1/admin/users/{id:guid}/password",
+            "POST /api/v1/admin/organizations", "POST /api/v1/admin/users", "POST /api/v1/admin/users/bulk", "POST /api/v1/admin/organizations/{id:guid}/accounts/delete", "POST /api/v1/admin/organizations/{id:guid}/accounts/hide", "POST /api/v1/admin/organizations/{id:guid}/students/delete", "POST /api/v1/admin/organizations/{id:guid}/students/hide", "POST /api/v1/admin/users/{id:guid}/password",
             "GET /api/v1/admin/users", "GET /api/v1/admin/users/{id:guid}", "GET /api/v1/admin/organizations", "GET /api/v1/admin/organizations/{id:guid}",
             "PATCH /api/v1/admin/users/{id:guid}/active", "DELETE /api/v1/admin/users/{id:guid}",
             "PATCH /api/v1/admin/users/{id:guid}", "GET /api/v1/admin/organizations/{id:guid}/projects",
@@ -117,7 +117,7 @@ public sealed class HostBoundaryTests
             "POST /api/v1/classes/", "PUT /api/v1/classes/legacy-resolution", "POST /api/v1/classes/{id:guid}/assignments", "PUT /api/v1/classes/{id:guid}/members/{userId:guid}", "DELETE /api/v1/classes/{id:guid}/members/{userId:guid}",
             "GET /api/v1/creation-operations/{purpose}", "POST /api/v1/creation-operations/{purpose}/{operationId:guid}/acknowledge",
             "GET /api/v1/admin/assets/", "GET /api/v1/admin/assets/{id:guid}/bytes", "POST /api/v1/admin/assets/", "POST /api/v1/admin/assets/{id:guid}/approve",
-            "POST /api/v1/admin/assets/{id:guid}/availability", "PUT /api/v1/admin/assets/{id:guid}/removals/{operationId:guid}",
+            "PUT /api/v1/admin/assets/{id:guid}/details", "POST /api/v1/admin/assets/{id:guid}/availability", "PUT /api/v1/admin/assets/{id:guid}/removals/{operationId:guid}",
             "POST /api/v1/admin/assets/{id:guid}/removals/{operationId:guid}/reconcile", "GET /api/v1/assets", "GET /api/v1/assets/{id:guid}/bytes",
             "GET /api/v1/projects/{projectId:guid}/assets/{id:guid}/bytes", "GET /api/v1/projects/{projectId:guid}/assets", "GET /api/v1/projects/{projectId:guid}/publication-links", "GET /api/v1/projects/publication-links",
             "GET,HEAD /api/v1/publications/{publicationId}", "GET /api/v1/publications/{publicationId}/manifest", "GET,HEAD /api/v1/publications/{publicationId}/assets/{assetId}/bytes",

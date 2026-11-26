@@ -3,7 +3,6 @@ import pencil from "@iconify-icons/lucide/pencil";
 import clock from "@iconify-icons/lucide/clock-3";
 import check from "@iconify-icons/lucide/circle-check";
 import unknown from "@iconify-icons/lucide/circle-help";
-import plus from "@iconify-icons/lucide/plus";
 import { Button } from "../../shared/ui/Button";
 import { SearchField } from "../../shared/ui/SearchField";
 import { Select } from "../../shared/ui/Select";
@@ -57,7 +56,25 @@ export function TeacherDashboard({
 }) {
   const { filter, search, classId } = query;
   const term = search.trim().toLocaleLowerCase();
-  const matched = cards?.filter(
+  const previewCount = import.meta.env.DEV
+    ? Number(new URLSearchParams(location.search).get("previewProjects"))
+    : 0;
+  const preview = previewCount === 6 || previewCount === 12;
+  const displayCards =
+    preview && cards?.length
+      ? Array.from({ length: previewCount }, (_, index) =>
+          index < cards.length
+            ? cards[index]!
+            : {
+                ...cards[index % cards.length]!,
+                id: `visual-sample-${index}`,
+                title: `Visual sample project ${index + 1}`,
+                metadata: "Visual sample",
+                onDetails: () => {},
+              },
+        )
+      : cards;
+  const matched = displayCards?.filter(
     (card) =>
       (!classId || card.classId === classId) && card.title.toLocaleLowerCase().includes(term),
   );
@@ -69,7 +86,10 @@ export function TeacherDashboard({
         <h1>Welcome Back, {name}</h1>
         <p>A space to spark ideas, guide student work and curate what gets shared.</p>
       </div>
-      <section className="sp-teacher-projects" aria-labelledby="facilitator-heading">
+      <section
+        className="sp-panel-surface sp-teacher-projects"
+        aria-labelledby="facilitator-heading"
+      >
         <div className="sp-teacher-heading">
           <div>
             <h2 id="facilitator-heading">All Projects</h2>
@@ -98,6 +118,7 @@ export function TeacherDashboard({
           <div className="sp-teacher-toolbar-actions">
             <Select
               label="Filter projects by class"
+              footerLink={{ label: "Manage classes…", href: "/classes?organisation=1" }}
               value={classId}
               options={[
                 { value: "", label: "All Classes" },
@@ -111,7 +132,7 @@ export function TeacherDashboard({
               menuClassName="sp-project-class-menu sp-teacher-class-menu"
             />
             <a className="sp-button sp-button--primary sp-new-project" href="/new-project">
-              <Icon icon={plus} width={13} /> New Project
+              + New Project
             </a>
           </div>
         </div>
@@ -132,7 +153,9 @@ export function TeacherDashboard({
               {term
                 ? "No projects match your search."
                 : filter === "all" && !classId
-                  ? "No projects are available yet."
+                  ? classes.length
+                    ? "No projects yet. Choose New Project to assign work to your students."
+                    : "No classes or projects yet. Open Manage classes in the class filter to create a class and enrol students first."
                   : classId
                     ? "No projects match this class and status."
                     : `No projects with status “${selectedLabel}”.`}
@@ -158,6 +181,7 @@ export function TeacherDashboard({
                     <Button
                       variant="primary"
                       id={`teacher-project-${card.id}`}
+                      disabled={card.id.startsWith("visual-sample-")}
                       onClick={card.onDetails}
                     >
                       View Details

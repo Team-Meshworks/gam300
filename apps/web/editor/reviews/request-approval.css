@@ -56,7 +56,7 @@
 .creator-approval-dialog .publish-status-kicker {
   color: #77716b;
   font:
-    700 10px/14px Inter,
+    600 10px/14px Inter,
     sans-serif;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -72,7 +72,7 @@
   margin: 24px 0 12px;
   color: #292723;
   font:
-    700 26px/32px Inter,
+    600 26px/32px Inter,
     sans-serif;
   letter-spacing: -0.65px;
 }
@@ -157,7 +157,6 @@
 }
 .creator-approval-dialog .sp-button.creator-approval-close {
   position: absolute;
-  top: 0;
   right: 0;
   display: grid;
   place-items: center;
@@ -173,7 +172,7 @@
   cursor: pointer;
 }
 .creator-approval-dialog .creator-approval-close:hover:not(:disabled) {
-  background: #f1ece6;
+  background: var(--sp-close-hover);
   color: #292723;
 }
 .creator-approval-dialog .creator-approval-actions {
@@ -207,27 +206,25 @@
 .creator-approval-dialog .creator-approval-actions .sp-button--primary {
   border-color: #292723;
   background: #292723;
+  --sp-primary-hover: color-mix(
+    in srgb,
+    var(--sp-ink),
+    var(--sp-hover-light) var(--sp-hover-strength)
+  );
   color: #fff;
 }
 .creator-approval-dialog .creator-approval-actions .sp-button:hover:not(:disabled) {
-  background: #f1ece6;
+  background: var(--sp-hover);
 }
 .creator-approval-dialog .creator-approval-actions .sp-button--primary:hover:not(:disabled) {
   border-color: #51473d;
-  background: #51473d;
+  background: var(--sp-primary-hover);
 }
 .creator-approval-dialog .creator-approval-error {
   margin: 16px 0 0;
   color: #9b5749;
   font:
     400 13px/20px Inter,
-    sans-serif;
-}
-.creator-approval-dialog .publish-status-loading {
-  margin: 16px 0 0;
-  color: #77716b;
-  font:
-    400 12px/18px Inter,
     sans-serif;
 }
 .creator-approval-dialog button:disabled {
@@ -257,11 +254,4 @@
 /* Align the close control with the header label rather than its two-line group */
 .creator-approval-dialog .sp-button.creator-approval-close {
   top: -8px;
-}
-
-/* Keep loading copy from flashing before the verified approval state arrives */
-.creator-approval-dialog[data-loading="true"] .publish-status-body > :not(.publish-status-header),
-.creator-approval-dialog[data-loading="true"] .publish-status-subtitle,
-.creator-approval-dialog[data-loading="true"] .creator-approval-actions {
-  visibility: hidden;
 }

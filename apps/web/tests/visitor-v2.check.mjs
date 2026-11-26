@@ -366,8 +366,10 @@ if (process.argv.includes("--playback-only")) {
         .addEventListener("exhibit-show-panel", () => window.pointActions++);
     });
     const originalCanvas = await page.locator("canvas").elementHandle();
+    const originalViewer = await page.locator(".visitor-viewer").elementHandle();
     await page.getByRole("button", { name: navigation.label, exact: true }).click();
-    await page.waitForFunction((canvas) => !canvas.isConnected, originalCanvas);
+    await page.waitForFunction((viewer) => !viewer.isConnected, originalViewer);
+    assert.equal(await originalCanvas.evaluate((canvas) => canvas.isConnected), true);
     const pointResult = {
       actions: await page.evaluate(() => window.pointActions),
       destination: await page

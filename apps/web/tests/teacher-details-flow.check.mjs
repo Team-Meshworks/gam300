@@ -360,8 +360,8 @@ try {
   assert.equal(await page.getByText("Build a museum", { exact: true }).count(), 1);
   assert.equal(await page.getByText("Add exhibits", { exact: true }).count(), 1);
   assert.equal(await page.getByText("Alice", { exact: true }).count(), 1);
-  assert.equal(await page.getByRole("button", { name: "View Project", exact: true }).count(), 1);
-  assert.equal(await page.getByRole("button", { name: "View Progress", exact: true }).count(), 3);
+  assert.equal(await page.getByRole("button", { name: "View Project", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "View Progress", exact: true }).count(), 4);
   const student = (name) =>
     page.locator(".sp-teacher-student").filter({ has: page.getByText(name, { exact: true }) });
   assert.equal(
@@ -452,11 +452,11 @@ try {
   assert.equal(await student("Cara").count(), 0);
   assert.equal(await student("Dee").count(), 0);
   await page.getByRole("tab", { name: /All Students/ }).click();
-  assert.equal(await page.getByRole("button", { name: "View Project", exact: true }).count(), 1);
-  assert.equal(await page.getByRole("button", { name: "View Progress", exact: true }).count(), 3);
+  assert.equal(await page.getByRole("button", { name: "View Project", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "View Progress", exact: true }).count(), 4);
   await page.route("**/?classId=**", (route) => route.fulfill({ body: "Student editor" }));
   moderationAvailable = true;
-  await student("Alice").getByRole("button", { name: "View Project", exact: true }).click();
+  await student("Alice").getByRole("button", { name: "View Progress", exact: true }).click();
   await page.waitForURL((url) => url.searchParams.get("projectId") === studentProjectId);
   const params = new URL(page.url()).searchParams;
   assert.equal(params.get("assignmentId"), assignmentId);
@@ -510,8 +510,27 @@ try {
   await page.getByRole("button", { name: "Close project details" }).click();
   assert.equal(new URL(page.url()).search, "");
   await assignmentCard.getByRole("button", { name: "View Details" }).click();
+  await page.evaluate(() => {
+    window.facilitatorRouteMarker = true;
+  });
   await page.getByRole("link", { name: "School", exact: true }).click();
   await page.getByRole("heading", { name: "Organisation Details", exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => window.facilitatorRouteMarker), true);
+  assert.equal(new URL(page.url()).searchParams.get("assignmentId"), assignmentId);
+  await page.goBack();
+  await page.getByRole("heading", { name: "Project Details", exact: true }).waitFor();
+  await page.goForward();
+  await page.getByRole("heading", { name: "Organisation Details", exact: true }).waitFor();
+  await page.evaluate((id) => {
+    const params = new URLSearchParams(location.search);
+    params.set("classId", id);
+    history.pushState(null, "", `/classes?${params}`);
+    dispatchEvent(new PopStateEvent("popstate"));
+  }, scienceId);
+  await page.getByText("Science museum", { exact: true }).waitFor();
+  await page.goBack();
+  await page.getByText("Museum", { exact: true }).first().waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("classId"), classId);
   assert.equal(await page.getByRole("navigation", { name: "Workspace", exact: true }).count(), 0);
   assert.equal(await page.getByRole("button", { name: "New Class", exact: true }).count(), 1);
   await page.getByRole("button", { name: "New Class", exact: true }).click();
@@ -563,19 +582,38 @@ try {
     listBeforeSelection.height,
     "Selection mode keeps the list height",
   );
-  await page.getByRole("checkbox", { name: "Select all visible projects" }).check();
-  assert.equal(await page.getByRole("checkbox", { checked: true }).count(), 5);
-  await page
-    .getByRole("group", { name: "Student project selection" })
-    .getByRole("button", { name: "Cancel", exact: true })
-    .click();
+  const selectionViewport = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const studentTabs = page.locator(".sp-teacher-student-toolbar .sp-tabs");
+  const tabVisible = async () =>
+    studentTabs.evaluate((strip) => {
+      const selected = strip.querySelector('button[aria-selected="true"]');
+      const tab = selected.getBoundingClientRect();
+      const bounds = strip.getBoundingClientRect();
+      return tab.left >= bounds.left - 1 && tab.right <= bounds.right + 1;
+    });
+  await studentTabs.getByRole("tab", { name: "All Students", exact: true }).focus();
+  await page.keyboard.press("End");
+  assert.equal(
+    await studentTabs
+      .getByRole("tab", { name: "Awaiting Approval", exact: true })
+      .getAttribute("aria-selected"),
+    "true",
+  );
+  assert.ok(await tabVisible(), "End keeps the last tab visible in its horizontal strip");
+  await page.keyboard.press("Home");
+  assert.ok(await tabVisible(), "Home keeps the first tab visible in its horizontal strip");
+  await page.setViewportSize(selectionViewport);
+  await page.getByRole("button", { name: "Select all", exact: true }).click();
+  assert.equal(await page.getByRole("checkbox", { checked: true }).count(), 4);
+  await page.getByRole("button", { name: "Cancel selection", exact: true }).click();
   assert.equal(moderationWrites.length, 0);
   await page.getByRole("button", { name: "Select student projects" }).click();
   await page.getByRole("checkbox", { name: "Select Alice's project", exact: true }).check();
   await page.getByRole("checkbox", { name: "Select Bob's project", exact: true }).check();
   await page
     .getByRole("group", { name: "Student project selection" })
-    .getByRole("button", { name: "Delete selected (2)", exact: true })
+    .getByRole("button", { name: "Delete selected", exact: true })
     .click();
   let confirmation = page.getByRole("dialog", { name: "Delete Selected Projects?" });
   await confirmation.waitFor();
@@ -583,7 +621,7 @@ try {
   assert.equal(moderationWrites.length, 0, "Cancelling selected deletion sends no writes");
   await page
     .getByRole("group", { name: "Student project selection" })
-    .getByRole("button", { name: "Delete selected (2)", exact: true })
+    .getByRole("button", { name: "Delete selected", exact: true })
     .click();
   confirmation = page.getByRole("dialog", { name: "Delete Selected Projects?" });
   await confirmation.getByRole("button", { name: "Delete", exact: true }).click();
@@ -623,9 +661,9 @@ try {
 
   await page.getByRole("button", { name: "Select student projects" }).click();
   const selection = page.getByRole("group", { name: "Student project selection" });
-  await page.getByRole("checkbox", { name: "Select all visible projects" }).check();
+  await page.getByRole("button", { name: "Select all", exact: true }).click();
   holdRosterRefresh = true;
-  await selection.getByRole("button", { name: "Hide selected (2)", exact: true }).click();
+  await selection.getByRole("button", { name: "Hide selected", exact: true }).click();
   await page
     .getByRole("dialog", { name: "Hide Selected Projects?" })
     .getByRole("button", { name: "Hide", exact: true })
@@ -640,17 +678,17 @@ try {
   );
   holdRosterRefresh = false;
   releaseRosterRefresh();
-  await selection.getByRole("button", { name: "Show selected (2)", exact: true }).waitFor();
+  await selection.getByRole("button", { name: "Show selected", exact: true }).waitFor();
   assert.equal(moderationWrites.filter((w) => w.action === "hide").length, 2);
   assert.ok(await student("Cara").getByRole("button", { name: "Show", exact: true }).count());
-  await selection.getByRole("button", { name: "Show selected (2)", exact: true }).click();
+  await selection.getByRole("button", { name: "Show selected", exact: true }).click();
   await page
     .getByRole("dialog", { name: "Show Selected Projects?" })
     .getByRole("button", { name: "Show", exact: true })
     .click();
-  await selection.getByRole("button", { name: "Hide selected (2)", exact: true }).waitFor();
+  await selection.getByRole("button", { name: "Hide selected", exact: true }).waitFor();
   assert.equal(moderationWrites.filter((w) => w.action === "show").length, 2);
-  await selection.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel selection", exact: true }).click();
   assert.deepEqual(
     bulkModerationRequests.map((request) => ({
       action: request.action,
@@ -663,6 +701,44 @@ try {
     ],
     "Each selected action sends one bulk mutation",
   );
+  await page.goto(`${origin}/new-project`);
+  await page.getByLabel("Project title").waitFor();
+  await page.evaluate(() => {
+    history.replaceState({ spWorkspaceIndex: 0 }, "", "/home");
+    history.pushState({ spWorkspaceIndex: 1 }, "", "/new-project");
+    dispatchEvent(new PopStateEvent("popstate", { state: history.state }));
+  });
+  await page.getByLabel("Project title").fill("Unsaved work");
+  await page.goBack();
+  await page.getByRole("dialog", { name: "Leave this page?" }).waitFor();
+  await page.getByRole("button", { name: "Keep editing" }).click();
+  assert.equal(await page.getByLabel("Project title").inputValue(), "Unsaved work");
+  assert.equal(new URL(page.url()).pathname, "/new-project");
+  await page.goBack();
+  await page.getByRole("dialog", { name: "Leave this page?" }).waitFor();
+  await page.getByRole("button", { name: "Discard and leave" }).click();
+  await page.getByRole("heading", { name: "Museum", exact: true }).waitFor();
+  assert.equal(new URL(page.url()).pathname, "/home");
+  await page.goForward();
+  await page.getByLabel("Project title").waitFor();
+  assert.equal(new URL(page.url()).pathname, "/new-project");
+  await page.goBack();
+  await page.getByRole("heading", { name: "Museum", exact: true }).waitFor();
+  assert.equal(new URL(page.url()).pathname, "/home");
+  await page.goForward();
+  await page.getByLabel("Project title").waitFor();
+  await page.evaluate(() => history.pushState({ spWorkspaceIndex: 2 }, "", "/home"));
+  await page.goBack();
+  await page.getByLabel("Project title").fill("Forward unsaved work");
+  await page.goForward();
+  await page.getByRole("dialog", { name: "Leave this page?" }).waitFor();
+  await page.getByRole("button", { name: "Keep editing" }).click();
+  assert.equal(await page.getByLabel("Project title").inputValue(), "Forward unsaved work");
+  assert.equal(new URL(page.url()).pathname, "/new-project");
+  await page.goForward();
+  await page.getByRole("button", { name: "Discard and leave" }).click();
+  await page.getByRole("heading", { name: "Museum", exact: true }).waitFor();
+  assert.equal(new URL(page.url()).pathname, "/home");
   console.log("PASS selected Hide and Show refresh row states without clearing selection");
   console.log(
     "PASS organisation context, class enrolment, existing-account hint, project navigation and close return",

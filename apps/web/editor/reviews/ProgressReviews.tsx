@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "../../shared/ui/Button";
 import { Dialog } from "../../shared/ui/Dialog";
@@ -637,8 +638,8 @@ export function ProgressReviews({
   }
   const history = (
     <>
-      {loading && <p role="status">Loading reviews…</p>}
-      {decisionsLoading && <p role="status">Loading submission feedback…</p>}
+      {loading && <LoadingSkeleton label="Loading reviews" />}
+      {decisionsLoading && <LoadingSkeleton label="Loading submission feedback" />}
       {decisionsError && <p role="alert">{decisionsError}</p>}
       {historyError && <p role="alert">{historyError}</p>}
       {error && <p role="alert">{error}</p>}

@@ -1,0 +1,28 @@
+.sp-loading-summary {
+  display: grid;
+  gap: 10px;
+}
+.sp-loading-skeleton {
+  width: 100%;
+  padding: 20px 24px;
+}
+.sp-loading-skeleton-item {
+  display: flex;
+  gap: 10px;
+  padding-block: 16px;
+}
+.sp-loading-skeleton-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 10px;
+}
+.sp-loading-skeleton--cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 24px;
+}
+.sp-loading-skeleton--cards .sp-loading-skeleton-item {
+  display: grid;
+  gap: 18px;
+}

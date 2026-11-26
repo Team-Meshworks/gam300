@@ -1,0 +1,335 @@
+/* One layout for the administrator's project and asset catalogues. */
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview) {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 48px 50px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  > .sp-admin-page-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 606px) 104px;
+  gap: 24px;
+  align-items: start;
+  min-height: 64px;
+  margin: 0;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  .sp-admin-page-heading
+  > div:first-child {
+  padding-top: 4px;
+  min-width: 0;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  .sp-admin-page-heading
+  h1 {
+  font: var(--sp-weight-heading) 25px/1.3 var(--sp-font);
+  letter-spacing: normal;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  .sp-admin-page-heading
+  p {
+  margin-top: 5px;
+  font: 400 12px/18px var(--sp-font);
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  .sp-admin-page-heading
+  > :is(.sp-search, .asset-admin-search, .sp-close-button) {
+  margin-top: 6px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  .sp-admin-page-heading
+  .sp-search {
+  width: 100%;
+  max-width: none;
+  height: 45px;
+  min-height: 45px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  .sp-admin-page-heading
+  .sp-close-button {
+  justify-self: end;
+  margin-left: 0;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  > :is(.sp-tabs, .asset-admin-toolbar, .sp-organization-overview-toolbar, h2) {
+  margin: 16px 0 0;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--sp-border);
+  min-height: 60px;
+  height: 60px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  .sp-tabs {
+  gap: 24px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  .sp-tabs
+  > button {
+  padding: 8px 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  font-size: 15px;
+  font-weight: 400;
+  background: transparent;
+  color: var(--sp-muted);
+  line-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  > :is([role="tabpanel"], .asset-admin-scroll, .sp-organization-grid) {
+  padding: 5px 0 8px;
+  scrollbar-gutter: stable;
+  margin-inline-end: calc(-1 * (var(--sp-scroll-size) + 2 * var(--sp-scroll-inset)));
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  :is(.admin-project-grid, .asset-admin-grid) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  :is(.admin-project-cover, .asset-admin-thumbnail) {
+  height: 126px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  :is(.admin-project-info, .asset-admin-card-content) {
+  padding: 20px;
+  gap: var(--sp-catalogue-card-gap, 12px);
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  :is(.admin-project-title, .asset-admin-card-content > div) {
+  margin-bottom: 0;
+  align-items: start;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface.admin-project-browser
+  .admin-project-info {
+  padding-top: 28px;
+}
+.sp-shell[data-account-role="Administrator"] .admin-project-browser .admin-project-title {
+  min-height: 28px;
+}
+.sp-shell[data-account-role="Administrator"] .asset-admin .asset-admin-card-content > div {
+  min-height: 40px;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface
+  :is(.admin-project-info, .asset-admin-card-content, .sp-organization-card)
+  > .sp-catalogue-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 110px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 16px;
+  font: 600 12px/18px var(--sp-font);
+}
+@media (max-width: 1200px) {
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+    > .sp-admin-page-heading {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 40px;
+    gap: 20px;
+    min-height: 78px;
+  }
+}
+@media (min-width: 801px) and (max-width: 1000px) {
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+    > .sp-admin-page-heading {
+    min-height: 110px;
+  }
+}
+@media (max-width: 800px) {
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview) {
+    padding: 24px;
+  }
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+    > .sp-admin-page-heading {
+    grid-template-columns: minmax(0, 1fr) 40px;
+    gap: 12px;
+    min-height: 0;
+  }
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+    .sp-admin-page-heading
+    > :is(.sp-search, .asset-admin-search) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+    .sp-admin-page-heading
+    > .sp-close-button {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+    :is(.admin-project-grid, .asset-admin-grid) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+    :is(.admin-project-grid, .asset-admin-grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sp-shell[data-account-role="Administrator"] .asset-admin > .asset-admin-sr {
+  position: absolute;
+}
+@media (max-width: 800px) {
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+    .sp-admin-page-heading
+    > div:first-child {
+    min-height: 78px;
+  }
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin)
+    .sp-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    min-width: 0;
+    scrollbar-width: thin;
+  }
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface.sp-organization-overview
+    > .sp-organization-overview-toolbar,
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface.asset-admin
+    > .asset-admin-toolbar {
+    flex-wrap: wrap;
+    height: auto;
+  }
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface.asset-admin
+    .asset-admin-toolbar
+    > .sp-tabs {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    overflow: visible;
+    gap: 0 18px;
+  }
+  .sp-shell[data-account-role="Administrator"] .asset-admin-toolbar > .asset-admin-primary {
+    margin-left: auto;
+  }
+}
+@media (max-width: 800px) {
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin)
+    .sp-tabs
+    > button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 520px) {
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+    .sp-admin-page-heading
+    > div:first-child {
+    min-height: 110px;
+  }
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+    .sp-admin-page-heading
+    h1 {
+    min-height: 65px;
+  }
+}
+
+.sp-shell[data-account-role="Administrator"] .sp-organization-overview-toolbar > h2 {
+  display: flex;
+  align-items: center;
+  font: 600 15px/20px var(--sp-font);
+}
+
+.sp-shell[data-account-role="Administrator"] .asset-admin-card-content > .sp-catalogue-action {
+  margin-top: auto;
+}
+
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin)
+  > .sp-tabs {
+  align-items: center;
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin)
+  .sp-tabs
+  .sp-tab-content {
+  font-size: inherit;
+  line-height: 20px;
+}
+
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin)
+  .sp-tabs
+  > button[aria-selected="true"] {
+  font-weight: 600;
+  color: var(--sp-ink);
+}
+
+.sp-shell[data-account-role="Administrator"]
+  .asset-admin-card-content
+  > .asset-admin-loading-action {
+  margin-top: auto;
+}
+
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin)
+  :is(.admin-project-title > h3, .asset-admin-card-content > div > h2) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 20px;
+}
+
+.sp-shell[data-account-role="Administrator"] .asset-admin {
+  --sp-catalogue-card-gap: var(--sp-preview-card-gap);
+}
+
+/* All-items catalogues use dark viewing actions; home previews stay secondary. */
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  .sp-catalogue-action {
+  --sp-button-primary-base: var(--sp-admin-primary-surface);
+  background: var(--sp-admin-primary-surface);
+  border-color: var(--sp-admin-primary-surface);
+  color: var(--sp-button-primary-ink);
+}
+.sp-shell[data-account-role="Administrator"]
+  .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
+  .sp-catalogue-action:hover:not(:disabled) {
+  background: var(--sp-primary-hover);
+  box-shadow: none;
+}

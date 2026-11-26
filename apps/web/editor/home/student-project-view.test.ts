@@ -58,6 +58,7 @@ it("shows the selected student's project details and open control", () => {
       feedbackError: "",
       actorId: "student",
       onClose: vi.fn(),
+      onRetryDetails: vi.fn(),
       onOpen: vi.fn(),
     }),
   );
@@ -88,6 +89,7 @@ it("offers Start Editing for a project with no saved revisions", () => {
       feedbackError: "",
       actorId: "student",
       onClose: vi.fn(),
+      onRetryDetails: vi.fn(),
       onOpen: vi.fn(),
     }),
   );

@@ -27,6 +27,7 @@
     "test:integration": "node tests/editor-integration.check.mjs",
     "test:first-person-sandbox": "node tests/first-person-sandbox.check.mjs",
     "test:caching": "node tests/caching.check.mjs",
+    "test:model-preparation": "node tests/model-preparation.check.mjs",
     "measure:caching": "node tests/caching.measure.mjs",
     "test:server-autosave": "node tests/server-autosave.check.mjs",
     "test:interactions": "node tests/interaction-review.check.mjs && node tests/interaction-navigation.check.mjs",
@@ -130,7 +131,7 @@
     "oxlint": "1.91.0",
     "playwright": "1.63.0",
     "typescript": "6.0.2",
-    "vite": "8.3.0",
+    "vite": "8.3.3",
     "vitest": "5.0.1"
   }
 }
