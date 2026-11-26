@@ -179,8 +179,9 @@ Do not add `--volumes` when keeping project or account data.
 Pushes to `main` and `dev` and manual dispatches run the full build and regression suites.
 Pull requests targeting either branch get a read-only web check. Oxlint, Bun type checking,
 Vitest and both Vite builds run in parallel with the other source checks. For PRs that only
-edit web unit tests or TypeScript modules with a colocated test, Vitest uses its import graph
-to run the related tests. Other changes and full runs exercise the entire unit suite.
+edit web unit tests or TypeScript modules with a colocated test, Vitest runs the changed tests,
+each changed module's colocated test, and tests related through its import graph. Other changes
+and full runs exercise the entire unit suite.
 The native builds and standalone Docker build also typecheck. npm installs the pinned Bun binary.
 The release image is built concurrently with the source checks and is tested behind Caddy.
 Both build modes enforce the 500 kB JavaScript chunk budget.

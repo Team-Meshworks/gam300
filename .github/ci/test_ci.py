@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
@@ -7,33 +10,57 @@ from sharding import balance
 
 
 class CiSelectionTests(unittest.TestCase):
+    def setUp(self):
+        root = Path(self.enterContext(TemporaryDirectory()))
+        self.enterContext(patch("browser_matrix.ROOT", root))
+        self.enterContext(patch("browser_matrix.HERE", root))
+        self.web = root / "apps/web"
+        for name in (
+            "editor/example.tsx", "editor/example.test.ts", "editor/preview.html",
+            "tests/preview.mjs", "tests/play.mjs", "tests/walk.mjs",
+        ):
+            path = self.web / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+        catalog = {"preview": {"seconds": 1, "path": "/preview.html#panel"}, "player": {"seconds": 2}}
+        scripts = {
+            "test:preview": "node tests/preview.mjs",
+            "test:player": "node tests/play.mjs && node tests/walk.mjs",
+        }
+        (root / "browser-checks.json").write_text(json.dumps(catalog), encoding="utf-8")
+        (self.web / "package.json").write_text(json.dumps({"scripts": scripts}), encoding="utf-8")
+
     @staticmethod
     def checks(result):
         return [row for shard in result["browser"] for row in shard["checks"].splitlines()]
 
     def test_affected_drivers_keep_parameters_and_aggregate_commands(self):
-        result = plan("pull_request", [
-            "apps/web/tests/assignment-screen.check.mjs",
-            "apps/web/tests/player-walking.check.mjs",
-            "apps/web/editor/ui-preview/assignment-test.html",
-        ])
-        self.assertCountEqual(self.checks(result), ["assignment-screen /ui-preview/assignment-test.html", "player-parity"])
+        for path in ("apps/web/tests/preview.mjs", "apps/web/editor/preview.html"):
+            self.assertEqual(self.checks(plan("pull_request", [path])), ["preview /preview.html#panel"])
+        self.assertEqual(self.checks(plan("pull_request", ["apps/web/tests/walk.mjs"])), ["player"])
 
     def test_documentation_and_full_unit_changes_leave_expensive_pr_jobs_idle(self):
-        result = plan("pull_request", ["docs/deployment.md", "apps/web/editor/controls/fpsControls.test.ts"])
+        result = plan("pull_request", ["docs/guide.md", "apps/web/editor/example.test.ts"])
         self.assertEqual(result, {"browser": [], "proof": False, "server": False,
-                                  "unit_files": ["editor/controls/fpsControls.test.ts"]})
+                                  "unit_files": ["editor/example.test.ts"]})
 
     def test_csharp_test_edits_exercise_the_server_and_embedded_browser_suite(self):
-        result = plan("pull_request", ["apps/server/tests/Integration/ProductionRoomBrowserTests.cs"])
+        result = plan("pull_request", ["apps/server/tests/ExampleTests.cs"])
         self.assertEqual(result, {"browser": [], "proof": False, "server": True, "unit_files": []})
 
     def test_related_units_need_a_known_test_and_broader_prs_get_the_full_suite(self):
-        module = "apps/web/editor/controls/fpsControls.ts"
-        self.assertEqual(plan("pull_request", [module])["unit_files"], ["editor/controls/fpsControls.ts"])
+        module = "apps/web/editor/example.tsx"
+        test = "apps/web/editor/example.test.ts"
+        for changes in ([module], [test, module]):
+            self.assertCountEqual(plan("pull_request", changes)["unit_files"],
+                                  ["editor/example.tsx", "editor/example.test.ts"])
         for event, paths in [("push", [module]), ("pull_request", [module, "assets/manifest.json"]),
                              ("pull_request", ["apps/web/editor/deleted.ts"]), ("pull_request", None)]:
             self.assertEqual(plan(event, paths)["unit_files"], [])
+
+        (self.web / "editor/example.test.ts").rename(self.web / "editor/moved.test.ts")
+        for changes in ([module], [test, "apps/web/editor/moved.test.ts"]):
+            self.assertEqual(plan("pull_request", changes)["unit_files"], [])
 
     def test_trx_escapes_the_nul_in_the_username_case_and_preserves_valid_unicode(self):
         self.assertEqual(trx_display_name("login(nul\0name)"), r"login(nul\u0000name)")
@@ -49,8 +76,8 @@ class CiSelectionTests(unittest.TestCase):
             ("push", ["README.md"]), ("workflow_dispatch", ["README.md"]),
         ]:
             self.assertCountEqual(self.checks(plan(event, paths)), full)
-        with patch("browser_matrix.Path.is_file", return_value=False):
-            self.assertCountEqual(self.checks(plan("pull_request", ["apps/web/tests/assignment-screen.check.mjs"])), full)
+        (self.web / "tests/walk.mjs").unlink()
+        self.assertCountEqual(self.checks(plan("pull_request", ["apps/web/tests/walk.mjs"])), full)
         self.assertIsNone(changed_paths("0" * 40))
 
     def test_ties_and_discovery_order_do_not_change_partition(self):

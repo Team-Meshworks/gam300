@@ -31,7 +31,7 @@ unit_tests() {
   else
     local files
     mapfile -t files < <(jq -r '.[]' <<< "$UNIT_FILES")
-    npm exec -- vitest related --run "${files[@]}" "${reporters[@]}"
+    npm exec -- vitest related --run --passWithNoTests=false "${files[@]}" "${reporters[@]}"
   fi
   node tests/restricted-catalogue.check.mjs
 }

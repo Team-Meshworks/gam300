@@ -38,17 +38,18 @@ def unit_test(path):
 
 
 def related_unit_files(changes):
-    files = []
+    files = set()
     for path in changes or []:
         if documentation(path):
             continue
         if not re.fullmatch(r"apps/web/(editor|shared|visitor)/[\w./-]+\.tsx?", path):
             return []
-        source = ROOT / path
-        if not source.is_file() or not (unit_test(path) or source.with_suffix(".test.ts").is_file()):
-            return []
-        files.append(path.removeprefix("apps/web/"))
-    return files
+        files.add(path)
+        if not unit_test(path):
+            files.add(Path(path).with_suffix(".test.ts").as_posix())
+    if any(not (ROOT / path).is_file() for path in files):
+        return []
+    return sorted(path.removeprefix("apps/web/") for path in files)
 
 
 def browser_checks(catalog, scripts, changes):
