@@ -200,7 +200,7 @@ export function createVisitorPlayback(
           break;
         case "showPanel": {
           const panel = element(action.panelId);
-          if (panel) {
+          if (panel && (panel.hidden || !panel.closest("details")?.open)) {
             panel.hidden = false;
             content.dispatchEvent(new CustomEvent("exhibit-show-panel"));
             panel.scrollIntoView({ block: "nearest" });

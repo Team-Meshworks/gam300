@@ -67,13 +67,32 @@ const display = {
   assetId: caseId,
   transform: { position: [8, 0.2, 0], rotation: [0, 0, 0, 1], scale: [2, 1, 1] },
 };
-const doorway = scene("Doorway", [room, display]);
+const roomPanel = {
+  id: "55555555-5555-4555-8555-555555555558",
+  type: "text",
+  runs: [{ text: "Room information", marks: [] }],
+  caption: "",
+};
+const showRoomPanel = { type: "showPanel", panelId: roomPanel.id };
+const doorway = scene("Doorway", [{ ...room, components: [roomPanel] }, display]);
 doorway.rules = [
   {
     id: "55555555-5555-4555-8555-555555555557",
     enabled: true,
     trigger: { type: "click", targetId: display.id },
     actions: [{ type: "setVisible", objectId: display.id, visible: false }],
+  },
+  {
+    id: "55555555-5555-4555-8555-555555555559",
+    enabled: true,
+    trigger: { type: "sceneStart" },
+    actions: [showRoomPanel],
+  },
+  {
+    id: "55555555-5555-4555-8555-555555555560",
+    enabled: true,
+    trigger: { type: "click", targetId: room.id },
+    actions: [showRoomPanel],
   },
 ];
 const project = { ...blankProject, scenes: [doorway] };
@@ -189,11 +208,18 @@ try {
     await page.getByRole("status").getByText("Exhibition ready").waitFor();
     await page.waitForFunction(() => !!window.walkCamera);
     const canvas = page.getByLabel("Exhibition view", { exact: true });
+    const content = page.locator("[data-exhibition-scene]");
+    const activateRoom = () =>
+      content.evaluate(
+        (node, id) => node.dispatchEvent(new CustomEvent("exhibit-activate", { detail: id })),
+        room.id,
+      );
+    await content.getByRole("button", { name: "Close panel" }).click();
     await canvas.focus();
     await page.keyboard.down("w");
     await page.waitForFunction(() => window.walkCamera.position.x > 0.35);
-    // SCRUM-204: the exhibit panel opens during a walk and consumes the W release.
-    await page.locator("[data-exhibition-scene]").dispatchEvent("exhibit-show-panel");
+    await activateRoom();
+    assert.ok(await content.getByText("Room information", { exact: true }).isVisible());
     const summary = page.getByText("Exhibit information", { exact: true });
     assert.ok(await summary.evaluate((node) => document.activeElement === node));
     await summary.evaluate((node) =>
@@ -207,7 +233,6 @@ try {
       const startX = await page.evaluate(() => window.walkCamera.position.x);
       await page.keyboard.down(key);
       await page.waitForFunction((x) => window.walkCamera.position.x > x + 0.2, startX);
-      // Consume the release on the focused canvas so only the capture listener can see it.
       await canvas.evaluate((node) => {
         node.addEventListener(
           "keyup",
@@ -224,8 +249,24 @@ try {
       await assertStoppedOnOpenFloor(page, `${name} after releasing ${key}`);
     }
     await canvas.click();
+    await page.waitForFunction(
+      () =>
+        document.pointerLockElement === document.activeElement &&
+        document.pointerLockElement instanceof HTMLCanvasElement,
+    );
+    const startX = await page.evaluate(() => window.walkCamera.position.x);
     await page.keyboard.down("w");
+    await page.waitForFunction((x) => window.walkCamera.position.x > x + 0.2, startX);
+    await activateRoom();
+    assert.ok(
+      await canvas.evaluate((node) => node === document.activeElement),
+      `${name}: showing a visible panel stole canvas focus`,
+    );
     await page.waitForFunction(() => window.walkCamera.position.x > 5.5);
+    assert.ok(
+      await canvas.evaluate((node) => node === document.pointerLockElement),
+      `${name}: showing a visible panel released pointer lock`,
+    );
     const through = await page.evaluate(() => window.walkCamera.position.toArray());
     // The scaled case begins at x=7.4. The visitor's 22 cm radius should stop the camera at 7.18.
     await page.waitForFunction(() => window.walkCamera.position.x > 7.14);

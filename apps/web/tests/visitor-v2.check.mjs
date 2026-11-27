@@ -359,6 +359,10 @@ if (process.argv.includes("--playback-only")) {
     holdAssets = false;
     releaseAssets();
     await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
+    await page
+      .locator(`[data-component-id="${panel.id}"]`)
+      .getByRole("button", { name: "Close panel" })
+      .click();
     await page.evaluate(() => {
       window.pointActions = 0;
       document
