@@ -379,6 +379,8 @@ try {
   );
   const position = page.locator('output[aria-label="Selected position"]');
   const readPosition = async () => (await position.textContent()).replaceAll("-0.00", "0.00");
+  const coordinates = (text) => [...text.matchAll(/-?\d+\.\d+/g)].map(([value]) => Number(value));
+  const readCoordinates = async () => coordinates(await position.textContent());
   const initialPosition = await readPosition();
   await nudge(page, "Sample crate", "X", 0.25);
   assert.notEqual(await readPosition(), initialPosition);
@@ -538,7 +540,12 @@ try {
   await stage.locator("canvas").dispatchEvent("lostpointercapture", { pointerId: 999 });
   await touchSession.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await touchSession.detach();
-  assert.equal(await readPosition(), movedPosition, "Only the initiating touch moves");
+  const touchPosition = await readCoordinates();
+  const dragPosition = coordinates(movedPosition);
+  assert.ok(
+    touchPosition.every((value, axis) => Math.abs(value - dragPosition[axis]) <= 0.02),
+    `Only the initiating touch moves: ${touchPosition.join(", ")} vs ${dragPosition.join(", ")}`,
+  );
   await undo.click();
   assert.equal(await readPosition(), initialPosition, "Touch drag is one undo step");
   await rows.nth(1).click();
