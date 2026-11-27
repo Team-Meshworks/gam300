@@ -125,3 +125,55 @@ it("fires a visitor-touch rule when the visitor reaches the hotspot owner's obje
     content.remove();
   }
 });
+
+it("ignores visitor-touch on an asset marked non-blocking", () => {
+  const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+  const content = document.createElement("main");
+  document.body.append(content);
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.set(0, 0.9, 0);
+  const owner = new THREE.Group();
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+  mesh.position.y = 0.5;
+  owner.add(mesh);
+  const runtime = createVisitorPlayback(
+    {
+      id: "scene",
+      name: "Test scene",
+      environmentAssetId: null,
+      startCamera: { position: [0, 0.9, 0], rotation: [0, 0, 0, 1], fovDegrees: 40 },
+      objects: [],
+      interactions: [
+        {
+          when: { type: "visitor-touch", targetHotspotId: "hotspot" },
+          do: { type: "print-hi" },
+        },
+      ],
+      hotspots: [{ id: "hotspot", objectId: "owner", position: [0, 0, 0] }],
+      groups: [],
+      zones: [],
+      viewpoints: [],
+      rules: [],
+    },
+    camera,
+    { target: new THREE.Vector3(), update() {} },
+    new Map([["owner", owner]]),
+    content,
+    () => false,
+    () => {},
+    undefined,
+    undefined,
+    undefined,
+    new Set(["owner"]),
+  );
+
+  try {
+    runtime.begin();
+    runtime.update(0.016);
+    expect(alert).not.toHaveBeenCalled();
+  } finally {
+    runtime.dispose();
+    alert.mockRestore();
+    content.remove();
+  }
+});

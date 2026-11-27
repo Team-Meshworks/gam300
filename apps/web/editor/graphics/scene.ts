@@ -46,6 +46,7 @@ import {
   type ModelLease,
 } from "../../shared/asset-runtime/ModelCache";
 import {
+  isNonBlockingAsset,
   isStarterRoomEnvironment,
   isStarterRoomModel,
   isRoomModel as isCatalogueRoomModel,
@@ -54,6 +55,7 @@ import {
   roomFootprint,
   type CatalogueAsset,
 } from "../../shared/asset-runtime/catalogue";
+import { addNonBlockingHitbox } from "../../shared/asset-runtime/non-blocking";
 import { HOTSPOT_ASSET_ID } from "../../shared/asset-runtime/hotspot";
 import {
   HOTSPOT_SIZE,
@@ -339,6 +341,7 @@ export function initScene(
     for (const object of objects) {
       const instance = instances.get(object.id);
       if (!instance?.visible || (object as Partial<ContentObject>).visible === false) continue;
+      if (isNonBlockingAsset(assets, object.assetId)) continue;
       if (isRoomModel(object.assetId)) {
         rooms.push(instance);
         if (isStarterRoomModel(assets, object.assetId)) starterRooms.push(instance);
@@ -788,7 +791,9 @@ export function initScene(
           instance = new THREE.Group();
           instance.name = object.id;
           // Clone nodes for independent transforms; cache leases own geometry/materials/textures
-          instance.add(model.clone(true));
+          const cloned = model.clone(true);
+          if (isNonBlockingAsset(assets, object.assetId)) addNonBlockingHitbox(cloned);
+          instance.add(cloned);
           instances.set(object.id, instance);
           instanceAssets.set(object.id, object.assetId);
           scene.add(instance);
@@ -894,6 +899,7 @@ export function initScene(
   function collisionBodies(): PlacementBody[] {
     const result = objects.flatMap((object) => {
       if ((object as Partial<ContentObject>).visible === false) return [];
+      if (isNonBlockingAsset(assets, object.assetId)) return [];
       const body = bodyFor(object.id, object.assetId, object.transform);
       return body ? [body] : [];
     });
@@ -1330,7 +1336,9 @@ export function initScene(
     if (object === undefined || instance === undefined) return;
     const aim = aimPoint(event);
     const ray = screenRay(aim.x, aim.y);
-    const hit = new THREE.Raycaster(ray.origin, ray.direction).intersectObject(instance, true)[0];
+    const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    raycaster.camera = camera;
+    const hit = raycaster.intersectObject(instance, true)[0];
     if (hit === undefined) return;
     const finger = event.pointerType === "touch" ? aim : undefined;
     beginDrag(event, {
@@ -2260,6 +2268,7 @@ export function initScene(
     }),
     showCamera,
     visitorTouches: (id) => {
+      if (isNonBlockingAsset(assets, instanceAssets.get(id))) return false;
       const instance = instanceFor(id);
       return (
         instance !== undefined &&

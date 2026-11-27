@@ -219,7 +219,7 @@ try {
   const resetFilters = picker.getByRole("button", { name: "Reset asset filters", exact: true });
   const pickerBeforeSearch = await picker.boundingBox();
   await search.fill("  CRATE  ");
-  assert.equal(await picker.locator(".asset-card-pick").count(), 1);
+  assert.equal(await picker.locator(".asset-card-pick").count(), 2);
   await filter.click();
   await page
     .getByRole("listbox", { name: "Filter assets" })

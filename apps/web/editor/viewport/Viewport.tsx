@@ -388,12 +388,12 @@ export function Viewport({
           if (position) {
             const objectId =
               placingAssetId === HOTSPOT_ASSET_ID
-                ? sceneRef.current.pickObjectAt(event.clientX, event.clientY)
+                ? (sceneRef.current.pickObjectAt(event.clientX, event.clientY) ?? selectedId)
                 : undefined;
             onPlace(
               placingAssetId,
               position,
-              objectId === undefined ? undefined : { objectId },
+              objectId == null ? undefined : { objectId },
               sceneRef.current.getRoomAtPosition(position),
             );
           }
@@ -440,8 +440,8 @@ export function Viewport({
           ) {
             const scene = sceneRef.current;
             if (assetId === HOTSPOT_ASSET_ID) {
-              const objectId = scene?.pickObjectAt(event.clientX, event.clientY);
-              onPlace(assetId, [0, 0, 0], objectId === undefined ? undefined : { objectId });
+              const objectId = scene?.pickObjectAt(event.clientX, event.clientY) ?? selectedId;
+              onPlace(assetId, [0, 0, 0], objectId == null ? undefined : { objectId });
             } else {
               const position = scene?.getDropSurface(event.clientX, event.clientY, isRoom(assetId));
               if (position !== undefined)

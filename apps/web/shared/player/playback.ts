@@ -25,6 +25,7 @@ export function createVisitorPlayback(
   beginNavigationEvent: () => void = () => {},
   audioPermissionHint = "Select Enable audio to allow playback",
   visibilityChanged?: (object: THREE.Object3D) => void,
+  nonBlockingIds: ReadonlySet<string> = new Set(),
 ) {
   // Keep timing, zone entry and camera movement scoped to this visit rather than the saved rules
   let started = false,
@@ -178,6 +179,7 @@ export function createVisitorPlayback(
   const objectBox = new THREE.Box3();
   const bodyBox = new THREE.Box3();
   function visitorTouches(objectId: string) {
+    if (nonBlockingIds.has(objectId.toLowerCase())) return false;
     const object = root(objectId);
     return object !== undefined && touchesObject(object, camera.position, objectBox, bodyBox);
   }
