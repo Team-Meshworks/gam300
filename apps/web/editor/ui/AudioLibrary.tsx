@@ -94,6 +94,12 @@ export function AudioLibrary({
     });
   }
   const blocked = mode !== "background" && targetName === null;
+  // Close only after the document command succeeds so rejected additions keep the choice
+  function add(id: string) {
+    const result = onAdd(id);
+    if (result.ok) onClose();
+    else setError(result.error.message);
+  }
   return (
     <dialog
       ref={dialog}
@@ -179,7 +185,12 @@ export function AudioLibrary({
                   className="asset-card-pick"
                   aria-label={asset.name}
                   aria-pressed={chosen === asset.id}
+                  title="Double-click to add, or pick it then press Add"
                   onClick={() => setChosen(asset.id)}
+                  // Same rules as Add: spatial audio still needs a selected object
+                  onDoubleClick={() => {
+                    if (!blocked) add(asset.id);
+                  }}
                 >
                   <span className="asset-art audio-art">
                     <img src={asset.thumbnail ?? undefined} alt="" draggable={false} />
@@ -244,11 +255,7 @@ export function AudioLibrary({
           className="ui-button pill-button asset-picker-add"
           disabled={!chosen || blocked}
           onClick={() => {
-            if (!chosen) return;
-            // Close only after the document command succeeds so rejected additions keep the choice
-            const result = onAdd(chosen);
-            if (result.ok) onClose();
-            else setError(result.error.message);
+            if (chosen) add(chosen);
           }}
         >
           Add

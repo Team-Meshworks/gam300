@@ -68,7 +68,6 @@ export type ServerEditorSession = {
   busy: boolean;
   save: (exportFile?: boolean) => Promise<boolean>;
   leave: () => void;
-  openServerVersion: () => void;
   logout: () => void;
   publish?: () => void;
   publishLabel?: "Request approval" | "Awaiting approval" | "Publish";

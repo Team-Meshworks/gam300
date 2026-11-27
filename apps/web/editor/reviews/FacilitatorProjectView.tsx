@@ -214,7 +214,6 @@ export function FacilitatorProjectView({
             busy: false,
             save: async () => false,
             leave: () => {},
-            openServerVersion: () => {},
             logout: () => {},
             importFile: async () => {},
           }

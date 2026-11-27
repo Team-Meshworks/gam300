@@ -745,7 +745,8 @@ try {
   await page.getByRole("dialog").getByRole("alert").waitFor();
   assert.equal(account, alice);
   await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).click();
-  await projectOption("Open Server Version");
+  // A conflict offers the saved version from its alert rather than the project menu
+  await page.getByRole("button", { name: "Load saved version", exact: true }).click();
   const keepRecovery = page.getByRole("button", { name: "Keep Recovery and Exit", exact: true });
   await keepRecovery.click();
   await page.getByRole("dialog", { name: "Recover your changes?" }).waitFor();
@@ -757,7 +758,7 @@ try {
     "Conflicting local edit",
   );
   await page.getByRole("alert").filter({ hasText: "Another revision" }).waitFor();
-  await projectOption("Open Server Version");
+  await page.getByRole("button", { name: "Load saved version", exact: true }).click();
   await page.getByRole("button", { name: "Exit", exact: true }).click();
   await keepRecovery.click();
   mode = "saved";

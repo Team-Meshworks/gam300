@@ -58,7 +58,7 @@ type Active = {
 const saveErrors: Partial<Record<ServerSaveStatus, string>> = {
   failed: "Save failed. Your edits are still here. Retry or export a copy.",
   conflict:
-    "Another revision was saved. Export your edits or open the server version; nothing will be overwritten automatically.",
+    "Another revision was saved. Export your edits or load the saved version; nothing will be overwritten automatically.",
   invalid:
     "Save needs changes. Check your document and assets, then try again. Your edits are still here.",
   rejected:
@@ -791,7 +791,6 @@ function ServerProjectSession({
             save,
             leave: () => requestDeparture("home"),
             importFile,
-            openServerVersion: () => requestDeparture("reload"),
             logout: () => requestDeparture("logout"),
             ...(!parseProgressContext(new URLSearchParams(location.search), projectId)
               ? {
@@ -993,11 +992,24 @@ function ServerProjectSession({
         </ChoiceDialog>
       )}
       {active && (error || saveError) && !candidate && !departure && !choosingBase && (
-        <p className="server-session-error" role="alert">
-          {error}
-          {error && saveError && " "}
-          {saveError}
-        </p>
+        <div className="server-session-error">
+          <p role="alert">
+            {error}
+            {error && saveError && " "}
+            {saveError}
+          </p>
+          {status === "conflict" && (
+            // Reloads from the server; unsaved edits are offered back as a recovery copy first
+            <button
+              type="button"
+              className="ui-button pill-button"
+              disabled={busy}
+              onClick={() => requestDeparture("reload")}
+            >
+              Load saved version
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
