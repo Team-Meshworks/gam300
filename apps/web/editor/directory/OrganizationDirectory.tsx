@@ -239,7 +239,7 @@ export function OrganizationDirectory({
                             className="sp-button sp-button--primary"
                             href={`/admin/dashboard?projectId=${encodeURIComponent(project.id)}`}
                           >
-                            View Details
+                            <span className="sp-button-label">View Details</span>
                           </a>
                         ) : (
                           <Button
@@ -353,8 +353,8 @@ export function OrganizationDirectory({
           </span>
         </h2>
         {administration && onCreate && (
-          <Button variant="primary" disabled={busy} onClick={onCreate}>
-            Add Organisation
+          <Button variant="primary" className="sp-catalogue-add" disabled={busy} onClick={onCreate}>
+            + Add Organisation
           </Button>
         )}
       </div>

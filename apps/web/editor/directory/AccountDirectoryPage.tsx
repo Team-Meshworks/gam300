@@ -339,7 +339,7 @@ export function AccountDirectoryPage({ accountId }: { accountId: string }) {
                       created
                     </span>{" "}
                     <Button onClick={() => openImport(item.operationId, false)}>
-                      Review import {item.operationId}
+                      {`Review import ${item.operationId}`}
                     </Button>
                   </li>
                 ))}

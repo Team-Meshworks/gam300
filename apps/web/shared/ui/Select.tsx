@@ -221,7 +221,9 @@ export function Select({
         onClick={() => (open ? setOpen(false) : expand())}
       >
         {leading}
-        <span>{options.find((option) => option.value === value)?.label ?? placeholder}</span>
+        <span data-control-label>
+          {options.find((option) => option.value === value)?.label ?? placeholder}
+        </span>
         <UiIcon icon={chevronDown} width={16} height={16} aria-hidden="true" />
       </button>
       {trailing}
@@ -253,7 +255,7 @@ export function Select({
               onPointerMove={() => setActive(index)}
               onClick={() => choose(index)}
             >
-              {option.label}
+              <span data-control-label>{option.label}</span>
               {showSelectedIcon && value === option.value && (
                 <UiIcon icon={check} width={16} height={16} aria-hidden="true" />
               )}

@@ -1,3 +1,4 @@
+import "./confirmation-dialog.css";
 import { Icon as UiIcon } from "@iconify/react/offline";
 import faXmark from "@iconify-icons/lucide/x";
 import { useId, type ReactNode } from "react";

@@ -1,0 +1,3 @@
+.sp-dialog.sp-account-confirmation {
+  width: min(400px, calc(100% - 32px));
+}

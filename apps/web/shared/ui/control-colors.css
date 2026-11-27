@@ -1,6 +1,7 @@
 :root {
   /* One intensity for every role: mix light surfaces toward black and dark surfaces toward white */
   --sp-hover-strength: 8%;
+  --sp-danger-hover-strength: 4%;
   --sp-hover-dark: #000;
   --sp-hover-light: #fff;
   --sp-admin-primary-surface: #332e2a;
@@ -17,7 +18,7 @@
   --sp-danger-hover: color-mix(
     in srgb,
     var(--sp-hover-light),
-    var(--sp-danger-hover-ink) var(--sp-hover-strength)
+    var(--sp-danger-hover-ink) var(--sp-danger-hover-strength)
   );
   --sp-danger-hover-border: #f4c5bc;
   --sp-danger-hover-ink: #a51f24;
@@ -48,7 +49,13 @@
   .admin-selection-actions,
   .sp-teacher-selection-actions
 ) {
-  --sp-danger-hover: #fbe3df;
+  --sp-danger-hover: color-mix(in srgb, var(--sp-hover-light), var(--sp-danger-hover-ink) var(--sp-danger-hover-strength));
   --sp-danger-hover-border: #df9b90;
   --sp-danger-hover-ink: #9e2f24;
+}
+
+/* Tint the resting confirmation surface using the shared hover strength. */
+.sp-dialog .sp-button--danger {
+  --sp-danger-surface: #fff4f4;
+  --sp-danger-hover: color-mix(in srgb, var(--sp-danger-surface), var(--sp-danger-hover-ink) var(--sp-danger-hover-strength));
 }

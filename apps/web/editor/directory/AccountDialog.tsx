@@ -310,7 +310,7 @@ export function AccountDialog({
                       }}
                     >
                       <UiIcon icon={uploadIcon} aria-hidden="true" />
-                      <span>Upload CSV</span>
+                      <span className="sp-button-label">Upload CSV</span>
                     </Button>
                     <span
                       id={csvHelpId}

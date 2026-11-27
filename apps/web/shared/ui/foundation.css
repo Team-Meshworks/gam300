@@ -757,11 +757,13 @@ body:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome) {
 
 .sp-selection-summary {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--sp-admin-action-gap);
   white-space: nowrap;
 }
 .sp-selection-summary [role="status"] {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
   color: var(--sp-ink);
   font: 600 14px/20px var(--sp-font);
   font-variant-numeric: tabular-nums;
@@ -818,6 +820,27 @@ body:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome) {
 }
 .sp-shell[data-account-role="Administrator"] .sp-dialog .sp-confirmation-actions {
   margin-top: 10px;
+}
+.sp-shell[data-account-role="Administrator"] .sp-dialog.sp-account-confirmation[open] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+}
+.sp-shell[data-account-role="Administrator"] .sp-dialog.sp-account-confirmation > h2 {
+  margin: 0;
+  padding: 0;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+.sp-shell[data-account-role="Administrator"] .sp-dialog.sp-account-confirmation > .sp-dialog-dismiss {
+  position: static;
+}
+.sp-dialog.sp-account-confirmation > .sp-dialog-body {
+  grid-column: 1 / -1;
+}
+.sp-shell[data-account-role="Administrator"] .sp-dialog.sp-account-confirmation {
+  padding-bottom: 24px;
 }
 .sp-shell[data-account-role="Administrator"] .sp-account-confirmation .sp-confirmation-actions {
   margin-top: 12px;
@@ -1160,12 +1183,20 @@ body:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome) {
 }
 .sp-shell[data-account-role="Administrator"]
   :is(.admin-project-moderation, .sp-organization-identity .sp-actions)
-  > .sp-button {
+  > .sp-button,
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-assignment-actions > .sp-button {
   height: 34px;
   min-height: 34px;
   padding-block: 0;
   font-size: 12px;
   line-height: 16px;
+}
+.sp-shell[data-account-role="Administrator"] .sp-organization-identity .sp-actions > .sp-button,
+.sp-shell--facilitator .sp-teacher-detail .sp-teacher-assignment-actions > .sp-button {
+  width: auto;
+  min-width: 0;
+  padding-inline: 16px;
+  gap: 6px;
 }
 .sp-shell[data-account-role="Administrator"]
   :is(.admin-project-moderation, .sp-organization-identity .sp-actions)

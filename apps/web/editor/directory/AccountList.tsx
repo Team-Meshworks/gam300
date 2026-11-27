@@ -338,7 +338,7 @@ export function AccountList({
             disabled={actions?.busy || selectable.length === 0}
             onClick={() => setSelected(allSelected ? [] : selectable.map((account) => account.id))}
           >
-            <span className="sp-plain-label">{allSelected ? "Clear all" : "Select all"}</span>
+            <span className="sp-plain-label sp-button-label">{allSelected ? "Clear all" : "Select all"}</span>
           </button>
         </div>
         <div className="sp-account-selection-actions">

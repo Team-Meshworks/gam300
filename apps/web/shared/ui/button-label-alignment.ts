@@ -2,11 +2,14 @@ import { textBounds } from "./plain-control-hover";
 
 export function observeButtonLabelAlignment(root: HTMLElement) {
   if (
-    root.dataset.accountRole === "Administrator" ||
     root.classList.contains("sp-shell--facilitator") ||
     root.classList.contains("sp-shell--creator")
   )
     return;
+  const admin = root.dataset.accountRole === "Administrator";
+  const labelSelector = admin
+    ? ".sp-button-label, button .sp-plain-label, .sp-tab-content > span:first-child, [data-control-label]"
+    : ".sp-button-label";
   let active = true;
   let frame: number | undefined;
   const adjusted = new WeakSet<HTMLElement>();
@@ -37,9 +40,13 @@ export function observeButtonLabelAlignment(root: HTMLElement) {
         watchedLabels.delete(label);
       }
     }
-    for (const label of root.querySelectorAll<HTMLElement>(".sp-button-label")) {
+    for (const label of root.querySelectorAll<HTMLElement>(labelSelector)) {
       const control = label.closest<HTMLElement>("button, a");
-      if (!control || control.matches(".sp-button--quiet") || control.closest(".sp-tabs")) continue;
+      if (
+        !control ||
+        (!admin && (control.matches(".sp-button--quiet") || control.closest(".sp-tabs")))
+      )
+        continue;
       if (!watchedLabels.has(label)) {
         resize.observe(label);
         watchedLabels.add(label);
@@ -69,7 +76,14 @@ export function observeButtonLabelAlignment(root: HTMLElement) {
       ].join("|");
       if (measured.get(label) === signature) continue;
       label.style.translate = "none";
-      const bounds = textBounds(label, false, true, window.devicePixelRatio || 1);
+      const centreOnCapital = admin && control.matches("button, a.sp-button, a[role=button]");
+      const bounds = textBounds(
+        label,
+        !centreOnCapital,
+        true,
+        window.devicePixelRatio || 1,
+        centreOnCapital ? "C" : undefined,
+      );
       const zoom = (label as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
       const offset = (box.top + box.bottom - bounds.top - bounds.bottom) / (2 * zoom);
       if (Number.isFinite(offset)) {
@@ -107,7 +121,7 @@ export function observeButtonLabelAlignment(root: HTMLElement) {
     window.removeEventListener("resize", schedule);
     densityQuery.removeEventListener("change", densityChanged);
     document.fonts.removeEventListener("loadingdone", fontsChanged);
-    for (const label of root.querySelectorAll<HTMLElement>(".sp-button-label")) {
+    for (const label of root.querySelectorAll<HTMLElement>(labelSelector)) {
       if (adjusted.has(label)) label.style.removeProperty("translate");
     }
   };

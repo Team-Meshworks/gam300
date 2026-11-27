@@ -459,6 +459,8 @@
   display: none;
 }
 .sp-account-type-icon {
+  order: 1;
+  margin-inline-start: auto;
   width: 18px;
   height: 18px;
   flex-shrink: 0;
@@ -470,6 +472,9 @@
 }
 .sp-account-type-icon path {
   stroke: var(--account-surface);
+}
+.sp-account-type-select:has(> .sp-override) .sp-account-type-icon {
+  visibility: hidden;
 }
 .sp-account-type-select > .sp-override {
   position: absolute;
@@ -646,7 +651,7 @@
 .sp-dialog .sp-button--danger {
   color: var(--directory-danger-ink);
   border-color: var(--directory-danger-border);
-  background: var(--directory-danger-surface);
+  background: var(--sp-danger-surface);
 }
 
 /* Match the approved organisation overview without changing the separate organisation detail screen */
@@ -695,10 +700,6 @@
 }
 .sp-directory--administration .sp-organization-overview-toolbar > .sp-button {
   margin-inline-start: auto;
-  min-height: 36px;
-  padding: 6px 14px;
-  font-size: 13px;
-  line-height: 20px;
 }
 .sp-directory--administration .sp-organization-card {
   background: var(--admin-organisation-card-paper);
@@ -1457,9 +1458,6 @@
   margin-top: 8px;
 }
 
-.sp-dialog.sp-account-confirmation {
-  width: min(400px, calc(100% - 32px));
-}
 .sp-directory--administration:has(> .sp-organization-detail),
 .sp-directory--administration.sp-organization-overview {
   flex: 1;

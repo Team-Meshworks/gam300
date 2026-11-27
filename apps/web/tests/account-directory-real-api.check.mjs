@@ -59,7 +59,7 @@ try {
     }
   }
   await page.getByRole("button", { name: "Close organisation", exact: true }).click();
-  await page.getByRole("button", { name: "Add Organisation", exact: true }).click();
+  await page.getByRole("button", { name: "+ Add Organisation", exact: true }).click();
   await page.getByLabel("Organisation name", { exact: true }).fill("Directory Studio");
   const created = page.waitForResponse(
     (response) =>

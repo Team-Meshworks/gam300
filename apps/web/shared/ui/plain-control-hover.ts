@@ -9,6 +9,7 @@ const controls = [
   ".admin-project-metadata a",
   ".sp-teacher-organisation-link",
   ".asset-admin-text-link",
+  ".asset-admin-edit-title",
   ".asset-admin-metadata > summary",
   ".sp-button--quiet",
   ".sp-published-qr",
@@ -29,6 +30,7 @@ export function textBounds(
   includeUnderline = true,
   includeDescenders = true,
   measurementScale = 1,
+  verticalReference?: string,
 ) {
   const style = getComputedStyle(label);
   const zoom = (label as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
@@ -42,6 +44,7 @@ export function textBounds(
       ? style.letterSpacing
       : `${(parseFloat(style.letterSpacing) || 0) * measurementScale}px`;
   const ink = textMeasure.measureText(label.textContent ?? "");
+  const verticalInk = verticalReference ? textMeasure.measureText(verticalReference) : ink;
   const parentStyle = label.parentElement && getComputedStyle(label.parentElement);
   const decoration = style.textDecorationLine.includes("underline") ? style : parentStyle;
   const underlined = includeUnderline && decoration?.textDecorationLine.includes("underline");
@@ -58,9 +61,10 @@ export function textBounds(
     right: underlined
       ? text.right
       : text.left + (ink.actualBoundingBoxRight / measurementScale) * zoom,
-    top: baseline - (ink.actualBoundingBoxAscent / measurementScale) * zoom,
+    top: baseline - (verticalInk.actualBoundingBoxAscent / measurementScale) * zoom,
     bottom: Math.max(
-      baseline + ((includeDescenders ? ink.actualBoundingBoxDescent : 0) / measurementScale) * zoom,
+      baseline +
+        ((includeDescenders ? verticalInk.actualBoundingBoxDescent : 0) / measurementScale) * zoom,
       underlined
         ? baseline +
             (parseFloat(decoration?.textUnderlineOffset ?? "") || 1) * zoom +
