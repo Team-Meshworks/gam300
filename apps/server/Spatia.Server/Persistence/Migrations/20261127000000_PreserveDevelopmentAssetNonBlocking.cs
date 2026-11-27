@@ -9,11 +9,11 @@ public sealed class PreserveDevelopmentAssetNonBlocking : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.Sql("ALTER TABLE development_publication_assets ADD COLUMN non_blocking boolean NOT NULL DEFAULT false");
+        migrationBuilder.Sql("ALTER TABLE development_publication_assets ADD COLUMN non_blocking boolean NOT NULL DEFAULT false;");
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.Sql("ALTER TABLE development_publication_assets DROP COLUMN non_blocking");
+        migrationBuilder.Sql("ALTER TABLE development_publication_assets DROP COLUMN non_blocking;");
     }
 }
