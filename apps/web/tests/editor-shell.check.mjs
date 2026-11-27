@@ -428,6 +428,15 @@ try {
   await page.locator(".crosshair").waitFor();
   assert.equal(await page.locator(".crosshair").count(), 1);
   assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true", "Grabbing picks nothing");
+  // The camera only turns on the next frame, so wait for it before aiming or letting go
+  const look = (movementY) =>
+    page.evaluate((y) => {
+      for (let step = 0; step < 20; step += 1) {
+        document.dispatchEvent(new MouseEvent("mousemove", { movementY: y }));
+      }
+      return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }, movementY);
+  await look(12);
   const walkBackward = async (milliseconds) => {
     await page.keyboard.down("s");
     await page.clock.runFor(milliseconds);
@@ -454,14 +463,6 @@ try {
   assert.equal(await position.textContent(), initialPosition, "One Undo puts the carry back");
   // Looking up while carrying lifts it off the floor, then look back down at it
   const centre = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
-  // The camera only turns on the next frame, so wait for it before aiming or letting go
-  const look = (movementY) =>
-    page.evaluate((y) => {
-      for (let step = 0; step < 20; step += 1) {
-        document.dispatchEvent(new MouseEvent("mousemove", { movementY: y }));
-      }
-      return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    }, movementY);
   await page.mouse.down();
   await page.evaluate(() => new Promise(requestAnimationFrame));
   await look(-8);
