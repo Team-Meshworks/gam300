@@ -63,9 +63,11 @@ function withTriggerType(
   hotspots: readonly ProjectHotspot[],
 ): Interaction {
   switch (type) {
-    case "visitor-clicks-hotspot": {
+    case "visitor-clicks-hotspot":
+    case "visitor-touch": {
       const targetHotspotId =
-        interaction.when.type === "visitor-clicks-hotspot"
+        interaction.when.type === "visitor-clicks-hotspot" ||
+        interaction.when.type === "visitor-touch"
           ? interaction.when.targetHotspotId
           : firstHotspotId(hotspots);
       return { ...interaction, when: { type, targetHotspotId } };
@@ -84,7 +86,9 @@ function withTriggerType(
 }
 
 function withTriggerTarget(interaction: Interaction, targetHotspotId: string): Interaction {
-  return { ...interaction, when: { type: "visitor-clicks-hotspot", targetHotspotId } };
+  return interaction.when.type === "visitor-touch"
+    ? { ...interaction, when: { type: "visitor-touch", targetHotspotId } }
+    : { ...interaction, when: { type: "visitor-clicks-hotspot", targetHotspotId } };
 }
 
 function withActionType(
@@ -203,7 +207,8 @@ export function InteractionPanel({
               <strong>No interactions yet</strong>
             </p>
             <p className="panel-empty">
-              Add one to choose what happens when visitors click a hotspot, walk in or look around.
+              Add one to choose what happens when a visitor clicks a hotspot's object, walks into
+              it, or when the scene starts or a timer ends.
             </p>
           </div>
         ) : (
@@ -212,7 +217,7 @@ export function InteractionPanel({
               const name = `Interaction ${index + 1}`;
               const trigger = interaction.when;
               const target =
-                trigger.type === "visitor-clicks-hotspot"
+                trigger.type === "visitor-clicks-hotspot" || trigger.type === "visitor-touch"
                   ? hotspots.find(
                       (hotspot) =>
                         hotspot.id.toLowerCase() === trigger.targetHotspotId.toLowerCase(),
@@ -250,7 +255,8 @@ export function InteractionPanel({
                           )
                         }
                       />
-                      {interaction.when.type === "visitor-clicks-hotspot" && (
+                      {(interaction.when.type === "visitor-clicks-hotspot" ||
+                        interaction.when.type === "visitor-touch") && (
                         <Dropdown
                           label={`${name} hotspot`}
                           value={interaction.when.targetHotspotId}
@@ -378,6 +384,10 @@ export function InteractionPanel({
         </button>
       </div>
       <div className="interaction-help">
+        <p className="panel-empty">
+          Touch fires when a visitor walks into the hotspot's object; click fires only when they
+          click it. Scene and timer triggers need no hotspot.
+        </p>
         {(scenes.length < 2 || views.length === 0) && (
           <p className="panel-empty">
             {scenes.length < 2 && "Add another scene to enable Go to scene. "}
@@ -387,7 +397,7 @@ export function InteractionPanel({
         )}
         {hotspots.length === 0 && (
           <p className="panel-empty">
-            Select an object and add a hotspot to create a click interaction.
+            Select an object and add a hotspot to create a click or touch interaction.
           </p>
         )}
       </div>

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   STARTER_ROOM_SHA256,
+  isNonBlockingAsset,
   isStarterRoomEnvironment,
   isStarterRoomModel,
   searchAssets,
@@ -52,6 +53,13 @@ describe("catalogue search", () => {
       expect(searchAssets(assets, query)).toEqual([]);
     }
   });
+});
+
+it("recognizes only assets explicitly marked non-blocking", () => {
+  const trigger = { ...assets[0]!, id: "trigger-crate-v1", nonBlocking: true as const };
+  expect(isNonBlockingAsset([trigger], "trigger-crate-v1")).toBe(true);
+  expect(isNonBlockingAsset(assets, "chair")).toBe(false);
+  expect(isNonBlockingAsset(assets, null)).toBe(false);
 });
 
 it("recognizes only matching non-empty Starter room hashes", () => {

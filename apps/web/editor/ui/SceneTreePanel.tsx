@@ -24,6 +24,7 @@ export function SceneTreePanel({
   onMultiSelect,
   onSelect,
   onDelete,
+  onHotspotRemove,
   mobileDevice,
   thumbnailFor,
   hierarchy,
@@ -43,6 +44,7 @@ export function SceneTreePanel({
   onMultiSelect?: ((ids: readonly string[], id: string | null) => void) | undefined;
   onSelect: (id: string) => void;
   onDelete: () => void;
+  onHotspotRemove?: ((id: string) => void) | undefined;
   // Touch has no Delete key, so the selected object gets its own button
   mobileDevice: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
@@ -226,6 +228,9 @@ export function SceneTreePanel({
         ? [...displayPanelTools, ...displayCaseTools].find((tool) => tool.assetId === node.assetId)
         : undefined;
       const components = isObject ? ((node as ContentObject).components ?? []) : [];
+      const nodeHotspot = hotspots.find(
+        (hotspot) => hotspot.objectId.toLowerCase() === node.id.toLowerCase(),
+      );
       const hasChildren = (children.get(node.id.toLowerCase())?.length ?? 0) > 0;
       // Every group has a disclosure, including empty groups ready to receive objects
       // Objects gain one when they own children, supporting imported object-to-object trees
@@ -317,15 +322,27 @@ export function SceneTreePanel({
                 <Icon name="tree" />
               )}
               <span>{node.name}</span>
-              {hotspots.some(
-                (hotspot) => hotspot.objectId.toLowerCase() === node.id.toLowerCase(),
-              ) && (
+              {nodeHotspot && (
                 <span className="hotspot-indicator" title="Has hotspot">
                   <Icon name="hotspot" />
                   <span className="sr-only">Has hotspot</span>
                 </span>
               )}
             </button>
+            {nodeHotspot && onHotspotRemove && (
+              <button
+                className="scene-tree-hotspot-remove"
+                type="button"
+                aria-label={`Remove hotspot from ${node.name}`}
+                title={`Remove hotspot from ${node.name}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onHotspotRemove(nodeHotspot.id);
+                }}
+              >
+                ×
+              </button>
+            )}
             {mobileDevice && isObject && selectedId === node.id && (
               <button
                 className="scene-tree-delete"

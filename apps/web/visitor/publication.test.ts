@@ -207,6 +207,42 @@ it("retains captured bottom-center placement for non-room models", () => {
   };
   expect(readPublicationManifest(manifest, id).assets[0]?.placement).toBe("bottom-center");
 });
+it("retains trusted non-blocking metadata for published models", () => {
+  const manifest = {
+    ...value,
+    assets: [{ ...value.assets[0], nonBlocking: true }],
+  };
+  expect(readPublicationManifest(manifest, id).assets[0]?.nonBlocking).toBe(true);
+});
+it("treats explicit false non-blocking metadata as a normal obstacle", () => {
+  const manifest = {
+    ...value,
+    assets: [{ ...value.assets[0], nonBlocking: false }],
+  };
+  expect(readPublicationManifest(manifest, id).assets[0]?.nonBlocking).toBeUndefined();
+});
+it.each(["true", 1, null])("rejects unsupported non-blocking metadata %s", (nonBlocking) => {
+  expect(() =>
+    readPublicationManifest(
+      {
+        ...value,
+        assets: [{ ...value.assets[0], nonBlocking }],
+      },
+      id,
+    ),
+  ).toThrow();
+});
+it("rejects non-blocking metadata on non-model assets", () => {
+  expect(() =>
+    readPublicationManifest(
+      {
+        ...value,
+        assets: [{ ...value.assets[0], kind: "audio", nonBlocking: true }],
+      },
+      id,
+    ),
+  ).toThrow();
+});
 it.each(["center", {}])("rejects unsupported placement metadata %s", (placement) => {
   expect(() =>
     readPublicationManifest(

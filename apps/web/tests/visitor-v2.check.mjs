@@ -699,6 +699,7 @@ import { flushSync } from "react-dom";
 import * as THREE from "three";
 import { createVisitorPlayback } from "/shared/player/playback";
 import { ExhibitionContent } from "/shared/player/ExhibitionContent";
+import "/shared/player/player.css";
 const data = await (await fetch("/fixture-data")).json();
 const pose={position:[0,0,5],rotation:[0,0,0,1],fovDegrees:60};
 const transform={position:[0,0,0],rotation:[0,0,0,1],scale:[1,1,1]};
@@ -714,7 +715,8 @@ const scene={id:"scene",name:"Probe",startCamera:pose,audio:[audio("bg")],object
  {id:"navigation",name:"Navigation",transform,visible:true,components:[{id:"go",type:"hotspot",label:"Navigate by rule"},{id:"navpoint",type:"navigationPoint",label:"Navigation point",sceneId:"next",viewpointId:"next-view"}]}
 ,
  {id:"move",name:"Camera",transform,visible:true,components:[{id:"move-hot",type:"hotspot",label:"Move camera"}]},
- {id:"link",name:"Link",transform,visible:true,components:[{id:"link-hot",type:"hotspot",label:"Open link"}]}
+ {id:"link",name:"Link",transform,visible:true,components:[{id:"link-hot",type:"hotspot",label:"Open link"}]},
+ {id:"display",name:"Digital display",transform,visible:true,assetId:"image",components:[{...image,id:"display-image"}]}
 ],hotspots:[{id:"scene-hotspot",objectId:"other",label:"Scene hotspot"}],viewpoints:[{id:"view",name:"View",camera:{...pose,position:[2,3,4],fovDegrees:75}}],zones:[{id:"zone",transform:{...transform,scale:[2,2,2]}}],rules:[
  rule("gaze",{type:"gaze",targetId:"hotspot",seconds:1},[{type:"showPanel",panelId:"panel"}]),
  rule("scene-gaze",{type:"gaze",targetId:"SCENE-HOTSPOT",seconds:1},[{type:"showPanel",panelId:"other-panel"}]),
@@ -735,6 +737,7 @@ const controls={target:new THREE.Vector3(),update(){}};
 const roots=new Map(scene.objects.map(o=>{const root=new THREE.Group();root.visible=o.visible;return[o.id,root]}));
 const root=createRoot(document.getElementById("root"));
 const navigate=(scene,view)=>{calls.push([scene,view]);return true;};
+(window as any).modalEvents=[];document.addEventListener("exhibit-modal",e=>(window as any).modalEvents.push(e.detail));
 flushSync(()=>root.render(<><button id="start">Start exhibition</button><ExhibitionContent scene={scene as any} assets={data.assets} navigate={navigate} playbackReady={true}/></>));
 const content=document.querySelector('[data-exhibition-scene]');
 const runtime=createVisitorPlayback(scene as any,camera,controls,roots,content,navigate,message=>reports.push(message),()=>{});
@@ -763,6 +766,7 @@ document.dispatchEvent(new Event("visitor-playback-ready"));
       .update(readFileSync(path.resolve(dir, file)))
       .digest("hex"),
     thumbnail: null,
+    ...(id === "image" ? { displayRole: "digital" } : {}),
   }));
   let audioGate;
   const server = await createServer({
@@ -958,6 +962,50 @@ document.dispatchEvent(new Event("visitor-playback-ready"));
       .click();
     assert.equal(await page.evaluate(() => probe.roots.get("other").visible), false);
     assert.equal(await page.locator('[data-component-id="panel"]').evaluate((n) => n.hidden), true);
+    // Clicking a digital display opens a modal with the verified media centered
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() =>
+      document
+        .querySelector("[data-exhibition-scene]")
+        .dispatchEvent(new CustomEvent("exhibit-inspect", { detail: "display" })),
+    );
+    const displayModal = page.locator(".visitor-media-dialog");
+    await displayModal.waitFor({ state: "visible" });
+    assert.equal(await displayModal.evaluate((node) => node.matches(":modal")), true);
+    assert.equal(await page.locator(".visitor-information").isVisible(), false);
+    assert.equal(await page.evaluate(() => window.modalEvents.at(-1)), true);
+    await displayModal.locator("img").waitFor();
+    const centering = await displayModal.evaluate((node) => {
+      const imageBox = node.querySelector("img").getBoundingClientRect();
+      const dialogBox = node.getBoundingClientRect();
+      return {
+        image: [imageBox.left, imageBox.right],
+        dialog: [dialogBox.left, dialogBox.right],
+        delta: Math.abs(imageBox.left + imageBox.right - dialogBox.left - dialogBox.right),
+      };
+    });
+    assert.equal(
+      centering.delta < 2,
+      true,
+      `Display media is centered: ${JSON.stringify(centering)}`,
+    );
+    const margins = await displayModal.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: window.innerWidth - rect.right,
+        top: rect.top,
+        bottom: window.innerHeight - rect.bottom,
+      };
+    });
+    for (const [edge, size] of Object.entries(margins)) {
+      assert.ok(size >= 24, `${edge} backdrop margin is ${size}px`);
+    }
+    await page.mouse.click(5, 5);
+    await displayModal.waitFor({ state: "hidden" });
+    assert.equal(await page.locator(".visitor-information").isVisible(), true);
+    assert.equal(await page.evaluate(() => window.modalEvents.at(-1)), false);
+    await page.setViewportSize({ width: 1100, height: 850 });
     // Gaze requires a continuous dwell and resets when the visitor looks away
     await page.evaluate(() => probe.runtime.update(0.5, "owner"));
     assert.equal(await page.locator('[data-component-id="panel"]').evaluate((n) => n.hidden), true);
@@ -1102,7 +1150,8 @@ document.dispatchEvent(new Event("visitor-playback-ready"));
     );
     const count = await page.evaluate(() => document.querySelectorAll('[src^="blob:"]').length);
     await page.evaluate(() => probe.unmount());
-    await page.waitForFunction((count) => probe.revoked.length === count, count);
+    // The display modal verified its own copy of the image and revoked it when closed
+    await page.waitForFunction((count) => probe.revoked.length === count + 1, count);
     assert.deepEqual(errors, []);
     // A hidden owner must remain silent even if a following action targets its media
     await page.reload();

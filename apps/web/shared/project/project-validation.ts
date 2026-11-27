@@ -139,11 +139,15 @@ export function validateProject(
       ) {
         return invalid(`${actionPath}.sceneId`, "Choose a scene in this project");
       }
-      if (interaction.when.type !== "visitor-clicks-hotspot") continue;
+      if (
+        interaction.when.type !== "visitor-clicks-hotspot" &&
+        interaction.when.type !== "visitor-touch"
+      )
+        continue;
       if (!hotspotIds.has(interaction.when.targetHotspotId.toLowerCase())) {
         return invalid(
           `${path}.interactions[${interactionIndex}].when.targetHotspotId`,
-          "Click trigger must reference a hotspot in the same scene",
+          "Click or touch trigger must reference a hotspot in the same scene",
         );
       }
     }

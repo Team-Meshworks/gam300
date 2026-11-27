@@ -351,11 +351,13 @@ function interactionTrigger(raw: unknown, path: string): Interaction["when"] {
   if (!isRecord(raw)) {
     fail(path, "Trigger must be an object");
   }
-  switch (readField(raw, "type")) {
+  const type = readField(raw, "type");
+  switch (type) {
     case "visitor-clicks-hotspot":
+    case "visitor-touch":
       record(raw, ["type", "targetHotspotId"], path);
       return {
-        type: "visitor-clicks-hotspot",
+        type,
         targetHotspotId: text(readField(raw, "targetHotspotId"), `${path}.targetHotspotId`),
       };
     case "scene-starts":
@@ -729,7 +731,7 @@ export function validateContentReferences(
         } else if (value.do.type === "move-to-viewpoint") {
           reference(value.do.viewpointId, ["viewpoint"], scene.id, `${actionPath}.viewpointId`);
         }
-        if (value.when.type === "visitor-clicks-hotspot") {
+        if (value.when.type === "visitor-clicks-hotspot" || value.when.type === "visitor-touch") {
           reference(
             value.when.targetHotspotId,
             ["hotspot"],

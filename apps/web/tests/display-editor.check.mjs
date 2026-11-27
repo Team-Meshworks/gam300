@@ -332,7 +332,7 @@ try {
   assert.equal(physicalChrome.height, reference.height);
   assert.deepEqual(physicalChrome.controls, reference.controls);
   assert.ok((await library.locator(".display-owner").innerText()).includes("Display plinth"));
-  assert.equal(await library.locator(".asset-card").count(), 5);
+  assert.equal(await library.locator(".asset-card").count(), 6);
   await library.getByRole("button", { name: "Sample crate", exact: true }).click();
   await library.screenshot({ path: "test-results/display-editor/physical-library.png" });
   await library.getByRole("button", { name: "Add", exact: true }).click();

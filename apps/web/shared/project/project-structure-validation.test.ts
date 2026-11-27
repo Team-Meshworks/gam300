@@ -109,6 +109,13 @@ describe("M1 project structure", () => {
         do: { type: "open-link", url: "https://example.com" },
       },
       {
+        when: {
+          type: "visitor-touch",
+          targetHotspotId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        },
+        do: { type: "print-hi" },
+      },
+      {
         when: { type: "time-elapsed", seconds: 5 },
         do: { type: "play-audio", url: "/audio/ding.wav" },
       },
@@ -165,11 +172,13 @@ describe("M1 project structure", () => {
       error: { path: "project.scenes[0].interactions[0].when.type" },
     });
 
-    scene.interactions = [{ when: { type: "visitor-clicks-hotspot" }, do: { type: "print-hi" } }];
-    expect(validateProjectStructure(project)).toMatchObject({
-      ok: false,
-      error: { path: "project.scenes[0].interactions[0].when.targetHotspotId" },
-    });
+    for (const when of [{ type: "visitor-clicks-hotspot" }, { type: "visitor-touch" }] as const) {
+      scene.interactions = [{ when, do: { type: "print-hi" } }];
+      expect(validateProjectStructure(project)).toMatchObject({
+        ok: false,
+        error: { path: "project.scenes[0].interactions[0].when.targetHotspotId" },
+      });
+    }
 
     scene.interactions = [{ when: { type: "time-elapsed", seconds: 0 }, do: { type: "print-hi" } }];
     expect(validateProjectStructure(project)).toMatchObject({

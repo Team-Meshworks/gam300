@@ -7,6 +7,7 @@ import { MobileControls } from "../preview/MobileControls";
 import { standOnPreviewFloor } from "../preview/preview-start";
 import { createWalkSpace, type WalkProp } from "../preview/walk-space";
 import { isRoomModel, knownRoomGeometry, STARTER_ROOM_SHA256 } from "../asset-runtime/catalogue";
+import { addNonBlockingHitbox } from "../preview/non-blocking";
 import { disposeModels, visibleModelBounds } from "../asset-runtime/ModelCache";
 import { createExhibitAppearance } from "../asset-runtime/exhibit-appearance";
 import { containDisplay } from "../asset-runtime/display-layout";
@@ -100,6 +101,18 @@ export function ExhibitionCanvas({
     fps.setFlightAllowed(false);
     fps.onNavigationInput = beginNavigationEvent;
     fps.onCaptureChange = () => setCaptured(fps.isCaptured());
+    let resumeInput = false;
+    const modalInput = (event: Event) => {
+      if ((event as CustomEvent<boolean>).detail) {
+        resumeInput = fps.isEngaged();
+        fps.disengage();
+      } else if (resumeInput) {
+        resumeInput = false;
+        fps.engage();
+      }
+    };
+    const preview = host.closest(".visitor-preview");
+    preview?.addEventListener("exhibit-modal", modalInput);
     const controls = {
       target: new THREE.Vector3(),
       update: () => fps.syncFromCamera(),
@@ -267,6 +280,11 @@ export function ExhibitionCanvas({
     const appearances = createExhibitAppearance();
     const rooms = new Map<THREE.Object3D, { model: THREE.Object3D; starter: boolean }>();
     const assetsById = new Map(exhibition.assets.map((asset) => [asset.id, asset]));
+    const nonBlockingIds = new Set(
+      exhibition.assets
+        .filter((asset) => asset.nonBlocking === true)
+        .map((asset) => asset.id.toLowerCase()),
+    );
     const props: WalkProp[] = [];
     const propBounds = new Map<string, THREE.Box3>();
     function syncRooms() {
@@ -298,6 +316,7 @@ export function ExhibitionCanvas({
         if (!asset) throw new Error("An exhibition asset is missing.");
         const model = await models.instantiate(asset);
         if (controller.signal.aborted) return;
+        if (asset.nonBlocking === true) addNonBlockingHitbox(model);
         const digest = asset.sha256.toLowerCase();
         const root = new THREE.Group();
 
@@ -312,7 +331,7 @@ export function ExhibitionCanvas({
             (knownRoomGeometry.has(digest) || isRoomModel(exhibition.assets, asset.id)))
         ) {
           rooms.set(root, { model: model, starter: digest === STARTER_ROOM_SHA256 });
-        } else if (asset.kind === "model") {
+        } else if (asset.kind === "model" && asset.nonBlocking !== true) {
           let bounds = propBounds.get(asset.id);
           if (!bounds) {
             bounds = visibleModelBounds(model);
@@ -428,6 +447,7 @@ export function ExhibitionCanvas({
               if (rooms.has(root)) syncRooms();
               else fps.refreshWalkObstacles();
             },
+            nonBlockingIds,
           );
           playback.begin();
           onPlaybackReady(true);
@@ -469,6 +489,7 @@ export function ExhibitionCanvas({
     });
     return () => {
       controller.abort();
+      preview?.removeEventListener("exhibit-modal", modalInput);
       document.removeEventListener("visibilitychange", visibilityChanged);
       onPlaybackReady(false);
       playback?.dispose();

@@ -42,6 +42,8 @@
     "test:furniture-tools": "node tests/furniture-tools.check.mjs",
     "test:viewpoints": "node tests/viewpoints.check.mjs",
     "test:placement-collision": "node tests/placement-collision.check.mjs",
+    "test:non-blocking-placement": "node tests/non-blocking-placement.check.mjs",
+    "test:non-blocking-carry": "node tests/non-blocking-carry.check.mjs",
     "test:moving-room-collision": "node tests/moving-room-collision.check.mjs",
     "test:starter-room-transform": "node tests/starter-room-transform.check.mjs",
     "test:nonstarter-room-collision": "node tests/nonstarter-room-collision.check.mjs",
