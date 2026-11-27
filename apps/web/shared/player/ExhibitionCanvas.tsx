@@ -269,14 +269,10 @@ export function ExhibitionCanvas({
     function syncRooms() {
       const visible = [...rooms].filter(([root]) => root.visible);
       entrances.sync(visible.filter(([, room]) => room.starter).map(([root]) => root));
-      fps.setWalkSpace(
-        visible.length || props.length
-          ? createWalkSpace(
-              visible.map(([, room]) => room.model),
-              props,
-            )
-          : undefined,
-      );
+      const models = visible.map(([, room]) => room.model);
+      fps.setWalkSpace(models.length || props.length ? createWalkSpace(models, props) : undefined);
+      playback?.setRooms(models);
+      playback?.setProps(props);
     }
     const hotspots = "hotspots" in source ? source.hotspots : [];
     let hotspotTemplate: THREE.Sprite | undefined;
@@ -443,6 +439,11 @@ export function ExhibitionCanvas({
               else fps.refreshWalkObstacles();
             },
           );
+          playback.setRooms(
+            [...rooms].filter(([root]) => root.visible).map(([, room]) => room.model),
+          );
+          // The same list the walk space uses; later-loaded props join it in place
+          playback.setProps(props);
           playback.begin();
           onPlaybackReady(true);
         }
