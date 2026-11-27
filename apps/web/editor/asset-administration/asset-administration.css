@@ -229,7 +229,7 @@ html.asset-admin-preview-page,
   outline-offset: 3px;
 }
 .asset-admin button:disabled,
-.asset-admin input:disabled {
+.asset-admin input:disabled:not(.sp-row-select-input) {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -364,9 +364,6 @@ html.asset-admin-preview-page,
   align-content: start;
   gap: 10px;
 }
-.asset-admin-models .asset-admin-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
 .asset-admin-card {
   display: flex;
   flex-direction: column;
@@ -377,11 +374,8 @@ html.asset-admin-preview-page,
 }
 .asset-admin-thumbnail {
   flex-shrink: 0;
-  height: 148px;
-  background: var(--aa-placeholder);
-}
-.asset-admin-models .asset-admin-thumbnail {
   height: 126px;
+  background: var(--aa-placeholder);
 }
 .asset-admin-thumbnail img,
 .asset-admin-detail-preview img {
@@ -405,7 +399,7 @@ html.asset-admin-preview-page,
 .asset-admin-card-content > div {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   min-height: 24px;
   gap: 12px;
   margin-bottom: 12px;
@@ -415,12 +409,6 @@ html.asset-admin-preview-page,
   line-height: 20px;
 }
 .asset-admin-card-content .asset-admin-visibility {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--aa-muted);
-  font-size: var(--aa-text-small);
-  white-space: nowrap;
   text-transform: capitalize;
 }
 .asset-admin-visibility svg {
@@ -439,7 +427,7 @@ html.asset-admin-preview-page,
     min-height: 26px;
     padding: 0 12px;
   }
-  .asset-admin:not(.asset-admin-models) .asset-admin-card {
+  .asset-admin .asset-admin-card {
     min-height: 250px;
   }
 }
@@ -765,7 +753,6 @@ html.asset-admin-preview-page,
 
 .asset-admin-scroll,
 .asset-admin-dialog,
-.asset-admin-select-menu,
 .asset-admin-preview-controls {
   scrollbar-gutter: stable;
 }
@@ -779,9 +766,6 @@ html.asset-admin-preview-page,
   }
   .asset-admin-heading {
     gap: 24px;
-  }
-  .asset-admin-models .asset-admin-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (max-width: 850px) {
@@ -806,8 +790,7 @@ html.asset-admin-preview-page,
   .asset-admin-heading .asset-admin-close {
     align-self: flex-start;
   }
-  .asset-admin-grid,
-  .asset-admin-models .asset-admin-grid {
+  .asset-admin-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .asset-admin-toolbar {
@@ -822,8 +805,7 @@ html.asset-admin-preview-page,
     padding: 20px;
     border-radius: 24px;
   }
-  .asset-admin-grid,
-  .asset-admin-models .asset-admin-grid {
+  .asset-admin-grid {
     grid-template-columns: minmax(0, 1fr);
   }
   .asset-admin-dialog {
@@ -936,7 +918,7 @@ html.asset-admin-preview-page,
   margin: 4px 0 0;
 }
 .asset-admin-confirmation-warning {
-  color: var(--aa-danger);
+  color: var(--sp-danger-hover-ink);
 }
 .asset-admin-dialog-confirmation .asset-admin-actions svg {
   display: none;
@@ -1137,10 +1119,6 @@ html.asset-admin-preview-page,
 }
 
 /* Preserve the PDF's page/card/form/hint hierarchy instead of one form-and-action size. */
-.asset-admin-toolbar > .asset-admin-primary {
-  font-size: 15px;
-  line-height: 20px;
-}
 .asset-admin-fields .asset-admin-select > :is(label, span) {
   font-size: 15px;
   line-height: 20px;
@@ -1401,29 +1379,14 @@ html.asset-admin-preview-page,
 .asset-admin-card {
   position: relative;
 }
-.asset-admin-card-identity {
+.asset-admin-card-content h2 {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.asset-admin-card-identity a {
-  color: inherit;
-  text-decoration: none;
-}
-.asset-admin-card-identity a:hover,
-.asset-admin-card-identity a:focus-visible {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.asset-admin-card-identity .asset-admin-card-type,
-.asset-admin-card-identity small {
+.asset-admin-dialog .asset-admin-edit-title {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  margin-top: 3px;
-  color: var(--aa-muted);
-  font-size: var(--aa-text-small);
-}
-.asset-admin-dialog .asset-admin-edit-title {
+  gap: 0.35em;
   justify-content: flex-start;
   min-height: 0;
   padding: 0;
@@ -1434,8 +1397,16 @@ html.asset-admin-preview-page,
   text-align: left;
   overflow-wrap: anywhere;
 }
+.asset-admin .asset-admin-edit-title:hover:not(:disabled) {
+  background: transparent;
+  box-shadow: none;
+}
+.asset-admin-edit-title .sp-plain-label {
+  text-box-edge: cap alphabetic;
+}
 .asset-admin-edit-title svg {
-  width: 15px;
+  width: 0.8em;
+  height: 0.8em;
   flex-shrink: 0;
   color: var(--aa-muted);
 }
@@ -1445,60 +1416,80 @@ html.asset-admin-preview-page,
 .asset-admin-field-wrapper {
   min-width: 0;
 }
-.asset-admin-dialog-edit .asset-admin-dialog-heading {
-  margin-bottom: 24px;
+.asset-admin-dialog-detail .asset-admin-dialog-heading h2 {
+  min-width: 0;
+  flex: 1;
 }
-.asset-admin-dialog .asset-admin-replacement-help {
-  margin-bottom: 12px;
-  color: var(--aa-muted);
+.asset-admin-title-input,
+.asset-admin-title-input input {
+  display: block;
+  width: 100%;
+}
+.asset-admin-title-input input {
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: var(--aa-paper);
+  color: inherit;
+  font: inherit;
+}
+.asset-admin-dialog-edit {
+  box-sizing: border-box;
+  max-width: calc(100% - 32px);
+}
+.asset-admin-dialog-edit:not(.asset-admin-dialog-confirmation) > form {
+  height: 100%;
+  box-sizing: border-box;
 }
 .asset-admin-dialog-edit .asset-admin-upload {
   margin-bottom: 20px;
 }
-.asset-admin-bulk-bar {
+.asset-admin-toolbar-actions {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 8px 16px;
-  margin: 0 0 16px;
-  color: var(--aa-muted);
-}
-.asset-admin-bulk-bar label {
-  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--aa-ink);
-  font-weight: 600;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-inline-start: auto;
 }
-.asset-admin-bulk-bar button {
-  margin-left: auto;
-}
-.asset-admin-bulk-bar input,
-.asset-admin input.asset-admin-card-check {
-  width: 20px;
-  height: 20px;
+.sp-shell[data-account-role="Administrator"] .asset-admin-toolbar-actions .sp-selection-toggle {
+  translate: none;
   margin: 0;
-  accent-color: var(--aa-primary);
-  cursor: pointer;
 }
-.asset-admin input.asset-admin-card-check {
+.sp-shell[data-account-role="Administrator"] .asset-admin-toolbar-actions .sp-account-bulk-delete {
+  height: 32px;
+  min-height: 32px;
+  padding-inline: 10px;
+}
+.asset-admin-toolbar-actions .sp-selection-summary {
+  align-items: center;
+}
+.sp-shell[data-account-role="Administrator"] .asset-admin-toolbar-actions:has(.sp-selection-summary) :is([role="status"], .sp-button-label) {
+  line-height: 1;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+  translate: none;
+  transform: none;
+}
+.sp-shell .asset-admin .asset-admin-card > input.sp-row-select-input:disabled {
+  opacity: 0;
+}
+.asset-admin-card > .sp-selection-marker {
   position: absolute;
-  z-index: 1;
-  top: 14px;
-  left: 14px;
-  box-shadow: 0 0 0 3px white;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
+  pointer-events: none;
 }
-.asset-admin-card:has(.asset-admin-card-check:checked) {
-  outline: 2px solid var(--aa-primary);
-  outline-offset: -2px;
-}
-.asset-admin-bulk-names {
-  max-height: 25dvh;
-  overflow-y: auto;
-  margin: 12px 0;
-  padding-left: 24px;
-  font-weight: 600;
+.asset-admin-card:has(> .sp-row-select-input:is(:checked, :hover:enabled)) {
+  background-color: var(--sp-selection-row-active);
 }
 .asset-admin .asset-admin-bulk-outcome {
   margin-bottom: 12px;
+}
+
+.asset-admin-card .asset-admin-status-permanent {
+  color: var(--sp-danger-hover-ink);
+  background: var(--sp-danger-hover);
+  text-transform: none;
 }

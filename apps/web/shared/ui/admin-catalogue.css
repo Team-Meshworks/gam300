@@ -318,6 +318,23 @@
   --sp-catalogue-card-gap: var(--sp-preview-card-gap);
 }
 
+@media (max-width: 1100px) {
+  .sp-shell[data-account-role="Administrator"]
+    .sp-panel-surface.asset-admin
+    .asset-admin-card-content {
+    padding: 16px;
+  }
+}
+
+@media (min-width: 521px) and (max-width: 1100px) {
+  .sp-shell[data-account-role="Administrator"]
+    .asset-admin
+    .asset-admin-card-content
+    > div:first-child {
+    min-height: 55px;
+  }
+}
+
 /* All-items catalogues use dark viewing actions; home previews stay secondary. */
 .sp-shell[data-account-role="Administrator"]
   .sp-panel-surface:is(.admin-project-browser, .asset-admin, .sp-organization-overview)
@@ -332,4 +349,11 @@
   .sp-catalogue-action:hover:not(:disabled) {
   background: var(--sp-primary-hover);
   box-shadow: none;
+}
+
+.sp-shell[data-account-role="Administrator"] .sp-button.sp-catalogue-add {
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font: 600 15px/20px var(--sp-font);
 }

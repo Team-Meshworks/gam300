@@ -190,6 +190,7 @@
   border-radius: 30px;
   color: var(--admin-status-ink);
   font-size: 12px;
+  line-height: 15px;
   padding: 4px 9px;
   display: inline-flex;
   align-items: center;
@@ -935,9 +936,6 @@
   background-repeat: no-repeat;
 }
 .sp-shell[data-account-role="Administrator"] .asset-admin {
-  background-image: var(--admin-workspace-background);
-}
-.sp-shell[data-account-role="Administrator"] .asset-admin-models {
   background-image: url("./assets/asset-library.webp");
 }
 @media (max-width: 800px) {

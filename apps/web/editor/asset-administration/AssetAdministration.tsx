@@ -249,12 +249,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
 
   // Load approved audio through the captured account and release its bytes when the details close
   useEffect(() => {
-    if (
-      editing ||
-      selected?.kind !== "audio" ||
-      selected.status !== "approved" ||
-      !selected.inspectionUrl
-    )
+    if (selected?.kind !== "audio" || selected.status !== "approved" || !selected.inspectionUrl)
       return;
     const controller = new AbortController();
     let url: string | null = null;
@@ -276,7 +271,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       controller.abort();
       if (url) URL.revokeObjectURL(url);
     };
-  }, [selected, editing, service]);
+  }, [selected, service]);
 
   // Start each upload with fresh fields while keeping the loaded catalogue intact
   function openUpload() {
@@ -556,11 +551,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         <div>
           <h1 id="asset-admin-heading">{title}</h1>
           <p>
-            {kind === "model"
-              ? tab === "deleted"
-                ? "Review deleted assets and select the ones to remove permanently."
-                : "Select an asset name or type to edit its details."
-              : "Review 3D spaces and control what creators can use."}
+            Review {noun} and control what creators can use.
           </p>
         </div>
         <div className="asset-admin-search">
@@ -750,44 +741,13 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                 <div className="asset-admin-thumbnail">{thumbnail(asset)}</div>
                 <div className="asset-admin-card-content">
                   <div>
-                    <div className="asset-admin-card-identity">
-                      <h2>
-                        {asset.deleted ? (
-                          asset.name
-                        ) : (
-                          <a
-                            href={`?assetId=${encodeURIComponent(asset.id)}`}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              openAsset(asset, "name");
-                            }}
-                          >
-                            {asset.name}
-                          </a>
-                        )}
-                      </h2>
-                      {kind === "model" &&
-                        (asset.deleted ? (
-                          <small>{typeLabel(asset.kind)}</small>
-                        ) : (
-                          <a
-                            className="asset-admin-card-type"
-                            href={`?assetId=${encodeURIComponent(asset.id)}`}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              openAsset(asset, "type");
-                            }}
-                          >
-                            {typeLabel(asset.kind)} <UiIcon icon={pencilIcon} aria-hidden="true" />
-                          </a>
-                        ))}
-                    </div>
-                    <span className="asset-admin-visibility">
+                    <h2>{asset.name}</h2>
+                    <span className={`asset-admin-visibility admin-project-status${asset.deleted && asset.removedFromProjects ? " asset-admin-status-permanent" : asset.status === "approved" && !asset.hidden && !asset.deleted ? " admin-project-status--public" : ""}`}>
                       {asset.status === "approved" && (
                         <UiIcon
                           icon={asset.hidden ? eyeOffIcon : globeIcon}
-                          width={13}
-                          height={13}
+                          width={12}
+                          height={12}
                           aria-hidden="true"
                         />
                       )}
@@ -808,8 +768,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                     onClick={() => openAsset(asset)}
                   >
                     <span className="sp-button-label">
-                      View{" "}
-                      {kind === "environment" && asset.status === "approved" ? "Model" : "details"}
+                      View details
                     </span>
                     <span className="asset-admin-sr">: {asset.name}</span>
                   </Button>
