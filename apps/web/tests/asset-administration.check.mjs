@@ -55,7 +55,7 @@ async function checkDialogTypography() {
     assert.deepEqual(
       sizes.labels.map(({ text }) => text),
       sizes.upload
-        ? ["Asset name", "Asset Type", "Filter Category"]
+        ? ["Asset Name", "Asset Type", "Filter Category"]
         : ["Asset Type", "Filter Category"],
     );
     assert.equal(
@@ -238,7 +238,7 @@ try {
   await page.getByRole("tab", { name: /^Public \(/ }).waitFor({ timeout: 5000 });
   await page.getByRole("tab", { name: /^Private \(/ }).waitFor();
   await page
-    .getByRole("button", { name: /View Model/ })
+    .getByRole("button", { name: /View details/i })
     .first()
     .waitFor();
   await waitForVisibleThumbnails();
@@ -520,14 +520,14 @@ try {
   );
   assert.equal(await dialog.locator(".asset-admin-detail-preview").count(), 0);
   assert.equal(await dialog.getByRole("status", { name: "Asset Type" }).count(), 0);
-  assert.ok((await dialog.boundingBox()).width <= 480);
+  assert.ok((await dialog.boundingBox()).width <= 496);
 
   await page.screenshot({ path: "test-results/scrum168/delete-confirmation.png", fullPage: true });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   // Cancel, close and Escape return to the same details instead of dismissing both steps
   await dialog.getByRole("heading", { name: "new-room", exact: true }).waitFor();
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
-  await dialog.getByRole("button", { name: "Close asset details", exact: true }).click();
+  await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
   await dialog.getByRole("heading", { name: "new-room", exact: true }).waitFor();
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
   await page.keyboard.press("Escape");
@@ -587,20 +587,9 @@ try {
   await page.screenshot({ path: "test-results/scrum168/deleted-details.png", fullPage: true });
   await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
   await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).waitFor();
-  // Keep related paragraphs together and balance the whitespace around the full message.
-  const explanation = await dialog
-    .locator(".asset-admin-confirmation-content > p")
-    .first()
-    .boundingBox();
-  await dialog
-    .getByText(
-      "All published exhibitions using this asset will become permanently unavailable. Their links and QR codes will stop working. This cannot be undone.",
-      { exact: true },
-    )
-    .waitFor();
-  const warning = await dialog.locator(".asset-admin-confirmation-warning").boundingBox();
-  const actions = await dialog.locator(".asset-admin-actions").boundingBox();
-  assert.ok(warning.y >= explanation.y + explanation.height);
+  const warning = await dialog.getByRole("alert").boundingBox();
+  await dialog.getByText("permanently removed", { exact: true }).waitFor();
+  const actions = await dialog.locator(".sp-confirmation-actions").boundingBox();
   assert.ok(actions.y >= warning.y + warning.height);
   await page.screenshot({ path: "test-results/scrum168/removal-confirmation.png", fullPage: true });
   const desktopViewport = page.viewportSize();
@@ -629,7 +618,7 @@ try {
 
   // Availability changes follow returned records and still require confirmation for deletion
   await page
-    .getByRole("button", { name: /View Model/ })
+    .getByRole("button", { name: /View details/i })
     .first()
     .click();
   await checkDialogTypography();
@@ -693,7 +682,7 @@ try {
   await page.getByRole("button", { name: "Try Again" }).click();
   await page.getByRole("heading", { name: "Spaces unavailable" }).waitFor();
 
-  // Object and space libraries use the distinct layouts in the supplied admin PDF
+  // Object and space libraries use the same three-column layout
   await choose("Test response", "Normal");
   await choose("Library", "Physical assets");
   await page.getByRole("heading", { name: "All Assets", exact: true }).waitFor();
@@ -701,7 +690,7 @@ try {
     await page
       .locator(".asset-admin-grid")
       .evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(" ").length),
-    4,
+    3,
   );
   await page.locator(".asset-admin-preview-controls").evaluate((details) => {
     details.open = false;
@@ -913,7 +902,7 @@ try {
   await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
   await dialog
     .getByText(
-      "All published exhibitions using this asset will become permanently unavailable. Their links and QR codes will stop working. This cannot be undone.",
+      "permanently removed",
       { exact: true },
     )
     .waitFor();

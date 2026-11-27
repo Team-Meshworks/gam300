@@ -1,4 +1,6 @@
+import { Dialog } from "../../shared/ui/Dialog";
 import { Button } from "../../shared/ui/Button";
+import { SelectionToggle } from "../../shared/ui/SelectionToggle";
 import { Tabs } from "../../shared/ui/Tabs";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { Icon as UiIcon } from "@iconify/react/offline";
@@ -91,7 +93,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   }, [selection]);
   const [file, setFile] = useState<File | null>(null);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
-  const [checkedIds, setCheckedIds] = useState<ReadonlySet<string>>(new Set());
+  const [checkedIds, setCheckedIds] = useState<ReadonlySet<string> | null>(null);
   const [uploadKind, setUploadKind] = useState(kind);
   const [audioPreview, setAudioPreview] = useState<string | null>(null);
   const [audioPreviewError, setAudioPreviewError] = useState(false);
@@ -100,9 +102,11 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const [uncertainWrite, setUncertainWrite] = useState(false);
   const locked = busy || uncertainWrite;
   const [outcome, setOutcome] = useState("");
+  const catalogueList = useRef<HTMLDivElement>(null);
   const [confirmation, setConfirmation] = useState(false);
   const [review, setReview] = useState({ source: "", license: "", reviewNotes: "" });
-  const dialog = useModal(selection !== null, confirmation);
+  const [detailSize, setDetailSize] = useState<{ width: number; height: number }>();
+  const dialog = useModal(selection !== null && !confirmation && selection.kind !== "bulk");
   useEffect(() => {
     if (selection?.kind !== "edit") return;
     const target = dialog.current?.querySelector<HTMLElement>(
@@ -188,13 +192,6 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     };
   }, [service, reload, initialUpload, kind]);
 
-  // Default to the safe action when details become a destructive confirmation
-  useEffect(() => {
-    if (confirmation || selection?.kind === "bulk") {
-      dialog.current?.querySelector<HTMLButtonElement>(".asset-admin-actions > button")?.focus();
-    }
-  }, [confirmation, dialog, selection]);
-
   // Keep search and visibility filters outside the returned records
   // Opening a detail view still resolves its stable ID from the full list
   const items =
@@ -217,15 +214,26 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const replacing = editing && selected?.kind !== uploadKind;
   const choosingFile = selection?.kind === "upload" || replacing;
   const assetName = nameDraft ?? file?.name.replace(/\.[^.]*$/, "") ?? "";
-  const selectable =
-    tab === "deleted" && kind === "model" && data?.policy.canForceRemove
-      ? visible.filter((asset) => asset.actions.includes("remove"))
-      : [];
-  const checked = selectable.filter((asset) => checkedIds.has(asset.id));
+  const permanent = tab === "deleted";
+  const bulkAction = permanent ? "remove" : "delete";
+  const bulkLabel = permanent ? "Delete permanently" : "Move to Deleted";
+  const bulkResult = permanent ? "permanently deleted" : "moved to Deleted";
+  const showBulk = permanent ? data?.policy.canForceRemove : items.some((asset) => asset.actions.includes("delete"));
+  const selectable = showBulk ? visible.filter((asset) => asset.actions.includes(bulkAction)) : [];
+  const checked = selectable.filter((asset) => checkedIds?.has(asset.id));
+  const selecting = checkedIds !== null;
+  const allChecked = checked.length > 0 && checked.length === selectable.length;
   const bulk = selection?.kind === "bulk";
+  const noun = kind === "environment" ? "3D spaces" : "assets";
+  const permanentDelete = bulk ? permanent : Boolean(selected?.deleted);
+  const subject = bulk ? `${checked.length} ${checked.length === 1 ? noun.slice(0, -1) : noun}` : selected?.name;
+  const multiple = bulk && checked.length !== 1;
+  const confirmationActions = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (confirmation || bulk) confirmationActions.current?.querySelector<HTMLButtonElement>("[data-cancel]")?.focus();
+  }, [confirmation, bulk]);
   const loadingDialog = Boolean(selection && loading && !data);
   const title = kind === "environment" ? "All 3D Spaces" : "All Assets";
-  const noun = kind === "environment" ? "3D spaces" : "assets";
   const filtered = query.trim().length > 0 || tab !== "all";
   // Spaces use the small fixed catalogue without category filtering
   const categoryChoices =
@@ -276,6 +284,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   // Start each upload with fresh fields while keeping the loaded catalogue intact
   function openUpload() {
     if (uncertainWrite) return;
+    setCheckedIds(null);
     const upload = kind === "model" && validationUnavailable && canOpenUpload ? "audio" : kind;
     setUploadKind(upload);
     setFile(null);
@@ -288,6 +297,12 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   }
 
   function openAsset(asset: AssetCandidate, field?: EditField) {
+    if (field && dialog.current?.open) {
+      setDetailSize({
+        width: dialog.current.offsetWidth,
+        height: dialog.current.offsetHeight,
+      });
+    }
     setNotice(null);
     setConfirmation(false);
     setAudioPreviewError(false);
@@ -418,9 +433,12 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
           (current) =>
             current && {
               ...current,
-              assets: current.assets.some((asset) => asset.id === record.id)
-                ? current.assets.map((asset) => (asset.id === record.id ? record : asset))
-                : [...current.assets, record],
+              assets:
+                selection?.kind === "upload"
+                  ? [record, ...current.assets.filter((asset) => asset.id !== record.id)]
+                  : current.assets.some((asset) => asset.id === record.id)
+                    ? current.assets.map((asset) => (asset.id === record.id ? record : asset))
+                    : [...current.assets, record],
             },
         );
       }
@@ -429,14 +447,20 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       setReview({ source: "", license: "", reviewNotes: "" });
       setFile(null);
       setConfirmation(false);
+      if (selection?.kind === "upload") {
+        const existing = items.some((asset) => asset.id === confirmed.id);
+        setQuery("");
+        setTab(confirmed.deleted ? "deleted" : "all");
+        catalogueList.current?.scrollTo({ top: 0 });
+        setOutcome(existing ? `This file already exists as ${confirmed.name}` : "");
+        return;
+      }
       if (bulk) {
-        setCheckedIds(new Set());
-        setOutcome(
-          `${selection.count} selected ${selection.count === 1 ? "asset" : "assets"} permanently deleted.`,
-        );
+        setCheckedIds(null);
         return;
       }
       if (editing) {
+        setSelection({ kind: "detail", id: confirmed.id });
         setOutcome(`Saved details for ${confirmed.name}.`);
         if (replacing) {
           setLoading(true);
@@ -444,20 +468,9 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         }
         return;
       }
-      // Announce the confirmed state after closing the form; uploaded candidates can still be pending
-      setOutcome(
-        `${confirmed.name}: ${
-          confirmed.deleted
-            ? confirmed.removedFromProjects
-              ? "removed from projects; affected published exhibitions are permanently unavailable"
-              : "deleted from library"
-            : confirmed.status === "approved"
-              ? confirmed.hidden
-                ? "hidden"
-                : "available"
-              : confirmed.status
-        }`,
-      );
+      if (!confirmed.deleted) {
+        setOutcome(`${confirmed.name}: ${confirmed.status === "approved" ? (confirmed.hidden ? "hidden" : "available") : confirmed.status}`);
+      }
     } catch {
       if (!controller.signal.aborted) {
         setUncertainWrite(true);
@@ -543,8 +556,9 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   }
 
   return (
+    <>
     <section
-      className={`sp-panel-surface asset-admin ${kind === "model" ? "asset-admin-models" : ""}`}
+      className="sp-panel-surface asset-admin"
       aria-labelledby="asset-admin-heading"
     >
       <div className="asset-admin-heading sp-admin-page-heading">
@@ -561,7 +575,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
             value={query}
             onChange={(value) => {
               setQuery(value);
-              setCheckedIds(new Set());
+              setCheckedIds(null);
               setOutcome("");
             }}
           />
@@ -581,7 +595,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
           value={tab}
           onChange={(value) => {
             setTab(value);
-            setCheckedIds(new Set());
+            setCheckedIds(null);
             setOutcome("");
           }}
           items={(
@@ -601,15 +615,60 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
             measureLabel: `${label} (${data ? count : "00"})`,
           }))}
         />
-        <Button
-          className="asset-admin-primary"
-          disabled={!canOpenUpload || loading || uncertainWrite || notice?.kind === "denied"}
-          onClick={openUpload}
-        >
-          <span className="sp-button-label">
-            + Add {kind === "environment" ? "3D Space" : "Assets"}
-          </span>
-        </Button>
+        <div className="asset-admin-toolbar-actions">
+          {selecting ? (
+            <>
+              <div className="sp-selection-summary">
+                <span role="status">
+                  {checked.length ? `${checked.length} selected` : `Select ${noun}`}
+                </span>
+                <button
+                  type="button"
+                  className="sp-select-all-action"
+                  disabled={locked || !selectable.length}
+                  onClick={() =>
+                    setCheckedIds(new Set(allChecked ? [] : selectable.map((asset) => asset.id)))
+                  }
+                >
+                  <span className="sp-plain-label sp-button-label">
+                    {allChecked ? "Clear all" : "Select all"}
+                  </span>
+                </button>
+              </div>
+              <Button
+                className="sp-button--danger sp-account-bulk-delete"
+                disabled={!checked.length || locked}
+                onClick={() => {
+                  setNotice(null);
+                  setSelection({ kind: "bulk", count: checked.length });
+                }}
+              >
+                <UiIcon icon={trashIcon} aria-hidden="true" />
+                <span className="sp-button-label">{permanent ? bulkLabel : "Delete selected"}</span>
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="primary"
+              className="asset-admin-primary sp-catalogue-add"
+              disabled={!canOpenUpload || loading || uncertainWrite || notice?.kind === "denied"}
+              onClick={openUpload}
+            >
+              <span className="sp-button-label">
+                + Add {kind === "environment" ? "3D Space" : "Assets"}
+              </span>
+            </Button>
+          )}
+          {showBulk && (
+            <SelectionToggle
+              selected={selecting}
+              label={`Select ${noun}`}
+              title={`Select multiple ${noun}`}
+              disabled={loading || locked || (!selecting && selectable.length === 0)}
+              onClick={() => setCheckedIds(selecting ? null : new Set())}
+            />
+          )}
+        </div>
       </div>
       {!loading && validationUnavailable && notice?.kind !== "denied" && (
         <div className="sp-hint" role="status">
@@ -625,46 +684,14 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
           </Button>
         </div>
       )}
-      {tab === "deleted" && kind === "model" && selectable.length > 0 && !loading && (
-        <div className="asset-admin-bulk-bar">
-          <label>
-            <input
-              type="checkbox"
-              aria-label="Select all visible assets"
-              ref={(element) => {
-                if (element)
-                  element.indeterminate =
-                    checked.length > 0 && checked.length !== selectable.length;
-              }}
-              checked={checked.length === selectable.length}
-              onChange={(event) =>
-                setCheckedIds(
-                  new Set(event.target.checked ? selectable.map((asset) => asset.id) : []),
-                )
-              }
-            />
-            Select all
-          </label>
-          <span>{checked.length} selected</span>
-          <button
-            className="asset-admin-danger"
-            disabled={!checked.length || locked}
-            onClick={() => {
-              setNotice(null);
-              setSelection({ kind: "bulk", count: checked.length });
-            }}
-          >
-            <UiIcon icon={trashIcon} aria-hidden="true" /> Delete selected
-          </button>
-        </div>
-      )}
       <p
-        className={tab === "deleted" && outcome ? "asset-admin-bulk-outcome" : "asset-admin-sr"}
+        className={!selection && outcome ? "asset-admin-bulk-outcome" : "asset-admin-sr"}
         role="status"
       >
         {outcome}
       </p>
       <div
+        ref={catalogueList}
         id="asset-visibility-panel"
         className="asset-admin-scroll"
         tabIndex={0}
@@ -678,7 +705,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
             aria-label={`Loading ${noun.toLowerCase()}`}
             aria-busy="true"
           >
-            {Array.from({ length: kind === "environment" ? 3 : 4 }, (_, index) => (
+            {Array.from({ length: 3 }, (_, index) => (
               <div
                 className="asset-admin-card asset-admin-loading-card"
                 key={index}
@@ -721,15 +748,14 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
           <div className="asset-admin-grid">
             {visible.map((asset) => (
               <article className="asset-admin-card" key={asset.id}>
-                {tab === "deleted" &&
-                  kind === "model" &&
-                  data?.policy.canForceRemove &&
-                  asset.actions.includes("remove") && (
+                {selecting && asset.actions.includes(bulkAction) && (
+                  <>
                     <input
-                      className="asset-admin-card-check"
+                      className="sp-row-select-input"
                       type="checkbox"
                       aria-label={`Select ${asset.name}`}
                       checked={checkedIds.has(asset.id)}
+                      disabled={locked}
                       onChange={(event) => {
                         const next = new Set(checkedIds);
                         if (event.target.checked) next.add(asset.id);
@@ -737,7 +763,9 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                         setCheckedIds(next);
                       }}
                     />
-                  )}
+                    <span className="sp-selection-marker" aria-hidden="true" />
+                  </>
+                )}
                 <div className="asset-admin-thumbnail">{thumbnail(asset)}</div>
                 <div className="asset-admin-card-content">
                   <div>
@@ -765,6 +793,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                   <Button
                     variant="primary"
                     className="sp-catalogue-action"
+                    disabled={selecting && asset.actions.includes(bulkAction)}
                     onClick={() => openAsset(asset)}
                   >
                     <span className="sp-button-label">
@@ -806,10 +835,11 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       </div>
       <dialog
         ref={dialog}
-        className={`asset-admin-dialog${editingForm ? " asset-admin-dialog-upload" : ""}${editing ? " asset-admin-dialog-edit" : ""}${selection?.kind === "detail" ? " asset-admin-dialog-detail" : ""}${confirmation || bulk ? " asset-admin-dialog-confirmation" : ""}`}
+        style={editing ? detailSize : undefined}
+        className={`asset-admin-dialog${selection?.kind === "upload" ? " asset-admin-dialog-upload" : ""}${editing ? " asset-admin-dialog-edit" : ""}${selected ? " asset-admin-dialog-detail" : ""}${confirmation || bulk ? " asset-admin-dialog-confirmation" : ""}`}
         aria-labelledby="asset-dialog-heading"
         onCancel={(event) => {
-          // File chooser cancellation also bubbles here; only close for the dialog’s own Escape event
+          // File chooser cancellation also bubbles here; only close for the dialog's own Escape event
           if (event.target !== event.currentTarget) {
             return;
           }
@@ -825,25 +855,30 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         >
           <div className="asset-admin-dialog-heading">
             <h2 id="asset-dialog-heading">
-              {bulk ? (
-                `Permanently delete ${checked.length} ${checked.length === 1 ? "asset" : "assets"}?`
-              ) : editing ? (
-                "Edit asset details"
-              ) : confirmation ? (
-                selected?.deleted ? (
-                  "Delete Permanently?"
-                ) : (
-                  "Delete asset?"
-                )
+              {editing && selection.field === "name" ? (
+                <label className="asset-admin-title-input" data-asset-field="name">
+                  <input
+                    aria-label="Asset Name"
+                    required
+                    maxLength={120}
+                    value={assetName}
+                    disabled={locked}
+                    onChange={(event) => setNameDraft(event.target.value)}
+                  />
+                </label>
               ) : selected && !selected.deleted ? (
                 <button
                   type="button"
                   className="asset-admin-edit-title"
                   title="Edit asset name"
                   disabled={locked}
-                  onClick={() => openAsset(selected, "name")}
+                  onClick={() =>
+                    editing
+                      ? setSelection({ ...selection, field: "name" })
+                      : openAsset(selected, "name")
+                  }
                 >
-                  {selected.name}
+                  <span className="sp-plain-label sp-button-label">{selected.name}</span>
                   <UiIcon icon={pencilIcon} aria-hidden="true" />
                 </button>
               ) : (
@@ -912,33 +947,8 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
             </Skeleton>
           ) : (
             <>
-              {bulk && (
-                <div className="asset-admin-confirmation-content">
-                  <p>The following assets will be removed from every project that uses them.</p>
-                  <ul className="asset-admin-bulk-names">
-                    {checked.map((asset) => (
-                      <li key={asset.id}>{asset.name}</li>
-                    ))}
-                  </ul>
-                  <p className="asset-admin-confirmation-warning">
-                    Published exhibitions using these assets will become permanently unavailable,
-                    including their links and QR codes. This cannot be undone.
-                  </p>
-                  {checked.length < selection.count && (
-                    <p role="status">
-                      {selection.count - checked.length} of {selection.count} permanently deleted.
-                    </p>
-                  )}
-                </div>
-              )}
               {!confirmation && !bulk && (
                 <>
-                  {replacing && (
-                    <p className="asset-admin-replacement-help">
-                      Choose a {uploadKind === "audio" ? "M4A" : "GLB"} file for the new type.
-                      Existing projects keep their original version.
-                    </p>
-                  )}
                   {choosingFile ? (
                     <label
                       className="asset-admin-upload"
@@ -980,12 +990,16 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                       </span>
                       <span>
                         {file?.name ??
-                          `Drop a ${uploadKind === "audio" ? "M4A" : "GLB"} file here or choose a file`}
+                          (replacing
+                            ? "Choose a replacement file or drop it here"
+                            : uploadKind === "audio"
+                              ? "Choose an M4A file or drop it here"
+                              : "Choose a GLB file or drop it here")}
                       </span>
                       <span className="asset-admin-help">
-                        {data
-                          ? `${extensions.join(" / ")} files, up to ${Math.floor(data.policy.maxBytes / 1024 / 1024)} MB`
-                          : ""}
+                        {data &&
+                          `${extensions.join(" / ")} files, up to ${Math.floor(data.policy.maxBytes / 1024 / 1024)} MB`}
+                        {replacing && "; existing projects keep the original file"}
                       </span>
                       <input
                         aria-label="Choose asset file"
@@ -1004,8 +1018,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                       />
                     </label>
                   ) : (
-                    selected &&
-                    !editing && (
+                    selected && (
                       <div className="asset-admin-detail-preview">
                         {thumbnail(selected)}
                         {selected.kind === "audio" &&
@@ -1050,15 +1063,15 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                         " Select Audio to upload an audio asset."}
                     </p>
                   )}
-                  {!editing && <h3>Asset Details</h3>}
+                  <h3>Asset Details</h3>
                   {selection && (
                     <div className="asset-admin-fields">
-                      {editingForm && (
+                      {selection.kind === "upload" && (
                         <label
                           className="asset-admin-select asset-admin-name"
                           data-asset-field="name"
                         >
-                          <span>Asset name</span>
+                          <span>Asset Name</span>
                           <input
                             required
                             maxLength={120}
@@ -1104,7 +1117,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                               disabled={locked}
                               onClick={() => openAsset(selected, "type")}
                             >
-                              {typeLabel(selected.kind)}{" "}
+                              <span className="sp-button-label">{typeLabel(selected.kind)}</span>
                               <UiIcon icon={pencilIcon} aria-hidden="true" />
                             </button>
                           ) : (
@@ -1132,7 +1145,9 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                               disabled={locked}
                               onClick={() => openAsset(selected, "category")}
                             >
-                              {selected.category ?? "Not configured"}{" "}
+                              <span className="sp-button-label">
+                                {selected.category ?? "Not configured"}
+                              </span>
                               <UiIcon icon={pencilIcon} aria-hidden="true" />
                             </button>
                           ) : (
@@ -1223,28 +1238,6 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                   {notice.message}
                 </p>
               )}
-              {confirmation && (
-                <div className="asset-admin-confirmation-content">
-                  <p role="alert">
-                    <strong>{selected?.name}</strong>
-                    {selected?.deleted
-                      ? " will be removed from every project that uses it."
-                      : " will move to Deleted and disappear from the student library."}
-                  </p>
-                  {!selected?.deleted && (
-                    <p className="asset-admin-confirmation-hint">
-                      Existing projects and exhibitions keep this asset.
-                    </p>
-                  )}
-                  {selected?.deleted && (
-                    <p className="asset-admin-confirmation-warning" role="alert">
-                      All published exhibitions using this asset will become permanently
-                      unavailable. Their links and QR codes will stop working. This cannot be
-                      undone.
-                    </p>
-                  )}
-                </div>
-              )}
               {selected?.status === "approved" &&
                 !editing &&
                 !confirmation &&
@@ -1318,26 +1311,16 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                     </span>
                   </a>
                 )}
-                <Button type="button" disabled={busy} onClick={closeDialog}>
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    editing && selected && !uncertainWrite ? openAsset(selected) : closeDialog()
+                  }
+                >
                   <span className="sp-button-label">Cancel</span>
                 </Button>
-                {bulk ? (
-                  <button
-                    type="button"
-                    className="asset-admin-danger"
-                    disabled={locked || !checked.length}
-                    onClick={() =>
-                      void mutate(
-                        checked.map(
-                          (asset) => (signal) =>
-                            service.changeAvailability(asset.id, "remove", signal, true),
-                        ),
-                      )
-                    }
-                  >
-                    {busy ? "Deleting…" : "Delete permanently"}
-                  </button>
-                ) : editingForm ? (
+                {editingForm ? (
                   <Button
                     className="asset-admin-primary"
                     disabled={
@@ -1407,5 +1390,36 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         </form>
       </dialog>
     </section>
+      {(confirmation || bulk) && (
+        <Dialog
+          title={bulk ? `${permanentDelete ? "Permanently delete" : "Delete"} ${subject}?` : permanentDelete ? "Delete Permanently?" : "Delete asset?"}
+          variant="admin"
+          className="sp-account-confirmation"
+          closeDisabled={busy}
+          onClose={closeDialog}
+        >
+          <p role={permanentDelete ? "alert" : undefined}>
+            {bulk ? (multiple ? "These items" : "This item") : subject}
+            {permanentDelete ? (
+              <> will be <strong>permanently removed</strong> from all projects. Affected published exhibitions will no longer open, even through their links or QR codes.</>
+            ) : " will leave the student library but remain in existing projects and exhibitions."}
+          </p>
+          {bulk && checked.length < selection.count && (
+            <p role="status">{selection.count - checked.length} of {selection.count} {bulkResult}.</p>
+          )}
+          {notice && <p role="alert">{notice.message}</p>}
+          <div ref={confirmationActions} className="sp-actions sp-confirmation-actions">
+            {uncertainWrite && <Button onClick={checkLibrary}>Check library</Button>}
+            <Button data-cancel disabled={busy} onClick={closeDialog}>Cancel</Button>
+            <Button className="sp-button--danger" disabled={locked || (bulk && !checked.length)}
+              onClick={() => bulk
+                ? void mutate(checked.map(asset => signal => service.changeAvailability(asset.id, bulkAction, signal, permanent)))
+                : void changeAvailability(permanentDelete ? "remove" : "delete")}>
+              {busy ? "Deleting…" : bulk ? bulkLabel : permanentDelete ? "Delete Permanently" : "Confirm Delete"}
+            </Button>
+          </div>
+        </Dialog>
+      )}
+    </>
   );
 }
