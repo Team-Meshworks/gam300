@@ -29,6 +29,7 @@ import {
   handleDeleteShortcut,
   handleHistoryShortcut,
   handleObjectShortcut,
+  handleSaveShortcut,
   isTextEditingTarget,
 } from "./history-shortcuts";
 import type { NavigationTool, ViewportStatus } from "./graphics/scene";
@@ -544,19 +545,19 @@ export function App({
   // Keep keyboard saving on the same path as the menu and its file picker
   useEffect(() => {
     function saveShortcut(event: KeyboardEvent) {
-      if (visitor || event.defaultPrevented || event.isComposing || event.altKey) {
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        if (server && !event.shiftKey) {
-          if (!departing && project !== null) {
-            void server.save();
-          }
-        } else {
-          document.getElementById(event.shiftKey ? "project-save-as" : "project-save")?.click();
-        }
-      }
+      handleSaveShortcut(
+        event,
+        {
+          save() {
+            if (!server) document.getElementById("project-save")?.click();
+            else if (!departing && project !== null) void server.save();
+          },
+          exportFile() {
+            document.getElementById("project-save-as")?.click();
+          },
+        },
+        visitor,
+      );
     }
     addEventListener("keydown", saveShortcut);
     return () => removeEventListener("keydown", saveShortcut);
