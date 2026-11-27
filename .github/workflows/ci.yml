@@ -341,6 +341,7 @@ jobs:
         run: |
           docker compose -f ../../compose.yaml -p spatia-ci up -d --no-build --wait --wait-timeout 90
           test "$(curl --fail --silent http://127.0.0.1:4173/version.txt)" = "$GITHUB_SHA"
+          node tests/installability.check.mjs http://127.0.0.1:4173/
           # Test files from the actual image, including the separate private catalogue root.
           # The Caddy harness first proves anonymous byte denial, then provides a synthetic
           # full session for the existing authoring browser checks.
