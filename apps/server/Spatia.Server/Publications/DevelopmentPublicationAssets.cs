@@ -6,7 +6,7 @@ namespace Spatia.Server.Publications;
 // Packaged development assets are captured privately with an edition; production never resolves them
 internal sealed class DevelopmentPublicationAssets(IHostEnvironment environment, IConfiguration configuration)
 {
-    internal sealed record Asset(string Id, string Kind, string MediaType, string Sha256, string Path, int Size, string? Placement);
+    internal sealed record Asset(string Id, string Kind, string MediaType, string Sha256, string Path, int Size, string? Placement, bool NonBlocking);
 
     internal async Task<Asset?> ReadAsync(string id, CancellationToken cancellationToken)
     {
@@ -38,6 +38,14 @@ internal sealed class DevelopmentPublicationAssets(IHostEnvironment environment,
             var file = entry.GetProperty("file").GetString();
             var size = entry.GetProperty("byteSize").GetInt64();
             var placement = entry.TryGetProperty("placement", out var placementValue) ? placementValue.GetString() : null;
+            var nonBlocking = false;
+
+            if (entry.TryGetProperty("nonBlocking", out var nonBlockingValue))
+            {
+                if (nonBlockingValue.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                    return null;
+                nonBlocking = nonBlockingValue.GetBoolean();
+            }
 
             if (entry.GetProperty("access").GetString() != "development-only"
                 || kind is not ("environment" or "model" or "image" or "audio" or "video")
@@ -45,6 +53,7 @@ internal sealed class DevelopmentPublicationAssets(IHostEnvironment environment,
                 || digest is null || digest.Length != 64 || digest.Any(c => c is not (>= '0' and <= '9') and not (>= 'a' and <= 'f'))
                 || placement is not (null or "bottom-center")
                 || (placement is not null && kind is not ("environment" or "model"))
+                || (nonBlocking && kind != "model")
                 || file is null || !file.StartsWith("delivery/", StringComparison.Ordinal)
                 || size is < 1 or > 104857600)
             {
@@ -67,7 +76,7 @@ internal sealed class DevelopmentPublicationAssets(IHostEnvironment environment,
             await using var content = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, true);
             var actual = await SHA256.HashDataAsync(content, cancellationToken);
             return Convert.ToHexStringLower(actual) == digest && content.Length == size
-                ? new Asset(id, kind, media, digest, path, checked((int)size), placement) : null;
+                ? new Asset(id, kind, media, digest, path, checked((int)size), placement, nonBlocking) : null;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException)
         {
