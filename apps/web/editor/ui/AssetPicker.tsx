@@ -43,7 +43,7 @@ const pickerLabels = {
   },
 } as const;
 
-// Pick a card then press Add. Dragging a card straight into the scene still works too
+// Pick a card then press Add, or double-click it. Dragging a card into the scene works too
 export function AssetPicker({
   assets,
   ready,
@@ -68,6 +68,13 @@ export function AssetPicker({
   const labels = pickerLabels[mode];
   const setDragImage = useDragImage();
   const [chosen, setChosen] = useState<string | null>(null);
+  function add(assetId: string) {
+    try {
+      onAdd(assetId);
+    } finally {
+      onClose();
+    }
+  }
   useEffect(() => () => onChoose?.(null), [onChoose]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AssetFilter>("all");
@@ -194,7 +201,7 @@ export function AssetPicker({
                     title={
                       rooms
                         ? "Choose this room layout"
-                        : "Pick it then press Add, or drag it into the scene"
+                        : "Double-click to add, or pick it then press Add, or drag it into the scene"
                     }
                     onClick={() => {
                       if (rooms) {
@@ -206,6 +213,11 @@ export function AssetPicker({
                       setChosen(asset.id);
                       onChoose?.(asset.id);
                       playUiSound("assetSelect");
+                    }}
+                    // The first click already chose it; the second adds it like the Add button
+                    onDoubleClick={() => {
+                      if (rooms) return;
+                      add(asset.id);
                     }}
                     onDragStart={(event) => {
                       event.dataTransfer.setData(assetDragType, asset.id);
@@ -257,12 +269,7 @@ export function AssetPicker({
           aria-describedby={chosenAsset !== undefined ? "asset-picker-selection" : undefined}
           disabled={chosen === null || !ready}
           onClick={() => {
-            if (chosen === null) return;
-            try {
-              onAdd(chosen);
-            } finally {
-              onClose();
-            }
+            if (chosen !== null) add(chosen);
           }}
         >
           Add
