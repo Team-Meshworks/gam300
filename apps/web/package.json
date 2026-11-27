@@ -34,7 +34,7 @@
     "test:scene-authoring-flow": "node tests/scene-authoring-flow.check.mjs",
     "test:history": "node tests/history-recovery.check.mjs",
     "test:deployment": "node tests/deployment.check.mjs",
-    "lint": "oxlint . --max-warnings 0 --report-unused-disable-directives-severity warn",
+    "lint": "oxlint . --disable-nested-config --max-warnings 0 --report-unused-disable-directives-severity warn",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test:display-tools": "node tests/display-tools.check.mjs",
