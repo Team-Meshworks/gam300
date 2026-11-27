@@ -378,11 +378,12 @@ try {
     "Viewport and list share selection",
   );
   const position = page.locator('output[aria-label="Selected position"]');
-  const initialPosition = await position.textContent();
+  const readPosition = async () => (await position.textContent()).replaceAll("-0.00", "0.00");
+  const initialPosition = await readPosition();
   await nudge(page, "Sample crate", "X", 0.25);
-  assert.notEqual(await position.textContent(), initialPosition);
+  assert.notEqual(await readPosition(), initialPosition);
   await undo.click();
-  assert.equal(await position.textContent(), initialPosition);
+  assert.equal(await readPosition(), initialPosition);
 
   const origin = new THREE.Vector3(...spawn).project(camera);
   const xAxis = new THREE.Vector3(spawn[0] + 1, spawn[1], spawn[2]).project(camera);
@@ -403,21 +404,21 @@ try {
   await page.mouse.move(alongAxis(75).x, alongAxis(75).y, { steps: 4 });
   await page.keyboard.press("Escape");
   await page.mouse.up();
-  assert.equal(await position.textContent(), initialPosition, "Escape cancels preview movement");
+  assert.equal(await readPosition(), initialPosition, "Escape cancels preview movement");
   await page.mouse.move(alongAxis(40).x, alongAxis(40).y);
   await page.mouse.down();
   await page.mouse.move(alongAxis(75).x, alongAxis(75).y, { steps: 4 });
   await page.locator("canvas").evaluate((canvas) => canvas.releasePointerCapture(1));
   await page.mouse.up();
-  assert.equal(await position.textContent(), initialPosition, "Lost capture cancels movement");
+  assert.equal(await readPosition(), initialPosition, "Lost capture cancels movement");
   await page.mouse.move(alongAxis(40).x, alongAxis(40).y);
   await page.mouse.down();
   await page.mouse.move(alongAxis(75).x, alongAxis(75).y, { steps: 4 });
   await page.mouse.up();
-  const movedPosition = await position.textContent();
+  const movedPosition = await readPosition();
   assert.notEqual(movedPosition, initialPosition, "Pointer drag commits movement");
   await undo.click();
-  assert.equal(await position.textContent(), initialPosition, "One Undo reverses the whole drag");
+  assert.equal(await readPosition(), initialPosition, "One Undo reverses the whole drag");
 
   // First person stand where the orbit camera looked, so back off the crate then aim at it
   await rows.nth(1).click();
@@ -453,14 +454,14 @@ try {
     await page.clock.resume();
   }
   assert.equal(await rows.first().getAttribute("aria-pressed"), "true", "Crosshair picks");
-  assert.equal(await position.textContent(), initialPosition, "A plain click carries nothing");
+  assert.equal(await readPosition(), initialPosition, "A plain click carries nothing");
   // Holding the click carries it while walking. Backing up keeps it under the crosshair
   await page.mouse.down();
   await walkBackward(300);
   await page.mouse.up();
-  assert.notEqual(await position.textContent(), initialPosition, "Holding the click carries it");
+  assert.notEqual(await readPosition(), initialPosition, "Holding the click carries it");
   await page.keyboard.press("Control+z");
-  assert.equal(await position.textContent(), initialPosition, "One Undo puts the carry back");
+  assert.equal(await readPosition(), initialPosition, "One Undo puts the carry back");
   // Looking up while carrying lifts it off the floor, then look back down at it
   const centre = { x: stageBox.x + stageBox.width / 2, y: stageBox.y + stageBox.height / 2 };
   await page.mouse.down();
@@ -478,20 +479,20 @@ try {
   );
   await page.keyboard.press("Control+z");
   await look(8);
-  assert.equal(await position.textContent(), initialPosition);
+  assert.equal(await readPosition(), initialPosition);
   // Scrolling while carrying pushes it away
   await page.mouse.down();
   await page.mouse.wheel(0, -400);
   await page.mouse.up();
-  assert.notEqual(await position.textContent(), initialPosition, "Scrolling pushes it away");
+  assert.notEqual(await readPosition(), initialPosition, "Scrolling pushes it away");
   await page.keyboard.press("Control+z");
-  assert.equal(await position.textContent(), initialPosition);
+  assert.equal(await readPosition(), initialPosition);
   // Holding right click turns it in place, a new edit clears Redo
   assert.ok(await redo.isEnabled());
   await page.mouse.down({ button: "right" });
   await page.mouse.move(centre.x + 120, centre.y, { steps: 4 });
   await page.mouse.up({ button: "right" });
-  assert.equal(await position.textContent(), initialPosition, "Turning leaves it in place");
+  assert.equal(await readPosition(), initialPosition, "Turning leaves it in place");
   assert.ok(await redo.isDisabled(), "Holding right click turns it");
   await page.keyboard.press("Control+z");
   assert.ok(await redo.isEnabled(), "One Undo puts the turn back");
@@ -502,7 +503,7 @@ try {
   await page.waitForFunction(() => document.pointerLockElement === null);
   assert.equal(await locked(), null, "Holding Alt gives the mouse back");
   await page.mouse.up();
-  assert.equal(await position.textContent(), initialPosition, "Alt cancels the carry");
+  assert.equal(await readPosition(), initialPosition, "Alt cancels the carry");
   await page.keyboard.up("Alt");
   await page.waitForFunction(() => document.pointerLockElement?.tagName === "CANVAS");
   assert.equal(await locked(), "CANVAS", "Letting go of Alt takes it again");
@@ -537,9 +538,9 @@ try {
   await stage.locator("canvas").dispatchEvent("lostpointercapture", { pointerId: 999 });
   await touchSession.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await touchSession.detach();
-  assert.equal(await position.textContent(), movedPosition, "Only the initiating touch moves");
+  assert.equal(await readPosition(), movedPosition, "Only the initiating touch moves");
   await undo.click();
-  assert.equal(await position.textContent(), initialPosition, "Touch drag is one undo step");
+  assert.equal(await readPosition(), initialPosition, "Touch drag is one undo step");
   await rows.nth(1).click();
   assert.equal(await rows.nth(1).getAttribute("aria-pressed"), "true");
   if (process.env.CHECK_SCREENSHOT) {
