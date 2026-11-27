@@ -28,14 +28,7 @@ function Joystick({ label, side, onMove, onRelease }: JoystickProps) {
 
   function move(event: ReactPointerEvent<HTMLButtonElement>) {
     if (pointerId.current !== event.pointerId) return;
-    if (side === "right") {
-      onMove(
-        (event.clientX - lastPoint.current.x) * LOOK_SENSITIVITY,
-        (event.clientY - lastPoint.current.y) * LOOK_SENSITIVITY,
-      );
-      lastPoint.current = { x: event.clientX, y: event.clientY };
-      return;
-    }
+    // Both thumbs follow the finger, clamped to the base, so each stick shows it is held
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - (rect.left + rect.width / 2);
     const y = event.clientY - (rect.top + rect.height / 2);
@@ -43,6 +36,15 @@ function Joystick({ label, side, onMove, onRelease }: JoystickProps) {
     const scale = distance > STICK_RADIUS ? STICK_RADIUS / distance : 1;
     const clamped = { x: x * scale, y: y * scale };
     setOffset(clamped);
+    if (side === "right") {
+      // Looking turns by drag distance like a swipe, not by how far the thumb is held out
+      onMove(
+        (event.clientX - lastPoint.current.x) * LOOK_SENSITIVITY,
+        (event.clientY - lastPoint.current.y) * LOOK_SENSITIVITY,
+      );
+      lastPoint.current = { x: event.clientX, y: event.clientY };
+      return;
+    }
     onMove(clamped.x / STICK_RADIUS, -clamped.y / STICK_RADIUS);
   }
 
