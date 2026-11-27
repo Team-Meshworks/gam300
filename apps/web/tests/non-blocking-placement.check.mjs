@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
+import * as THREE from "three";
 import { launchBrowser } from "./browser-security.mjs";
 import { serveProject } from "./authoring-project-fixture.mjs";
+
+function projectPoint(position, pose, box) {
+  const camera = new THREE.PerspectiveCamera(pose.fovDegrees, box.width / box.height, 0.1, 100);
+  camera.position.fromArray(pose.position);
+  camera.quaternion.fromArray(pose.rotation);
+  camera.updateMatrixWorld();
+  const point = position.clone().project(camera);
+  return { x: ((point.x + 1) / 2) * box.width, y: ((1 - point.y) / 2) * box.height };
+}
 
 const target = process.argv[2] ?? "http://127.0.0.1:5173/";
 const browser = await launchBrowser({ target, args: ["--enable-unsafe-swiftshader"] });
@@ -60,33 +70,17 @@ try {
     (object) => object.assetId === "trigger-crate-v1",
   );
   assert.ok(crateObject, "Placed trigger crate is backed up");
-  const point = await page.evaluate(
-    async ({ doc, object }) => {
-      const source = await (await fetch("/graphics/scene.ts")).text();
-      const THREE = await import(source.match(/import \* as THREE from "([^"]+)"/)[1]);
-      const rect = document.querySelector(".viewport-stage canvas").getBoundingClientRect();
-      const pose = doc.scenes[0].startCamera;
-      const camera = new THREE.PerspectiveCamera(
-        pose.fovDegrees,
-        rect.width / rect.height,
-        0.1,
-        100,
-      );
-      camera.position.fromArray(pose.position);
-      camera.quaternion.fromArray(pose.rotation);
-      camera.updateMatrixWorld();
-      const ndc = new THREE.Vector3(
-        object.transform.position[0],
-        object.transform.position[1] + 0.5,
-        object.transform.position[2],
-      ).project(camera);
-      return {
-        x: rect.x + ((ndc.x + 1) * rect.width) / 2,
-        y: rect.y + ((1 - ndc.y) * rect.height) / 2,
-      };
-    },
-    { doc: saved, object: crateObject },
+  const rect = await page.locator(".viewport-stage canvas").boundingBox();
+  const relative = projectPoint(
+    new THREE.Vector3(
+      crateObject.transform.position[0],
+      crateObject.transform.position[1] + 0.5,
+      crateObject.transform.position[2],
+    ),
+    saved.scenes[0].startCamera,
+    rect,
   );
+  const point = { x: rect.x + relative.x, y: rect.y + relative.y };
   await page.locator(".environment-row").click();
   await page.mouse.click(point.x, point.y);
   assert.equal(

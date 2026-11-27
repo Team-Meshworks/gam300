@@ -381,7 +381,10 @@ internal static class PublicationDeliveryEndpoints
         public string Kind { get; set; } = "";
         public string MediaType { get; set; } = "";
         public string Sha256 { get; set; } = "";
-        public bool NonBlocking { get; set; }
+        public bool NonBlocking
+        {
+            get; set;
+        }
     }
 
     private sealed class DevelopmentAssetBytes

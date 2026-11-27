@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
+import * as THREE from "three";
 import { launchBrowser } from "./browser-security.mjs";
 import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
+
+function projectPoint(position, pose, box) {
+  const camera = new THREE.PerspectiveCamera(pose.fovDegrees, box.width / box.height, 0.1, 100);
+  camera.position.fromArray(pose.position);
+  camera.quaternion.fromArray(pose.rotation);
+  camera.updateMatrixWorld();
+  const point = position.clone().project(camera);
+  return { x: ((point.x + 1) / 2) * box.width, y: ((1 - point.y) / 2) * box.height };
+}
 
 const target = process.argv[2] ?? "http://127.0.0.1:5173/";
 const browser = await launchBrowser({ target, args: ["--enable-unsafe-swiftshader"] });
@@ -24,19 +34,10 @@ try {
   await page.reload({ waitUntil: "domcontentloaded" });
   await openSavedProject(page);
   const box = await stage.boundingBox();
-  const placementPoint = await page.evaluate(
-    async ({ box, doc }) => {
-      const source = await (await fetch("/graphics/scene.ts")).text();
-      const THREE = await import(source.match(/import \* as THREE from "([^"]+)"/)[1]);
-      const pose = doc.scenes[0].startCamera;
-      const camera = new THREE.PerspectiveCamera(pose.fovDegrees, box.width / box.height, 0.1, 100);
-      camera.position.fromArray(pose.position);
-      camera.quaternion.fromArray(pose.rotation);
-      camera.updateMatrixWorld();
-      const point = new THREE.Vector3(0, 0, 0).project(camera);
-      return { x: ((point.x + 1) / 2) * box.width, y: ((1 - point.y) / 2) * box.height };
-    },
-    { box, doc: project.document() },
+  const placementPoint = projectPoint(
+    new THREE.Vector3(0, 0, 0),
+    project.document().scenes[0].startCamera,
+    box,
   );
   await page.getByRole("button", { name: "Asset library", exact: true }).click();
   const crateButton = page

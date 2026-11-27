@@ -55,7 +55,7 @@ import {
   roomFootprint,
   type CatalogueAsset,
 } from "../../shared/asset-runtime/catalogue";
-import { addNonBlockingHitbox } from "../../shared/asset-runtime/non-blocking";
+import { addNonBlockingHitbox } from "../../shared/preview/non-blocking";
 import { HOTSPOT_ASSET_ID } from "../../shared/asset-runtime/hotspot";
 import {
   HOTSPOT_SIZE,

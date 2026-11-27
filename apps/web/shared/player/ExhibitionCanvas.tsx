@@ -7,7 +7,7 @@ import { MobileControls } from "../preview/MobileControls";
 import { standOnPreviewFloor } from "../preview/preview-start";
 import { createWalkSpace, type WalkProp } from "../preview/walk-space";
 import { isRoomModel, knownRoomGeometry, STARTER_ROOM_SHA256 } from "../asset-runtime/catalogue";
-import { addNonBlockingHitbox } from "../asset-runtime/non-blocking";
+import { addNonBlockingHitbox } from "../preview/non-blocking";
 import { disposeModels, visibleModelBounds } from "../asset-runtime/ModelCache";
 import { createExhibitAppearance } from "../asset-runtime/exhibit-appearance";
 import { containDisplay } from "../asset-runtime/display-layout";
