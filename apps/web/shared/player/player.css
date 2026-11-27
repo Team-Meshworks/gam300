@@ -123,9 +123,9 @@
 }
 .visitor-media-dialog {
   box-sizing: border-box;
-  width: min(94vw, 1120px);
+  width: min(1120px, calc(100vw - 3rem));
   max-width: none;
-  max-height: 96dvh;
+  max-height: calc(100dvh - 3rem);
   padding: 3rem 1.75rem 1.5rem;
   border: 1px solid #ded7cc;
   border-radius: 1rem;
@@ -146,7 +146,7 @@
 .visitor-media-dialog video {
   display: block;
   width: 100%;
-  height: min(84dvh, calc(96dvh - 7rem));
+  height: min(84dvh, calc(100dvh - 10rem));
   max-width: 100%;
   object-fit: contain;
   margin-inline: auto;

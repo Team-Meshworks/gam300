@@ -963,6 +963,7 @@ document.dispatchEvent(new Event("visitor-playback-ready"));
     assert.equal(await page.evaluate(() => probe.roots.get("other").visible), false);
     assert.equal(await page.locator('[data-component-id="panel"]').evaluate((n) => n.hidden), true);
     // Clicking a digital display opens a modal with the verified media centered
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() =>
       document
         .querySelector("[data-exhibition-scene]")
@@ -988,10 +989,23 @@ document.dispatchEvent(new Event("visitor-playback-ready"));
       true,
       `Display media is centered: ${JSON.stringify(centering)}`,
     );
+    const margins = await displayModal.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: window.innerWidth - rect.right,
+        top: rect.top,
+        bottom: window.innerHeight - rect.bottom,
+      };
+    });
+    for (const [edge, size] of Object.entries(margins)) {
+      assert.ok(size >= 24, `${edge} backdrop margin is ${size}px`);
+    }
     await page.mouse.click(5, 5);
     await displayModal.waitFor({ state: "hidden" });
     assert.equal(await page.locator(".visitor-information").isVisible(), true);
     assert.equal(await page.evaluate(() => window.modalEvents.at(-1)), false);
+    await page.setViewportSize({ width: 1100, height: 850 });
     // Gaze requires a continuous dwell and resets when the visitor looks away
     await page.evaluate(() => probe.runtime.update(0.5, "owner"));
     assert.equal(await page.locator('[data-component-id="panel"]').evaluate((n) => n.hidden), true);
