@@ -46,7 +46,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         Record(await CandidateMetadata.SingleAsync(asset => asset.Id == id, token));
 
     public async Task<(AssetAdministrationRecord? Record, bool Created, bool QuotaExceeded)?> SubmitAsync(string name, string kind, string? category,
-        byte[] bytes, Guid actor, AssetReviewRequest? metadata, CancellationToken token, string? displayName = null)
+        byte[] bytes, Guid actor, AssetReviewRequest? metadata, CancellationToken token, string? displayName = null, bool matchActive = false)
     {
         if (database.Database.CurrentTransaction is null)
             throw new InvalidOperationException("Asset uploads require a caller-owned transaction.");
@@ -63,9 +63,13 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         // Validation stays outside the quota lock so other uploads can validate concurrently.
         var validation = kind == "audio" ? AssetAudioValidator.Validate(bytes) : await validator.ValidateAsync(bytes, token);
         await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(167168)", token);
-        // Replaying the original upload must still resolve the same ID after a rename or recategorisation.
-        var existing = await CandidateMetadata
-            .Where(asset => asset.Sha256 == digest && asset.Name == label && asset.Kind == kind && asset.Category == category)
+        // Catalogue submissions compare current metadata. Historical replays use the original intake identity.
+        var matches = CandidateMetadata.Where(asset => asset.Sha256 == digest && asset.Kind == kind);
+        matches = matchActive
+            ? matches.Where(asset => !asset.Deleted && (asset.CatalogueName ?? asset.Name) == label
+                && (asset.CatalogueCategory ?? asset.Category) == category)
+            : matches.Where(asset => asset.Name == label && asset.Category == category);
+        var existing = await matches
             .OrderBy(asset => asset.CreatedAt).ThenBy(asset => asset.Id)
             .FirstOrDefaultAsync(token);
 

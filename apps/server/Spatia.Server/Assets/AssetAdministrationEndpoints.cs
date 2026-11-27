@@ -187,7 +187,7 @@ public static partial class AssetAdministrationEndpoints
 
         var query = context.Request.Query;
 
-        if (query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("name" or "kind" or "category" or "displayName" or "replaces")))
+        if (query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("name" or "kind" or "category" or "displayName" or "replaces" or "match")))
             return Invalid(context);
 
         // Check metadata before reading the body; uploaded names remain labels rather than filesystem paths
@@ -195,6 +195,9 @@ public static partial class AssetAdministrationEndpoints
         var kind = query["kind"].ToString();
         var category = query.TryGetValue("category", out var raw) ? raw.ToString() : null;
         var displayName = query.TryGetValue("displayName", out var label) ? label.ToString() : null;
+        var matchActive = query.ContainsKey("match");
+        if (matchActive && (query["match"] != "active" || query.ContainsKey("replaces")))
+            return Invalid(context);
         Guid? replaces = null;
         if (query.TryGetValue("replaces", out var previous))
         {
@@ -235,7 +238,7 @@ public static partial class AssetAdministrationEndpoints
             return denied;
 
         // Validation or storage unavailability leaves no approved entry and must remain retryable to the client
-        var result = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token, displayName);
+        var result = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token, displayName, matchActive);
         if (await RecheckAdministratorAsync(context, access, token) is { } changed)
             return changed;
 

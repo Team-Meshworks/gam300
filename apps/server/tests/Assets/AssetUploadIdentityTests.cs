@@ -254,11 +254,42 @@ public sealed class AssetUploadIdentityTests
         await AuthTestRequests.AssertProblemAsync(stale, HttpStatusCode.Conflict, "asset_conflict");
     }
 
+    [Test]
+    public async Task CatalogueUploadUsesTheCurrentNameAndExcludesRetiredRecords()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Administrator));
+        var token = await fixture.GetCsrfAsync();
+        var bytes = AssetIntakeTests.CreateMinimalGlb();
+
+        async Task<AssetAdministrationRecord> Submit(string name, HttpStatusCode status)
+        {
+            using var response = await UploadAsync(fixture.Client, token, bytes, displayName: name, matchActive: true);
+            await Assert.That(response.StatusCode).IsEqualTo(status);
+            return (await response.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+        }
+
+        var first = await Submit("Exhibit", HttpStatusCode.Created);
+        using var rename = await AuthTestRequests.PutAsync(fixture.Client, $"/api/v1/admin/assets/{first.Id}/details",
+            new AssetDetailsRequest("Renamed exhibit", "model", "Objects", new("", "", "")), token);
+        await Assert.That(rename.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await Submit("Renamed exhibit", HttpStatusCode.OK)).Id).IsEqualTo(first.Id);
+        var second = await Submit("Exhibit", HttpStatusCode.Created);
+        await Assert.That(second.Id == first.Id).IsFalse();
+        using var retire = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{second.Id}/availability", new AssetAvailabilityRequest("delete"));
+        await Assert.That(retire.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var third = await Submit("Exhibit", HttpStatusCode.Created);
+        await Assert.That(third.Id == second.Id).IsFalse();
+        await Assert.That((await Submit("Exhibit", HttpStatusCode.OK)).Id).IsEqualTo(third.Id);
+    }
+
     private static async Task<HttpResponseMessage> UploadAsync(HttpClient client, string token, byte[] bytes,
         string name = "Exhibit.glb", string kind = "model", string? category = "Objects", AssetReviewRequest? metadata = null,
-        string? displayName = null, Guid? replaces = null)
+        string? displayName = null, Guid? replaces = null, bool matchActive = false)
     {
         var path = $"/api/v1/admin/assets?name={name}&kind={kind}" + (category is null ? "" : $"&category={category}");
+        if (matchActive)
+            path += "&match=active";
         if (displayName is not null)
             path += "&displayName=" + Uri.EscapeDataString(displayName);
         if (replaces is not null)

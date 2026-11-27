@@ -278,6 +278,7 @@ export function createAssetAdministrationService(
       const query = new URLSearchParams({ name: file.name, kind });
       if (name !== undefined) query.set("displayName", name);
       if (replaces) query.set("replaces", replaces);
+      else query.set("match", "active");
       if (category !== null) {
         query.set("category", category);
       }

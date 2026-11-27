@@ -218,7 +218,9 @@ it("submits M4A audio with its MIME, category and captured account", async () =>
   expect(result.ok).toBe(true);
   const upload = http.requests[1]!;
   const { pathname, search } = new URL(upload.url);
-  expect(pathname + search).toBe("/api/v1/admin/assets?name=music.m4a&kind=audio&category=BGM");
+  expect(pathname + search).toBe(
+    "/api/v1/admin/assets?name=music.m4a&kind=audio&match=active&category=BGM",
+  );
   expect(await upload.bytes()).toEqual(new Uint8Array(await file.arrayBuffer()));
   expect(upload.headers.get("Content-Type")).toBe("audio/mp4");
   expect(upload.headers.get("X-Spatia-Account")).toBe(actor);
