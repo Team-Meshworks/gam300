@@ -2281,6 +2281,14 @@ a {
   box-shadow: var(--shadow);
 }
 
+.server-session-error p {
+  margin: 0;
+}
+
+.server-session-error button {
+  margin-top: 0.75rem;
+}
+
 /* Keep search/reset within the existing picker rather than adding another control row */
 .asset-picker-reset {
   flex-shrink: 0;

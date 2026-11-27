@@ -141,16 +141,6 @@ export function TopBar({
             >
               Export
             </button>
-            <button
-              type="button"
-              disabled={busy || session.busy}
-              onClick={() => {
-                closeMenu();
-                session.openServerVersion();
-              }}
-            >
-              Open Server Version
-            </button>
           </div>
         </details>
         <input
