@@ -7,7 +7,7 @@ import type { PlacementBody } from "./placement-constraints";
 const FLOOR_EPSILON = 0.0001;
 
 export type ModelPlacementBody = PlacementBody & {
-  floorAtTransform?: ReturnType<typeof createPlacementFloor>;
+  floorAtTransform?: ReturnType<typeof createPlacementFloor>["atTransform"];
 };
 
 export function placementBody(
@@ -24,14 +24,15 @@ export function placementBody(
     model.traverse((node) => {
       if (!(node instanceof THREE.Mesh)) return;
       const face = visibleModelBounds(node);
-      if (node.name === "floor") interior.min.y = face.max.y;
       if (node.name === "Wall_Left") interior.min.x = face.max.x;
       if (node.name === "Wall_Right") interior.max.x = face.min.x;
       if (node.name === "Wall_Back") interior.min.z = face.max.z;
       if (node.name === "Wall_Front") interior.max.z = face.min.z;
     });
+    const floor = createPlacementFloor(model, bounds);
+    if (Number.isFinite(floor.lowest)) interior.min.y = floor.lowest;
     body.room = interior;
-    body.floorAtTransform = createPlacementFloor(model, bounds);
+    body.floorAtTransform = floor.atTransform;
   }
   if (asset.displayRole === "physical") {
     const glass = new THREE.Box3();
@@ -73,8 +74,25 @@ export function placementBody(
   return body;
 }
 
+function clipFloorEdge(polygon: THREE.Vector3[], axis: "x" | "z", edge: number, sign: number) {
+  const clipped: THREE.Vector3[] = [];
+  let previous = polygon.at(-1)!;
+  for (const current of polygon) {
+    const inside = (current[axis] - edge) * sign >= 0;
+    const previousInside = (previous[axis] - edge) * sign >= 0;
+    if (inside !== previousInside) {
+      const t = (edge - previous[axis]) / (current[axis] - previous[axis]);
+      clipped.push(previous.clone().lerp(current, t));
+    }
+    if (inside) clipped.push(current);
+    previous = current;
+  }
+  return clipped;
+}
+
 function createPlacementFloor(model: THREE.Object3D, bounds: THREE.Box3) {
-  const levels = new Map<number, { y: number; triangles: THREE.Triangle[] }>();
+  const faces: { triangle: THREE.Triangle; supporting: boolean }[] = [];
+  let lowest = Infinity;
   const floorBand = bounds.min.y + Math.max(0.35, (bounds.max.y - bounds.min.y) * 0.1);
   model.updateWorldMatrix(true, true);
   model.traverseVisible((node) => {
@@ -86,62 +104,120 @@ function createPlacementFloor(model: THREE.Object3D, bounds: THREE.Box3) {
       new THREE.Vector3().fromBufferAttribute(vertices, i).applyMatrix4(node.matrixWorld),
     );
     const vertex = (i: number) => points[geometry.index ? geometry.index.getX(i) : i]!;
+    let namedFloor: THREE.Object3D | null = node;
+    while (namedFloor && !/^floor(?:_\d+)?$/i.test(namedFloor.name)) namedFloor = namedFloor.parent;
+    const candidates: { triangle: THREE.Triangle; up: number }[] = [];
+    const normal = new THREE.Vector3();
+    let signedVolume = 0;
     for (let i = 0; i + 2 < (geometry.index?.count ?? vertices.count); i += 3) {
       const a = vertex(i),
         b = vertex(i + 1),
         c = vertex(i + 2);
-      const y = Math.max(a.y, b.y, c.y);
-      if (y - Math.min(a.y, b.y, c.y) > FLOOR_EPSILON || (node.name !== "floor" && y > floorBand))
-        continue;
       const triangle = new THREE.Triangle(a, b, c);
-      if (triangle.getArea() <= FLOOR_EPSILON * FLOOR_EPSILON) continue;
-      const key = Math.round(y / FLOOR_EPSILON);
-      let level = levels.get(key);
-      if (!level) {
-        level = { y, triangles: [] };
-        levels.set(key, level);
+      const up = triangle.getNormal(normal).y;
+      signedVolume += up * triangle.getArea() * ((a.y + b.y + c.y) / 3 - bounds.min.y);
+      const high = Math.max(a.y, b.y, c.y);
+      if (!namedFloor && high > floorBand) continue;
+      const sloped = high - Math.min(a.y, b.y, c.y) > FLOOR_EPSILON;
+      candidates.push({ triangle, up: namedFloor || !sloped ? up : 0 });
+    }
+    // A closed mesh's signed volume identifies its outward winding, including mirrored imports.
+    const open = Math.abs(signedVolume) <= FLOOR_EPSILON ** 3;
+    const meshFaces = candidates.map(({ triangle, up }) => ({
+      triangle,
+      supporting: Math.abs(up) > FLOOR_EPSILON && (open || up * signedVolume > 0),
+    }));
+    if (meshFaces.some((face) => face.supporting)) {
+      for (const face of meshFaces) {
+        faces.push(face);
+        const { a, b, c } = face.triangle;
+        if (face.supporting) lowest = Math.min(lowest, a.y, b.y, c.y);
       }
-      level.triangles.push(triangle);
     }
   });
 
-  const topFirst = [...levels.values()].sort((a, b) => b.y - a.y);
-  return (frame: THREE.Matrix4) => {
-    const inverse = frame.clone().invert();
-    const local = new THREE.Ray();
+  function worldFloor(frame: THREE.Matrix4) {
+    const surfaces = faces.map(({ triangle: local, supporting }) => {
+      const triangle = new THREE.Triangle(
+        local.a.clone().applyMatrix4(frame),
+        local.b.clone().applyMatrix4(frame),
+        local.c.clone().applyMatrix4(frame),
+      );
+      return {
+        triangle,
+        supporting,
+        box: new THREE.Box3().setFromPoints([triangle.a, triangle.b, triangle.c]),
+      };
+    });
     const point = new THREE.Vector3();
-    function intersect(ray: THREE.Ray) {
-      local.copy(ray).applyMatrix4(inverse);
-      if (Math.abs(local.direction.y) < 1e-12 || !local.intersectsBox(bounds)) return;
+    function intersect(ray: THREE.Ray, topOnly = true) {
       let nearest = Infinity;
-      for (const level of topFirst) {
-        const y = level.y;
-        const distance = (y - local.origin.y) / local.direction.y;
-        if (distance < 0 || distance >= nearest) continue;
-        local.at(distance, point);
-        const surface = topFirst.find((candidate) => {
-          point.y = candidate.y;
-          return candidate.triangles.some((triangle) => triangle.containsPoint(point));
-        });
-        if (surface === level) nearest = distance;
+      let hit: THREE.Vector3 | undefined;
+      for (const {
+        triangle: { a, b, c },
+        box,
+        supporting,
+      } of surfaces) {
+        if (topOnly && !supporting) continue;
+        if (!ray.intersectsBox(box) || !ray.intersectTriangle(a, b, c, false, point)) continue;
+        const distance = point.distanceToSquared(ray.origin);
+        if (distance < nearest) {
+          nearest = distance;
+          (hit ??= new THREE.Vector3()).copy(point);
+        }
       }
-      if (Number.isFinite(nearest))
-        return local.at(nearest, new THREE.Vector3()).applyMatrix4(frame);
+      return hit;
     }
     function supportHeight(x: number, minimumY: number, z: number, base: THREE.Box3) {
-      const above = bounds.clone().applyMatrix4(frame).max.y + 1;
-      const down = new THREE.Ray(new THREE.Vector3(), new THREE.Vector3(0, -1, 0));
-      let highest = minimumY;
-      function sample(dx: number, dz: number) {
-        down.origin.set(x + dx, above, z + dz);
-        const hit = intersect(down);
-        if (hit) highest = Math.max(highest, hit.y);
+      const footprint = base.clone().translate(new THREE.Vector3(x, minimumY - base.min.y, z));
+      const up = new THREE.Ray(
+        new THREE.Vector3(x, minimumY + FLOOR_EPSILON, z),
+        new THREE.Vector3(0, 1, 0),
+      );
+      const ceiling = intersect(up, false)?.y ?? Infinity;
+      const overlaps: { low: number; high: number; supporting: boolean }[] = [];
+      for (const { triangle, box, supporting } of surfaces) {
+        if (
+          box.max.y < minimumY - FLOOR_EPSILON ||
+          box.min.y >= ceiling ||
+          box.max.x < footprint.min.x ||
+          box.min.x > footprint.max.x ||
+          box.max.z < footprint.min.z ||
+          box.min.z > footprint.max.z
+        )
+          continue;
+        let polygon = [triangle.a, triangle.b, triangle.c];
+        for (const axis of ["x", "z"] as const) {
+          polygon = clipFloorEdge(polygon, axis, footprint.min[axis], 1);
+          polygon = clipFloorEdge(polygon, axis, footprint.max[axis], -1);
+        }
+        if (polygon.length) {
+          const heights = polygon.map((p) => p.y);
+          overlaps.push({ low: Math.min(...heights), high: Math.max(...heights), supporting });
+        }
       }
-      sample(0, 0);
-      for (const dx of [base.min.x, base.max.x])
-        for (const dz of [base.min.z, base.max.z]) sample(dx, dz);
-      return highest;
+      const height = base.max.y - base.min.y;
+      let highest = minimumY;
+      let reachable = highest + height;
+      for (const { low, high, supporting } of overlaps.sort((a, b) => a.low - b.low)) {
+        if (low > reachable + FLOOR_EPSILON) break;
+        if (supporting) highest = Math.max(highest, high);
+        reachable = Math.max(reachable, high, highest + height);
+      }
+      return highest + height <= ceiling + FLOOR_EPSILON ? highest : undefined;
     }
     return { intersect, supportHeight };
+  }
+  let cached: ReturnType<typeof worldFloor> | undefined;
+  const lastFrame = new THREE.Matrix4();
+  return {
+    lowest,
+    atTransform(frame: THREE.Matrix4) {
+      if (!cached || !lastFrame.equals(frame)) {
+        cached = worldFloor(frame);
+        lastFrame.copy(frame);
+      }
+      return cached;
+    },
   };
 }

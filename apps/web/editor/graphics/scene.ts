@@ -1031,7 +1031,10 @@ export function initScene(
     if (!room && bodies.some((entry) => entry.room)) return;
     const floor = room?.floorAtTransform?.(placementMatrix(room.transform));
     const [x, y, z] = position;
-    const supportY = floor?.supportHeight(x, y, z, body.bounds) ?? y;
+    const supportAt = (px: number, pz: number) =>
+      floor ? floor.supportHeight(px, y, pz, body.bounds) : y;
+    const supportY = supportAt(x, z);
+    if (supportY === undefined) return;
     const seated: Transform = { ...transform, position: [x, supportY - body.bounds.min.y, z] };
     const resolved = resolveObjectPlacement(
       { ...body, transform: seated },
@@ -1041,8 +1044,8 @@ export function initScene(
     );
     if (!resolved) return;
     const [placedX, placedY, placedZ] = resolved.position;
-    const minY = floor?.supportHeight(placedX, y, placedZ, body.bounds) ?? y;
-    if (placedY + body.bounds.min.y < minY - 1e-5) return;
+    const minY = placedX === x && placedZ === z ? supportY : supportAt(placedX, placedZ);
+    if (minY === undefined || placedY + body.bounds.min.y < minY - 1e-5) return;
     return resolved;
   }
 
