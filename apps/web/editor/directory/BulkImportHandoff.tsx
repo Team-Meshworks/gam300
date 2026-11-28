@@ -1,27 +1,44 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { Button } from "../../shared/ui/Button";
-import { Dialog } from "../../shared/ui/Dialog";
 import { downloadCredentials } from "./account-csv";
 import { ImportRequestError, type BulkImport, type BulkImportReview } from "./bulk-import";
+
+export type ImportRecovery = {
+  result?: ReactElement;
+  actions?: ReactElement;
+  message: string;
+  checking: boolean;
+  retry: () => void;
+  abandon?: () => void;
+};
+
+function RecoveryForm({
+  render,
+  state,
+}: {
+  render: (state: ImportRecovery) => ReactElement;
+  state: ImportRecovery;
+}) {
+  return render(state);
+}
 
 export function BulkImportHandoff({
   operation,
   operationId,
-  local,
-  initialReview,
-  initialError,
+  skippedRows,
+  renderRecovery,
   onClose,
 }: {
   operation: BulkImport;
   operationId: string;
-  local: boolean;
-  initialReview: BulkImportReview | null;
-  initialError: string;
+  skippedRows: (review: BulkImportReview) => React.ReactNode;
+  renderRecovery: (state: ImportRecovery) => ReactElement;
   onClose: () => void;
 }) {
-  const [review, setReview] = useState(initialReview);
+  const [review, setReview] = useState<BulkImportReview | null>(null);
+  const [downloaded, setDownloaded] = useState(false);
   const [missing, setMissing] = useState(false);
-  const [error, setError] = useState(initialError);
+  const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const mounted = useRef(true);
@@ -33,7 +50,6 @@ export function BulkImportHandoff({
   }, []);
 
   useEffect(() => {
-    if (!local) return;
     return operation.watch(() => {
       try {
         if (operation.pending() !== operationId) onClose();
@@ -42,136 +58,120 @@ export function BulkImportHandoff({
         setError("The import reference changed in another tab. Reopen the directory.");
       }
     });
-  }, [local, operation, operationId, onClose]);
+  }, [operation, operationId, onClose]);
 
-  async function act(action: "check" | "download" | "acknowledge" | "abandon") {
-    if (busy.current) return;
-    busy.current = true;
-    setPending(true);
-    setError("");
-    try {
-      if (action === "acknowledge" || action === "abandon") {
-        if (action === "acknowledge") await operation.acknowledge(operationId);
-        else await operation.abandon(operationId);
-        if (mounted.current) onClose();
-        return;
-      }
-      const { credentials, ...status } = await operation.load(operationId);
-      if (!mounted.current) return;
-      setMissing(false);
-      setReview(status);
-      if (action === "download" && credentials.length) downloadCredentials(credentials);
-    } catch (reason) {
-      if (!mounted.current) return;
-      setReview(null);
-      if (
-        reason instanceof ImportRequestError &&
-        ["bulk_import_not_found", "bulk_import_abandoned"].includes(reason.code)
-      ) {
-        setMissing(local);
-        setError(
-          local
-            ? "This import has no committed receipt. Check again, or cancel it before starting a new import."
-            : "This import is no longer available. Refresh the directory to check current imports.",
-        );
-      } else {
+  const act = useCallback(
+    async (action: "check" | "download" | "acknowledge" | "abandon") => {
+      if (busy.current) return;
+      busy.current = true;
+      setPending(true);
+      setError("");
+      try {
+        if (action === "acknowledge" || action === "abandon") {
+          if (action === "acknowledge") await operation.acknowledge(operationId);
+          else await operation.abandon(operationId);
+          if (mounted.current) onClose();
+          return;
+        }
+        const { credentials, ...status } = await operation.load(operationId);
+        if (!mounted.current) return;
         setMissing(false);
-        setError(
-          reason instanceof ImportRequestError && reason.code === "bulk_import_committed"
-            ? "This import committed before cancellation. Check its receipt to recover the credential file."
-            : reason instanceof Error
-              ? reason.message
-              : "The import receipt could not be verified. Check again.",
-        );
+        setReview(status);
+        if (action === "download" && credentials.length) {
+          downloadCredentials(credentials);
+          setDownloaded(true);
+        }
+      } catch (reason) {
+        if (!mounted.current) return;
+        setReview(null);
+        if (
+          reason instanceof ImportRequestError &&
+          ["bulk_import_not_found", "bulk_import_abandoned"].includes(reason.code)
+        ) {
+          setMissing(true);
+          setError("Check again or cancel this import before starting another.");
+        } else {
+          setMissing(false);
+          setError(
+            reason instanceof ImportRequestError && reason.code === "bulk_import_committed"
+              ? "The accounts were created. Check again to get their login details."
+              : action === "check"
+                ? "We couldn't verify which accounts were created from this CSV."
+                : reason instanceof Error
+                  ? reason.message
+                  : "The import status could not be checked. Try again.",
+          );
+        }
+      } finally {
+        busy.current = false;
+        if (mounted.current) setPending(false);
       }
-    } finally {
-      busy.current = false;
-      if (mounted.current) setPending(false);
-    }
+    },
+    [onClose, operation, operationId],
+  );
+
+  const checked = useRef(false);
+  useEffect(() => {
+    if (checked.current) return;
+    checked.current = true;
+    void act("check");
+  }, [act]);
+
+  if (!review) {
+    return (
+      <RecoveryForm
+        render={renderRecovery}
+        state={{
+          message: error || "Checking import status...",
+          checking: pending || !error,
+          retry: () => void act("check"),
+          ...(missing ? { abandon: () => void act("abandon") } : {}),
+        }}
+      />
+    );
   }
   return (
-    <Dialog
-      title="Account Creation"
-      variant="account"
-      closeDisabled={pending}
-      onClose={() => {
-        if (!busy.current) onClose();
-      }}
-    >
-      <h3>Account import</h3>
-      {error && <p role="alert">{error}</p>}
-      {review ? (
-        <>
-          <p>{review.created.length} accounts created by this import.</p>
-          {!!review.created.length && (
-            <ul aria-label="Accounts created by this import">
-              {review.created.map((item) => (
-                <li key={item.userId}>
-                  <strong>{item.displayName}</strong> · @{item.userName}
-                </li>
-              ))}
-            </ul>
-          )}
-          {review.acknowledged ? (
-            <p>The credential handoff has been acknowledged.</p>
-          ) : review.available ? (
+    <RecoveryForm
+      render={renderRecovery}
+      state={{
+        message: "",
+        checking: pending,
+        retry: () => void act("check"),
+        result: (
+          <div className="sp-hint" role="status">
             <p>
-              {review.available} temporary credentials are available until{" "}
-              {new Date(review.expiresAt).toLocaleString()}. Acknowledge the handoff once you have
-              the file.
+              {skippedRows(review) ??
+                `${review.created.length} ${review.created.length === 1 ? "account" : "accounts"} created.`}
             </p>
-          ) : (
-            !!review.created.length && (
+            {!review.acknowledged && review.available < review.created.length && (
               <p>
-                Temporary credentials are no longer available. Use View Account to set a new
-                temporary password for an intended account that needs one.
-              </p>
-            )
-          )}
-          {!review.acknowledged &&
-            review.available > 0 &&
-            review.available < review.created.length && (
-              <p>
-                Some accounts no longer have recoverable temporary credentials. The file contains
-                only the credentials still available.
+                {review.available
+                  ? `Passwords available for ${review.available} of ${review.created.length} accounts. `
+                  : ""}
+                Reset {review.available ? "the remaining" : "temporary"} passwords in View Account.
               </p>
             )}
-        </>
-      ) : (
-        !error && (
-          <p>
-            Check this import to recover its confirmed account list and available temporary
-            credentials.
-          </p>
-        )
-      )}
-      <div className="sp-actions">
-        <Button disabled={pending} onClick={onClose}>
-          Back to directory
-        </Button>
-        {!review && (
-          <Button disabled={pending} onClick={() => void act("check")}>
-            Check import receipt
-          </Button>
-        )}
-        {missing && (
-          <Button disabled={pending} onClick={() => void act("abandon")}>
-            Cancel uncommitted import
-          </Button>
-        )}
-        {review && (
+          </div>
+        ),
+        actions: (
           <>
             {review.available > 0 && (
-              <Button disabled={pending} onClick={() => void act("download")}>
-                Download credentials
+              <Button
+                variant={downloaded ? "secondary" : "primary"}
+                disabled={pending}
+                onClick={() => void act("download")}
+              >
+                Download login details
               </Button>
             )}
-            <Button disabled={pending} onClick={() => void act("acknowledge")}>
-              {review.available > 0 ? "Acknowledge credential handoff" : "Finish import"}
-            </Button>
+            {(downloaded || review.available === 0) && (
+              <Button variant="primary" disabled={pending} onClick={() => void act("acknowledge")}>
+                Done
+              </Button>
+            )}
           </>
-        )}
-      </div>
-    </Dialog>
+        ),
+      }}
+    />
   );
 }
