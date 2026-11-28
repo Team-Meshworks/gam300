@@ -736,175 +736,175 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                 {notice.kind === "denied"
                   ? "Access denied"
                   : uncertainWrite
-                  ? "Check the library"
-                  : `${kind === "environment" ? "Spaces" : "Assets"} unavailable`}
-            </h2>
-            <p>{notice.message}</p>
-            {notice.kind !== "denied" && (
-              <Button onClick={checkLibrary}>
-                <span className="sp-button-label">
-                  {uncertainWrite ? "Check library" : "Try Again"}
-                </span>
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="asset-admin-grid">
-            {visible.map((asset) => (
-              <article className="asset-admin-card" key={asset.id}>
-                {selecting && asset.actions.includes(bulkAction) && (
-                  <>
-                    <input
-                      className="sp-row-select-input"
-                      type="checkbox"
-                      aria-label={`Select ${asset.name}`}
-                      checked={checkedIds.has(asset.id)}
-                      disabled={locked}
-                      onChange={(event) => {
-                        const next = new Set(checkedIds);
-                        if (event.target.checked) next.add(asset.id);
-                        else next.delete(asset.id);
-                        setCheckedIds(next);
-                      }}
-                    />
-                    <span className="sp-selection-marker" aria-hidden="true" />
-                  </>
-                )}
-                <div className="asset-admin-thumbnail">{thumbnail(asset)}</div>
-                <div className="asset-admin-card-content">
-                  <div>
-                    <h2>{asset.name}</h2>
-                    <span className={`asset-admin-visibility admin-project-status${asset.deleted && asset.removedFromProjects ? " asset-admin-status-permanent" : asset.status === "approved" && !asset.hidden && !asset.deleted ? " admin-project-status--public" : ""}`}>
-                      {asset.status === "approved" && (
-                        <UiIcon
-                          icon={asset.hidden ? eyeOffIcon : globeIcon}
-                          width={12}
-                          height={12}
-                          aria-hidden="true"
-                        />
-                      )}
-                      {asset.deleted
-                        ? asset.removedFromProjects
-                          ? "Permanently deleted"
-                          : "Deleted"
-                        : asset.status === "approved"
-                          ? asset.hidden
-                            ? "Private"
-                            : "Public"
-                          : asset.status}
-                    </span>
-                  </div>
-                  <Button
-                    variant="primary"
-                    className="sp-catalogue-action"
-                    disabled={selecting && asset.actions.includes(bulkAction)}
-                    onClick={() => openAsset(asset)}
-                  >
-                    <span className="sp-button-label">
-                      View details
-                    </span>
-                    <span className="asset-admin-sr">: {asset.name}</span>
-                  </Button>
-                </div>
-              </article>
-            ))}
-            {visible.length === 0 && (
-              <div className="asset-admin-state">
-                <h2>{filtered ? `No matching ${noun}` : `No ${noun} yet`}</h2>
-                <p>
-                  {filtered
-                    ? "Try another name or visibility filter."
-                    : !canOpenUpload
-                      ? "Uploads will be available after the server's validation service is restored."
-                      : validationUnavailable
-                        ? "Add an audio asset while 3D validation is unavailable."
-                        : kind === "environment"
-                          ? "Add a 3D space to submit it for validation."
-                          : "Add an asset to submit it for validation."}
-                </p>
-                {(query || tab !== "all") && (
-                  <Button
-                    onClick={() => {
-                      setQuery("");
-                      setTab("all");
-                    }}
-                  >
-                    <span className="sp-button-label">Reset Search</span>
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      <dialog
-        ref={dialog}
-        style={editing ? detailSize : undefined}
-        className={`asset-admin-dialog${selection?.kind === "upload" ? " asset-admin-dialog-upload" : ""}${editing ? " asset-admin-dialog-edit" : ""}${selected ? " asset-admin-dialog-detail" : ""}${confirmation || bulk ? " asset-admin-dialog-confirmation" : ""}`}
-        aria-labelledby="asset-dialog-heading"
-        onCancel={(event) => {
-          // File chooser cancellation also bubbles here; only close for the dialog's own Escape event
-          if (event.target !== event.currentTarget) {
-            return;
-          }
-          event.preventDefault();
-          closeDialog();
-        }}
-      >
-        <form
-          onSubmit={(event) => {
-            void submit(event);
-          }}
-          aria-busy={busy}
-        >
-          <div className="asset-admin-dialog-heading">
-            <h2 id="asset-dialog-heading">
-              {editing && selection.field === "name" ? (
-                <label className="asset-admin-title-input" data-asset-field="name">
-                  <input
-                    aria-label="Asset Name"
-                    required
-                    maxLength={120}
-                    value={assetName}
-                    disabled={locked}
-                    onChange={(event) => setNameDraft(event.target.value)}
-                  />
-                </label>
-              ) : selected && !selected.deleted ? (
-                <button
-                  type="button"
-                  className="asset-admin-edit-title"
-                  title="Edit asset name"
-                  disabled={locked}
-                  onClick={() =>
-                    editing
-                      ? setSelection({ ...selection, field: "name" })
-                      : openAsset(selected, "name")
-                  }
-                >
-                  <span className="sp-plain-label sp-button-label">{selected.name}</span>
-                  <UiIcon icon={pencilIcon} aria-hidden="true" />
-                </button>
-              ) : (
-                (selected?.name ??
-                (selection?.kind === "detail"
-                  ? "Asset Details"
-                  : kind === "environment"
-                    ? "Upload 3D Space"
-                    : "Upload Assets"))
+                    ? "Check the library"
+                    : `${kind === "environment" ? "Spaces" : "Assets"} unavailable`}
+              </h2>
+              <p>{notice.message}</p>
+              {notice.kind !== "denied" && (
+                <Button onClick={checkLibrary}>
+                  <span className="sp-button-label">
+                    {uncertainWrite ? "Check library" : "Try Again"}
+                  </span>
+                </Button>
               )}
-            </h2>
-            <button
-              type="button"
-              className="asset-admin-close sp-close-button"
-              aria-label="Close asset details"
-              disabled={busy}
-              onClick={closeDialog}
-            >
-              <UiIcon icon={faXmark} aria-hidden="true" />
-            </button>
-          </div>
-          {loadingDialog ? (
+            </div>
+          ) : (
+            <div className="asset-admin-grid">
+              {visible.map((asset) => (
+                <article className="asset-admin-card" key={asset.id}>
+                  {selecting && asset.actions.includes(bulkAction) && (
+                    <>
+                      <input
+                        className="sp-row-select-input"
+                        type="checkbox"
+                        aria-label={`Select ${asset.name}`}
+                        checked={checkedIds.has(asset.id)}
+                        disabled={locked}
+                        onChange={(event) => {
+                          const next = new Set(checkedIds);
+                          if (event.target.checked) next.add(asset.id);
+                          else next.delete(asset.id);
+                          setCheckedIds(next);
+                        }}
+                      />
+                      <span className="sp-selection-marker" aria-hidden="true" />
+                    </>
+                  )}
+                  <div className="asset-admin-thumbnail">{thumbnail(asset)}</div>
+                  <div className="asset-admin-card-content">
+                    <div>
+                      <h2>{asset.name}</h2>
+                      <span
+                        className={`asset-admin-visibility admin-project-status${asset.deleted && asset.removedFromProjects ? " asset-admin-status-permanent" : asset.status === "approved" && !asset.hidden && !asset.deleted ? " admin-project-status--public" : ""}`}
+                      >
+                        {asset.status === "approved" && (
+                          <UiIcon
+                            icon={asset.hidden ? eyeOffIcon : globeIcon}
+                            width={12}
+                            height={12}
+                            aria-hidden="true"
+                          />
+                        )}
+                        {asset.deleted
+                          ? asset.removedFromProjects
+                            ? "Permanently deleted"
+                            : "Deleted"
+                          : asset.status === "approved"
+                            ? asset.hidden
+                              ? "Private"
+                              : "Public"
+                            : asset.status}
+                      </span>
+                    </div>
+                    <Button
+                      variant="primary"
+                      className="sp-catalogue-action"
+                      disabled={selecting && asset.actions.includes(bulkAction)}
+                      onClick={() => openAsset(asset)}
+                    >
+                      <span className="sp-button-label">View details</span>
+                      <span className="asset-admin-sr">: {asset.name}</span>
+                    </Button>
+                  </div>
+                </article>
+              ))}
+              {visible.length === 0 && (
+                <div className="asset-admin-state">
+                  <h2>{filtered ? `No matching ${noun}` : `No ${noun} yet`}</h2>
+                  <p>
+                    {filtered
+                      ? "Try another name or visibility filter."
+                      : !canOpenUpload
+                        ? "Uploads will be available after the server's validation service is restored."
+                        : validationUnavailable
+                          ? "Add an audio asset while 3D validation is unavailable."
+                          : kind === "environment"
+                            ? "Add a 3D space to submit it for validation."
+                            : "Add an asset to submit it for validation."}
+                  </p>
+                  {(query || tab !== "all") && (
+                    <Button
+                      onClick={() => {
+                        setQuery("");
+                        setTab("all");
+                      }}
+                    >
+                      <span className="sp-button-label">Reset Search</span>
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <dialog
+          ref={dialog}
+          style={editing ? detailSize : undefined}
+          className={`asset-admin-dialog${selection?.kind === "upload" ? " asset-admin-dialog-upload" : ""}${editing ? " asset-admin-dialog-edit" : ""}${selected ? " asset-admin-dialog-detail" : ""}${confirmation || bulk ? " asset-admin-dialog-confirmation" : ""}`}
+          aria-labelledby="asset-dialog-heading"
+          onCancel={(event) => {
+            // File chooser cancellation also bubbles here; only close for the dialog's own Escape event
+            if (event.target !== event.currentTarget) {
+              return;
+            }
+            event.preventDefault();
+            closeDialog();
+          }}
+        >
+          <form
+            onSubmit={(event) => {
+              void submit(event);
+            }}
+            aria-busy={busy}
+          >
+            <div className="asset-admin-dialog-heading">
+              <h2 id="asset-dialog-heading">
+                {editing && selection.field === "name" ? (
+                  <label className="asset-admin-title-input" data-asset-field="name">
+                    <input
+                      aria-label="Asset Name"
+                      required
+                      maxLength={120}
+                      value={assetName}
+                      disabled={locked}
+                      onChange={(event) => setNameDraft(event.target.value)}
+                    />
+                  </label>
+                ) : selected && !selected.deleted ? (
+                  <button
+                    type="button"
+                    className="asset-admin-edit-title"
+                    title="Edit asset name"
+                    disabled={locked}
+                    onClick={() =>
+                      editing
+                        ? setSelection({ ...selection, field: "name" })
+                        : openAsset(selected, "name")
+                    }
+                  >
+                    <span className="sp-plain-label sp-button-label">{selected.name}</span>
+                    <UiIcon icon={pencilIcon} aria-hidden="true" />
+                  </button>
+                ) : (
+                  (selected?.name ??
+                  (selection?.kind === "detail"
+                    ? "Asset Details"
+                    : kind === "environment"
+                      ? "Upload 3D Space"
+                      : "Upload Assets"))
+                )}
+              </h2>
+              <button
+                type="button"
+                className="asset-admin-close sp-close-button"
+                aria-label="Close asset details"
+                disabled={busy}
+                onClick={closeDialog}
+              >
+                <UiIcon icon={faXmark} aria-hidden="true" />
+              </button>
+            </div>
+            {loadingDialog ? (
             <Skeleton
               loading
               label={
