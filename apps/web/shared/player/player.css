@@ -64,6 +64,9 @@
   transform: translateX(-50%);
   z-index: 6;
 }
+.visitor-preview .walk-hint {
+  top: 4.5rem;
+}
 .visitor-preview .walk-hint,
 .visitor-preview .crosshair {
   z-index: 2;

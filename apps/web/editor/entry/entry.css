@@ -375,6 +375,7 @@
 }
 .entry-back {
   display: inline-flex;
+  justify-self: start;
   gap: 10px;
   align-items: center;
   font-size: 14px;

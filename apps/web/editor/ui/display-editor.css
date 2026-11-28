@@ -524,7 +524,7 @@
   background: transparent;
 }
 .sp-display-dialog .display-card-favourite:hover {
-  background: var(--pill);
+  background-image: var(--sp-hover-layer);
 }
 .sp-display-dialog .display-card-favourite[aria-pressed="true"] {
   background: transparent;
@@ -707,10 +707,9 @@ dialog.sp-dialog.sp-display-dialog
   object-fit: contain;
   transform: translate(-50%, -50%);
 }
-
 dialog.sp-dialog.sp-display-dialog
   .display-editor-rail
   button:not([aria-selected="true"]):is(:hover, :focus-visible)
   .display-tab-background {
-  background: var(--card-raised);
+  background-image: var(--sp-hover-layer);
 }

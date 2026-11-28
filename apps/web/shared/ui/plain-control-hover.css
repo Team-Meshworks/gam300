@@ -1,0 +1,38 @@
+:root {
+  --sp-plain-hover-pad: 5px;
+}
+
+[data-plain-hover="anchor"] {
+  position: relative !important;
+}
+
+[data-plain-hover] {
+  isolation: isolate;
+}
+
+[data-plain-hover]:hover:not(:disabled) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+[data-plain-hover]:hover:not(:disabled, [aria-disabled="true"])::before {
+  background: var(--sp-plain-hover-fill, var(--sp-hover));
+}
+
+[data-plain-hover]:hover:not(:disabled, [aria-disabled="true"])::before {
+  content: "";
+  position: absolute;
+  left: var(--hover-offset-x);
+  top: var(--hover-offset-y);
+  width: var(--hover-paint-width);
+  height: var(--hover-paint-height);
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  border-radius: 6px;
+  background: var(--sp-plain-hover-fill, var(--sp-hover));
+  box-shadow: none;
+  pointer-events: none;
+  z-index: -1;
+  place-self: auto;
+}

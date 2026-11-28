@@ -1,3 +1,5 @@
+@import "../../shared/ui/control-colors.css";
+
 /* Publishing states share a frame while retaining distinct text hierarchy. */
 .creator-approval-dialog {
   box-sizing: border-box;
@@ -36,7 +38,7 @@
 .creator-approval-dialog .publish-status-header {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   min-height: 40px;
   padding-right: 40px;
@@ -251,7 +253,7 @@
   padding-inline: 30px;
 }
 
-/* Align the close control with the header label rather than its two-line group */
+/* Align the close button top with the publishing header top. */
 .creator-approval-dialog .sp-button.creator-approval-close {
-  top: -8px;
+  top: 0;
 }

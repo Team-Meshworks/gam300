@@ -1,5 +1,14 @@
 /* Shared button surfaces, states and label layout */
 .sp-button {
+  --sp-primary-hover-tint: color-mix(
+    in srgb,
+    var(--sp-button-primary-toward, var(--sp-hover-light)) var(--sp-hover-strength),
+    transparent
+  );
+  --sp-primary-hover-layer: linear-gradient(
+    var(--sp-primary-hover-tint),
+    var(--sp-primary-hover-tint)
+  );
   --sp-primary-hover: color-mix(
     in srgb,
     var(--sp-button-primary-base, var(--sp-ink)),
@@ -27,7 +36,7 @@
   text-box-edge: cap alphabetic;
 }
 .sp-button:hover:not(:disabled) {
-  background: var(--sp-hover);
+  background-image: var(--sp-hover-layer);
 }
 .sp-button--primary {
   background: var(--sp-ink);
@@ -35,7 +44,7 @@
   border-color: var(--sp-ink);
 }
 .sp-button--primary:hover:not(:disabled) {
-  background: var(--sp-primary-hover);
+  background-image: var(--sp-primary-hover-layer);
 }
 .sp-button--quiet {
   padding: 4px 0;

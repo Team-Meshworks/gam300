@@ -7,7 +7,7 @@
   --exhibit-edge: var(--palette-edge);
   --exhibit-ink: var(--palette-ink);
   --exhibit-toolbar: #faf9f5;
-  --exhibit-hover: #e7e2d8;
+  --exhibit-hover: var(--sp-hover);
   --exhibit-tooltip: #3d3133;
   --exhibit-popup-shadow: var(--palette-shadow);
 }
@@ -58,7 +58,7 @@
   color: var(--exhibit-ink);
 }
 .exhibit-context .exhibit-popup-toolbar button:is(:hover, [aria-expanded="true"]) {
-  background: var(--exhibit-hover);
+  background-image: var(--sp-hover-layer);
 }
 .exhibit-context .exhibit-popup-toolbar button:active {
   transform: scale(0.96);

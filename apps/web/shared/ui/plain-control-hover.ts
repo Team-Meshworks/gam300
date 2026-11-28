@@ -24,7 +24,7 @@ let watchedControl: HTMLElement | null = null;
 let labelResize: ResizeObserver | null = null;
 let fontRefreshPending = false;
 let watchingViewport = false;
-const textMeasure = document.createElement("canvas").getContext("2d")!;
+let textMeasure: CanvasRenderingContext2D | undefined;
 export function textBounds(
   label: Element,
   includeUnderline = true,
@@ -32,6 +32,7 @@ export function textBounds(
   measurementScale = 1,
   verticalReference?: string,
 ) {
+  textMeasure ??= document.createElement("canvas").getContext("2d")!;
   const style = getComputedStyle(label);
   const zoom = (label as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
   const range = document.createRange();

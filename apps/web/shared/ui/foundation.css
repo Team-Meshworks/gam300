@@ -4,6 +4,7 @@
 @import "./form-dialog.css";
 @import "./button.css";
 @import "./control-colors.css";
+@import "./plain-control-hover.css";
 @import "./scrollbars.css";
 @import "./panel-surfaces.css";
 @import "./search-field.css";
@@ -23,12 +24,9 @@
   color: #292723;
   background: #fff;
   font-synthesis: none;
-  --sp-ink: #292723;
   --sp-muted: #77716a;
   --sp-border: #e7e2dc;
-  --sp-surface: #fffdfb;
   --sp-soft: #f7f5f2;
-  --sp-plain-hover-pad: 5px;
   --sp-admin-action-gap: 10px;
   --sp-preview-card-gap: 8px;
   --sp-selection-hover: var(--sp-hover);
@@ -833,7 +831,9 @@ body:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome) {
   text-box-trim: trim-both;
   text-box-edge: cap alphabetic;
 }
-.sp-shell[data-account-role="Administrator"] .sp-dialog.sp-account-confirmation > .sp-dialog-dismiss {
+.sp-shell[data-account-role="Administrator"]
+  .sp-dialog.sp-account-confirmation
+  > .sp-dialog-dismiss {
   position: static;
 }
 .sp-dialog.sp-account-confirmation > .sp-dialog-body {
@@ -1063,19 +1063,6 @@ body:has(.admin-greeting, .sp-student-dashboard, .sp-teacher-welcome) {
 }
 
 /* The pointer target keeps its full size. Only the painted highlight hugs the ink. */
-[data-plain-hover="anchor"] {
-  position: relative !important;
-}
-[data-plain-hover] {
-  isolation: isolate;
-}
-[data-plain-hover]:hover:not(:disabled) {
-  background: transparent !important;
-  box-shadow: none !important;
-}
-[data-plain-hover]:hover:not(:disabled, [aria-disabled="true"])::before {
-  background: var(--sp-plain-hover-fill, var(--sp-hover));
-}
 
 .sp-shell[data-account-role="Administrator"]
   :is(
@@ -1388,23 +1375,6 @@ article:has(> .sp-row-select-input:checked) .sp-selection-marker::after {
 }
 
 /* One inset around native text/icon bounds; the hit area and text selection stay unchanged */
-[data-plain-hover]:hover:not(:disabled, [aria-disabled="true"])::before {
-  content: "";
-  position: absolute;
-  left: var(--hover-offset-x);
-  top: var(--hover-offset-y);
-  width: var(--hover-paint-width);
-  height: var(--hover-paint-height);
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  border-radius: 6px;
-  background: var(--sp-plain-hover-fill, var(--sp-hover));
-  box-shadow: none;
-  pointer-events: none;
-  z-index: -1;
-  place-self: auto;
-}
 
 /* Empty content occupies the remaining list region, after its heading and filters */
 .sp-shell

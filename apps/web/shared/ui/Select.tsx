@@ -17,7 +17,7 @@ type Props = {
   menuClassName?: string;
   leading?: ReactNode;
   trailing?: ReactNode;
-  footerLink?: { label: string; href: string };
+  footerLink?: { label: string; href: string; target?: "_blank" } | undefined;
 };
 
 // Keep menus in the top layer so dialog clipping cannot hide their options
@@ -41,7 +41,12 @@ export function Select({
   const menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 200 });
+  const [position, setPosition] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+    maxHeight: 200,
+  });
 
   function expand() {
     if (disabled || options.length === 0) {
@@ -246,6 +251,7 @@ export function Select({
             <button
               id={`${id}-${index}`}
               key={option.value}
+              value={option.value}
               type="button"
               role="option"
               tabIndex={-1}
@@ -266,6 +272,8 @@ export function Select({
           <div className="sp-select-footer">
             <a
               href={footerLink.href}
+              target={footerLink.target}
+              rel={footerLink.target ? "noopener noreferrer" : undefined}
               onKeyDown={(event) => {
                 if (event.key === "Escape" || (event.key === "Tab" && event.shiftKey)) {
                   event.preventDefault();

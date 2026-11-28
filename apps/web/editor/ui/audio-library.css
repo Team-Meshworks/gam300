@@ -86,7 +86,7 @@ dialog.audio-library::backdrop {
   background: var(--audio-preview-fill);
 }
 .audio-preview.ui-button:hover {
-  background: var(--button);
+  background-image: var(--sp-hover-layer);
 }
 .audio-preview.ui-button:focus-visible {
   outline: 2px solid var(--muted);
@@ -108,7 +108,7 @@ dialog.audio-library::backdrop {
   margin: 8px 0;
 }
 .audio-library .asset-picker-add:disabled {
-  background: var(--button);
+  background: var(--sp-hover);
   color: var(--muted);
   cursor: not-allowed;
 }
@@ -165,7 +165,7 @@ dialog.audio-library::backdrop {
   flex-shrink: 0;
 }
 .scene-audio-select:hover {
-  background: var(--pill);
+  background-image: var(--sp-hover-layer);
 }
 .scene-audio-select:focus-visible {
   outline: 2px solid var(--muted);
