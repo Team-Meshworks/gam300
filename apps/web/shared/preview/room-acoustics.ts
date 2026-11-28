@@ -35,17 +35,24 @@ export function reverbBucket(volume: number) {
   return REVERB_BUCKETS.findIndex((bucket) => volume <= bucket.maxVolume);
 }
 
-// 1 for a bare floor, 0 once furniture covers FULL_COVERAGE of it. Hidden props do not count
-export function roomEmptiness(room: THREE.Box3, props: readonly WalkProp[]) {
+// 1 for a bare floor, 0 once furniture covers FULL_COVERAGE of it. Hidden props do not count.
+// `room` is in the room's local frame; `toLocal` maps world space into it (identity for unrotated rooms)
+export function roomEmptiness(
+  room: THREE.Box3,
+  props: readonly WalkProp[],
+  toLocal: THREE.Matrix4 = new THREE.Matrix4(),
+) {
   const floor = (room.max.x - room.min.x) * (room.max.z - room.min.z);
   if (!(floor > 0)) return 1;
-  const world = new THREE.Box3();
+  const local = new THREE.Box3();
+  const transform = new THREE.Matrix4();
   let covered = 0;
   for (const { root, bounds } of props) {
     if (!root.visible || bounds.isEmpty()) continue;
     root.updateWorldMatrix(true, false);
-    world.copy(bounds).applyMatrix4(root.matrixWorld).intersect(room);
-    if (!world.isEmpty()) covered += (world.max.x - world.min.x) * (world.max.z - world.min.z);
+    transform.multiplyMatrices(toLocal, root.matrixWorld);
+    local.copy(bounds).applyMatrix4(transform).intersect(room);
+    if (!local.isEmpty()) covered += (local.max.x - local.min.x) * (local.max.z - local.min.z);
   }
   return 1 - Math.min(1, covered / floor / FULL_COVERAGE);
 }
@@ -70,7 +77,8 @@ export function buildImpulse(context: BaseAudioContext, seconds: number, random 
 }
 
 type Wall = { triangle: THREE.Triangle; bounds: THREE.Box3 };
-type Room = { box: THREE.Box3; volume: number };
+// Bounds live in the room's own frame so a rotated room is not inflated to a world-aligned box
+type Room = { box: THREE.Box3; toLocal: THREE.Matrix4; volume: number };
 type Chain = {
   lowpass: BiquadFilterNode;
   occlusion: GainNode;
@@ -105,6 +113,7 @@ export function createRoomAcoustics(listener: THREE.AudioListener) {
   let stagger = 0;
 
   const listenerPosition = new THREE.Vector3();
+  const localPoint = new THREE.Vector3();
   const sourcePosition = new THREE.Vector3();
   const segment = new THREE.Ray();
   const segmentBounds = new THREE.Box3();
@@ -113,8 +122,10 @@ export function createRoomAcoustics(listener: THREE.AudioListener) {
 
   function roomAt(point: THREE.Vector3) {
     let best: Room | undefined;
-    for (const room of rooms)
-      if (room.box.containsPoint(point) && (!best || room.volume < best.volume)) best = room;
+    for (const room of rooms) {
+      localPoint.copy(point).applyMatrix4(room.toLocal);
+      if (room.box.containsPoint(localPoint) && (!best || room.volume < best.volume)) best = room;
+    }
     return best;
   }
   function barriersBetween(from: THREE.Vector3, to: THREE.Vector3) {
@@ -159,10 +170,22 @@ export function createRoomAcoustics(listener: THREE.AudioListener) {
       walls = [];
       for (const root of next) {
         root.updateWorldMatrix(true, true);
-        const box = new THREE.Box3().setFromObject(root, true);
+        const toLocal = root.matrixWorld.clone().invert();
+        const box = new THREE.Box3();
+        const meshBox = new THREE.Box3();
+        const meshToLocal = new THREE.Matrix4();
+        root.traverseVisible((node) => {
+          if (!(node instanceof THREE.Mesh)) return;
+          node.geometry.computeBoundingBox();
+          meshToLocal.multiplyMatrices(toLocal, node.matrixWorld);
+          box.union(meshBox.copy(node.geometry.boundingBox!).applyMatrix4(meshToLocal));
+        });
         if (box.isEmpty()) continue;
-        const size = box.getSize(new THREE.Vector3());
-        rooms.push({ box, volume: size.x * size.y * size.z });
+        // Local size times the room's world scale gives its real volume
+        const size = box
+          .getSize(new THREE.Vector3())
+          .multiply(root.getWorldScale(new THREE.Vector3()));
+        rooms.push({ box, toLocal, volume: Math.abs(size.x * size.y * size.z) });
         root.traverseVisible((node) => {
           if (!(node instanceof THREE.Mesh)) return;
           const vertices = node.geometry.getAttribute("position");
@@ -199,9 +222,10 @@ export function createRoomAcoustics(listener: THREE.AudioListener) {
       const occlusion = context.createGain();
       const send = context.createGain();
       send.gain.value = BASE_SEND;
-      occlusion.connect(send);
+      // Tap the send after Three's panner and volume gain, so the reverb fades with distance,
+      // follows the source volume (0% is silent) and keeps the wall muffling of the dry path
+      sound.gain.connect(send);
       send.connect(bus);
-      // Dry path stays directional through the panner; the reverb send is not
       sound.setFilters([lowpass, occlusion]);
       chains.set(sound, { lowpass, occlusion, send, nextCheck: clock, fresh: true });
     },
@@ -210,6 +234,7 @@ export function createRoomAcoustics(listener: THREE.AudioListener) {
       if (!chain) return;
       chains.delete(sound);
       sound.setFilters([]);
+      sound.gain.disconnect(chain.send);
       chain.lowpass.disconnect();
       chain.occlusion.disconnect();
       chain.send.disconnect();
@@ -221,7 +246,7 @@ export function createRoomAcoustics(listener: THREE.AudioListener) {
       if (!reverb || room !== reverb.room || clock >= nextFill) {
         nextFill = clock + FILL_INTERVAL;
         const target = room
-          ? reverbFor(room.volume, roomEmptiness(room.box, props))
+          ? reverbFor(room.volume, roomEmptiness(room.box, props, room.toLocal))
           : { bucket: -1, wet: 0 };
         const first = !reverb;
         if (

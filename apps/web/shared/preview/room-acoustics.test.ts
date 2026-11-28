@@ -32,8 +32,9 @@ class FakeNode {
     this.connections.add(node);
     return node;
   }
-  disconnect() {
-    this.connections.clear();
+  disconnect(node?: FakeNode) {
+    if (node) this.connections.delete(node);
+    else this.connections.clear();
   }
 }
 class FakeGain extends FakeNode {
@@ -45,6 +46,31 @@ class FakeFilter extends FakeNode {
 }
 class FakeConvolver extends FakeNode {
   buffer: unknown = null;
+}
+// Inverse-distance rolloff like Three's PositionalAudio defaults (refDistance 3, rolloff 1)
+class FakePanner extends FakeNode {
+  owner: Object3D;
+  listener: Object3D;
+  constructor(owner: Object3D, listener: Object3D) {
+    super();
+    this.owner = owner;
+    this.listener = listener;
+  }
+  factor() {
+    const distance = this.owner
+      .getWorldPosition(new Vector3())
+      .distanceTo(this.listener.getWorldPosition(new Vector3()));
+    return 3 / (3 + Math.max(distance, 3) - 3);
+  }
+}
+// Signal level from one node to another: the product of gains and distance rolloff along each path
+function level(from: FakeNode, to: FakeNode): number {
+  if (from === to) return 1;
+  const own =
+    from instanceof FakeGain ? from.gain.value : from instanceof FakePanner ? from.factor() : 1;
+  let sum = 0;
+  for (const next of from.connections) sum += level(next, to);
+  return own * sum;
 }
 function fakeContext() {
   const nodes: FakeNode[] = [];
@@ -71,24 +97,42 @@ function setup(listenerAt: Vector3) {
   (listener as unknown as Object3D).position.copy(listenerAt);
   const acoustics = createRoomAcoustics(listener);
   const source = (at: Vector3) => {
-    const fake = Object.assign(new Object3D(), {
+    // Mirrors Three's PositionalAudio graph: source -> filters -> panner -> gain (volume) -> listener
+    const origin = new FakeNode();
+    const owner = new Object3D();
+    const panner = new FakePanner(owner, listener as unknown as Object3D);
+    const gain = new FakeGain();
+    panner.connect(gain);
+    gain.connect(input);
+    const fake = Object.assign(owner, {
+      origin,
+      gain,
       filters: [] as FakeNode[],
       setFilters(value: FakeNode[]) {
+        origin.disconnect();
         fake.filters = value;
+        [origin, ...value, panner].reduce((prev, next) => prev.connect(next));
       },
     });
     fake.position.copy(at);
     const sound = fake as unknown as PositionalAudio;
     acoustics.attach(sound);
     const [lowpass, occlusion] = fake.filters as [FakeFilter, FakeGain];
-    const send = [...occlusion.connections][0] as FakeGain;
-    return { sound, lowpass, occlusion, send };
+    const send = [...gain.connections].find((node) => node !== input) as FakeGain;
+    return { sound, lowpass, occlusion, send, origin, gain };
   };
+  // The bus is the gain feeding the convolvers
+  const bus = () =>
+    context.nodes.find(
+      (node) =>
+        node instanceof FakeGain &&
+        [...node.connections].some((next) => next instanceof FakeConvolver),
+    )!;
   const wets = () =>
     context.nodes
       .filter((node): node is FakeGain => node instanceof FakeGain && node.connections.has(input))
       .map((node) => node.gain.value);
-  return { acoustics, source, wets, context };
+  return { acoustics, source, wets, context, bus, input };
 }
 
 function room(x = 0) {
@@ -173,13 +217,65 @@ describe("room acoustics", () => {
     expect(outside.wets().every((wet) => wet === 0)).toBe(true);
   });
 
+  it("silences a source's reverb along with its dry signal at zero volume", () => {
+    const { acoustics, source, bus, input } = setup(new Vector3(-3, 0.9, 0));
+    acoustics.setRooms([room()]);
+    const { origin, gain } = source(new Vector3(1, 0.9, 0));
+    acoustics.update(0.016);
+    expect(level(origin, bus())).toBeGreaterThan(0);
+    gain.gain.value = 0;
+    expect(level(origin, input)).toBe(0);
+    expect(level(origin, bus())).toBe(0);
+  });
+
+  it("lowers what feeds the reverb with distance inside one room", () => {
+    // Same room, no walls between, and the listener's room reverb stays fixed
+    const { acoustics, source, bus, input, wets } = setup(new Vector3(-4, 0.9, 0));
+    acoustics.setRooms([room()]);
+    const near = source(new Vector3(-0.5, 0.9, 0));
+    const far = source(new Vector3(4, 0.9, 0));
+    acoustics.update(0.016);
+    const roomReverb = wets().filter((wet) => wet > 0);
+    expect(near.occlusion.gain.value).toBe(OPEN.gain);
+    expect(far.occlusion.gain.value).toBe(OPEN.gain);
+    const nearWet = level(near.origin, bus());
+    const farWet = level(far.origin, bus());
+    expect(farWet).toBeLessThan(nearWet);
+    // The send follows the dry signal's distance rolloff exactly
+    expect(farWet / nearWet).toBeCloseTo(level(far.origin, input) / level(near.origin, input));
+    expect(wets().filter((wet) => wet > 0)).toEqual(roomReverb);
+  });
+
+  it("keeps a rotated room's reverb inside its walls", () => {
+    const rotated = () => {
+      const root = room();
+      root.rotation.y = Math.PI / 4;
+      root.updateWorldMatrix(true, true);
+      return root;
+    };
+    // (6, 1, 6) lies 8.5 m along the room's local axis, beyond its 5 m wall
+    const beyond = setup(new Vector3(6, 1, 6));
+    beyond.acoustics.setRooms([rotated()]);
+    beyond.acoustics.update(0.016);
+    expect(beyond.wets().every((wet) => wet === 0)).toBe(true);
+
+    // Inside, it rings exactly like the same room unrotated
+    const inside = setup(new Vector3(2, 1, 2));
+    inside.acoustics.setRooms([rotated()]);
+    inside.acoustics.update(0.016);
+    const levels = inside.wets().filter((wet) => wet > 0);
+    expect(levels).toHaveLength(1);
+    expect(levels[0]).toBeCloseTo(REVERB_BUCKETS[1].wet * EMPTY_WET);
+  });
+
   it("restores the sound's chain and disconnects its nodes on detach", () => {
     const { acoustics, source } = setup(new Vector3());
-    const { sound, occlusion, send } = source(new Vector3(1, 0, 0));
+    const { sound, occlusion, send, gain } = source(new Vector3(1, 0, 0));
     acoustics.detach(sound);
     expect((sound as unknown as { filters: unknown[] }).filters).toEqual([]);
     expect(occlusion.connections.size).toBe(0);
     expect(send.connections.size).toBe(0);
+    expect(gain.connections.has(send)).toBe(false);
   });
 
   it("sizes reverb buckets and impulses by room volume", () => {
