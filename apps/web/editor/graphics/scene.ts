@@ -357,7 +357,12 @@ export function initScene(
       props.map(({ root }) => root),
     );
     if (!roomsChanged && !propsChanged) return;
-    if (roomsChanged) roomEntrances.sync(starterRooms);
+    spatialAudio.setProps(props);
+    if (roomsChanged) {
+      roomEntrances.sync(starterRooms);
+      // Doorway cuts come first so sound passes through the same openings visitors walk through
+      spatialAudio.setRooms(rooms);
+    }
     if (!rooms.length && !props.length) {
       walkSpace = undefined;
     } else if (!roomsChanged && walkSpace) {
@@ -615,7 +620,10 @@ export function initScene(
     // Walking moves a carried object too, not only the mouse
     carry();
     refreshGizmoForWalking();
-    if (modeManager.getState().mode === "visitor") callbacks.onUpdate(elapsed);
+    if (modeManager.getState().mode === "visitor") {
+      callbacks.onUpdate(elapsed);
+      spatialAudio.update(delta);
+    }
     fpsMeter.tick(now);
     render();
   };

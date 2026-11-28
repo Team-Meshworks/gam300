@@ -6,7 +6,8 @@ import type { PlayerSnapshot } from "./player-snapshot";
 import { isPortableHttpsUrl } from "../project/portable-url";
 import { createInteractionSession } from "../preview/interaction-session";
 import { dispatchRules } from "../preview/rule-dispatch";
-import { touchesObject } from "../preview/walk-space";
+import { createRoomAcoustics } from "../preview/room-acoustics";
+import { touchesObject, type WalkProp } from "../preview/walk-space";
 
 export type VisitorScene = PlayerSnapshot["document"]["scenes"][number];
 
@@ -34,6 +35,9 @@ export function createVisitorPlayback(
     elapsed = 0;
   let listener: THREE.AudioListener | undefined;
   const sounds: THREE.PositionalAudio[] = [];
+  let acoustics: ReturnType<typeof createRoomAcoustics> | undefined;
+  let rooms: readonly THREE.Object3D[] = [];
+  let props: readonly WalkProp[] = [];
   const pendingMedia = new Set<string>();
   const blockedMedia = new Set<string>();
   const mediaAttempts = new Map<string, symbol>();
@@ -266,6 +270,9 @@ export function createVisitorPlayback(
     if (!listener) {
       listener = new THREE.AudioListener();
       camera.add(listener);
+      acoustics = createRoomAcoustics(listener);
+      acoustics.setRooms(rooms);
+      acoustics.setProps(props);
       content.querySelectorAll<HTMLAudioElement>("audio[data-spatial-owner]").forEach((node) => {
         const owner = root(node.dataset.spatialOwner ?? "");
         if (!owner) return;
@@ -277,6 +284,7 @@ export function createVisitorPlayback(
         }
         sound.setNodeSource(audioSource);
         sound.setRefDistance(3).setMaxDistance(25).setRolloffFactor(1);
+        acoustics!.attach(sound);
         owner.add(sound);
         sounds.push(sound);
       });
@@ -396,7 +404,18 @@ export function createVisitorPlayback(
     begin,
     start,
     click,
+    // Walls muffle sources in other rooms; the listener's room sets the reverb
+    setRooms(next: readonly THREE.Object3D[]) {
+      rooms = next;
+      acoustics?.setRooms(rooms);
+    },
+    // Emptier rooms ring longer; furniture is re-measured while the scene runs
+    setProps(next: readonly WalkProp[]) {
+      props = next;
+      acoustics?.setProps(props);
+    },
     update(delta: number, lookingAt?: string) {
+      if (!disposed && !document.hidden) acoustics?.update(delta);
       if (!started || disposed || departing || document.hidden) return;
       elapsed += delta;
       // Timed triggers fire once per scene visit; re-entering creates a fresh playback session
@@ -475,6 +494,7 @@ export function createVisitorPlayback(
       content.removeEventListener("exhibit-panel-close", closePanel);
       document.removeEventListener("visibilitychange", visibility);
       content.querySelectorAll<HTMLMediaElement>("audio,video").forEach((node) => node.pause());
+      acoustics?.dispose();
       sounds.forEach((sound) => {
         sound.disconnect();
         sound.panner.disconnect();

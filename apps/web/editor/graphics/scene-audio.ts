@@ -2,6 +2,8 @@ import * as THREE from "three";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { ContentObject } from "../../shared/project/project-content";
 import type { SceneObject } from "../../shared/project/scene-object";
+import { createRoomAcoustics } from "../../shared/preview/room-acoustics";
+import type { WalkProp } from "../../shared/preview/walk-space";
 
 // Spatial tracks borrow their owner's live transform and stay silent outside Preview
 export function createSceneAudio(
@@ -10,6 +12,9 @@ export function createSceneAudio(
   reportError: (message: string) => void,
 ) {
   let listener: THREE.AudioListener | undefined;
+  let acoustics: ReturnType<typeof createRoomAcoustics> | undefined;
+  let rooms: readonly THREE.Object3D[] = [];
+  let props: readonly WalkProp[] = [];
   let controller = new AbortController();
   let preview = false;
   let visible = true;
@@ -19,6 +24,7 @@ export function createSceneAudio(
   const tracks = new Map<string, { sound: THREE.PositionalAudio; key: string; paused: boolean }>();
 
   function release(sound: THREE.PositionalAudio) {
+    acoustics?.detach(sound);
     if (sound.isPlaying) {
       sound.stop();
     }
@@ -72,6 +78,7 @@ export function createSceneAudio(
         sound.setRefDistance(3).setMaxDistance(25).setRolloffFactor(1);
         sound.setLoop(component.loop);
         sound.setVolume(component.volume);
+        acoustics?.attach(sound);
         owner.add(sound);
         const track = { sound, key, paused: false };
         tracks.set(component.id, track);
@@ -124,6 +131,19 @@ export function createSceneAudio(
       instances = nextInstances;
       sync();
     },
+    // Walls muffle sources in other rooms; the listener's room sets the reverb
+    setRooms(next: readonly THREE.Object3D[]) {
+      rooms = next;
+      acoustics?.setRooms(rooms);
+    },
+    // Emptier rooms ring longer; furniture is re-measured while the scene runs
+    setProps(next: readonly WalkProp[]) {
+      props = next;
+      acoustics?.setProps(props);
+    },
+    update(delta: number) {
+      if (preview) acoustics?.update(delta);
+    },
     play(id: string) {
       const track = [...tracks].find(([key]) => key.toLowerCase() === id.toLowerCase())?.[1];
       if (preview && visible && track?.sound.buffer && !track.sound.isPlaying) {
@@ -140,7 +160,12 @@ export function createSceneAudio(
         return;
       }
       // Entering Preview is a user gesture, allowing the browser to unlock Web Audio
-      listener ??= new THREE.AudioListener();
+      if (!listener) {
+        listener = new THREE.AudioListener();
+        acoustics = createRoomAcoustics(listener);
+        acoustics.setRooms(rooms);
+        acoustics.setProps(props);
+      }
       camera.add(listener);
       void listener.context
         .resume()
@@ -167,6 +192,7 @@ export function createSceneAudio(
     dispose() {
       preview = false;
       clear();
+      acoustics?.dispose();
       listener?.removeFromParent();
       listener?.gain.disconnect();
     },
