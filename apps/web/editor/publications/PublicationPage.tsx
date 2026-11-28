@@ -493,8 +493,16 @@ export function PublicationPage({
                       </>
                     )}
                   {readiness.state === "ApprovalRequired" && session.role !== "Administrator" && (
-                    <a href={`/review?projectId=${encodeURIComponent(projectId!)}`}>
-                      Open submissions and reviews
+                    <a
+                      href={
+                        session.role === "Creator"
+                          ? "/home"
+                          : `/review?projectId=${encodeURIComponent(projectId!)}`
+                      }
+                    >
+                      {session.role === "Creator"
+                        ? "Back to projects"
+                        : "Open submissions and reviews"}
                     </a>
                   )}
                 </>

@@ -1,3 +1,7 @@
+import {
+  workspaceFixture as reviewFixture,
+  reviewFixturePlugins,
+} from "./review-fixture-server.mjs";
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
@@ -9,6 +13,8 @@ assert.ok(
   projectId && classId && process.env.SPATIA_REVIEW_STUDENT && process.env.SPATIA_REVIEW_EDUCATOR,
 );
 const server = await createServer({
+  plugins: reviewFixturePlugins,
+  cacheDir: "test-results/vite-review-real-api",
   server: { port: 0, strictPort: false },
   logLevel: "silent",
 });
@@ -33,7 +39,7 @@ try {
     await page.getByRole("button", { name: "Log in", exact: true }).click();
     await page.waitForURL("**/home");
     if (!review) return page;
-    await page.goto(origin + "/review");
+    await page.goto(origin + reviewFixture);
     await page.getByLabel("Class", { exact: true }).selectOption(classId);
     await page.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
     await page.locator("#review-student").selectOption(projectId);
@@ -86,7 +92,7 @@ try {
       .getByRole("region", { name: "Reviews" })
       .getByText("Add a map to the draft.")
       .waitFor();
-    await student.goto(origin + "/review");
+    await student.goto(origin + reviewFixture);
     await student.getByLabel("Class", { exact: true }).selectOption(classId);
     await student.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
     await student.locator("#review-student").selectOption(projectId);
@@ -165,19 +171,40 @@ try {
   assert.equal(approved.latestDecision.outcome, "approved");
   assert.equal(approved.latestDecision.feedback, "The saved exhibition is ready.");
   // The student owns the separate publication decision after teacher approval
-  await student.goto(origin + `/publish?projectId=${projectId}`);
-  await student.getByRole("heading", { name: "Publish project", exact: true }).waitFor();
+  await student.goto(origin + "/home");
+  await student.locator(`#student-project-${projectId}`).click();
+  const details = student.getByRole("dialog", { name: "Project details", exact: true });
+  await details.getByRole("button", { name: "Publish", exact: true }).click();
+  const publishing = student.getByRole("dialog", { name: "Ready to publish your project?" });
+  const publish = publishing.getByRole("button", { name: "Publish Project", exact: true });
   if (unavailable) {
-    await student.getByText(/assets are (?:not available|unavailable) for publication/).waitFor();
+    await publishing
+      .getByText(/assets are (?:not available|unavailable) for publication/)
+      .waitFor();
+    assert.equal(await publish.isDisabled(), true);
   } else {
-    await student.getByRole("combobox", { name: "Who can open this publication" }).click();
-    await student.getByRole("option", { name: "Anyone with the link", exact: true }).click();
-    await student.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
-    await student.getByRole("button", { name: "Publish", exact: true }).click();
-    await student.getByRole("textbox", { name: "Publication link" }).waitFor();
+    const response = student.waitForResponse(
+      (r) =>
+        r.request().method() === "POST" &&
+        new URL(r.url()).pathname === `/api/v1/projects/${projectId}/publications`,
+    );
+    await publish.click();
+    const committed = await response;
+    assert.equal(committed.status(), 201);
+    const intent = committed.request().postDataJSON();
+    assert.equal(intent.intent.audience, "Unlisted");
+    await student.waitForURL(origin + "/home?tab=published");
+    const preview = student
+      .locator(`article[aria-labelledby="title-${projectId}"]`)
+      .getByRole("link", { name: "Preview", exact: true });
+    await preview.waitFor();
+    assert.equal(
+      new URL(await preview.getAttribute("href")).pathname,
+      `/p/${intent.publicationId}`,
+    );
   }
   assert.equal(publicationWrites, 0, "The educator never requests publication");
-  await student.goto(origin + "/review");
+  await student.goto(origin + reviewFixture);
   await student.getByLabel("Class", { exact: true }).selectOption(classId);
   await student.getByLabel("Assignment", { exact: true }).selectOption({ label: "Assignment" });
   await student.locator("#review-student").selectOption(projectId);

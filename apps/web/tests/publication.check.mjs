@@ -1,8 +1,23 @@
+import { fileURLToPath } from "node:url";
+import { createServer } from "vite";
 import { exhaustStorage } from "./local-storage-quota.mjs";
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
 
-const origin = process.argv[2] ?? "http://127.0.0.1:5181";
+const server = await createServer({
+  configFile: false,
+  cacheDir: "test-results/vite-publication-fixture",
+  root: fileURLToPath(new URL("../editor", import.meta.url)),
+  server: { host: "127.0.0.1", port: 0 },
+  logLevel: "silent",
+});
+await server.listen();
+const publicationFixture =
+  "/@fs/" +
+  fileURLToPath(new URL("./review-workspace-fixture.html", import.meta.url)).replaceAll("\\", "/");
+await server.warmupRequest(publicationFixture.replace(".html", ".tsx"));
+await server.waitForRequestsIdle();
+const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
 const browser = await launchBrowser({ target: origin });
 const projectId = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const actor = "8ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
@@ -34,6 +49,8 @@ const heldPublish = new Promise((resolve) => {
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   page.setDefaultTimeout(5000);
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -45,7 +62,13 @@ try {
     }
     if (path === `/api/v1/projects/${projectId}/publication-readiness`)
       return route.fulfill({
-        json: { projectId, revision: 4, state: "Ready", completionConfirmed: true, approved: true },
+        json: {
+          projectId,
+          revision: 4,
+          state: "Ready",
+          completionConfirmed: true,
+          approved: true,
+        },
       });
     if (path === `/api/v1/projects/${projectId}`)
       return route.fulfill({
@@ -85,11 +108,20 @@ try {
       }
       if (outcome === "unknown") return route.abort();
       if (outcome === "conflict")
-        return route.fulfill({ status: 409, json: { code: "revision_conflict" } });
+        return route.fulfill({
+          status: 409,
+          json: { code: "revision_conflict" },
+        });
       if (outcome === "approval")
-        return route.fulfill({ status: 409, json: { code: "approval_required" } });
+        return route.fulfill({
+          status: 409,
+          json: { code: "approval_required" },
+        });
       if (outcome === "unsupported")
-        return route.fulfill({ status: 422, json: { code: "unsupported_publication_runtime" } });
+        return route.fulfill({
+          status: 422,
+          json: { code: "unsupported_publication_runtime" },
+        });
       return route.fulfill({
         status: 201,
         json: {
@@ -103,8 +135,13 @@ try {
     }
     return route.fulfill({ status: 404 });
   });
-  await page.goto(`${origin}/publish?projectId=${projectId}`);
-  await page.getByRole("heading", { name: "Publish project" }).waitFor();
+  await page.goto(`${origin}${publicationFixture}?screen=publication&projectId=${projectId}`);
+  await page
+    .getByRole("heading", { name: "Publish project" })
+    .waitFor()
+    .catch(async (error) => {
+      throw new Error(error.message + "\n" + (await page.locator("body").innerText()));
+    });
   await page.getByText("Saved exhibition", { exact: true }).waitFor();
   assert.equal(
     await page.getByRole("listbox").isVisible(),
@@ -118,6 +155,16 @@ try {
   const publish = page.getByRole("button", { name: "Publish", exact: true });
   assert.equal(await publish.isDisabled(), true);
   await page.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  await publish.hover();
+  const hover = await publish.evaluate((element) => {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    context.fillStyle = getComputedStyle(element).backgroundColor;
+    context.fillRect(0, 0, 1, 1);
+    return [...context.getImageData(0, 0, 1, 1).data];
+  });
+  assert.equal(hover[3], 255);
+  assert.ok(Math.max(...hover.slice(0, 3)) < 120, "Publish hover stays dark");
   let leavePrompt = false;
   const dismissDeparture = async (dialog) => {
     leavePrompt = true;
@@ -153,7 +200,10 @@ try {
   assert.equal(logoutPosts, 0, "A pending publication must block header logout");
   assert.equal(await page.getByRole("link", { name: /open publication/i }).count(), 0);
   assert.equal(await qr.count(), 0, "An uncertain publication must not expose a QR code");
-  assert.deepEqual(requests[0].intent, { audience: "Authenticated", viewerIds: [student] });
+  assert.deepEqual(requests[0].intent, {
+    audience: "Authenticated",
+    viewerIds: [student],
+  });
   assert.equal(requests[0].confirmedRevision, 4);
   assert.equal(classRequests, 0);
   await page.reload();
@@ -177,9 +227,15 @@ try {
     "A committed publication should show an accessible QR code",
   );
   if (process.env.SPATIA_SHARE_SCREENSHOT) {
-    await page.screenshot({ path: process.env.SPATIA_SHARE_SCREENSHOT, fullPage: true });
+    await page.screenshot({
+      path: process.env.SPATIA_SHARE_SCREENSHOT,
+      fullPage: true,
+    });
   }
-  const linkField = page.getByRole("textbox", { name: "Publication link", exact: true });
+  const linkField = page.getByRole("textbox", {
+    name: "Publication link",
+    exact: true,
+  });
   const copyButton = page.getByRole("button", { name: "Copy link" });
   await linkField.focus();
   await page.keyboard.press("Tab");
@@ -301,23 +357,9 @@ try {
   await restoreStorage();
   // A confirmed modal publication must leave without its own pending guard blocking navigation
   outcome = "saved";
-  await page.route("**/workspace/main.tsx*", async (route) => {
-    const original = await (await route.fetch()).text();
-    const react = original.match(/from "([^"\n]*\/react\.js[^"\n]*)"/)[1];
-    const dom = original.match(/from "([^"\n]*react-dom_client[^"\n]*)"/)[1];
-    await route.fulfill({
-      contentType: "text/javascript",
-      body: `import React from ${JSON.stringify(react)};
-        import client from ${JSON.stringify(dom)};
-        import { PublishDialog } from "/publications/PublishDialog.tsx";
-        client.createRoot(document.getElementById("root")).render(React.createElement(PublishDialog, {
-          projectId: ${JSON.stringify(projectId)}, actorId: ${JSON.stringify(actor)}, onClose() {}
-        }));`,
-    });
-  });
   // Finish the preceding storage-failure scenario before testing a fresh modal
   page.once("dialog", (dialog) => dialog.accept());
-  await page.goto(`${origin}/publish?projectId=${projectId}`);
+  await page.goto(`${origin}${publicationFixture}?screen=publish-dialog&projectId=${projectId}`);
   let blockedSuccess = false;
   page.on("dialog", async (dialog) => {
     blockedSuccess = true;
@@ -330,9 +372,11 @@ try {
     false,
     "A verified publication must not trigger an unsaved-work prompt",
   );
+  assert.deepEqual(pageErrors, []);
   console.log(
     "Publication screen checks passed: saved revision, audience, uncertain retry, acknowledgement, permission and conflict.",
   );
 } finally {
   await browser.close();
+  await server.close();
 }

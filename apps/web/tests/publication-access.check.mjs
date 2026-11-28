@@ -1,12 +1,22 @@
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
 
-const server = process.argv[2]
-  ? null
-  : await createServer({ server: { host: "127.0.0.1", port: 0 }, logLevel: "error" });
-await server?.listen();
-const origin = process.argv[2] ?? `http://127.0.0.1:${server.httpServer.address().port}`;
+const server = await createServer({
+  configFile: false,
+  cacheDir: "test-results/vite-publication-access-fixture",
+  root: fileURLToPath(new URL("../editor", import.meta.url)),
+  server: { host: "127.0.0.1", port: 0 },
+  logLevel: "silent",
+});
+await server.listen();
+const publicationFixture =
+  "/@fs/" +
+  fileURLToPath(new URL("./review-workspace-fixture.html", import.meta.url)).replaceAll("\\", "/");
+await server.warmupRequest(publicationFixture.replace(".html", ".tsx"));
+await server.waitForRequestsIdle();
+const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
 const projectId = "7ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const otherProject = "6ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
 const publicationId = "1ea0882b-9365-4b9c-b8b8-e5ee113ad07e";
@@ -80,7 +90,7 @@ try {
     return route.fulfill({ status: 404 });
   });
 
-  await page.goto(`${origin}/publish?projectId=${projectId}`);
+  await page.goto(`${origin}${publicationFixture}?screen=publication&projectId=${projectId}`);
   await page.getByRole("heading", { name: "Publish project" }).waitFor();
   const section = page.getByRole("region", { name: "Manage publication access" });
   const input = section.getByRole("textbox", { name: "Publication link or ID" });

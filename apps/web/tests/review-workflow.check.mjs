@@ -4,36 +4,9 @@ import { readFile, mkdir } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
 import { createServer } from "vite";
 
-const workspaceFixture = "/tests/review-workspace-fixture.html";
-const workspaceFixtureEntry =
-  "/@fs/" +
-  fileURLToPath(new URL("./review-workspace-fixture.tsx", import.meta.url))
-    .replaceAll("\\", "/")
-    .replace(/^\/+/, "");
+import { workspaceFixture, reviewFixturePlugins } from "./review-fixture-server.mjs";
 const server = await createServer({
-  plugins: [
-    {
-      name: "review-workspace-test-fixture",
-      configureServer(vite) {
-        vite.middlewares.use(workspaceFixture, async (_request, response, next) => {
-          try {
-            const source = await readFile(
-              new URL("./review-workspace-fixture.html", import.meta.url),
-              "utf8",
-            );
-            const html = await vite.transformIndexHtml(
-              workspaceFixture,
-              source.replace("./review-workspace-fixture.tsx", workspaceFixtureEntry),
-            );
-            response.setHeader("Content-Type", "text/html");
-            response.end(html);
-          } catch (error) {
-            next(error);
-          }
-        });
-      },
-    },
-  ],
+  plugins: reviewFixturePlugins,
   cacheDir: "test-results/vite-review-workflow",
   server: { host: "127.0.0.1", port: 0, strictPort: false },
   logLevel: "silent",
@@ -227,7 +200,7 @@ try {
     return reply({ code: "review_not_found" }, 404);
   });
   async function open() {
-    await page.goto(origin + (role === "Educator" ? workspaceFixture : "/review"));
+    await page.goto(origin + workspaceFixture);
     await page.getByLabel("Class", { exact: true }).selectOption(classId);
     await page.getByLabel("Assignment", { exact: true }).selectOption(assignmentId);
     await page
