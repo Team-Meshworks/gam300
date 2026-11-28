@@ -1,7 +1,7 @@
 import { sceneNameInput } from "./authoring-project-fixture.mjs";
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
-import { blankProject, serveProject } from "./authoring-project-fixture.mjs";
+import { blankProject, serveProject, openSavedProject } from "./authoring-project-fixture.mjs";
 import { checkDisplayPlacementCancellation } from "./display-placement-cancellation.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -55,6 +55,433 @@ async function addAsset(page, name, position) {
     await placeAtRoomCenter(page);
   }
   await stage.waitFor({ state: "hidden" });
+}
+
+async function checkMobileEditorControls(browser, origin) {
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 844, height: 390 },
+    { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
+  ]) {
+    const page = await browser.newPage({
+      viewport,
+      hasTouch: true,
+      isMobile: true,
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Mobile Safari/537.36",
+    });
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("dialog", (dialog) => dialog.accept());
+    try {
+      const fixture = JSON.parse(
+        readFileSync(
+          new URL("../shared/project/fixtures/m2-project.json", import.meta.url),
+          "utf8",
+        ),
+      );
+      const project = await serveProject(page, origin, {
+        ...blankProject,
+        scenes: [
+          {
+            ...blankProject.scenes[0],
+            viewpoints: fixture.scenes[0].viewpoints,
+            objects: [{ ...fixture.scenes[0].objects[0], parentId: null, components: [] }],
+          },
+        ],
+      });
+      await page.addInitScript(() => {
+        window.__THREE_DEVTOOLS__ = new EventTarget();
+        window.__THREE_DEVTOOLS__.addEventListener("observe", (event) => {
+          const renderer = event.detail;
+          if (!renderer.isWebGLRenderer) return;
+          const render = renderer.render;
+          renderer.render = function (scene, camera) {
+            if (this.domElement.getAttribute("aria-label") === "3D scene")
+              window.mobileCamera = camera;
+            return render.call(this, scene, camera);
+          };
+        });
+      });
+      await page.goto(project.url);
+      await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+      assert.match(await page.locator(".walk-hint").innerText(), /Move and Look/);
+      assert.doesNotMatch(await page.locator(".walk-hint").innerText(), /WASD|Space to jump/);
+      const balance = await page.evaluate(() => {
+        const left = document.querySelector(".mobile-joystick--left").getBoundingClientRect();
+        const right = document.querySelector(".mobile-joystick--right").getBoundingClientRect();
+        const dock = document.querySelector(".bottom-dock").getBoundingClientRect();
+        return {
+          left: left.left,
+          right: innerWidth - right.right,
+          size: left.width,
+          otherSize: right.width,
+          dockCenter: dock.x + dock.width / 2,
+          center: innerWidth / 2,
+        };
+      });
+      assert.ok(Math.abs(balance.left - balance.right) < 1, "Joystick side insets must match");
+      assert.equal(balance.size, balance.otherSize, "Joystick sizes must match");
+      assert.ok(
+        Math.abs(balance.dockCenter - balance.center) < 1,
+        "Bottom toolbar must stay centered",
+      );
+      // Real taps must reach every rail action without scrolling it out of the viewport.
+      for (const name of ["Scene tree", "Position", "Scenes", "Saved views", "Interaction"]) {
+        const button = page.getByRole("button", { name, exact: true });
+        if ((await button.getAttribute("aria-pressed")) === "true") await button.tap();
+        const box = await button.boundingBox();
+        assert.ok(
+          box && box.y >= 0 && box.y + box.height <= viewport.height,
+          `${name} is offscreen`,
+        );
+        await button.tap();
+        assert.equal(
+          await button.getAttribute("aria-pressed"),
+          "true",
+          `${name} tap is intercepted`,
+        );
+        const blocked = await page
+          .locator(".mobile-joystick, .mobile-jump-button, .scene-toolbar button, .mode-bar button")
+          .evaluateAll((elements) =>
+            elements
+              .filter((el) => {
+                const r = el.getBoundingClientRect();
+                const x = r.x + r.width / 2,
+                  y = r.y + r.height / 2;
+                const clip = el.closest(".scene-toolbar")?.getBoundingClientRect();
+                if (clip && (x < clip.left || x > clip.right)) return false;
+                const target = document.elementFromPoint(x, y);
+                return !target || !el.contains(target);
+              })
+              .map((el) => el.getAttribute("aria-label")),
+          );
+        assert.deepEqual(blocked, [], `${name} panel intercepts controls`);
+        if (name === "Saved views") {
+          const entrance = page.getByRole("button", { name: "1. Entrance", exact: true });
+          await entrance.tap();
+          await page.getByRole("button", { name: "Go to view", exact: true }).waitFor();
+        }
+        await button.tap();
+      }
+      if (viewport.width > viewport.height) {
+        for (const edge of ["Top", "Left", "Right", "Bottom"]) {
+          await page.getByRole("button", { name: "Move toolbar", exact: true }).tap();
+          await page
+            .getByRole("group", { name: "Dock toolbar", exact: true })
+            .getByRole("button", { name: edge, exact: true })
+            .tap();
+          assert.equal(
+            await page.locator(".bottom-dock").getAttribute("data-edge"),
+            edge.toLowerCase(),
+          );
+          for (const name of ["Move", "Look", "Jump. Press twice quickly to toggle flying."]) {
+            await page.getByRole("button", { name, exact: true }).tap();
+          }
+        }
+      }
+      const settings = page.getByRole("button", { name: "Settings", exact: true });
+      await settings.tap();
+      const settingsDialog = page.getByRole("dialog", { name: "Settings", exact: true });
+      await settingsDialog.getByRole("switch", { name: "Dark mode", exact: true }).tap();
+      await settingsDialog.getByRole("slider", { name: "Sound Effects", exact: true }).tap();
+      assert.ok(
+        Number(
+          await settingsDialog
+            .getByRole("slider", { name: "Sound Effects", exact: true })
+            .inputValue(),
+        ) < 100,
+      );
+      await settingsDialog.getByRole("button", { name: "Cancel", exact: true }).tap();
+      await settings.tap();
+      await settingsDialog.getByRole("button", { name: "Save Changes", exact: true }).tap();
+      await page.locator('summary[aria-label="Project options"]').tap();
+      // Android Chrome uses the download fallback rather than the desktop-only file picker.
+      await page.evaluate(() => {
+        window.showSaveFilePicker = undefined;
+      });
+      const download = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Export", exact: true }).tap();
+      const exported = await download;
+      assert.ok(exported.suggestedFilename().endsWith(".json"));
+      assert.equal(
+        JSON.parse(readFileSync(await exported.path(), "utf8")).projectId,
+        project.document().projectId,
+      );
+      await page.locator('summary[aria-label="Project options"]').tap();
+      const chooser = page.waitForEvent("filechooser");
+      await page.getByRole("button", { name: "Import", exact: true }).tap();
+      await (await chooser).setFiles([]);
+      await page.getByRole("button", { name: "Scenes", exact: true }).tap();
+      await page.getByRole("button", { name: "+ Add Scene", exact: true }).tap();
+      await project.waitForDocument((doc) => doc.scenes.length === 2);
+      const sceneName = page.getByRole("textbox", { name: "Scene name", exact: true });
+      await page.getByRole("button", { name: "2. Scene 2", exact: true }).tap();
+      if (!(await sceneName.isVisible()))
+        await page.getByRole("button", { name: "2. Scene 2", exact: true }).tap();
+      await sceneName.fill("Mobile room");
+      await sceneName.press("Enter");
+      await page.getByRole("button", { name: "Delete scene Mobile room", exact: true }).tap();
+      await page.getByRole("button", { name: "Confirm delete scene", exact: true }).tap();
+      await project.waitForDocument((doc) => doc.scenes.length === 1);
+      await page.getByRole("button", { name: "Undo", exact: true }).tap();
+      await project.waitForDocument((doc) => doc.scenes.length === 2);
+      await page.getByRole("button", { name: "Redo", exact: true }).tap();
+      await project.waitForDocument((doc) => doc.scenes.length === 1);
+      await page.getByRole("button", { name: "Scenes", exact: true }).tap();
+      await page.getByRole("button", { name: "Saved views", exact: true }).tap();
+      await page.getByRole("button", { name: "+ Add View", exact: true }).tap();
+      const addedView = page.locator(".saved-view-name").last();
+      const viewName = page.getByRole("textbox", { name: "View name", exact: true });
+      await addedView.tap();
+      if (!(await viewName.isVisible())) await addedView.tap();
+      await viewName.fill("Mobile view");
+      await viewName.press("Enter");
+      await page
+        .getByRole("button", { name: /Mobile view$/, exact: false })
+        .first()
+        .tap();
+      await page.getByRole("button", { name: "Go to view", exact: true }).tap();
+      const starting = page.getByRole("button", { name: "Set as starting view", exact: true });
+      if (await starting.isEnabled()) await starting.tap();
+      await page.getByRole("button", { name: "Delete view Mobile view", exact: true }).tap();
+      await page.getByRole("button", { name: "Confirm delete view", exact: true }).tap();
+      await page.getByRole("button", { name: "Saved views", exact: true }).tap();
+      // The movement targets must not cover the authoring toolbar or side-rail buttons.
+      const overlaps = await page.evaluate(() => {
+        const sticks = [...document.querySelectorAll(".mobile-joystick, .mobile-jump-button")].map(
+          (el) => el.getBoundingClientRect(),
+        );
+        return [
+          ...document.querySelectorAll(".scene-toolbar button, .mode-bar button, .rail-button"),
+        ]
+          .filter((el) => {
+            const r = el.getBoundingClientRect();
+            return sticks.some(
+              (s) =>
+                Math.min(r.right, s.right) > Math.max(r.left, s.left) &&
+                Math.min(r.bottom, s.bottom) > Math.max(r.top, s.top),
+            );
+          })
+          .map((el) => el.getAttribute("aria-label"));
+      });
+      assert.deepEqual(overlaps, [], "Touch controls cover editor actions");
+      await page.getByRole("button", { name: "Move", exact: true }).tap();
+      const movement = await page.getByRole("button", { name: "Move", exact: true }).boundingBox();
+      const start = await page.evaluate(() => window.mobileCamera.position.toArray());
+      const touch = await page.context().newCDPSession(page);
+      const x = movement.x + movement.width / 2;
+      const y = movement.y + movement.height / 2;
+      try {
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [{ x, y, id: 1 }],
+        });
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [{ x, y: y - 30, id: 1 }],
+        });
+        await page.waitForFunction(
+          (before) =>
+            window.mobileCamera.position.toArray().some((n, i) => Math.abs(n - before[i]) > 0.1),
+          start,
+        );
+      } finally {
+        await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        await touch.detach();
+      }
+      await page.getByRole("button", { name: "Look", exact: true }).tap();
+      await page
+        .getByRole("button", { name: "Jump. Press twice quickly to toggle flying.", exact: true })
+        .tap();
+      await page.getByRole("button", { name: "Asset library", exact: true }).tap();
+      await page.locator(".asset-picker").waitFor();
+      await page.getByRole("button", { name: "Close asset library", exact: true }).tap();
+      for (const name of ["Display cases", "Audio"]) {
+        const button = page.getByRole("button", { name, exact: true });
+        await button.tap();
+        await page.getByRole("group", { name: `${name} options`, exact: true }).waitFor();
+        await button.tap();
+      }
+      await page.getByRole("button", { name: "Scene tree", exact: true }).tap();
+      await page.locator(".scene-tree .object-row").filter({ hasText: "First crate" }).tap();
+      await page.getByRole("button", { name: "Scene tree", exact: true }).tap();
+      const countHotspots = (doc) =>
+        (doc.scenes[0].hotspots?.length ?? 0) +
+        doc.scenes[0].objects
+          .flatMap((object) => object.components ?? [])
+          .filter((component) => component.type === "hotspot").length;
+      const hotspots = countHotspots(project.document());
+      await page.getByRole("button", { name: "Add Hotspot", exact: true }).tap();
+      await project.waitForDocument((doc) => countHotspots(doc) === hotspots + 1);
+      await page.getByRole("button", { name: "Interaction", exact: true }).tap();
+      await page.getByRole("button", { name: "+ Add Interaction", exact: true }).tap();
+      await page.getByLabel("Interaction 1 when", { exact: true }).selectOption("scene-starts");
+      await page.getByLabel("Interaction 1 do", { exact: true }).selectOption("print-hi");
+      await page.getByRole("button", { name: "Delete Interaction 1", exact: true }).tap();
+      await page.getByRole("button", { name: "Interaction", exact: true }).tap();
+      await page.getByRole("button", { name: "Audio", exact: true }).tap();
+      await page
+        .getByRole("group", { name: "Audio options", exact: true })
+        .getByRole("button", { name: "BGM", exact: true })
+        .tap();
+      const audio = page.getByRole("dialog", { name: "Audio", exact: true });
+      await audio.getByRole("button", { name: "Ethereal Calm", exact: true }).tap();
+      await audio.getByRole("button", { name: "Add", exact: true }).tap();
+      await audio.waitFor({ state: "hidden" });
+      await page.getByRole("button", { name: "Third person", exact: true }).tap();
+      for (const category of ["Rooms", "Furniture", "Asset library"]) {
+        await page.getByRole("button", { name: category, exact: true }).tap();
+        await page.locator(".asset-picker").waitFor();
+        const search = page.locator(".asset-picker input[type=search]");
+        await search.tap();
+        await search.fill("no matching asset");
+        await page.locator(".asset-picker .asset-picker-reset").tap();
+        await page.locator(".asset-picker .asset-picker-close").tap();
+      }
+      await page.getByRole("button", { name: "Asset library", exact: true }).tap();
+      await page
+        .locator(".asset-picker")
+        .getByRole("button", { name: "Sample crate", exact: true })
+        .tap();
+      await page.getByRole("button", { name: "Add", exact: true }).tap();
+      let stage = page.locator(".viewport-stage[data-placing-asset]");
+      await stage.waitFor();
+      let bounds = await stage.boundingBox();
+      await stage.tap({ position: { x: bounds.width / 2, y: bounds.height / 2 } });
+      await project.waitForDocument((doc) => doc.scenes[0].objects.length === 2);
+      await page.getByRole("button", { name: "Display panels", exact: true }).tap();
+      await page
+        .getByRole("group", { name: "Display panels options", exact: true })
+        .getByRole("button", { name: "Landscape media stand", exact: true })
+        .tap();
+      await stage.waitFor();
+      bounds = await stage.boundingBox();
+      await stage.tap({ position: { x: bounds.width / 2 + 40, y: bounds.height / 2 } });
+      await project.waitForDocument((doc) => doc.scenes[0].objects.length === 3);
+      const displayId = project
+        .document()
+        .scenes[0].objects.find((object) => object.assetId === "display-rectangle-stand-v1").id;
+      await page.getByRole("button", { name: "Scene tree", exact: true }).tap();
+      await page.locator(`.object-row[data-object-id="${displayId}"]`).tap();
+      await page.getByRole("button", { name: "Scene tree", exact: true }).tap();
+      await page.getByRole("button", { name: "Display colour", exact: true }).tap();
+      await page
+        .getByRole("dialog", { name: "Display colour", exact: true })
+        .getByRole("button")
+        .first()
+        .tap();
+      await page.getByRole("button", { name: "Display colour", exact: true }).tap();
+      await page.getByRole("button", { name: "Display texture", exact: true }).tap();
+      await page
+        .getByRole("dialog", { name: "Display texture", exact: true })
+        .getByRole("button")
+        .first()
+        .tap();
+      await page.getByRole("button", { name: "Display texture", exact: true }).tap();
+      await page.getByRole("button", { name: "Edit text", exact: true }).tap();
+      const content = page.locator("dialog.content-dialog");
+      const text = content.getByRole("textbox", { name: "Text", exact: true });
+      await text.tap();
+      await text.fill("Mobile display text");
+      await content.getByRole("combobox", { name: "Font size", exact: true }).tap();
+      await page
+        .getByRole("listbox", { name: "Font size", exact: true })
+        .getByRole("option", { name: "20", exact: true })
+        .tap();
+      for (const [button, palette] of [
+        ["Text color", "Text colors"],
+        ["Text background", "Text background colors"],
+      ]) {
+        await content.getByRole("button", { name: button, exact: true }).tap();
+        const colors = content.getByRole("group", { name: palette, exact: true });
+        const box = await colors.boundingBox();
+        assert.ok(
+          box.x >= 0 &&
+            box.y >= 0 &&
+            box.x + box.width <= viewport.width &&
+            box.y + box.height <= viewport.height,
+          `${palette} is clipped on mobile`,
+        );
+        await colors.getByRole("button").first().tap();
+        await content.getByRole("button", { name: button, exact: true }).tap();
+      }
+      for (const name of ["bold", "italic", "underline", "Clear text formatting"])
+        await content.getByRole("button", { name, exact: true }).tap();
+      await content.getByRole("button", { name: "Add", exact: true }).tap();
+      await page.getByRole("button", { name: "Edit image", exact: true }).tap();
+      await content.getByRole("button", { name: "Sample landscape", exact: true }).tap();
+      await content.getByRole("button", { name: "Add", exact: true }).tap();
+      await page.getByRole("button", { name: "Edit video", exact: true }).tap();
+      await content
+        .getByRole("button", { name: "Sample coast motion (3 seconds)", exact: true })
+        .tap();
+      await content.getByRole("button", { name: "Add", exact: true }).tap();
+      await project.waitForDocument((doc) =>
+        doc.scenes[0].objects
+          .find((object) => object.id === displayId)
+          .components.some((component) => component.type === "video"),
+      );
+      await page.getByRole("button", { name: "Preview", exact: true }).tap();
+      await page.getByRole("button", { name: "Exit preview", exact: true }).waitFor();
+      await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
+      assert.equal(
+        await page.locator('.server-session-error[data-export-notice="true"]').isVisible(),
+        false,
+        "Export confirmation must not cover preview controls",
+      );
+      const visitorStick = page.getByRole("button", { name: "Move", exact: true });
+      const visitorBounds = await visitorStick.boundingBox();
+      const expectedWidth = balance.size;
+      assert.ok(
+        Math.abs(visitorBounds.width - expectedWidth) < 1,
+        "Creator preview must match the editor joystick size",
+      );
+      await visitorStick.tap();
+      await page.getByRole("button", { name: "Look", exact: true }).tap();
+      const information = page.locator(".visitor-information > summary");
+      await information.tap();
+      const informationBounds = await information.boundingBox();
+      assert.ok(informationBounds.y >= 0, "Open preview information must remain on screen");
+      await visitorStick.tap();
+      await page.getByRole("button", { name: "Look", exact: true }).tap();
+      await information.tap();
+      await page.getByRole("button", { name: "Restart preview", exact: true }).tap();
+      await page.getByRole("status").getByText("Exhibition ready", { exact: true }).waitFor();
+      const joystickStyle = await page
+        .getByRole("button", { name: "Move", exact: true })
+        .evaluate((el) => ({
+          padding: getComputedStyle(el).padding,
+          border: getComputedStyle(el).borderWidth,
+          background: getComputedStyle(el).backgroundColor,
+        }));
+      assert.deepEqual(
+        joystickStyle,
+        { padding: "0px", border: "0px", background: "rgba(0, 0, 0, 0)" },
+        "Preview action buttons must not restyle joysticks",
+      );
+      await page.getByRole("button", { name: "Exit preview", exact: true }).tap();
+      await page.getByRole("button", { name: "Publish", exact: true }).tap();
+      await page.getByRole("button", { name: "Close publish project", exact: true }).tap();
+      await page.locator('.save-state[data-state="saved"]').waitFor();
+      const expected = project.document();
+      await page.reload();
+      await openSavedProject(page);
+      await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
+      assert.deepEqual(
+        project.document(),
+        expected,
+        "Phone authoring survives a fresh editor load",
+      );
+      assert.deepEqual(errors, []);
+      console.log(
+        `PASS Android editor actual taps, movement, non-overlapping controls and matching Creator preview controls at ${viewport.width}x${viewport.height}`,
+      );
+    } finally {
+      await page.close();
+    }
+  }
 }
 
 try {
@@ -1080,6 +1507,7 @@ try {
   assert.equal(await asset.isDisabled(), true);
   assert.deepEqual(pageErrors, [], "No uncaught page errors in any flow");
   await checkDisplayPlacementCancellation(browser, editorUrl);
+  await checkMobileEditorControls(browser, editorUrl);
   console.log(
     "PASS: placement, hotspot, preview keyboard activation, single-pointer movement, cancellation, hierarchy, room occlusion, project loading, undo/redo, keyboard, resizing, retry and WebGL fallback",
   );

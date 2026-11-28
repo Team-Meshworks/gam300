@@ -71,7 +71,24 @@ try {
   console.log(`Node ${process.version}; Chromium ${browser.version()}`);
   const pages = {};
   for (const name of ["student", "educator", "viewer", "unrelated"]) {
-    const context = await browser.newContext({ ignoreHTTPSErrors: true });
+    const phone = name === "student" && process.env.SPATIA_CREATOR_PHONE;
+    const context = await browser.newContext({
+      ignoreHTTPSErrors: true,
+      ...(phone
+        ? {
+            viewport: {
+              portrait: { width: 390, height: 844 },
+              landscape: { width: 844, height: 390 },
+              "tablet-portrait": { width: 768, height: 1024 },
+              "tablet-landscape": { width: 1024, height: 768 },
+            }[phone] ?? { width: 390, height: 844 },
+            isMobile: true,
+            hasTouch: true,
+            userAgent:
+              "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Mobile Safari/537.36",
+          }
+        : {}),
+    });
     if (name === "student")
       await context.grantPermissions(["clipboard-read", "clipboard-write"], {
         origin,
@@ -121,12 +138,21 @@ try {
     const card = student.locator(".sp-student-card").filter({ hasText: data.title });
     await card.getByRole("button", { name: "View details", exact: true }).click();
     await student.getByRole("button", { name: "Publish", exact: true }).click();
-    await student.getByRole("heading", { name: "Ready to publish your project?", exact: true }).waitFor();
+    await student
+      .getByRole("heading", { name: "Ready to publish your project?", exact: true })
+      .waitFor();
   }
   async function restrictToNamedViewer(student, publicationId) {
-    assert.equal((await write(student, `/api/v1/publications/${publicationId}/access`, {
-      audience: "Authenticated", viewerIds: [data.viewerId], action: "audience",
-    })).status, 204);
+    assert.equal(
+      (
+        await write(student, `/api/v1/publications/${publicationId}/access`, {
+          audience: "Authenticated",
+          viewerIds: [data.viewerId],
+          action: "audience",
+        })
+      ).status,
+      204,
+    );
   }
   const student = pages.student;
   await student.goto(`${origin}/login`);
@@ -167,8 +193,11 @@ try {
   const viewer = pages.viewer;
   await viewer.goto(localVisitor);
   await viewer.getByRole("status").getByText("Exhibition ready").waitFor({ timeout: 30000 });
-  assert.equal((await read(viewer, `/api/v1/publications/${request.publicationId}`)).status, 200,
-    "Creator's unlisted edition opens without signing in");
+  assert.equal(
+    (await read(viewer, `/api/v1/publications/${request.publicationId}`)).status,
+    200,
+    "Creator's unlisted edition opens without signing in",
+  );
   await restrictToNamedViewer(student, request.publicationId);
   await viewer.reload();
   await viewer.getByRole("heading", { name: "Exhibition unavailable" }).waitFor();
@@ -320,10 +349,16 @@ try {
   await student.reload();
   await student.getByRole("heading", { name: "Published Projects", exact: true }).waitFor();
   await student.getByRole("link", { name: "Preview", exact: true }).waitFor();
-  assert.equal(await student.locator(`a[href="${secondUrl}"]`).count(), 0,
-    "Revocation removes the second edition's share link");
-  assert.notEqual(await student.getByRole("textbox", { name: "Share your project" }).inputValue(), secondUrl,
-    "Revocation removes the second edition's copyable link");
+  assert.equal(
+    await student.locator(`a[href="${secondUrl}"]`).count(),
+    0,
+    "Revocation removes the second edition's share link",
+  );
+  assert.notEqual(
+    await student.getByRole("textbox", { name: "Share your project" }).inputValue(),
+    secondUrl,
+    "Revocation removes the second edition's copyable link",
+  );
   assert.equal(await secondQr.count(), 0, "Revocation removes the second edition's open QR code");
   await student.getByRole("button", { name: /^Show QR code for / }).click();
   const retainedQr = student.getByRole("dialog", { name: "QR code", exact: true }).getByRole("img");
