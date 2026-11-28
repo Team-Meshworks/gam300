@@ -240,8 +240,11 @@
   font-size: 15px;
 }
 .sp-shell--facilitator .sp-teacher-field-heading svg {
+  display: block;
   width: 13px;
   height: 13px;
+  flex: none;
+  align-self: center;
 }
 .sp-shell--facilitator .sp-teacher-student-identity {
   display: flex;
@@ -357,6 +360,70 @@
   min-width: 0;
   padding: 0;
   border: 0;
+}
+.sp-project-image-field {
+  display: grid;
+  gap: 8px;
+}
+.sp-project-image-upload {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 18px;
+  border: 1px dashed var(--sp-selection-border);
+  border-radius: 12px;
+  background: var(--sp-surface);
+  color: var(--sp-ink);
+  font: 500 14px/20px var(--sp-font);
+  cursor: pointer;
+}
+.sp-project-image-upload > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.sp-project-image-upload small {
+  color: var(--sp-muted);
+  font: 400 12px/18px var(--sp-font);
+}
+.sp-project-image-upload:hover:enabled {
+  background: var(--sp-hover);
+}
+.sp-project-image-upload:focus-visible {
+  outline: 2px solid var(--sp-focus);
+  outline-offset: 2px;
+}
+.sp-project-image-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sp-project-image-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sp-project-image-actions .sp-image-remove {
+  background: transparent;
+  border: 0;
+  padding: var(--sp-plain-hover-pad);
+  color: var(--sp-muted);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.sp-project-image-actions .sp-image-remove:hover {
+  color: var(--sp-ink);
+  background: var(--sp-hover);
+}
+.sp-shell--facilitator .sp-project-image-heading .sp-button {
+  gap: 6px;
+  border-color: var(--sp-muted);
+  color: var(--sp-ink);
 }
 .sp-shell--facilitator .sp-assignment-edit-dialog .sp-actions {
   justify-content: flex-end;
@@ -558,7 +625,10 @@ html:has(.sp-shell--facilitator) {
 }
 
 .sp-shell--facilitator .sp-form-footer .sp-button,
-.sp-shell--facilitator .sp-assignment-edit-dialog .sp-actions .sp-button {
+.sp-shell--facilitator
+  .sp-assignment-edit-dialog
+  :is(.sp-actions, .sp-project-image-heading)
+  .sp-button {
   min-height: 36px;
   padding: 6px 16px;
 }
@@ -572,6 +642,7 @@ html:has(.sp-shell--facilitator) {
   font: 400 13px/18px var(--facilitator-font);
 }
 .sp-shell--facilitator .sp-teacher-field-heading .sp-button,
+.sp-shell--facilitator .sp-project-image > .sp-project-image-edit,
 .sp-shell--facilitator .sp-teacher-student-actions > .sp-button:not(.sp-button--primary) {
   background: var(--facilitator-field);
   --facilitator-control-hover: color-mix(
@@ -2532,12 +2603,6 @@ html:has(.sp-shell--facilitator) {
 .sp-shell--facilitator .sp-teacher-detail .sp-teacher-assignment-actions {
   margin: 0 0 23px;
 }
-.sp-shell--facilitator .sp-teacher-detail .sp-teacher-assignment-actions > .sp-button {
-  height: 32px;
-  min-height: 32px;
-  padding: 0 12px;
-  font-size: 12px;
-}
 .sp-shell--facilitator .sp-teacher-detail .sp-teacher-metadata dd:not(:has(.sp-work-status)) {
   font-weight: 600;
 }
@@ -2737,15 +2802,6 @@ html:has(.sp-shell--facilitator) {
 /* Moderation proportions measured from facilitator Figma nodes 441:3955–441:4020. */
 .sp-shell--facilitator
   .sp-teacher-detail
-  .sp-teacher-assignment-actions
-  > .sp-button:is(.sp-hide-action, .admin-publication-delete) {
-  padding-inline: 18px;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: var(--sp-weight-action);
-}
-.sp-shell--facilitator
-  .sp-teacher-detail
   .sp-teacher-student-actions
   > .sp-button:is(.sp-hide-action, .admin-publication-delete) {
   padding-inline: 18px;
@@ -2805,7 +2861,6 @@ html:has(.sp-shell--facilitator) {
   .sp-teacher-class-menu
   :is(.sp-select-options > button, .sp-select-footer > a) {
   box-sizing: border-box;
-  height: 36px;
   min-height: 36px;
   padding: 8px 10px;
   margin-bottom: 0;
@@ -2882,6 +2937,8 @@ html:has(.sp-shell--facilitator) {
 .sp-shell--facilitator .sp-organisation-view {
   padding: 48px 50px;
   gap: 24px;
+  align-content: start;
+  grid-auto-rows: max-content;
   grid-template-rows: auto auto minmax(0, 1fr);
   grid-template-areas: "heading heading" "identity controls" "projects members";
 }
@@ -2943,7 +3000,7 @@ html:has(.sp-shell--facilitator) {
     padding: 28px 24px;
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "heading" "identity" "controls" "projects" "members";
-    grid-template-rows: auto;
+    grid-template-rows: repeat(5, max-content);
     overflow-y: auto;
   }
 }
@@ -3195,4 +3252,336 @@ html:has(.sp-shell--facilitator) {
 
 .sp-shell[data-account-role="Educator"] .sp-legacy-class-menu {
   font-size: 14px;
+}
+
+.sp-shell--facilitator .sp-teacher-detail.sp-independent-detail {
+  flex: 0 1 auto;
+  align-self: center;
+  width: min(100%, 640px);
+  padding: clamp(20px, 3vw, 36px);
+  gap: 20px;
+  overflow-y: auto;
+}
+.sp-independent-detail .sp-teacher-detail-head h1 {
+  overflow-wrap: anywhere;
+}
+.sp-independent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.sp-independent-actions > .sp-button {
+  padding-inline: 16px;
+  gap: 6px;
+}
+.sp-shell--facilitator .sp-independent-detail > :is(.sp-teacher-detail-cover, .sp-project-image) {
+  flex: none;
+}
+.sp-independent-actions > .sp-button--primary {
+  margin-inline-start: auto;
+}
+
+/* Give project titles usable space before a third card column is introduced. */
+@media (min-width: 801px) and (max-width: 1199px) {
+  .sp-shell--facilitator .sp-teacher-projects .sp-teacher-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 620px) {
+  .sp-shell--facilitator .sp-teacher-projects .sp-teacher-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.sp-shell--facilitator .sp-teacher-card-heading {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 12px;
+}
+.sp-shell--facilitator .sp-teacher-card-heading h3 {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.sp-shell--facilitator .sp-teacher-card-heading .sp-work-status {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+@media (max-width: 1199px) {
+  .sp-shell--facilitator .sp-teacher-card-copy {
+    grid-template-rows: auto auto 40px;
+  }
+}
+
+.sp-project-image {
+  position: relative;
+  min-width: 0;
+}
+.sp-shell--facilitator .sp-project-image > .sp-project-image-edit {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--sp-border);
+  color: var(--sp-ink);
+}
+.sp-project-image-edit > svg {
+  width: 16px;
+  height: 16px;
+}
+.sp-project-image > .sp-teacher-detail-cover {
+  display: block;
+}
+
+.sp-shell--facilitator .sp-assignment-edit-dialog .sp-image-options {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.sp-assignment-edit-dialog .sp-image-options > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.sp-image-fields-loading {
+  display: grid;
+  gap: 16px;
+}
+
+/* Image editing uses the shared compact form footer, not account-form spacing. */
+.sp-shell--facilitator .sp-dialog.sp-project-image-dialog {
+  padding: var(--sp-form-dialog-inset);
+}
+.sp-shell--facilitator .sp-project-image-dialog > h2 {
+  margin: 0 40px 0 0;
+  font-size: var(--sp-form-dialog-title-size);
+  line-height: 28px;
+}
+.sp-project-image-dialog .sp-dialog-body {
+  margin: 20px 0 0;
+  gap: 20px;
+}
+.sp-shell--facilitator .sp-project-image-dialog fieldset {
+  margin: 0;
+}
+.sp-project-image-dialog .sp-actions.sp-form-dialog-actions {
+  margin: 0;
+  padding: 0;
+  gap: 12px;
+}
+
+.sp-shell--facilitator .sp-project-image-dialog .sp-actions.sp-form-dialog-actions > .sp-button {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 16px;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.sp-project-image-dialog .sp-project-image-field:has(> .sp-hint) {
+  gap: 0;
+}
+
+.sp-class-recovery:not(:has(> *)) {
+  display: none;
+}
+.sp-organisation-view > .sp-class-recovery {
+  grid-column: 1 / -1;
+  grid-row: auto;
+}
+.sp-organisation-view > :is([role="alert"], [role="status"]) {
+  grid-row: auto;
+}
+
+.sp-shell--facilitator .sp-organisation-view:not(:has(> .sp-class-assignments, > .sp-card)) {
+  grid-template-areas: "heading heading" "identity controls";
+  grid-template-rows: max-content max-content;
+}
+.sp-organisation-view > .sp-home-toolbar > .sp-button {
+  flex-shrink: 0;
+}
+.sp-shell--facilitator .sp-organisation-class-select > button {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+}
+@media (max-width: 1100px) {
+  .sp-shell--facilitator .sp-organisation-view:not(:has(> .sp-class-assignments, > .sp-card)) {
+    grid-template-areas: "heading" "identity" "controls";
+    grid-template-rows: repeat(3, max-content);
+  }
+}
+@media (max-width: 600px) {
+  .sp-organisation-view > .sp-home-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, max-content);
+    justify-content: start;
+    gap: 10px;
+  }
+  .sp-organisation-view .sp-organisation-class-select {
+    grid-column: 1 / -1;
+    width: min(180px, 100%);
+    max-width: 100%;
+  }
+}
+@media (max-width: 400px) {
+  .sp-organisation-view > .sp-home-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+}
+
+@media (max-width: 600px) {
+  .sp-shell--facilitator .sp-organisation-view > .sp-page-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 40px;
+    gap: 12px;
+  }
+  .sp-organisation-view > .sp-page-heading > div {
+    min-width: 0;
+  }
+  .sp-organisation-view .sp-page-heading > .sp-organisation-close {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+.sp-shell--facilitator .sp-organisation-view .sp-class-assignments > p[role="status"] {
+  font-size: 13px;
+  font-weight: var(--sp-weight-body);
+  line-height: 20px;
+  color: var(--sp-muted);
+}
+
+/* Repeated row actions stay quieter than section and page actions. */
+.sp-shell--facilitator
+  .sp-organisation-view
+  :is(.sp-class-students, .sp-organisation-projects .sp-table)
+  .sp-button {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: var(--sp-weight-action);
+  line-height: 16px;
+}
+.sp-shell--facilitator .sp-organisation-view .sp-class-project-heading > .sp-class-project-create {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: var(--sp-weight-action);
+  line-height: 18px;
+}
+.sp-organisation-view .sp-class-students {
+  gap: 4px;
+}
+.sp-organisation-view .sp-class-students li {
+  gap: 8px 12px;
+}
+
+.sp-shell--facilitator .sp-class-project-create > svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  align-self: center;
+}
+.sp-organisation-view .sp-class-students {
+  gap: 0;
+}
+.sp-organisation-view .sp-class-students li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--sp-roster-action-column);
+  gap: 8px 0;
+  padding: 10px 0;
+  line-height: 20px;
+}
+.sp-organisation-view .sp-class-students li > span {
+  min-width: 0;
+  padding-inline: 6px;
+}
+.sp-organisation-view .sp-class-students li > .sp-button {
+  justify-self: start;
+  margin-inline-start: 6px;
+}
+@media (max-width: 600px) {
+  .sp-organisation-view .sp-class-students li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    padding-block: 12px;
+  }
+  .sp-organisation-view .sp-class-students li > span {
+    padding-inline: 0;
+  }
+  .sp-organisation-view .sp-class-students li > .sp-button {
+    margin-inline-start: 0;
+    justify-self: end;
+  }
+}
+
+.sp-organisation-view > .sp-card {
+  --sp-roster-action-column: 104px;
+}
+@media (min-width: 601px) {
+  .sp-organisation-view > .sp-card .sp-table th:first-child {
+    width: 50%;
+  }
+  .sp-organisation-view > .sp-card .sp-table th:nth-child(2) {
+    width: auto;
+  }
+  .sp-organisation-view > .sp-card .sp-table th:nth-child(3) {
+    width: var(--sp-roster-action-column);
+  }
+}
+
+.sp-organisation-view .sp-class-students .sp-class-added {
+  display: inline-flex;
+  justify-self: start;
+  justify-content: flex-start;
+  align-items: center;
+  margin-inline-start: 6px;
+  padding-inline: 0;
+  gap: 4px;
+  min-height: 28px;
+  white-space: nowrap;
+  color: var(--sp-success, #617d48);
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.sp-organisation-view .sp-class-students .sp-class-added > svg {
+  display: block;
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+@media (max-width: 600px) {
+  .sp-organisation-view .sp-class-students .sp-class-added {
+    margin-inline-start: 0;
+    justify-self: end;
+  }
+}
+
+@media (min-width: 601px) {
+  .sp-organisation-view .sp-class-students li > :is(.sp-button, .sp-class-added) {
+    justify-self: center;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+  .sp-organisation-view .sp-class-students li > .sp-button {
+    padding-inline: 12px;
+  }
+}
+
+@media (min-width: 601px) {
+  .sp-organisation-view > .sp-card .sp-table :is(th, td):nth-child(3) {
+    text-align: center;
+  }
 }
