@@ -53,7 +53,15 @@ export type AssetDetails = {
   kind: AssetCandidate["kind"];
   category: string | null;
   review: AssetReview;
-  tags: readonly string[];
+  // Omitted when unchanged, so the server keeps whatever tags the asset has now
+  tags?: readonly string[];
+  // What the editor opened with; the server rejects the save if those fields changed since
+  expected?: {
+    name: string;
+    category: string | null;
+    review: AssetReview;
+    tags: readonly string[];
+  };
 };
 
 // Return authoritative records after mutations; screens never infer approval from an upload

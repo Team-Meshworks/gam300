@@ -146,6 +146,7 @@ function AssetAdministrationPreview() {
           ...details.review,
           name: details.name,
           category: details.category,
+          ...(details.tags ? { tags: details.tags } : {}),
         };
         records.current = {
           ...records.current,

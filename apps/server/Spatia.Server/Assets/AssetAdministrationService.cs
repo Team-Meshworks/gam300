@@ -134,12 +134,37 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         return (Record(asset), true, false);
     }
 
-    public async Task<AssetAdministrationRecord?> UpdateDetailsAsync(Guid id, AssetDetailsRequest details, Guid actor, CancellationToken token)
+    public async Task<(AssetAdministrationRecord? Record, bool Stale)> UpdateDetailsAsync(Guid id, AssetDetailsRequest details, Guid actor,
+        CancellationToken token)
     {
         // Omitted tags leave the asset's tags unchanged for clients that predate tagging
         var requestedTags = details.Tags is null ? null : AssetTags.Read(details.Tags) ?? throw new ArgumentException("Invalid tags", nameof(details));
-        if (!await database.AssetCandidates.AnyAsync(asset => asset.Id == id && !asset.Deleted && asset.Kind == details.Kind, token))
-            return null;
+        // Lock the row so the stale check and the write see the same version
+        var current = await database.AssetCandidates
+            .FromSqlInterpolated($"SELECT * FROM asset_candidates WHERE id = {id} FOR NO KEY UPDATE")
+            .Where(asset => !asset.Deleted && asset.Kind == details.Kind)
+            .Select(asset => new
+            {
+                Name = asset.CatalogueName ?? asset.Name,
+                Category = asset.CatalogueCategory ?? asset.Category,
+                Source = asset.CatalogueSource ?? asset.Source,
+                License = asset.CatalogueLicense ?? asset.License,
+                ReviewNotes = asset.CatalogueReviewNotes ?? asset.ReviewNotes,
+                asset.Tags
+            })
+            .SingleOrDefaultAsync(token);
+        if (current is null)
+            return (null, false);
+
+        // Every field this save writes must still be what the editor saw; tags count only when they are being saved
+        if (details.Expected is { } expected && (expected.Name != current.Name || expected.Category != current.Category
+            || (expected.Review?.Source ?? "") != (current.Source ?? "") || (expected.Review?.License ?? "") != (current.License ?? "")
+            || (expected.Review?.ReviewNotes ?? "") != (current.ReviewNotes ?? "")
+            || (requestedTags is not null && !(expected.Tags ?? []).SequenceEqual(current.Tags, StringComparer.Ordinal))))
+        {
+            return (null, true);
+        }
+
         var tags = requestedTags is null ? null : await ResolveTagsAsync(requestedTags, actor, token);
         var changed = await database.AssetCandidates.Where(asset => asset.Id == id && !asset.Deleted && asset.Kind == details.Kind)
             .ExecuteUpdateAsync(update =>
@@ -152,7 +177,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
                 if (tags is not null)
                     update.SetProperty(asset => asset.Tags, tags);
             }, token);
-        return changed == 1 ? await ReadRecordAsync(id, token) : null;
+        return (changed == 1 ? await ReadRecordAsync(id, token) : null, false);
     }
 
     // Takes one tag off whatever the asset holds now, so a stale dialog cannot overwrite newer edits

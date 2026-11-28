@@ -129,6 +129,69 @@ public sealed class AssetTagTests
             await AuthTestRequests.AssertProblemAsync(missing, HttpStatusCode.Conflict, "asset_conflict");
     }
 
+    [Test]
+    public async Task DetailsEditsKeepOtherAdministratorsTagChangesOrAreRejectedWhenStale()
+    {
+        var audio = await File.ReadAllBytesAsync(Path.GetFullPath(
+            "../../../../../../assets/delivery/audio/calm-piano.m4a", AppContext.BaseDirectory));
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Production");
+        var admin = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        await fixture.SignInAsync(admin);
+
+        using var upload = await UploadAsync(fixture, audio, ["Post-war", "Early Singapore"]);
+        var track = (await upload.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+        var path = $"/api/v1/admin/assets/{track.Id}/details";
+        // The first admin's edit form opened with these details
+        var opened = new AssetDetailsSnapshot(track.Name, track.Category, new(track.Source, track.License, track.ReviewNotes), track.Tags);
+
+        // A second admin removes a tag
+        using (var removed = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{track.Id}/tags/remove", new AssetTagRemovalRequest("Post-war")))
+            await Assert.That(removed.StatusCode).IsEqualTo(HttpStatusCode.OK);
+
+        // A rename that leaves tags alone omits them, so the removal is not undone
+        var rename = new AssetDetailsRequest("Renamed piano", "audio", track.Category, new(track.Source, track.License, track.ReviewNotes),
+            Expected: opened);
+        using (var save = await AuthTestRequests.PutAsync(fixture.Client, path, rename, await fixture.GetCsrfAsync()))
+        {
+            await Assert.That(save.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var record = (await save.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+            await Assert.That(record.Name).IsEqualTo("Renamed piano");
+            await Assert.That(record.Tags).IsEquivalentTo(new[] { "Early Singapore" });
+        }
+
+        // A tag edit from the same stale form would restore the removed tag, so it is rejected
+        var staleTags = rename with
+        {
+            Name = track.Name,
+            Tags = ["Post-war", "Early Singapore", "Modern Singapore"]
+        };
+        using (var stale = await AuthTestRequests.PutAsync(fixture.Client, path, staleTags, await fixture.GetCsrfAsync()))
+            await AuthTestRequests.AssertProblemAsync(stale, HttpStatusCode.Conflict, "asset_stale");
+
+        // So is a save that would overwrite the newer name, even without tags
+        using (var staleName = await AuthTestRequests.PutAsync(fixture.Client, path, rename with
+        {
+            Name = "Another name"
+        }, await fixture.GetCsrfAsync()))
+        {
+            await AuthTestRequests.AssertProblemAsync(staleName, HttpStatusCode.Conflict, "asset_stale");
+        }
+
+        // After reloading, the tag edit goes through against the current details
+        var reloaded = new AssetDetailsSnapshot("Renamed piano", track.Category, new(track.Source, track.License, track.ReviewNotes), ["Early Singapore"]);
+        var fresh = rename with
+        {
+            Tags = ["Early Singapore", "Modern Singapore"],
+            Expected = reloaded
+        };
+        using (var save = await AuthTestRequests.PutAsync(fixture.Client, path, fresh, await fixture.GetCsrfAsync()))
+        {
+            await Assert.That(save.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That((await save.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!.Tags)
+                .IsEquivalentTo(new[] { "Early Singapore", "Modern Singapore" });
+        }
+    }
+
     private static async Task<string[]> PolicyTagsAsync(HttpsApplicationFixture fixture)
     {
         using var response = await fixture.Client.GetAsync("/api/v1/admin/assets");

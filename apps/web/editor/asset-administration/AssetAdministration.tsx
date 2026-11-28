@@ -23,6 +23,7 @@ import type {
 } from "./asset-administration";
 import "./asset-administration.css";
 import { AssetSelect } from "./AssetSelect";
+import { detailsUpdate } from "./asset-details";
 import { AssetTagBubbles, AssetTagPicker } from "./AssetTagPicker";
 
 type Props = {
@@ -389,7 +390,8 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       tags: kind === "model" ? tags : [],
     };
     if (editing && selected && !replacing) {
-      await mutate((signal) => service.updateDetails(selected.id, details, signal));
+      const update = detailsUpdate(selected, details);
+      await mutate((signal) => service.updateDetails(selected.id, update, signal));
     } else if (file) {
       await mutate((signal) =>
         service.submit(

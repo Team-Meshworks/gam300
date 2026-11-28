@@ -222,6 +222,12 @@ export function createAssetAdministrationService(
         kind: "unavailable",
         message: "The server is handling too many requests. Wait a moment, then try again.",
       };
+    if (code === "asset_stale")
+      return {
+        ok: false,
+        kind: "invalid",
+        message: "Another administrator changed this asset. Reload it before saving.",
+      };
     if (code === "invalid_replacement")
       return { ok: false, kind: "invalid", message: "Choose a valid file for the new asset type." };
     if (code === "replacement_exists")

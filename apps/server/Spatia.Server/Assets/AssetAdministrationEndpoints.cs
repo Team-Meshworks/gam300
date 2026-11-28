@@ -88,9 +88,11 @@ public static partial class AssetAdministrationEndpoints
             if (await RecheckAdministratorAsync(context, access, token) is { } denied)
                 return denied;
 
-            var record = await service.UpdateDetailsAsync(id, request, context.Features.Get<CurrentAccount>()!.UserId, token);
+            var (record, stale) = await service.UpdateDetailsAsync(id, request, context.Features.Get<CurrentAccount>()!.UserId, token);
             if (await RecheckAdministratorAsync(context, access, token) is { } changed)
                 return changed;
+            if (stale)
+                return ApiProblems.Create(context, 409, "asset_stale", "Another administrator changed this asset. Reload it before saving.");
             if (record is null)
                 return ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before editing it");
 
