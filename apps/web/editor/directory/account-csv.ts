@@ -32,7 +32,7 @@ function parseRows(text: string, separator: string): string[][] {
       field = "";
       closed = false;
       if (char !== separator) {
-        if (row.some(Boolean)) rows.push(row);
+        rows.push(row);
         row = [];
         if (char === "\r" && text[i + 1] === "\n") i++;
       }
@@ -96,7 +96,8 @@ export async function readAccountCsv(file: File): Promise<string> {
   }
 }
 
-export function importAccounts(text: string, role: NewAccount["role"]): NewAccount[] {
+export type SkippedRow = { row: number; reason: string };
+export function importAccounts(text: string, role: NewAccount["role"], skipped?: SkippedRow[]) {
   text = text.replace(/^\uFEFF/, "").trimStart();
   const directive = /^sep=([,;\t|])(?:\r\n|\r|\n)/i.exec(text);
   if (directive) text = text.slice(directive[0].length);
@@ -130,12 +131,16 @@ export function importAccounts(text: string, role: NewAccount["role"]): NewAccou
   const roleIndex = headers.findIndex(isRole);
   const nameIndex = headers.findIndex(isName),
     dobIndex = headers.findIndex(isDob);
-  if (!rows.length || rows.length > 200)
-    throw new Error("Upload between 1 and 200 accounts at a time.");
+  const count = rows.filter((row) => row.some(Boolean)).length;
+  if (!count || count > 200) throw new Error("Upload between 1 and 200 accounts at a time.");
   const usernames = new Set<string>();
-  return rows.map((values, index) => {
-    const fail = (message: string): never => {
-      throw new Error(`Row ${index + 2}: ${message}`);
+  return rows.flatMap((values, index) => {
+    if (!values.some(Boolean)) return [];
+    const row = index + (directive ? 3 : 2);
+    const fail = (reason: string) => {
+      if (!skipped) throw new Error(`Row ${row}: ${reason}`);
+      skipped.push({ row, reason });
+      return [];
     };
     const displayName = values[nameIndex] ?? "";
     if (
@@ -144,7 +149,13 @@ export function importAccounts(text: string, role: NewAccount["role"]): NewAccou
       displayName.length > 256 ||
       displayName.includes("\0")
     )
-      fail("check the name and columns.");
+      return fail(
+        !displayName
+          ? "Missing name"
+          : values.length !== headers.length
+            ? "Column count does not match the header"
+            : "Invalid name",
+      );
     const rawRole = roleIndex < 0 ? "" : (values[roleIndex] ?? "").trim().toLowerCase();
     const accountRole = !rawRole
       ? role
@@ -152,7 +163,8 @@ export function importAccounts(text: string, role: NewAccount["role"]): NewAccou
         ? "Creator"
         : rawRole === "facilitator" || rawRole === "educator"
           ? "Educator"
-          : fail("Account Type must be Creator or Facilitator.");
+          : null;
+    if (!accountRole) return fail("Account Type must be Creator or Facilitator.");
     const raw = values[dobIndex] ?? "";
     const [year, month, day] = birthDate(raw);
     const date = new Date(0);
@@ -166,18 +178,19 @@ export function importAccounts(text: string, role: NewAccount["role"]): NewAccou
       date.getUTCDate() !== day ||
       date.getTime() > Date.now()
     )
-      fail("use a valid DOB with a four-digit year, such as 2008-03-15 or 15 March 2008.");
+      return fail(raw ? "Invalid date of birth" : "Missing date of birth");
     const name = displayName
       .normalize("NFKD")
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "");
     if (!name || name.length > 248)
-      fail("the name must produce a username of 1–248 Latin letters or numbers.");
+      return fail("the name must produce a username of 1–248 Latin letters or numbers.");
     const userName = `${name}${String(day).padStart(2, "0")}${String(month).padStart(2, "0")}${year}`;
-    if (usernames.has(userName)) fail("this name and DOB appear more than once.");
+    if (usernames.has(userName)) return fail("this name and DOB appear more than once.");
     usernames.add(userName);
     const bytes = crypto.getRandomValues(new Uint8Array(24));
     return {
+      row,
       displayName,
       userName,
       role: accountRole,
