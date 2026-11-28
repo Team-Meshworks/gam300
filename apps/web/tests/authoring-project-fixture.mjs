@@ -46,6 +46,8 @@ export function createProjectFixture(initial = blankProject) {
         developmentAssetsAllowed: true,
       });
     if (path === "/api/v1/auth/csrf") return reply(200, { requestToken: "test-token" });
+    if (path === "/api/v1/creation-operations/import" && method === "GET")
+      return reply(200, { state: "ready", operationId: null, receipt: null });
     if (path === "/api/v1/assets") return reply(200, []);
     if (path === `${projectPath}/assets`) return reply(200, []);
     if (path === `${projectPath}/publication-readiness`)
@@ -134,4 +136,14 @@ export async function openSavedProject(page) {
   await ready.waitFor().catch(async (error) => {
     throw new Error(`${error.message}\n${await page.locator("body").innerText()}`);
   });
+}
+
+// Follow the same inline scene rename interaction as the editor.
+export async function sceneNameInput(page) {
+  const toggle = page.getByRole("button", { name: "Scenes", exact: true });
+  if ((await toggle.getAttribute("aria-pressed")) !== "true") await toggle.click();
+  const input = page.getByRole("textbox", { name: "Scene name", exact: true });
+  if (!(await input.isVisible())) await page.locator('.scene-name[aria-pressed="true"]').dblclick();
+  await input.waitFor();
+  return input;
 }
