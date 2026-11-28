@@ -54,7 +54,7 @@ try {
     await picture.evaluate((img) => img.decode());
     assert.ok((await picture.getAttribute("src")).includes(`modern-bench-${index + 1}.png`));
     if (index === 0) {
-      const filter = library.getByRole("combobox", { name: "Filter furniture" });
+      const filter = library.getByRole("combobox", { name: "Filter furniture", exact: true });
       assert.equal(await filter.textContent(), "Filters");
       await checkFilterPosition();
       await library.getByRole("searchbox", { name: "Search furniture" }).fill("bench 2");

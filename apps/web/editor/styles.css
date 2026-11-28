@@ -3070,8 +3070,8 @@ dialog.sp-dialog.sp-display-dialog {
   grid-auto-flow: column;
 }
 /* The library Tags and Filters menus read as bold labels and never wrap the search row */
-/* The display editor's media search matches the libraries */
-:is(.asset-picker, .pdf-content-dialog) .asset-search .asset-filter-trigger {
+/* The display editor's media and object searches match the libraries */
+:is(.asset-picker, .pdf-content-dialog, .sp-display-dialog) .asset-search .asset-filter-trigger {
   font-weight: 700;
   white-space: nowrap;
 }
