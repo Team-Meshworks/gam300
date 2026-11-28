@@ -1260,6 +1260,17 @@ html.asset-admin-preview-page,
   line-height: 20px;
   font-weight: 500;
 }
+/* The tag row matches the other detail values in size and shape */
+.asset-admin-dialog:not(.asset-admin-dialog-confirmation)
+  .asset-admin-select
+  > .asset-admin-tag-field {
+  min-height: 40px;
+  padding: 4px 4px 4px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
 .asset-admin-dialog-upload .asset-admin-actions {
   margin-top: 12px;
 }

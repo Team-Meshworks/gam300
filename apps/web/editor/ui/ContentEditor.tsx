@@ -224,7 +224,7 @@ export function ContentEditor({
               <AssetFilterSelect
                 value={filter}
                 options={[
-                  { value: "all", label: "All assets" },
+                  { value: "all", label: "Filters" },
                   { value: "favourites", label: "Favourites" },
                 ]}
                 onChange={setFilter}

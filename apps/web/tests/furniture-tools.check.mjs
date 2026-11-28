@@ -23,7 +23,10 @@ try {
   async function checkFilterPosition() {
     const { right, vertical } = await library.locator(".asset-search").evaluate((search) => {
       const bar = search.getBoundingClientRect();
-      const filter = search.querySelector('[role="combobox"]').getBoundingClientRect();
+      // Filters is the last menu; the Tags menu sits to its left once anything is tagged
+      const filter = [...search.querySelectorAll('[role="combobox"]')]
+        .at(-1)
+        .getBoundingClientRect();
       return {
         right: bar.right - filter.right - parseFloat(getComputedStyle(search).paddingRight),
         vertical: bar.y + bar.height / 2 - filter.y - filter.height / 2,
