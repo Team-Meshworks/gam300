@@ -79,6 +79,8 @@ try {
   await card.getByRole("button").click();
   await page.getByRole("dialog").getByRole("button", { name: "Hide", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
+  // The dialog closes before React clears its deep link. Reload the confirmed library URL.
+  await page.waitForURL(origin + "/assets");
   await page.reload();
   let stored = await page.evaluate(
     async (id) =>
@@ -92,6 +94,7 @@ try {
   await card.getByRole("button").click();
   await page.getByRole("dialog").getByRole("button", { name: "Show", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
+  await page.waitForURL(origin + "/assets");
   await page.reload();
   stored = await page.evaluate(
     async (id) =>
