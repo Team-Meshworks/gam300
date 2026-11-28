@@ -128,6 +128,36 @@ try {
   let operationId = "";
   let importOrganizationId = "";
   const bulkPath = /\/api\/v1\/admin\/organizations\/[\da-f-]+\/bulk-imports\/[\da-f-]+$/;
+  await page.getByRole("button", { name: "Add Accounts", exact: true }).click();
+  const normal = page.getByRole("dialog", { name: "Account Creation" });
+  await normal.locator('input[type="file"]').setInputFiles({
+    name: "new-accounts.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Name,DOB\nNew Learner,2009-03-04"),
+  });
+  const automatic = page.waitForEvent("download");
+  await normal.getByRole("button", { name: "Save changes" }).click();
+  const normalFile = await automatic;
+  const normalRows = (await readFile(await normalFile.path(), "utf8")).trimEnd().split("\r\n");
+  assert.equal(normalRows.length, 2);
+  const [normalName, normalUser, normalPassword] = normalRows[1].slice(1, -1).split('","');
+  assert.equal(normalName, "New Learner");
+  assert.equal(normalUser, "newlearner04032009");
+  await normal.waitFor({ state: "detached" });
+  const learner = await browser.newContext();
+  try {
+    const signIn = await learner.newPage();
+    await signIn.goto(origin + "/login");
+    await signIn.getByLabel("Username", { exact: true }).fill(normalUser);
+    await signIn.getByLabel("Password", { exact: true }).fill(normalPassword);
+    await signIn.getByRole("button", { name: "Log in", exact: true }).click();
+    await signIn.getByRole("heading", { name: "Change your password." }).waitFor();
+  } finally {
+    await learner.close();
+  }
+  stage("automatic download, form closure and downloaded login verified");
+  const receiptPath = /\/bulk-imports\/[\da-f-]+\/receipt$/;
+  await page.route(receiptPath, (route) => route.abort("failed"));
   await page.route(bulkPath, async (route) => {
     const upstream = await route.fetch();
     if (upstream.status() !== 201) {
@@ -153,13 +183,22 @@ try {
     buffer: Buffer.from("Name,DOB\nReceipt Student,2008-01-02"),
   });
   await importer.getByRole("button", { name: "Save changes", exact: true }).click();
-  await importer.getByRole("alert").waitFor();
+  const retry = importer.getByRole("button", { name: "Check again", exact: true });
+  await retry.waitFor();
+  await page.unroute(receiptPath);
+  const checkedReceipt = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith("/" + operationId + "/receipt") &&
+      response.request().method() === "POST",
+  );
+  await retry.click();
+  assert.equal((await checkedReceipt).status(), 200);
+  await importer.getByRole("button", { name: "Download login details", exact: true }).waitFor();
   assert.equal(imported, 1);
   await page.reload();
-  await page.getByRole("button", { name: "Resume account import", exact: true }).click();
+  await page.getByRole("button", { name: "Add Accounts", exact: true }).click();
   importer = page.getByRole("dialog", { name: "Account Creation", exact: true });
-  await importer.getByRole("button", { name: "Check import receipt", exact: true }).click();
-  await importer.getByText("Receipt Student", { exact: true }).waitFor();
+  await importer.getByRole("button", { name: "Download login details", exact: true }).waitFor();
   stage("lost import response recovered");
   let legacyOperationId = "";
   await page.route(/\/api\/v1\/admin\/users\/bulk$/, async (route) => {
@@ -216,15 +255,16 @@ try {
     ),
     0,
   );
-  await handoffPage
-    .getByRole("region", { name: "Unacknowledged account imports" })
-    .getByRole("button", { name: `Review import ${operationId}`, exact: true })
-    .click();
-  importer = handoffPage.getByRole("dialog", { name: "Account Creation", exact: true });
-  await importer.getByRole("button", { name: "Check import receipt", exact: true }).click();
-  await importer.getByText("Receipt Student", { exact: true }).waitFor();
-  const fileEvent = handoffPage.waitForEvent("download");
-  await importer.getByRole("button", { name: "Download credentials", exact: true }).click();
+  const availableImports = await handoffPage.evaluate(async (orgId) => {
+    const response = await fetch("/api/v1/admin/organizations/" + orgId + "/bulk-imports?limit=20");
+    if (!response.ok) throw new Error("Could not load import receipts");
+    return (await response.json()).items.map((item) => item.operationId);
+  }, importOrganizationId);
+  assert.ok(availableImports.includes(operationId));
+  assert.ok(availableImports.includes(legacyOperationId));
+  await importer.getByRole("button", { name: "Download login details", exact: true }).waitFor();
+  const fileEvent = page.waitForEvent("download");
+  await importer.getByRole("button", { name: "Download login details", exact: true }).click();
   const handoff = await fileEvent;
   const lines = (await readFile(await handoff.path(), "utf8")).trimEnd().split("\r\n");
   assert.equal(lines.length, 2);
@@ -232,7 +272,7 @@ try {
   assert.equal(cells[0], "Receipt Student");
   assert.equal(cells[1], "receiptstudent02012008");
   assert.ok(cells[2].length >= 12);
-  const containsCredential = await handoffPage.evaluate(
+  const containsCredential = await page.evaluate(
     (password) =>
       [localStorage, sessionStorage].some((store) =>
         Object.values(store).some((value) => value.includes(password)),
@@ -240,38 +280,72 @@ try {
     cells[2],
   );
   assert.equal(containsCredential, false);
-  await importer
-    .getByRole("button", { name: "Acknowledge credential handoff", exact: true })
-    .click();
+  await importer.getByRole("button", { name: "Done", exact: true }).click();
   await importer.waitFor({ state: "detached" });
   assert.equal(imported, 1);
-  await handoffPage
-    .getByRole("region", { name: "Unacknowledged account imports" })
-    .getByRole("button", { name: `Review import ${legacyOperationId}`, exact: true })
-    .click();
-  importer = handoffPage.getByRole("dialog", { name: "Account Creation", exact: true });
-  await importer.getByRole("button", { name: "Check import receipt", exact: true }).click();
-  await importer.getByText("Legacy Receipt Student", { exact: true }).waitFor();
-  const legacyDownload = handoffPage.waitForEvent("download");
-  await importer.getByRole("button", { name: "Download credentials", exact: true }).click();
-  const legacyCsv = await readFile(await (await legacyDownload).path(), "utf8");
-  assert.ok(
-    legacyCsv.includes(
-      '"Legacy Receipt Student","legacy.receipt.student","Legacy-receipt-password1!"',
-    ),
-  );
+  await handoffPage.getByRole("button", { name: "Add Accounts", exact: true }).click();
+  const freshForm = handoffPage.getByRole("dialog", { name: "Account Creation" });
+  const fileButton = freshForm.getByRole("button", { name: "Download login details", exact: true });
+  await fileButton.waitFor();
   assert.equal(
-    await handoffPage.evaluate(() =>
-      [localStorage, sessionStorage].some((storage) =>
-        Object.values(storage).some((value) => value.includes("Legacy-receipt-password1!")),
-      ),
-    ),
-    false,
+    await freshForm.getByRole("combobox").count(),
+    1,
+    "Only Account Type needs a dropdown",
   );
-  await importer
-    .getByRole("button", { name: "Acknowledge credential handoff", exact: true })
-    .click();
-  await importer.waitFor({ state: "detached" });
+  const uploadButton = freshForm.getByRole("button", { name: "Upload CSV", exact: true });
+  const [left, right] = await Promise.all([fileButton.boundingBox(), uploadButton.boundingBox()]);
+  assert.ok(Math.abs(left.y + left.height / 2 - right.y - right.height / 2) <= 1);
+  await captureAdminPreview(handoffPage, "fresh-browser-download-only", freshForm);
+  const recoveredFile = handoffPage.waitForEvent("download");
+  await fileButton.click();
+  const recoveredCsv = await readFile(await (await recoveredFile).path(), "utf8");
+  assert.equal(recoveredCsv.trimEnd().split("\r\n").length, 3);
+  assert.ok(recoveredCsv.includes('"legacy.receipt.student"'));
+  assert.ok(recoveredCsv.includes('"Legacy-receipt-password1!"'));
+  assert.ok(recoveredCsv.includes('"' + normalPassword + '"'));
+  // A download starting does not establish receipt. Exercise the existing explicit acknowledgement separately.
+  const ack = await handoffPage.evaluate(
+    async ({ org, id }) => {
+      const csrf = await (await fetch("/api/v1/auth/csrf")).json();
+      return (
+        await fetch("/api/v1/admin/organizations/" + org + "/bulk-imports/" + id + "/acknowledge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrf.requestToken },
+          body: "{}",
+        })
+      ).status;
+    },
+    { org: importOrganizationId, id: legacyOperationId },
+  );
+  assert.equal(ack, 204);
+  const studentContext = await browser.newContext();
+  try {
+    const student = await studentContext.newPage();
+    await student.goto(origin + "/login");
+    await student.getByLabel("Username", { exact: true }).fill(normalUser);
+    await student.getByLabel("Password", { exact: true }).fill(normalPassword);
+    await student.getByRole("button", { name: "Log in", exact: true }).click();
+    await student.getByLabel("Current password", { exact: true }).fill(normalPassword);
+    await student.getByLabel("New password", { exact: true }).fill("New-learner-password2!");
+    await student
+      .getByLabel("Confirm new password", { exact: true })
+      .fill("New-learner-password2!");
+    await student.getByRole("button", { name: "Change password", exact: true }).click();
+    await student.getByLabel("Current password", { exact: true }).waitFor({ state: "hidden" });
+  } finally {
+    await studentContext.close();
+  }
+  await freshForm.getByRole("button", { name: "Cancel", exact: true }).click();
+  const emptyDiscovery = handoffPage.waitForResponse(
+    (res) => res.url().includes("/bulk-imports?limit=20") && res.status() === 200,
+  );
+  await handoffPage.getByRole("button", { name: "Add Accounts", exact: true }).click();
+  assert.equal(
+    (await (await emptyDiscovery).json()).items.filter((item) => item.hasDownload).length,
+    0,
+  );
+  assert.equal(await fileButton.count(), 0);
+  await captureAdminPreview(handoffPage, "fresh-browser-no-login-file", freshForm);
   assert.equal(imported, 1);
   await freshProfile.close();
   stage("fresh-profile credential handoffs complete");

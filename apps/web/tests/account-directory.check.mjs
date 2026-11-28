@@ -701,7 +701,6 @@ try {
   const download = page.waitForEvent("download");
   await csvDialog.getByRole("button", { name: "Save changes", exact: true }).click();
   assert.equal((await download).suggestedFilename(), "account-credentials.csv");
-  await csvDialog.getByRole("button", { name: "Acknowledge credential handoff" }).click();
   await csvDialog.waitFor({ state: "detached" });
   const batch = writes.filter((write) => isBulkCreate(write.path));
   assert.equal(batch.length, 1, "One upload click sends exactly one batch");
@@ -718,9 +717,16 @@ try {
   ).setFiles({
     name: "mixed-existing.csv",
     mimeType: "text/csv",
-    buffer: Buffer.from("Name,DOB\nCSV Learner,2008-01-02\nCSV Fresh Learner,2009-03-04"),
+    buffer: Buffer.from(
+      "Name,DOB\nCSV Learner,2008-01-02\nCSV Fresh Learner,2009-03-04\nBad Date,invalid",
+    ),
   });
   await repeated.getByText("2 accounts ready to import.", { exact: true }).waitFor();
+  const importBounds = new Map();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1024 });
+    importBounds.set(width, await repeated.boundingBox());
+  }
   const freshDownload = page.waitForEvent("download");
   await repeated.getByRole("button", { name: "Save changes", exact: true }).click();
   const credentialsFile = await freshDownload;
@@ -730,7 +736,27 @@ try {
     !credentialsText.includes('"CSV Learner"'),
     "Skipped accounts must not receive new credentials",
   );
-  await repeated.getByRole("button", { name: "Acknowledge credential handoff" }).click();
+  await repeated
+    .getByText("1 account created, 2 rows skipped (row 2, row 4).", { exact: true })
+    .waitFor();
+  await repeated
+    .getByTitle("Row 2: Account already exists\nRow 4: Invalid date of birth", { exact: true })
+    .waitFor();
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 1024 });
+    const summary = await repeated.getByRole("status").boundingBox();
+    const notes = await repeated.locator(".sp-account-notes").boundingBox();
+    assert.ok(
+      Math.abs(summary.y + summary.height / 2 - notes.y - notes.height / 2) < 1,
+      `Result shares the helper text alignment at ${width}px`,
+    );
+    assert.deepEqual(
+      await repeated.boundingBox(),
+      importBounds.get(width),
+      `Reporting skipped rows preserves the dialog bounds at ${width}px`,
+    );
+  }
+  await repeated.getByRole("button", { name: "Done" }).click();
   await repeated.waitFor({ state: "detached" });
   await page
     .getByRole("button", { name: "View account for CSV Fresh Learner", exact: true })
@@ -889,7 +915,7 @@ try {
     mimeType: "text/csv",
     buffer: Buffer.from("Name,DOB\nStaged Student,2009-02-01"),
   });
-  await staged.getByText("1 accounts ready to import.").waitFor();
+  await staged.getByText("1 account ready to import").waitFor();
   const second = await context.newPage();
   await second.goto(page.url());
   await second.getByRole("button", { name: "Add Accounts", exact: true }).click();
@@ -903,22 +929,24 @@ try {
     mimeType: "text/csv",
     buffer: Buffer.from("Name,DOB\nSecond Student,2009-02-01"),
   });
-  await secondDialog.getByText("1 accounts ready to import.").waitFor();
+  await secondDialog.getByText("1 account ready to import").waitFor();
   loseImportReceipt = true;
   await secondDialog.getByRole("button", { name: "Save changes", exact: true }).click();
-  await secondDialog.getByRole("button", { name: "Check import receipt" }).waitFor();
+  await secondDialog.getByRole("button", { name: "Download login details", exact: true }).waitFor();
   const beforeManual = writes.filter((write) => write.path === "/api/v1/admin/users").length;
   await staged.getByRole("button", { name: "Save changes", exact: true }).click();
-  const checkStagedReceipt = staged.getByRole("button", { name: "Check import receipt" });
-  await checkStagedReceipt.waitFor();
   assert.equal(
     writes.filter((write) => write.path === "/api/v1/admin/users").length,
     beforeManual,
     "Staged CSV never sends the manual fields",
   );
-  await checkStagedReceipt.click();
-  await staged.getByText("Second Student", { exact: true }).waitFor();
-  await staged.getByRole("button", { name: "Acknowledge credential handoff" }).click();
+  await staged.getByRole("button", { name: "Download login details", exact: true }).waitFor();
+  const stagedDownload = page.waitForEvent("download");
+  await staged.getByRole("button", { name: "Download login details" }).click();
+  assert.ok(
+    (await readFile(await (await stagedDownload).path(), "utf8")).includes('"Second Student"'),
+  );
+  await staged.getByRole("button", { name: "Done" }).click();
   await staged.waitFor({ state: "detached" });
   await second.close();
   await page.getByRole("button", { name: "Add Accounts", exact: true }).click();
@@ -932,7 +960,7 @@ try {
     mimeType: "text/csv",
     buffer: Buffer.from("Name,DOB\nRecovery Student,2009-02-01"),
   });
-  await uncertainImport.getByText("1 accounts ready to import.", { exact: true }).waitFor();
+  await uncertainImport.getByText("1 account ready to import.", { exact: true }).waitFor();
   const importCount = () => writes.filter((write) => isBulkCreate(write.path)).length;
   const beforeLoss = importCount();
   const observer = await context.newPage();
@@ -944,10 +972,17 @@ try {
   });
   loseImportReceipt = true;
   const saveImport = uncertainImport.getByRole("button", { name: "Save changes", exact: true });
+  await page.route("**/bulk-imports/*/receipt", (route) => route.abort());
   await saveImport.click();
-  await uncertainImport.getByRole("alert").waitFor();
+  const retryStatus = uncertainImport;
+  await retryStatus
+    .getByText("We couldn't verify which accounts were created from this CSV.", { exact: true })
+    .waitFor();
+  await retryStatus.getByRole("button", { name: "Check again", exact: true }).waitFor();
+  await page.unroute("**/bulk-imports/*/receipt");
+  await retryStatus.getByRole("button", { name: "Check again" }).click();
   await uncertainImport
-    .getByRole("button", { name: "Check import receipt", exact: true })
+    .getByRole("button", { name: "Download login details", exact: true })
     .waitFor();
   assert.equal(await saveImport.count(), 0, "An uncertain import must only offer receipt recovery");
   assert.equal(
@@ -971,79 +1006,25 @@ try {
     beforeLoss + 1,
     "A lost bulk receipt must not discard an import by replaying it",
   );
-  const resumeElsewhere = observer.getByRole("button", {
-    name: "Resume account import",
-    exact: true,
-  });
-  await resumeElsewhere.waitFor();
   await observer.getByRole("button", { name: "Add Accounts", exact: true }).click();
-  await observer
-    .getByRole("dialog", { name: "Account Creation" })
-    .getByLabel("Name", { exact: true })
-    .fill("Manual entry is independent");
-  await observer
-    .getByRole("dialog", { name: "Account Creation" })
-    .getByRole("button", { name: "Cancel", exact: true })
-    .click();
-  await resumeElsewhere.click();
   const elsewhere = observer.getByRole("dialog", { name: "Account Creation" });
-  await elsewhere.getByRole("button", { name: "Check import receipt" }).click();
-  await elsewhere.getByText("Recovery Student", { exact: true }).waitFor();
+  await elsewhere.getByRole("button", { name: "Download login details", exact: true }).waitFor();
   const freshProfile = await browser.newContext();
   await freshProfile.route("**/api/v1/**", serveApi);
   const freshPage = await freshProfile.newPage();
-  const anotherOperation = "12345678-1111-4111-8111-112233445566";
-  importReceipts.set(anotherOperation, {
-    operationId: anotherOperation,
-    orgId,
-    created: [],
-    credentials: [],
-    acknowledged: false,
-    expiresAt: new Date(Date.now() + 86400000).toISOString(),
-  });
   await freshPage.goto(page.url());
-  const discovered = freshPage.getByRole("region", { name: "Unacknowledged account imports" });
-  await discovered
-    .getByRole("button", { name: `Review import ${anotherOperation}`, exact: true })
-    .waitFor();
-  await discovered
-    .getByRole("button", { name: `Review import ${durableValues[0]}`, exact: true })
-    .waitFor();
-  assert.equal(
-    await freshPage.evaluate(
-      () => Object.keys(localStorage).filter((key) => key.startsWith("spatia.bulk-import:")).length,
-    ),
-    0,
-  );
-  await discovered
-    .getByRole("button", { name: `Review import ${anotherOperation}`, exact: true })
-    .click();
-  const emptyImport = freshPage.getByRole("dialog", { name: "Account Creation" });
-  await emptyImport.getByRole("button", { name: "Check import receipt" }).click();
-  await emptyImport.getByText("0 accounts created by this import.", { exact: true }).waitFor();
-  await emptyImport.getByRole("button", { name: "Finish import" }).click();
-  await emptyImport.waitFor({ state: "detached" });
-  await discovered
-    .getByRole("button", { name: `Review import ${durableValues[0]}`, exact: true })
-    .click();
-  await freshPage
-    .getByRole("dialog", { name: "Account Creation" })
-    .getByRole("button", { name: "Check import receipt" })
-    .click();
-  await freshPage
-    .getByRole("dialog", { name: "Account Creation" })
-    .getByText("Recovery Student", { exact: true })
-    .waitFor();
+  await freshPage.getByRole("button", { name: "Add Accounts", exact: true }).click();
+  await freshPage.getByLabel("Name", { exact: true }).fill("Manual entry is independent");
+  assert.equal(await freshPage.getByText("Previous imports", { exact: true }).count(), 0);
   await freshProfile.close();
   assert.equal(importCount(), beforeLoss + 1);
   await page.reload();
-  await page.getByRole("button", { name: "Resume account import", exact: true }).click();
+  await page.getByRole("button", { name: "Add Accounts", exact: true }).click();
   const recovered = page.getByRole("dialog", { name: "Account Creation", exact: true });
-  await recovered.getByRole("button", { name: "Check import receipt", exact: true }).click();
-  await recovered.getByText("Recovery Student", { exact: true }).waitFor();
+  await recovered.getByRole("button", { name: "Download login details", exact: true }).waitFor();
   assert.equal(unconfirmedDownloads, 0, "No file is offered before server confirmation");
   const recoveredDownload = page.waitForEvent("download");
-  await recovered.getByRole("button", { name: "Download credentials", exact: true }).click();
+  await recovered.getByRole("button", { name: "Download login details", exact: true }).click();
   const recoveredFile = await recoveredDownload;
   const recoveredText = await readFile(await recoveredFile.path(), "utf8");
   assert.ok(recoveredText.includes('"Recovery Student"'));
@@ -1057,10 +1038,9 @@ try {
     "The recovered credential matches the original",
   );
   assert.equal(importCount(), beforeLoss + 1);
-  await recovered.getByRole("button", { name: "Acknowledge credential handoff" }).click();
+  await recovered.getByRole("button", { name: "Done" }).click();
   await recovered.waitFor({ state: "detached" });
   await elsewhere.waitFor({ state: "detached" });
-  await resumeElsewhere.waitFor({ state: "detached" });
   await observer.close();
   await page
     .getByRole("button", { name: "View account for Recovery Student", exact: true })
