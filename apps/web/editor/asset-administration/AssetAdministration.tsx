@@ -218,7 +218,9 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const bulkAction = permanent ? "remove" : "delete";
   const bulkLabel = permanent ? "Delete permanently" : "Move to Deleted";
   const bulkResult = permanent ? "permanently deleted" : "moved to Deleted";
-  const showBulk = permanent ? data?.policy.canForceRemove : items.some((asset) => asset.actions.includes("delete"));
+  const showBulk = permanent
+    ? data?.policy.canForceRemove
+    : items.some((asset) => asset.actions.includes("delete"));
   const selectable = showBulk ? visible.filter((asset) => asset.actions.includes(bulkAction)) : [];
   const checked = selectable.filter((asset) => checkedIds?.has(asset.id));
   const selecting = checkedIds !== null;
@@ -226,11 +228,14 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const bulk = selection?.kind === "bulk";
   const noun = kind === "environment" ? "3D spaces" : "assets";
   const permanentDelete = bulk ? permanent : Boolean(selected?.deleted);
-  const subject = bulk ? `${checked.length} ${checked.length === 1 ? noun.slice(0, -1) : noun}` : selected?.name;
+  const subject = bulk
+    ? `${checked.length} ${checked.length === 1 ? noun.slice(0, -1) : noun}`
+    : selected?.name;
   const multiple = bulk && checked.length !== 1;
   const confirmationActions = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (confirmation || bulk) confirmationActions.current?.querySelector<HTMLButtonElement>("[data-cancel]")?.focus();
+    if (confirmation || bulk)
+      confirmationActions.current?.querySelector<HTMLButtonElement>("[data-cancel]")?.focus();
   }, [confirmation, bulk]);
   const loadingDialog = Boolean(selection && loading && !data);
   const title = kind === "environment" ? "All 3D Spaces" : "All Assets";
@@ -469,7 +474,9 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         return;
       }
       if (!confirmed.deleted) {
-        setOutcome(`${confirmed.name}: ${confirmed.status === "approved" ? (confirmed.hidden ? "hidden" : "available") : confirmed.status}`);
+        setOutcome(
+          `${confirmed.name}: ${confirmed.status === "approved" ? (confirmed.hidden ? "hidden" : "available") : confirmed.status}`,
+        );
       }
     } catch {
       if (!controller.signal.aborted) {
@@ -557,181 +564,178 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
 
   return (
     <>
-    <section
-      className="sp-panel-surface asset-admin"
-      aria-labelledby="asset-admin-heading"
-    >
-      <div className="asset-admin-heading sp-admin-page-heading">
-        <div>
-          <h1 id="asset-admin-heading">{title}</h1>
-          <p>
-            Review {noun} and control what creators can use.
-          </p>
+      <section className="sp-panel-surface asset-admin" aria-labelledby="asset-admin-heading">
+        <div className="asset-admin-heading sp-admin-page-heading">
+          <div>
+            <h1 id="asset-admin-heading">{title}</h1>
+            <p>Review {noun} and control what creators can use.</p>
+          </div>
+          <div className="asset-admin-search">
+            <SearchField
+              label={`Search ${noun}`}
+              placeholder={`Search ${noun}`}
+              value={query}
+              onChange={(value) => {
+                setQuery(value);
+                setCheckedIds(null);
+                setOutcome("");
+              }}
+            />
+          </div>
+          <button
+            className="asset-admin-close sp-close-button"
+            aria-label="Close asset administration"
+            onClick={onClose}
+          >
+            <UiIcon icon={faXmark} aria-hidden="true" />
+          </button>
         </div>
-        <div className="asset-admin-search">
-          <SearchField
-            label={`Search ${noun}`}
-            placeholder={`Search ${noun}`}
-            value={query}
+        <div className="asset-admin-toolbar">
+          <Tabs
+            id="asset-visibility"
+            label="Asset visibility"
+            value={tab}
             onChange={(value) => {
-              setQuery(value);
+              setTab(value);
               setCheckedIds(null);
               setOutcome("");
             }}
-          />
-        </div>
-        <button
-          className="asset-admin-close sp-close-button"
-          aria-label="Close asset administration"
-          onClick={onClose}
-        >
-          <UiIcon icon={faXmark} aria-hidden="true" />
-        </button>
-      </div>
-      <div className="asset-admin-toolbar">
-        <Tabs
-          id="asset-visibility"
-          label="Asset visibility"
-          value={tab}
-          onChange={(value) => {
-            setTab(value);
-            setCheckedIds(null);
-            setOutcome("");
-          }}
-          items={(
-            [
+            items={(
               [
-                "all",
-                kind === "environment" ? "All Spaces" : "All Assets",
-                items.filter((a) => !a.deleted).length,
-              ],
-              ["visible", "Public", items.filter((a) => !a.deleted && !a.hidden).length],
-              ["hidden", "Private", items.filter((a) => !a.deleted && a.hidden).length],
-              ["deleted", "Deleted", items.filter((a) => a.deleted).length],
-            ] as const
-          ).map(([value, label, count]) => ({
-            value,
-            label: data ? `${label} (${count})` : label,
-            measureLabel: `${label} (${data ? count : "00"})`,
-          }))}
-        />
-        <div className="asset-admin-toolbar-actions">
-          {selecting ? (
-            <>
-              <div className="sp-selection-summary">
-                <span role="status">
-                  {checked.length ? `${checked.length} selected` : `Select ${noun}`}
-                </span>
-                <button
-                  type="button"
-                  className="sp-select-all-action"
-                  disabled={locked || !selectable.length}
-                  onClick={() =>
-                    setCheckedIds(new Set(allChecked ? [] : selectable.map((asset) => asset.id)))
-                  }
-                >
-                  <span className="sp-plain-label sp-button-label">
-                    {allChecked ? "Clear all" : "Select all"}
+                [
+                  "all",
+                  kind === "environment" ? "All Spaces" : "All Assets",
+                  items.filter((a) => !a.deleted).length,
+                ],
+                ["visible", "Public", items.filter((a) => !a.deleted && !a.hidden).length],
+                ["hidden", "Private", items.filter((a) => !a.deleted && a.hidden).length],
+                ["deleted", "Deleted", items.filter((a) => a.deleted).length],
+              ] as const
+            ).map(([value, label, count]) => ({
+              value,
+              label: data ? `${label} (${count})` : label,
+              measureLabel: `${label} (${data ? count : "00"})`,
+            }))}
+          />
+          <div className="asset-admin-toolbar-actions">
+            {selecting ? (
+              <>
+                <div className="sp-selection-summary">
+                  <span role="status">
+                    {checked.length ? `${checked.length} selected` : `Select ${noun}`}
                   </span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    className="sp-select-all-action"
+                    disabled={locked || !selectable.length}
+                    onClick={() =>
+                      setCheckedIds(new Set(allChecked ? [] : selectable.map((asset) => asset.id)))
+                    }
+                  >
+                    <span className="sp-plain-label sp-button-label">
+                      {allChecked ? "Clear all" : "Select all"}
+                    </span>
+                  </button>
+                </div>
+                <Button
+                  className="sp-button--danger sp-account-bulk-delete"
+                  disabled={!checked.length || locked}
+                  onClick={() => {
+                    setNotice(null);
+                    setSelection({ kind: "bulk", count: checked.length });
+                  }}
+                >
+                  <UiIcon icon={trashIcon} aria-hidden="true" />
+                  <span className="sp-button-label">
+                    {permanent ? bulkLabel : "Delete selected"}
+                  </span>
+                </Button>
+              </>
+            ) : (
               <Button
-                className="sp-button--danger sp-account-bulk-delete"
-                disabled={!checked.length || locked}
-                onClick={() => {
-                  setNotice(null);
-                  setSelection({ kind: "bulk", count: checked.length });
-                }}
+                variant="primary"
+                className="asset-admin-primary sp-catalogue-add"
+                disabled={!canOpenUpload || loading || uncertainWrite || notice?.kind === "denied"}
+                onClick={openUpload}
               >
-                <UiIcon icon={trashIcon} aria-hidden="true" />
-                <span className="sp-button-label">{permanent ? bulkLabel : "Delete selected"}</span>
+                <span className="sp-button-label">
+                  + Add {kind === "environment" ? "3D Space" : "Assets"}
+                </span>
               </Button>
-            </>
-          ) : (
-            <Button
-              variant="primary"
-              className="asset-admin-primary sp-catalogue-add"
-              disabled={!canOpenUpload || loading || uncertainWrite || notice?.kind === "denied"}
-              onClick={openUpload}
-            >
-              <span className="sp-button-label">
-                + Add {kind === "environment" ? "3D Space" : "Assets"}
-              </span>
-            </Button>
-          )}
-          {showBulk && (
-            <SelectionToggle
-              selected={selecting}
-              label={`Select ${noun}`}
-              title={`Select multiple ${noun}`}
-              disabled={loading || locked || (!selecting && selectable.length === 0)}
-              onClick={() => setCheckedIds(selecting ? null : new Set())}
-            />
-          )}
-        </div>
-      </div>
-      {!loading && validationUnavailable && notice?.kind !== "denied" && (
-        <div className="sp-hint" role="status">
-          <p>{uploadAvailabilityMessage}</p>
-          {kind === "model" && canOpenUpload && <p>Audio uploads are still available.</p>}
-          <Button
-            onClick={() => {
-              setLoading(true);
-              setReload((value) => value + 1);
-            }}
-          >
-            Check upload availability
-          </Button>
-        </div>
-      )}
-      <p
-        className={!selection && outcome ? "asset-admin-bulk-outcome" : "asset-admin-sr"}
-        role="status"
-      >
-        {outcome}
-      </p>
-      <div
-        ref={catalogueList}
-        id="asset-visibility-panel"
-        className="asset-admin-scroll"
-        tabIndex={0}
-        role="region"
-        aria-label={`${noun} list`}
-      >
-        {loading ? (
-          <div
-            className="asset-admin-grid"
-            role="status"
-            aria-label={`Loading ${noun.toLowerCase()}`}
-            aria-busy="true"
-          >
-            {Array.from({ length: 3 }, (_, index) => (
-              <div
-                className="asset-admin-card asset-admin-loading-card"
-                key={index}
-                aria-hidden="true"
-              >
-                <div className="asset-admin-thumbnail">
-                  <SkeletonBox width="100%" height="100%" radius={0} />
-                </div>
-                <div className="asset-admin-card-content">
-                  <div>
-                    <SkeletonBox width="65%" height={16} radius={4} />
-                    <SkeletonBox width={52} height={14} radius={4} />
-                  </div>
-                  <div className="asset-admin-loading-action">
-                    <SkeletonBox width={110} height={40} radius={20} />
-                  </div>
-                </div>
-              </div>
-            ))}
+            )}
+            {showBulk && (
+              <SelectionToggle
+                selected={selecting}
+                label={`Select ${noun}`}
+                title={`Select multiple ${noun}`}
+                disabled={loading || locked || (!selecting && selectable.length === 0)}
+                onClick={() => setCheckedIds(selecting ? null : new Set())}
+              />
+            )}
           </div>
-        ) : notice && !selection ? (
-          <div className="asset-admin-state" role="alert">
-            <h2>
-              {notice.kind === "denied"
-                ? "Access denied"
-                : uncertainWrite
+        </div>
+        {!loading && validationUnavailable && notice?.kind !== "denied" && (
+          <div className="sp-hint" role="status">
+            <p>{uploadAvailabilityMessage}</p>
+            {kind === "model" && canOpenUpload && <p>Audio uploads are still available.</p>}
+            <Button
+              onClick={() => {
+                setLoading(true);
+                setReload((value) => value + 1);
+              }}
+            >
+              Check upload availability
+            </Button>
+          </div>
+        )}
+        <p
+          className={!selection && outcome ? "asset-admin-bulk-outcome" : "asset-admin-sr"}
+          role="status"
+        >
+          {outcome}
+        </p>
+        <div
+          ref={catalogueList}
+          id="asset-visibility-panel"
+          className="asset-admin-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label={`${noun} list`}
+        >
+          {loading ? (
+            <div
+              className="asset-admin-grid"
+              role="status"
+              aria-label={`Loading ${noun.toLowerCase()}`}
+              aria-busy="true"
+            >
+              {Array.from({ length: 3 }, (_, index) => (
+                <div
+                  className="asset-admin-card asset-admin-loading-card"
+                  key={index}
+                  aria-hidden="true"
+                >
+                  <div className="asset-admin-thumbnail">
+                    <SkeletonBox width="100%" height="100%" radius={0} />
+                  </div>
+                  <div className="asset-admin-card-content">
+                    <div>
+                      <SkeletonBox width="65%" height={16} radius={4} />
+                      <SkeletonBox width={52} height={14} radius={4} />
+                    </div>
+                    <div className="asset-admin-loading-action">
+                      <SkeletonBox width={110} height={40} radius={20} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : notice && !selection ? (
+            <div className="asset-admin-state" role="alert">
+              <h2>
+                {notice.kind === "denied"
+                  ? "Access denied"
+                  : uncertainWrite
                   ? "Check the library"
                   : `${kind === "environment" ? "Spaces" : "Assets"} unavailable`}
             </h2>
