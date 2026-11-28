@@ -1,3 +1,4 @@
+import argparse
 from collections import Counter, defaultdict
 import hashlib
 import json
@@ -5,7 +6,6 @@ import os
 from pathlib import Path
 import re
 import subprocess
-import sys
 import xml.etree.ElementTree as ET
 
 from sharding import balance
@@ -20,7 +20,9 @@ def trx_display_name(name):
     return INVALID_XML_CHARACTER.sub(lambda match: f"\\u{ord(match[0]):04x}", name)
 
 
-def run(shard):
+def run(shard, count):
+    if not 1 <= shard <= count:
+        raise ValueError("Shard number must be between 1 and the shard count")
     tests = json.loads(subprocess.check_output(
         ["dotnet", ASSEMBLY, "--list-tests", "json", "--no-banner", "--no-ansi"],
         encoding="utf-8-sig",
@@ -29,11 +31,11 @@ def run(shard):
     for test in tests:
         groups[test["type"]["typeName"]].append(test)
     ids = [test["uid"] for test in tests]
-    if len(groups) < 2 or len(set(ids)) != len(ids):
-        raise ValueError("Expected at least two test classes and unique discovered test UIDs")
+    if len(groups) < count or len(set(ids)) != len(ids):
+        raise ValueError("Expected at least one test class per shard and unique discovered test UIDs")
 
     recorded = json.loads((HERE / "server-class-seconds.json").read_text())
-    shards = balance({name: recorded.get(name, len(cases)) for name, cases in groups.items()}, 2)
+    shards = balance({name: recorded.get(name, len(cases)) for name, cases in groups.items()}, count)
     cases = [test for name in shards[shard - 1] for test in groups[name]]
     directory = Path("test-results/ci") / str(shard)
     directory.mkdir(parents=True, exist_ok=True)
@@ -74,6 +76,8 @@ def run(shard):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2 or sys.argv[1] not in {"1", "2"}:
-        sys.exit("Usage from apps/server: python server_shard.py {1|2}")
-    run(int(sys.argv[1]))
+    parser = argparse.ArgumentParser(description="Run and verify a partition of the C# test suite.")
+    parser.add_argument("shard", type=int)
+    parser.add_argument("count", type=int, nargs="?", default=2, help="total shards in this run")
+    args = parser.parse_args()
+    run(args.shard, args.count)

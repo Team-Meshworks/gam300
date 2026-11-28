@@ -144,18 +144,23 @@ async function browserEntry(root) {
   }
 }
 
-function unitDependsOn(test, removed, visited = new Set()) {
-  if (visited.has(test)) return false;
-  visited.add(test);
-  return baseline.graph.imports
-    .filter((entry) => entry.file === test && typeof entry.target === "string")
-    .some(
-      (entry) =>
-        moduleOf(entry.target) === removed || unitDependsOn(entry.target, removed, visited),
-    );
+const importers = new Map();
+for (const { file, target } of baseline.graph.imports) {
+  if (typeof target !== "string") continue;
+  if (!importers.has(target)) importers.set(target, new Set());
+  importers.get(target).add(file);
 }
 
-try {
+function affectedFiles(removedFiles) {
+  const affected = new Set(removedFiles);
+  // Set iteration also visits importers added during the traversal.
+  for (const file of affected) {
+    for (const importer of importers.get(file) ?? []) affected.add(importer);
+  }
+  return affected;
+}
+
+async function checkBaseline() {
   const root = copy("violations");
   const projectFile = "shared/project/project-types.ts";
   const original = readFileSync(resolve(root, projectFile), "utf8");
@@ -295,8 +300,20 @@ try {
     undefined,
     "The isolated browser entry must work before removal",
   );
+}
 
-  for (const removed of Object.keys(modules)) {
+try {
+  const shard = process.env.SPATIA_ARCHITECTURE_SHARD;
+  assert.ok(
+    shard === undefined || shard === "1" || shard === "2",
+    "Expected architecture shard 1 or 2",
+  );
+  const names = Object.keys(modules);
+  const middle = Math.floor(names.length / 2);
+  const removals =
+    shard === "1" ? names.slice(0, middle) : shard === "2" ? names.slice(middle) : names;
+  if (shard !== "2") await checkBaseline();
+  for (const removed of removals) {
     const root = copy(`remove-${removed}`);
     const configArgs = [];
     if (removed === "build") {
@@ -340,9 +357,8 @@ try {
       expected,
       `${removed}: observed failures must equal the declared dependent closure`,
     );
-    const unitFiles = files.filter(
-      (file) => file.endsWith(".test.ts") && removed !== "checks" && !unitDependsOn(file, removed),
-    );
+    const affected = affectedFiles(removedFiles);
+    const unitFiles = files.filter((file) => file.endsWith(".test.ts") && !affected.has(file));
     let units;
     if (unitFiles.length) {
       units = command(root, [
@@ -388,7 +404,9 @@ try {
     resolve(results, "architecture-proof.json"),
     JSON.stringify(report, null, 2) + "\n",
   );
-  console.log("PASS: all module-removal closures match; active source hashes unchanged");
+  console.log(
+    `PASS: ${removals.length} module-removal closures match; active source hashes unchanged`,
+  );
 } finally {
   // Only remove the disposable directory we created, never its junction targets
   assert.equal(dirname(realpathSync(temporary)), realpathSync(isolatedResults));

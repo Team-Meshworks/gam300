@@ -187,7 +187,7 @@ The release image is built concurrently with the source checks and is tested beh
 Both build modes enforce the 500 kB JavaScript chunk budget.
 
 The PR selector skips the frontend browser fixtures for documentation, web unit-test and
-C# test-only changes. C# test edits still run both server shards. The selector chooses
+C# test-only changes. C# test edits still run all server shards. The selector chooses
 the fixtures that own changed browser entry scripts or preview HTML routes. Application code,
 shared helpers, configuration, assets, server changes and an unavailable comparison run the
 full browser set. Each browser group runs against its own Vite server. The catalog in
@@ -199,8 +199,9 @@ Update the catalog with representative full-run timings when the workload change
 Windows and macOS validate setup, dependency boundaries, browser policy and native builds
 on full runs. Every source check validates imports and cycles. The separate module-removal
 proof runs on architecture tooling, dependency, build configuration or CI planner changes,
-and on manual runs. The packaged checks exercise workspace routes, the admin dashboard,
-development-only sample controls and the real Caddy configuration. Publishing requires
+and on manual runs. Two jobs divide the modules. The first also checks the unmodified
+application and exercises the forbidden-import probes. The packaged checks exercise workspace
+routes, the admin dashboard, development-only sample controls and the real Caddy configuration. Publishing requires
 successful source, packaging, native, server, fixture and applicable architecture checks.
 CI reuses the runner's Chrome only when browser verification passes the version and
 sandbox policy. Otherwise it restores or downloads the pinned official Chrome `.deb`,
@@ -227,12 +228,12 @@ catalogue test log. That saves about 122 MiB and projects 607.6 MiB of stored ar
 for a comparable run, down from 729.71 MiB. Organization billing covers a different scope.
 [Baseline run and artifacts](https://github.com/Team-Meshworks/gam300/actions/runs/44320426331)
 
-Two server test runners each use a disposable, loopback-only PostgreSQL 18.6 service on
-a memory-backed volume. They restore locked dependencies, build in Release and discover
-the full TUnit inventory. Recorded class durations determine each partition. The format
+Three server test runners each use a disposable, loopback-only PostgreSQL 18.6 service on
+a memory-backed volume. Each builds in Release while preparing browser and proxy tooling,
+then discovers the full TUnit inventory. Recorded class durations determine each partition. The format
 checks run once alongside project-format validation. EF migration checks run once on the first
-server runner. Each runner verifies its TRX against its selected cases. Both runners must report
-the same partition digest. Full runs always exercise both shards. PRs also exercise both for
+server runner. Each runner verifies its TRX against its selected cases. All three runners must report
+the same partition digest. Full runs always exercise every shard. PRs also exercise every shard for
 changes outside documentation and web unit tests. See the [server guide](../apps/server/README.md#toolchain-and-checks).
 
 The check job has no package-write permission. After a successful push or manual run on
