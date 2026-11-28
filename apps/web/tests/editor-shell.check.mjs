@@ -594,9 +594,7 @@ try {
   // Filtering keeps the pick, and says so when the current results hide it
   const filter = picker.getByRole("combobox", { name: "Filter assets", exact: true });
   // Modal browsing leaves the asset hotbar available while hotspot controls stay inactive.
-  // Camera tools stay available while editing, but browsing hides and disables them.
-  assert.equal(await page.locator(".mode-bar").isVisible(), false);
-  assert.equal(await page.locator(".mode-bar").evaluate((bar) => bar.inert), true);
+  assert.equal(await page.locator(".mode-bar").count(), 0);
   assert.equal(
     await page.getByRole("button", { name: "Add Hotspot", exact: true }).isDisabled(),
     true,
@@ -740,13 +738,12 @@ try {
   assert.equal(await rows.first().isVisible(), false);
   await page.keyboard.press("Enter");
   assert.equal(await rows.first().isVisible(), true);
-  // Editor starts in first person; the camera toolbar remains available in either editing view.
   const viewToggle = page.getByRole("button", { name: "Third person", exact: true });
   const cameraTools = page.getByRole("group", { name: "Camera tools" });
   const locked = () => page.evaluate(() => document.pointerLockElement?.tagName ?? null);
   if ((await viewToggle.getAttribute("aria-pressed")) === "true") await viewToggle.click();
   assert.equal(await viewToggle.getAttribute("aria-pressed"), "false");
-  assert.equal(await cameraTools.isVisible(), true, "Camera tools remain available while editing");
+  assert.equal(await cameraTools.isVisible(), false);
   assert.match(await page.locator(".walk-hint").textContent(), /Click the scene to look around/);
   await viewToggle.click();
   assert.equal(await viewToggle.getAttribute("aria-pressed"), "true");
@@ -855,7 +852,7 @@ try {
   // First person stand where the orbit camera looked, so back off the crate then aim at it
   await rows.nth(1).click();
   await viewToggle.click();
-  assert.equal(await cameraTools.isVisible(), true);
+  assert.equal(await cameraTools.isVisible(), false);
   await stage.click({ position: { x: stageBox.width / 2, y: stageBox.height / 2 } });
   assert.equal(await locked(), "CANVAS", "A click on the scene grabs the mouse");
   await page.locator(".crosshair").waitFor();

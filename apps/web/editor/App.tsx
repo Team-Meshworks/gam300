@@ -1174,7 +1174,7 @@ export function App({
                 setView("third");
                 setNavigationTool(tool);
               }}
-              showCameraTools={true}
+              showCameraTools={view === "third"}
             />
           )}
           {mobileDevice && walking && mobileControls !== null && (
