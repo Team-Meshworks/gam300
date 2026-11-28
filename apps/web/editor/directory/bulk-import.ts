@@ -202,7 +202,7 @@ export function createBulkImport(
   async function load(operationId: string) {
     return checked(await write(base(operationId) + "/receipt", "POST", {}), operationId);
   }
-  async function discover(): Promise<BulkImportSummary[]> {
+  async function discover(downloadsOnly = false): Promise<BulkImportSummary[]> {
     const invalid = () =>
       new Error("The account import list could not be verified. Refresh the directory.");
     const result = new Map<string, BulkImportSummary>();
@@ -239,6 +239,7 @@ export function createBulkImport(
           item.createdCount > 200
         )
           throw invalid();
+        if (downloadsOnly && (!("hasDownload" in item) || item.hasDownload !== true)) continue;
         result.set(item.operationId, {
           operationId: item.operationId,
           createdAt: item.createdAt,
@@ -261,7 +262,20 @@ export function createBulkImport(
     pending,
     watch,
     discover,
-    async start(values: readonly NewAccount[]) {
+    async downloadAvailable() {
+      const batches = await write(collection + "/download", "POST", {});
+      await verifyActor();
+      if (!Array.isArray(batches)) throw new Error("Invalid login file.");
+      const accounts = new Map<string, NewAccount>();
+      for (const batch of batches) {
+        if (!isObject(batch) || !("operationId" in batch) || !id(batch.operationId))
+          throw new Error("Invalid login file.");
+        for (const account of receipt(batch, orgId, batch.operationId).credentials)
+          accounts.set(account.userName, account);
+      }
+      return [...accounts.values()];
+    },
+    async start(values: readonly NewAccount[], onRecorded?: (id: string) => void) {
       return locked(async () => {
         if (pending())
           throw new Error("Resolve the previous account import before starting another.");
@@ -269,6 +283,7 @@ export function createBulkImport(
         localStorage.setItem(key, operationId);
         if (pending() !== operationId)
           throw new Error("The browser could not safely record the import. No accounts were sent.");
+        onRecorded?.(operationId);
         let value: unknown;
         try {
           value = await write(
@@ -284,6 +299,7 @@ export function createBulkImport(
         return checked(value, operationId, values);
       });
     },
+    downloadStarted: (operationId: string) => locked(async () => clear(operationId)),
     load: (operationId: string) => locked(() => load(operationId)),
     acknowledge: (operationId: string) =>
       locked(async () => {

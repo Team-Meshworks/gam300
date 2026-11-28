@@ -19,7 +19,7 @@ public static partial class AccountDirectoryEndpoints
     }
 
     private sealed record EmptyBulkRequest;
-    private sealed record BulkItem(Guid OperationId, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt, int CreatedCount);
+    private sealed record BulkItem(Guid OperationId, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt, int CreatedCount, byte[]? ProtectedHandoff);
     private sealed record BulkCreated(Guid UserId, string UserName, string? DisplayName, string Role);
     private sealed record BulkHandoff(Guid UserId, string Password, string? SecurityStamp);
     private sealed record BulkCredential(Guid UserId, string UserName, string Password);
@@ -33,6 +33,8 @@ public static partial class AccountDirectoryEndpoints
     private static void MapBulkImports(RouteGroupBuilder group)
     {
         group.MapGet("/organizations/{orgId:guid}/bulk-imports", ListBulkImportsAsync);
+        group.MapPost("/organizations/{orgId:guid}/bulk-imports/download", DownloadBulkImportsAsync)
+            .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         const string path = "/organizations/{orgId:guid}/bulk-imports/{operationId:guid}";
         group.MapPut(path, (Guid orgId, Guid operationId, ProvisionAccountRequest[] rows, HttpContext context,
             ApplicationDbContext db, AccountAdministrationService administration, CurrentAccountResolver accounts,
@@ -52,7 +54,7 @@ public static partial class AccountDirectoryEndpoints
     }
 
     private static async Task<IResult> ListBulkImportsAsync(Guid orgId, HttpContext context, ApplicationDbContext db,
-        CurrentAccountResolver accounts, TimeProvider clock, CancellationToken token)
+        CurrentAccountResolver accounts, IDataProtectionProvider protection, TimeProvider clock, CancellationToken token)
     {
         var page = ReadQuery(context.Request.Query, users: false);
 
@@ -72,22 +74,74 @@ public static partial class AccountDirectoryEndpoints
         await PruneBulkHandoffsAsync(db, now, token);
         var results = await db.Database.SqlQuery<BulkItem>($"""
             SELECT operation_id AS "OperationId", expires_at - interval '1 hour' * {HandoffHours} AS "CreatedAt",
-                   expires_at AS "ExpiresAt", jsonb_array_length(created_accounts) AS "CreatedCount"
+                   expires_at AS "ExpiresAt", jsonb_array_length(created_accounts) AS "CreatedCount", protected_handoff AS "ProtectedHandoff"
             FROM bulk_import_receipts
             WHERE actor_id = {actor} AND organization_id = {orgId} AND operation_id > {page.Cursor ?? Guid.Empty}
               AND protected_intent IS NOT NULL AND NOT acknowledged AND expires_at > {now}
             ORDER BY operation_id LIMIT {page.Limit + 1}
             """).ToArrayAsync(token);
 
+        var summaries = results.Take(page.Limit).Select(item =>
+        {
+            var rows = item.ProtectedHandoff is null ? Array.Empty<BulkHandoff>() :
+                ReadHandoff(protection, actor, orgId, item.OperationId, item.ProtectedHandoff);
+            return (item, rows);
+        }).ToArray();
+        var ids = summaries.SelectMany(entry => entry.rows.Select(row => row.UserId)).Distinct().ToArray();
+        var eligible = await EligibleBulkUsers(db, orgId, ids).ToDictionaryAsync(user => user.Id, token);
+
         if (await AuthorizeAsync(context, accounts, token) is { } revoked)
             return revoked;
 
         return await CompleteAsync(context, transaction, Results.Ok(new
         {
-            items = results.Take(page.Limit),
+            items = summaries.Select(entry => new
+            {
+                entry.item.OperationId, entry.item.CreatedAt, entry.item.ExpiresAt, entry.item.CreatedCount,
+                hasDownload = entry.item.ExpiresAt > clock.GetUtcNow() && entry.rows.Any(row => IsEligible(row, eligible)),
+            }).ToArray(),
             nextCursor = results.Length > page.Limit ? results[page.Limit - 1].OperationId : (Guid?)null,
         }), token);
     }
+
+    private static async Task<IResult> DownloadBulkImportsAsync(Guid orgId, EmptyBulkRequest request, HttpContext context,
+        ApplicationDbContext db, CurrentAccountResolver accounts, IDataProtectionProvider protection, TimeProvider clock, CancellationToken token)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(token);
+        if (await AuthorizeAsync(context, accounts, token) is { } denied) return denied;
+        var actor = context.Features.Get<ValidatedAccountSession>()!.UserId;
+        var now = clock.GetUtcNow();
+        var receipts = await db.Set<BulkImportReceipt>().FromSqlInterpolated($"""
+            SELECT * FROM bulk_import_receipts WHERE actor_id = {actor} AND organization_id = {orgId}
+              AND NOT acknowledged AND protected_handoff IS NOT NULL AND expires_at > {now}
+            ORDER BY operation_id FOR SHARE
+            """).AsNoTracking().ToArrayAsync(token);
+        var batches = receipts.Select(item => (item, rows: ReadHandoff(protection, actor, orgId, item.OperationId, item.ProtectedHandoff!))).ToArray();
+        var ids = batches.SelectMany(batch => batch.rows.Select(row => row.UserId)).Append(actor).Distinct().ToArray();
+        await db.Database.SqlQuery<Guid>($"""
+            SELECT "Id" AS "Value" FROM "AspNetUsers" WHERE "Id" = ANY({ids}) ORDER BY "Id" FOR SHARE
+            """).ToListAsync(token);
+        var eligible = await EligibleBulkUsers(db, orgId, ids).ToDictionaryAsync(user => user.Id, token);
+        if (await AuthorizeAsync(context, accounts, token) is { } revoked) return revoked;
+        var result = batches.Where(batch => batch.item.ExpiresAt > clock.GetUtcNow()).Select(batch => new
+        {
+            batch.item.OperationId, orgId, created = JsonSerializer.Deserialize<BulkCreated[]>(batch.item.CreatedJson),
+            credentials = batch.rows.Where(row => IsEligible(row, eligible))
+                .Select(row => new BulkCredential(row.UserId, eligible[row.UserId].UserName!, row.Password)).ToArray(),
+            batch.item.ExpiresAt, batch.item.Acknowledged,
+        }).Where(batch => batch.credentials.Length > 0).ToList();
+        var response = await CompleteAsync(context, transaction, Results.Ok(result), token, readOnly: true);
+        var completedAt = clock.GetUtcNow();
+        result.RemoveAll(batch => batch.ExpiresAt <= completedAt);
+        return response;
+    }
+
+    private static BulkHandoff[] ReadHandoff(IDataProtectionProvider protection, Guid actor, Guid orgId, Guid operationId, byte[] value) =>
+        JsonSerializer.Deserialize<BulkHandoff[]>(protection.CreateProtector("Spatia.BulkImport.v1",
+            actor.ToString("D"), orgId.ToString("D"), operationId.ToString("D")).CreateProtector("handoff").Unprotect(value))!;
+
+    private static bool IsEligible(BulkHandoff row, Dictionary<Guid, BulkUser> eligible) =>
+        eligible.TryGetValue(row.UserId, out var user) && user.SecurityStamp is not null && user.SecurityStamp == row.SecurityStamp;
 
     private static async Task<IResult> BulkImportAsync(Guid orgId, Guid operationId, BulkAction action, ProvisionAccountRequest[]? rows,
         HttpContext context, ApplicationDbContext db, AccountAdministrationService administration, CurrentAccountResolver accounts,
@@ -207,17 +261,7 @@ public static partial class AccountDirectoryEndpoints
                 await db.Database.SqlQuery<Guid>($"""
                     SELECT "Id" AS "Value" FROM "AspNetUsers" WHERE "Id" = ANY({ids}) ORDER BY "Id" FOR SHARE
                     """).ToListAsync(token);
-                var current = await (from user in db.Users.AsNoTracking()
-                                     join member in db.OrganizationMemberships on user.Id equals member.UserId
-                                     join organization in db.Organizations on member.OrganizationId equals organization.Id
-                                     where ids.Contains(user.Id) && member.OrganizationId == orgId && organization.IsActive
-                                         && user.IsActive && !user.IsDeleted && user.MustChangePassword
-                                     select new
-                                     {
-                                         user.Id,
-                                         user.UserName,
-                                         user.SecurityStamp
-                                     }).ToDictionaryAsync(user => user.Id, token);
+                var current = await EligibleBulkUsers(db, orgId, ids).ToDictionaryAsync(user => user.Id, token);
                 var protectedRows = JsonSerializer.Deserialize<BulkHandoff[]>(handoff.Unprotect(receipt.ProtectedHandoff))!;
 
                 foreach (var row in protectedRows)
@@ -252,6 +296,16 @@ public static partial class AccountDirectoryEndpoints
 
         return completed;
     }
+
+    private sealed record BulkUser(Guid Id, string? UserName, string? SecurityStamp);
+
+    private static IQueryable<BulkUser> EligibleBulkUsers(ApplicationDbContext db, Guid orgId, Guid[] ids) =>
+        from user in db.Users.AsNoTracking()
+        join member in db.OrganizationMemberships on user.Id equals member.UserId
+        join organization in db.Organizations on member.OrganizationId equals organization.Id
+        where ids.Contains(user.Id) && member.OrganizationId == orgId && organization.IsActive
+            && user.IsActive && !user.IsDeleted && user.MustChangePassword
+        select new BulkUser(user.Id, user.UserName, user.SecurityStamp);
 
     private static Task PruneBulkHandoffsAsync(ApplicationDbContext db, DateTimeOffset now, CancellationToken token) =>
         db.Database.ExecuteSqlInterpolatedAsync($"""

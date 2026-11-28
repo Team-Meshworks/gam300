@@ -140,7 +140,9 @@ public sealed class BulkImportTests
     }
 
     [Test]
-    public async Task Receipt_HandoffExpiringDuringCommitReturnsOnlyCreatedAccounts()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Receipt_HandoffExpiringDuringCommitReturnsOnlyCreatedAccounts(bool combined)
     {
         var probe = new LoseCommit();
         await using var fixture = await HttpsApplicationFixture.CreateAsync(builder =>
@@ -156,7 +158,7 @@ public sealed class BulkImportTests
         await fixture.SignInAsync(admin);
         var token = await fixture.GetCsrfAsync();
         probe.After = () => fixture.Clock.Set(deadline);
-        using var expiring = await AuthTestRequests.PostAsync(fixture, path + "/receipt", new
+        using var expiring = await AuthTestRequests.PostAsync(fixture, combined ? $"/api/v1/admin/organizations/{org:D}/bulk-imports/download" : path + "/receipt", new
         {
         }, token: token);
 
@@ -164,6 +166,11 @@ public sealed class BulkImportTests
 
         var result = await expiring.Content.ReadFromJsonAsync<JsonElement>();
 
+        if (combined)
+        {
+            await Assert.That(result.GetArrayLength()).IsEqualTo(0);
+            return;
+        }
         await Assert.That(result.GetProperty("created").GetArrayLength()).IsEqualTo(1);
         await Assert.That(result.GetProperty("credentials").GetArrayLength()).IsEqualTo(0);
     }
@@ -289,6 +296,20 @@ public sealed class BulkImportTests
         }, student);
 
         await Assert.That(unprivileged.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+
+        var download = $"/api/v1/admin/organizations/{org:D}/bulk-imports/download";
+        using var file = await AuthTestRequests.PostAsync(fixture, download, new { });
+        var batch = (await file.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().Single();
+        await Assert.That(batch.GetProperty("operationId").GetGuid()).IsEqualTo(op);
+        await Assert.That(batch.GetProperty("credentials").EnumerateArray().Single().GetProperty("userName").GetString()).IsEqualTo("keep");
+        using var otherFile = await AuthTestRequests.PostAsync(fixture, download, new { }, different);
+        await Assert.That((await otherFile.Content.ReadFromJsonAsync<JsonElement>()).GetArrayLength()).IsEqualTo(0);
+        using var wrongFile = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/organizations/{Guid.NewGuid():D}/bulk-imports/download", new { });
+        await Assert.That((await wrongFile.Content.ReadFromJsonAsync<JsonElement>()).GetArrayLength()).IsEqualTo(0);
+        using var forbiddenFile = await AuthTestRequests.PostAsync(fixture, download, new { }, student);
+        await Assert.That(forbiddenFile.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+        using var noFileToken = await fixture.Client.PostAsJsonAsync(download, new { });
+        await Assert.That(noFileToken.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
 
         var cutoff = receipt.GetProperty("expiresAt").GetDateTimeOffset();
         fixture.Clock.Set(cutoff);
@@ -457,10 +478,11 @@ public sealed class BulkImportTests
             var item = data.GetProperty("items").EnumerateArray().Single();
 
             await Assert.That(item.EnumerateObject().Select(field => field.Name).Order().ToArray())
-                .IsEquivalentTo(new[] { "createdAt", "createdCount", "expiresAt", "operationId" });
+                .IsEquivalentTo(new[] { "createdAt", "createdCount", "expiresAt", "hasDownload", "operationId" });
 
             var id = item.GetProperty("operationId").GetGuid();
             seen.Add(id);
+            await Assert.That(item.GetProperty("hasDownload").GetBoolean()).IsEqualTo(id == ids[0]);
 
             await Assert.That(item.GetProperty("createdCount").GetInt32()).IsEqualTo(id == ids[0] ? 1 : 0);
             await Assert.That(item.GetProperty("expiresAt").GetDateTimeOffset() - item.GetProperty("createdAt").GetDateTimeOffset()).IsEqualTo(TimeSpan.FromHours(24));
