@@ -7,6 +7,7 @@ import { Icon } from "@iconify/react/offline";
 import closeIcon from "@iconify-icons/lucide/x";
 import plusIcon from "@iconify-icons/lucide/plus";
 import refreshIcon from "@iconify-icons/lucide/refresh-cw";
+import checkIcon from "@iconify-icons/lucide/check";
 import { Select } from "../../shared/ui/Select";
 import { Avatar } from "../../shared/ui/Avatar";
 import { Button } from "../../shared/ui/Button";
@@ -23,7 +24,12 @@ import {
 import { createWorkspaceClient } from "./workspace-api";
 import { createDirectoryClient, type ManagedOrganization } from "../directory/directory-client";
 
-import { createOperationKey, readCreateOperation, sendCreateOperation } from "./create-operation";
+import {
+  finishConfirmedCreation,
+  createOperationKey,
+  readCreateOperation,
+  sendCreateOperation,
+} from "./create-operation";
 
 import { PendingCreateRecovery } from "./PendingCreateRecovery";
 
@@ -74,11 +80,21 @@ export function ClassHome({
   );
   const [phase, setPhase] = useState<"ready" | "pending" | "unknown">("ready");
   const [notice, setNotice] = useState("");
+  const [addedStudents, setAddedStudents] = useState<
+    { classId: string; student: EligibleStudent }[]
+  >([]);
   const busy = useRef(false);
   const operationKey = createOperationKey(session.userId, "class");
   const [recoverable, setRecoverable] = useState(true);
   const manager = session.role !== "Creator";
   const rosterKey = `${classId}:${refresh}`;
+  useEffect(() => {
+    if (!organisationView || !classes) return;
+    const url = new URL(location.href);
+    if (classId) url.searchParams.set("classId", classId);
+    else url.searchParams.delete("classId");
+    history.replaceState(history.state, "", url);
+  }, [classId, classes, organisationView]);
   useEffect(() => {
     if (dialog !== "create" || session.role !== "Administrator") return;
     let active = true;
@@ -153,13 +169,14 @@ export function ClassHome({
     window.addEventListener("beforeunload", preventLoss);
     return () => window.removeEventListener("beforeunload", preventLoss);
   }, [phase]);
-  async function save(retry = false) {
-    if (!active || (!retry && (!dialog || phase !== "ready")) || busy.current) return;
+  async function save(retry = false, member?: { userId: string; name: string; enrolled: boolean }) {
+    const action = member ?? dialog;
+    if (!active || (!retry && (!action || phase !== "ready")) || busy.current) return;
     busy.current = true;
     setPhase("pending");
     setNotice("");
     const result =
-      dialog === "create" || retry
+      action === "create" || retry
         ? await sendCreateOperation(
             localStorage,
             operationKey,
@@ -189,8 +206,8 @@ export function ClassHome({
           )
         : await api.write(
             session.userId,
-            `/api/v1/classes/${encodeURIComponent(classId)}/members/${encodeURIComponent(typeof dialog === "object" && dialog ? dialog.userId : "")}`,
-            typeof dialog === "object" && dialog?.enrolled ? "DELETE" : "PUT",
+            `/api/v1/classes/${encodeURIComponent(classId)}/members/${encodeURIComponent(typeof action === "object" && action ? action.userId : "")}`,
+            typeof action === "object" && action?.enrolled ? "DELETE" : "PUT",
           );
     busy.current = false;
     try {
@@ -199,8 +216,8 @@ export function ClassHome({
       setRecoverable(true);
     }
     let verified =
-      result.kind === "confirmed" && (dialog !== "create" ? result.value === null : false);
-    if (result.kind === "confirmed" && (dialog === "create" || retry)) {
+      result.kind === "confirmed" && (action !== "create" ? result.value === null : false);
+    if (result.kind === "confirmed" && (action === "create" || retry)) {
       try {
         const created = classroom(result.value);
         verified =
@@ -213,14 +230,31 @@ export function ClassHome({
       }
     }
     if (verified) {
+      if (action === "create" && !retry && result.kind === "confirmed") {
+        if (
+          await finishConfirmedCreation(
+            localStorage,
+            session.userId,
+            "class",
+            result.value,
+            api.write,
+          )
+        )
+          setRecoverable(false);
+      }
+      if (member && !member.enrolled) {
+        const student = roster?.eligible.find((row) => row.userId === member.userId);
+        if (student) setAddedStudents((rows) => [...rows, { classId, student }]);
+      }
       setPhase("ready");
       setDialog(null);
-      setNotice("Class change confirmed.");
-      setRefresh((value) => value + 1);
+      setNotice("");
+      if (!member) setRefresh((value) => value + 1);
     } else if (result.kind === "rejected") {
       setPhase("ready");
       setNotice(result.message);
     } else {
+      if (member) setDialog(member);
       setPhase("unknown");
       setNotice(
         "The result is uncertain. Refresh classes and check the roster before making another change.",
@@ -239,6 +273,20 @@ export function ClassHome({
   }
   const labels = classLabels((classes ?? []).map((row) => ({ id: row.id, label: row.name })));
   const currentRoster = roster?.key === rosterKey && !rosterError ? roster : null;
+  const availableStudents = currentRoster
+    ? [
+        ...currentRoster.eligible.filter((student) => !student.enrolled),
+        ...addedStudents
+          .filter(
+            (row) =>
+              row.classId === classId &&
+              !currentRoster.eligible.some(
+                (student) => student.userId === row.student.userId && !student.enrolled,
+              ),
+          )
+          .map((row) => row.student),
+      ]
+    : [];
   const studentNames = Object.fromEntries(
     currentRoster?.members.map((member) => [member.userId, member.userName]) ?? [],
   );
@@ -251,27 +299,29 @@ export function ClassHome({
     }
   })();
   const recoveryPanel = (
-    <PendingCreateRecovery
-      actorId={session.userId}
-      purpose="class"
-      refreshKey={phase + notice}
-      onPendingChange={setRecoverable}
-      onRecovered={(value) => {
-        setClassId(value.id);
-        setDialog(null);
-        setPhase("ready");
-        setRefresh((value) => value + 1);
-      }}
-      active={active && phase !== "pending"}
-      onReleased={() => {
-        setPhase("ready");
-        setDialog(null);
-        setRefresh((value) => value + 1);
-        setNotice(
-          "The saved class request was released. Its outcome remains unknown. A new class is a separate creation.",
-        );
-      }}
-    />
+    <div className="sp-class-recovery">
+      <PendingCreateRecovery
+        actorId={session.userId}
+        purpose="class"
+        refreshKey={phase + notice}
+        onPendingChange={setRecoverable}
+        onRecovered={(value) => {
+          setClassId(value.id);
+          setDialog(null);
+          setPhase("ready");
+          setRefresh((value) => value + 1);
+        }}
+        active={active && phase !== "pending"}
+        onReleased={() => {
+          setPhase("ready");
+          setDialog(null);
+          setRefresh((value) => value + 1);
+          setNotice(
+            "The saved class request was released. Its outcome remains unknown. A new class is a separate creation.",
+          );
+        }}
+      />
+    </div>
   );
   return (
     <section
@@ -339,7 +389,9 @@ export function ClassHome({
                   ? "Unavailable"
                   : "Loading…"
                 : classes.length
-                  ? "Select a class"
+                  ? organisationView
+                    ? "Select class"
+                    : "Select a class"
                   : "No classes"
             }
             options={
@@ -365,7 +417,10 @@ export function ClassHome({
             disabled={!classes?.length}
             options={[
               { value: "", label: "Choose a class" },
-              ...(classes?.map((row) => ({ value: row.id, label: labels.get(row.id)! })) ?? []),
+              ...(classes?.map((row) => ({
+                value: row.id,
+                label: labels.get(row.id)!,
+              })) ?? []),
             ]}
             onChange={(value) => {
               setClassId(value);
@@ -406,6 +461,7 @@ export function ClassHome({
           variant="secondary"
           className="sp-class-refresh-action"
           onClick={() => {
+            setAddedStudents([]);
             setRosterError("");
             setRefresh((value) => value + 1);
           }}
@@ -416,9 +472,9 @@ export function ClassHome({
           </span>
         </Button>
       </div>
-      {classId && (
-        <p className="sp-muted">
-          Class ID: <code>{classId}</code>
+      {organisationView && classes && classes.length > 0 && !classId && (
+        <p className="sp-hint" role="status">
+          Select a class to view its projects and members.
         </p>
       )}
       {error ? (
@@ -542,14 +598,12 @@ export function ClassHome({
                     ))}
                   </Table>
                   {!currentRoster.members.length && <p role="status">No members are enrolled.</p>}
-                  {organisationView &&
-                    !currentRoster.eligible.some((student) => !student.enrolled) && (
-                      <p className="sp-organisation-account-hint">
-                        Your administrator creates accounts for new students.
-                      </p>
-                    )}
-                  {(!organisationView ||
-                    currentRoster.eligible.some((student) => !student.enrolled)) && (
+                  {organisationView && !availableStudents.length && (
+                    <p className="sp-organisation-account-hint">
+                      Your administrator creates accounts for new students.
+                    </p>
+                  )}
+                  {(!organisationView || availableStudents.length > 0) && (
                     <>
                       <h3 className="sp-home-notice">
                         {organisationView ? "Add Students" : "Add students"}
@@ -560,12 +614,21 @@ export function ClassHome({
                         </p>
                       )}
                       <ul className="sp-class-students">
-                        {currentRoster.eligible
-                          .filter((student) => !student.enrolled)
-                          .map((student) => (
-                            <li key={student.userId}>
-                              <span>{student.userName}</span>
+                        {availableStudents.map((student) => (
+                          <li key={student.userId}>
+                            <span>{student.userName}</span>
+                            {organisationView &&
+                            addedStudents.some(
+                              (row) =>
+                                row.classId === classId && row.student.userId === student.userId,
+                            ) ? (
+                              <span className="sp-class-added" role="status">
+                                Added to class
+                                <Icon icon={checkIcon} width={14} height={14} aria-hidden="true" />
+                              </span>
+                            ) : (
                               <Button
+                                disabled={phase !== "ready"}
                                 aria-label={
                                   organisationView
                                     ? `Add ${student.userName} to class`
@@ -573,17 +636,20 @@ export function ClassHome({
                                 }
                                 onClick={() => {
                                   setNotice("");
-                                  setDialog({
+                                  const member = {
                                     userId: student.userId,
                                     name: student.userName,
                                     enrolled: false,
-                                  });
+                                  };
+                                  if (organisationView) void save(false, member);
+                                  else setDialog(member);
                                 }}
                               >
                                 {organisationView ? "Add to Class" : `Enrol ${student.userName}`}
                               </Button>
-                            </li>
-                          ))}
+                            )}
+                          </li>
+                        ))}
                       </ul>
                       {!currentRoster.eligible.some((student) => !student.enrolled) && (
                         <p className="sp-hint">No other eligible students are available.</p>

@@ -33,6 +33,7 @@ const snapshots = "../../.artifacts/home-check";
 await mkdir(snapshots, { recursive: true });
 const errors = [];
 let logoutPosts = 0;
+let previousClassOperation = null;
 const recovery = creationRecoveryFixture();
 async function api(route) {
   const request = route.request();
@@ -58,8 +59,8 @@ async function api(route) {
       json: {
         items: [
           {
-            projectId: source,
-            title: "Museum source",
+            projectId: account.role === "Creator" ? alice : source,
+            title: account.role === "Creator" ? "Silk Road assignment" : "Museum source",
             revision: 3,
             updatedAt: "2026-10-30T01:00:00Z",
             archived: false,
@@ -78,15 +79,22 @@ async function api(route) {
     assert.match(body.operationId, /^[0-9a-f-]{36}$/);
     assert.equal(request.headers()["x-spatia-account"], teacher);
     assert.deepEqual(body, {
-      name: "Geography",
+      name: classes.length === 1 ? "Geography" : "Geography 2",
       operationId: body.operationId,
-      creationGuard: { purpose: "class", previousOperationId: null },
+      creationGuard: {
+        purpose: "class",
+        previousOperationId: previousClassOperation,
+      },
     });
     const row = {
-      id: "ddca2d1b-b065-41f5-9cae-961d8d1855af",
+      id:
+        classes.length === 1
+          ? "ddca2d1b-b065-41f5-9cae-961d8d1855af"
+          : "d254d13f-1f70-46bd-862e-3847241c20ac",
       name: body.name,
       organizationId: org,
     };
+    previousClassOperation = body.operationId;
     classes.push(row);
     return route.fulfill({ status: 201, json: recovery.commit(request, row) });
   }
@@ -140,21 +148,29 @@ async function api(route) {
       return route.abort();
     }
     return route.fulfill({
-      json: { assignmentId: assignment.assignmentId, projects: assignment.projects },
+      json: {
+        assignmentId: assignment.assignmentId,
+        projects: assignment.projects,
+      },
     });
   }
+  if (path.endsWith("/progress-reviews") || path.endsWith("/submissions"))
+    return route.fulfill({ json: { items: [], nextCursor: null } });
   if (path.includes("/assignments")) {
-    const visible = assignment
-      ? {
-          ...assignment,
-          projects:
-            account.role === "Creator"
-              ? assignment.projects.filter((row) => row.studentId === account.userId)
-              : assignment.projects,
-        }
-      : null;
+    const visible =
+      assignment && path.startsWith(`/api/v1/classes/${classId}/assignments`)
+        ? {
+            ...assignment,
+            projects:
+              account.role === "Creator"
+                ? assignment.projects.filter((row) => row.studentId === account.userId)
+                : assignment.projects,
+          }
+        : null;
     return path.endsWith("/assignments")
-      ? route.fulfill({ json: { items: visible ? [visible] : [], nextCursor: null } })
+      ? route.fulfill({
+          json: { items: visible ? [visible] : [], nextCursor: null },
+        })
       : visible
         ? route.fulfill({ json: visible })
         : route.fulfill({ status: 404 });
@@ -172,6 +188,8 @@ try {
   page.setDefaultTimeout(7000);
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(origin + "/classes");
+  await page.getByRole("combobox", { name: "Class", exact: true }).click();
+  await page.getByRole("option", { name: "History", exact: true }).click();
   await page.getByRole("button", { name: "Enrol Bob", exact: true }).click();
   await page.getByRole("button", { name: "Confirm", exact: true }).click();
   await page.getByRole("button", { name: "Remove Bob", exact: true }).waitFor();
@@ -191,12 +209,69 @@ try {
   failRoster = false;
   await page.getByRole("button", { name: "Refresh classes" }).click();
   await page.getByRole("button", { name: "Remove Bob", exact: true }).waitFor();
+  students.find((student) => student.userId === bob).enrolled = false;
   await page.goto(origin + "/classes?organisation=1");
-  await page.getByRole("button", { name: "New Class", exact: true }).click();
-  await page.getByLabel("Class name", { exact: true }).fill("Geography");
-  await page.getByRole("button", { name: "Create Class", exact: true }).click();
-  await page.getByText("Class change confirmed.", { exact: true }).waitFor();
-  assert.equal(classes.length, 2);
+  const bobRow = page.locator(".sp-class-students li").filter({ hasText: "Bob" });
+  const beforeAdd = await bobRow.boundingBox();
+  await page.getByRole("button", { name: "Add Bob to class", exact: true }).click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: /^Added to class$/ })
+    .waitFor();
+  assert.deepEqual(await bobRow.boundingBox(), beforeAdd);
+  const checkmark = bobRow.locator('[role="status"] svg');
+  assert.equal(await checkmark.isVisible(), true);
+  assert.equal((await checkmark.boundingBox()).width, 14);
+  const confirmation = await bobRow.locator('[role="status"]').boundingBox();
+  const statusColumn = await page
+    .getByRole("columnheader", { name: "Status", exact: true })
+    .boundingBox();
+  assert.ok(
+    Math.abs(confirmation.x + confirmation.width / 2 - statusColumn.x - statusColumn.width / 2) < 1,
+  );
+  assert.ok((await checkmark.boundingBox()).x > confirmation.x + 40);
+  assert.equal(new URL(page.url()).searchParams.get("classId"), classId);
+  assert.equal(await page.getByRole("dialog").count(), 0);
+  assert.equal(students.find((student) => student.userId === bob).enrolled, true);
+  assert.equal(
+    await page.getByRole("button", { name: "Add Bob to class", exact: true }).count(),
+    0,
+  );
+  await page.reload();
+  await page
+    .getByRole("table", { name: "Current class members" })
+    .getByText("@Bob", { exact: true })
+    .waitFor();
+  assert.equal(
+    await page.locator(".sp-class-students").getByText("Bob", { exact: true }).count(),
+    0,
+  );
+  assert.equal(await page.getByText("Added to class", { exact: true }).count(), 0);
+  for (const name of ["Geography", "Geography 2"]) {
+    await page.getByRole("button", { name: "New Class", exact: true }).click();
+    await page.getByLabel("Class name", { exact: true }).fill(name);
+    await page.getByRole("button", { name: "Create Class", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "New Class", exact: true })
+      .waitFor({ state: "detached" });
+    await page.waitForFunction(
+      () => !document.querySelector("button.sp-class-create-action")?.disabled,
+    );
+    assert.equal(
+      await page.getByRole("button", { name: "New Class", exact: true }).isEnabled(),
+      true,
+    );
+    assert.equal(await page.locator(".sp-create-recovery").count(), 0);
+  }
+  assert.equal(classes.length, 3);
+  const selectedClass = new URL(page.url()).searchParams.get("classId");
+  assert.ok(selectedClass);
+  await page.reload();
+  await page
+    .getByRole("combobox", { name: "Class", exact: true })
+    .filter({ hasText: "Geography 2" })
+    .waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("classId"), selectedClass);
   await page.goto(origin + "/classes");
   await page.getByRole("combobox", { name: "Class", exact: true }).click();
   await page.getByRole("option", { name: "History", exact: true }).click();
@@ -245,7 +320,10 @@ try {
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       `assignment overflows at ${width}`,
     );
-    await page.screenshot({ path: `${snapshots}/assignment-${width}.png`, fullPage: true });
+    await page.screenshot({
+      path: `${snapshots}/assignment-${width}.png`,
+      fullPage: true,
+    });
   }
   heldCreation = new Promise((resolve) => {
     releaseCreation = resolve;
@@ -266,7 +344,11 @@ try {
       document.querySelector('a[aria-label="Spatia home"]').click();
       window.pendingNavigationGuard = classes.disabled;
     });
-    observer.observe(document.body, { attributes: true, childList: true, subtree: true });
+    observer.observe(document.body, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
   });
   await page.getByRole("button", { name: "Create project", exact: true }).click();
   await page.waitForFunction(() => typeof window.pendingNavigationGuard === "boolean");
@@ -299,7 +381,12 @@ try {
     await page.evaluate((id) => localStorage.getItem(`spatia.assignment.pending:${id}`), teacher),
     null,
   );
-  account = { ...account, userId: alice, displayName: "Alice", role: "Creator" };
+  account = {
+    ...account,
+    userId: alice,
+    displayName: "Alice",
+    role: "Creator",
+  };
   const localContext = await browser.newContext({
     timezoneId: "America/New_York",
     locale: "en-US",
@@ -309,25 +396,33 @@ try {
   const local = await localContext.newPage();
   local.on("pageerror", (error) => errors.push(error.message));
   await local.goto(origin + "/classes");
-  await local.getByRole("combobox", { name: "Class", exact: true }).click();
-  await local.getByRole("option", { name: "History", exact: true }).click();
-  await local.getByRole("button", { name: "Silk Road assignment", exact: true }).click();
+  await local.waitForURL(origin + "/home");
+  await local.getByRole("button", { name: "View details", exact: true }).click();
   await local.getByText("Build an exhibit and explain each object.", { exact: true }).waitFor();
-  await local.getByText(/Nov 5, 2026/).waitFor();
+  await local
+    .getByRole("dialog", { name: "Project details", exact: true })
+    .getByText("Past Due", { exact: true })
+    .waitFor();
+  assert.match(await local.locator("time").getAttribute("title"), /Nov 5, 2026, 10:59 AM/);
+  assert.equal(await local.getByText(/Class ID:/).count(), 0);
   assert.equal(
-    await local.getByRole("button", { name: "Open your project", exact: true }).count(),
-    1,
+    await local.getByRole("link", { name: "Submissions and reviews", exact: true }).count(),
+    0,
   );
+  assert.equal(await local.getByRole("button", { name: "Open project", exact: true }).count(), 1);
   assert.equal(
-    await local.getByRole("button", { name: "Open your project", exact: true }).isDisabled(),
+    await local.getByRole("button", { name: "Open project", exact: true }).isDisabled(),
     false,
   );
   assert.equal(await local.getByRole("button", { name: "New assignment", exact: true }).count(), 0);
   assert.equal(await local.getByRole("region", { name: "Class roster", exact: true }).count(), 0);
   assert.ok(await local.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  await local.screenshot({ path: `${snapshots}/student-assignment-390.png`, fullPage: true });
+  await local.screenshot({
+    path: `${snapshots}/student-assignment-390.png`,
+    fullPage: true,
+  });
   await local.route(`**/?projectId=${alice}`, (route) => route.fulfill({ body: "editor" }));
-  await local.getByRole("button", { name: "Open your project", exact: true }).click();
+  await local.getByRole("button", { name: "Open project", exact: true }).click();
   await local.waitForURL(`**/?projectId=${alice}`);
   assert.deepEqual(errors, []);
   console.log(
