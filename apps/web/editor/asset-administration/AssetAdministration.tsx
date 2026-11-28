@@ -1252,155 +1252,163 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                   (selected.source || selected.license || selected.reviewNotes) && (
                     <details className="asset-admin-metadata">
                       <summary>Additional Details</summary>
-                    <dl className="asset-admin-review">
-                      <div>
-                        <dt>Source or provenance</dt>
-                        <dd>{selected.source || "Not provided"}</dd>
-                      </div>
-                      <div>
-                        <dt>Redistribution licence</dt>
-                        <dd>{selected.license || "Not provided"}</dd>
-                      </div>
-                      <div>
-                        <dt>Content review notes</dt>
-                        <dd>{selected.reviewNotes || "Not provided"}</dd>
-                      </div>
-                    </dl>
+                      <dl className="asset-admin-review">
+                        <div>
+                          <dt>Source or provenance</dt>
+                          <dd>{selected.source || "Not provided"}</dd>
+                        </div>
+                        <div>
+                          <dt>Redistribution licence</dt>
+                          <dd>{selected.license || "Not provided"}</dd>
+                        </div>
+                        <div>
+                          <dt>Content review notes</dt>
+                          <dd>{selected.reviewNotes || "Not provided"}</dd>
+                        </div>
+                      </dl>
+                    </details>
+                  )}
+                {selected?.deleted && !confirmation && (
+                  <p className="asset-admin-retired-status">
+                    {selected.removedFromProjects
+                      ? "Removed from projects. Affected published exhibitions are permanently unavailable."
+                      : "Deleted from library. Kept in existing projects and exhibitions."}
+                  </p>
+                )}
+                {editingForm && (
+                  <details className="asset-admin-metadata">
+                    <summary>Additional Details</summary>
+                    <fieldset className="asset-admin-review" disabled={locked}>
+                      <legend className="asset-admin-sr">Optional asset details</legend>
+                      {(
+                        [
+                          ["source", "Source or provenance"],
+                          ["license", "Redistribution licence"],
+                          ["reviewNotes", "Content review notes"],
+                        ] as const
+                      ).map(([field, label]) => (
+                        <label className="asset-admin-select" key={field}>
+                          <span>{label} (optional)</span>
+                          <input
+                            value={review[field]}
+                            maxLength={2000}
+                            onChange={(event) =>
+                              setReview((current) => ({ ...current, [field]: event.target.value }))
+                            }
+                          />
+                        </label>
+                      ))}
+                    </fieldset>
                   </details>
                 )}
-              {selected?.deleted && !confirmation && (
-                <p className="asset-admin-retired-status">
-                  {selected.removedFromProjects
-                    ? "Removed from projects. Affected published exhibitions are permanently unavailable."
-                    : "Deleted from library. Kept in existing projects and exhibitions."}
-                </p>
-              )}
-              {editingForm && (
-                <details className="asset-admin-metadata">
-                  <summary>Additional Details</summary>
-                  <fieldset className="asset-admin-review" disabled={locked}>
-                    <legend className="asset-admin-sr">Optional asset details</legend>
-                    {(
-                      [
-                        ["source", "Source or provenance"],
-                        ["license", "Redistribution licence"],
-                        ["reviewNotes", "Content review notes"],
-                      ] as const
-                    ).map(([field, label]) => (
-                      <label className="asset-admin-select" key={field}>
-                        <span>{label} (optional)</span>
-                        <input
-                          value={review[field]}
-                          maxLength={2000}
-                          onChange={(event) =>
-                            setReview((current) => ({ ...current, [field]: event.target.value }))
-                          }
-                        />
-                      </label>
-                    ))}
-                  </fieldset>
-                </details>
-              )}
-              <div className="asset-admin-actions">
-                {uncertainWrite && <Button onClick={checkLibrary}>Check library</Button>}
-                {selected?.inspectionUrl && !editing && !confirmation && (
-                  <a
-                    className="asset-admin-text-link"
-                    href={selected.inspectionUrl}
-                    download
-                    aria-disabled={locked}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      void downloadSelected();
-                    }}
-                  >
-                    <span className="sp-button-label">
-                      {busy ? "Please Wait…" : "Download File"}
-                    </span>
-                  </a>
-                )}
-                <Button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    editing && selected && !uncertainWrite ? openAsset(selected) : closeDialog()
-                  }
-                >
-                  <span className="sp-button-label">Cancel</span>
-                </Button>
-                {editingForm ? (
+                <div className="asset-admin-actions">
+                  {uncertainWrite && <Button onClick={checkLibrary}>Check library</Button>}
+                  {selected?.inspectionUrl && !editing && !confirmation && (
+                    <a
+                      className="asset-admin-text-link"
+                      href={selected.inspectionUrl}
+                      download
+                      aria-disabled={locked}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void downloadSelected();
+                      }}
+                    >
+                      <span className="sp-button-label">
+                        {busy ? "Please Wait…" : "Download File"}
+                      </span>
+                    </a>
+                  )}
                   <Button
-                    className="asset-admin-primary"
-                    disabled={
-                      locked ||
-                      !assetName.trim() ||
-                      (choosingFile && (!file || !canSubmit)) ||
-                      (categoryChoices !== null && !categoryChoices.includes(category))
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      editing && selected && !uncertainWrite ? openAsset(selected) : closeDialog()
                     }
-                    type="submit"
                   >
-                    <span className="sp-button-label">{busy ? "Submitting…" : "Save Changes"}</span>
+                    <span className="sp-button-label">Cancel</span>
                   </Button>
-                ) : (
-                  selected?.actions
-                    .filter(
-                      (action) =>
-                        (action !== "remove" || data?.policy.canForceRemove) &&
-                        (!confirmation || action === "delete" || action === "remove"),
-                    )
-                    .map((action) => (
-                      <button
-                        key={action}
-                        type="button"
-                        className={
-                          action === "delete" || action === "remove"
-                            ? "asset-admin-danger"
-                            : "asset-admin-visibility"
-                        }
-                        disabled={locked || (action === "remove" && !data?.policy.canForceRemove)}
-                        onClick={() => {
-                          void changeAvailability(action);
-                        }}
-                      >
-                        <UiIcon
-                          icon={
+                  {editingForm ? (
+                    <Button
+                      className="asset-admin-primary"
+                      disabled={
+                        locked ||
+                        !assetName.trim() ||
+                        (choosingFile && (!file || !canSubmit)) ||
+                        (categoryChoices !== null && !categoryChoices.includes(category))
+                      }
+                      type="submit"
+                    >
+                      <span className="sp-button-label">
+                        {busy ? "Submitting…" : "Save Changes"}
+                      </span>
+                    </Button>
+                  ) : (
+                    selected?.actions
+                      .filter(
+                        (action) =>
+                          (action !== "remove" || data?.policy.canForceRemove) &&
+                          (!confirmation || action === "delete" || action === "remove"),
+                      )
+                      .map((action) => (
+                        <button
+                          key={action}
+                          type="button"
+                          className={
                             action === "delete" || action === "remove"
-                              ? trashIcon
-                              : action === "show"
-                                ? eyeIcon
-                                : eyeOffIcon
+                              ? "asset-admin-danger"
+                              : "asset-admin-visibility"
                           }
-                          width={18}
-                          height={18}
-                          aria-hidden="true"
-                        />
-                        <span className="sp-button-label">
-                          {busy
-                            ? "Saving…"
-                            : action === "remove"
-                              ? confirmation
-                                ? "Delete Permanently"
-                                : "Delete Permanently"
-                              : action === "delete"
+                          disabled={locked || (action === "remove" && !data?.policy.canForceRemove)}
+                          onClick={() => {
+                            void changeAvailability(action);
+                          }}
+                        >
+                          <UiIcon
+                            icon={
+                              action === "delete" || action === "remove"
+                                ? trashIcon
+                                : action === "show"
+                                  ? eyeIcon
+                                  : eyeOffIcon
+                            }
+                            width={18}
+                            height={18}
+                            aria-hidden="true"
+                          />
+                          <span className="sp-button-label">
+                            {busy
+                              ? "Saving…"
+                              : action === "remove"
                                 ? confirmation
-                                  ? "Confirm Delete"
-                                  : "Delete"
-                                : action === "hide"
-                                  ? "Hide"
-                                  : "Show"}
-                        </span>
-                      </button>
-                    ))
-                )}
-              </div>
-            </>
-          )}
-        </form>
-      </dialog>
-    </section>
+                                  ? "Delete Permanently"
+                                  : "Delete Permanently"
+                                : action === "delete"
+                                  ? confirmation
+                                    ? "Confirm Delete"
+                                    : "Delete"
+                                  : action === "hide"
+                                    ? "Hide"
+                                    : "Show"}
+                          </span>
+                        </button>
+                      ))
+                  )}
+                </div>
+              </>
+            )}
+          </form>
+        </dialog>
+      </section>
       {(confirmation || bulk) && (
         <Dialog
-          title={bulk ? `${permanentDelete ? "Permanently delete" : "Delete"} ${subject}?` : permanentDelete ? "Delete Permanently?" : "Delete asset?"}
+          title={
+            bulk
+              ? `${permanentDelete ? "Permanently delete" : "Delete"} ${subject}?`
+              : permanentDelete
+                ? "Delete Permanently?"
+                : "Delete asset?"
+          }
           variant="admin"
           className="sp-account-confirmation"
           closeDisabled={busy}
@@ -1409,21 +1417,47 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
           <p role={permanentDelete ? "alert" : undefined}>
             {bulk ? (multiple ? "These items" : "This item") : subject}
             {permanentDelete ? (
-              <> will be <strong>permanently removed</strong> from all projects. Affected published exhibitions will no longer open, even through their links or QR codes.</>
-            ) : " will leave the student library but remain in existing projects and exhibitions."}
+              <>
+                {" "}
+                will be <strong>permanently removed</strong> from all projects. Affected published
+                exhibitions will no longer open, even through their links or QR codes.
+              </>
+            ) : (
+              " will leave the student library but remain in existing projects and exhibitions."
+            )}
           </p>
           {bulk && checked.length < selection.count && (
-            <p role="status">{selection.count - checked.length} of {selection.count} {bulkResult}.</p>
+            <p role="status">
+              {selection.count - checked.length} of {selection.count} {bulkResult}.
+            </p>
           )}
           {notice && <p role="alert">{notice.message}</p>}
           <div ref={confirmationActions} className="sp-actions sp-confirmation-actions">
             {uncertainWrite && <Button onClick={checkLibrary}>Check library</Button>}
-            <Button data-cancel disabled={busy} onClick={closeDialog}>Cancel</Button>
-            <Button className="sp-button--danger" disabled={locked || (bulk && !checked.length)}
-              onClick={() => bulk
-                ? void mutate(checked.map(asset => signal => service.changeAvailability(asset.id, bulkAction, signal, permanent)))
-                : void changeAvailability(permanentDelete ? "remove" : "delete")}>
-              {busy ? "Deleting…" : bulk ? bulkLabel : permanentDelete ? "Delete Permanently" : "Confirm Delete"}
+            <Button data-cancel disabled={busy} onClick={closeDialog}>
+              Cancel
+            </Button>
+            <Button
+              className="sp-button--danger"
+              disabled={locked || (bulk && !checked.length)}
+              onClick={() =>
+                bulk
+                  ? void mutate(
+                      checked.map(
+                        (asset) => (signal) =>
+                          service.changeAvailability(asset.id, bulkAction, signal, permanent),
+                      ),
+                    )
+                  : void changeAvailability(permanentDelete ? "remove" : "delete")
+              }
+            >
+              {busy
+                ? "Deleting…"
+                : bulk
+                  ? bulkLabel
+                  : permanentDelete
+                    ? "Delete Permanently"
+                    : "Confirm Delete"}
             </Button>
           </div>
         </Dialog>

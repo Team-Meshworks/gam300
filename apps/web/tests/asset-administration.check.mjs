@@ -900,12 +900,7 @@ try {
     .getByRole("button")
     .click();
   await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
-  await dialog
-    .getByText(
-      "permanently removed",
-      { exact: true },
-    )
-    .waitFor();
+  await dialog.getByText("permanently removed", { exact: true }).waitFor();
   await dialog.getByRole("button", { name: "Delete Permanently", exact: true }).click();
   await page
     .locator(".asset-admin-card")

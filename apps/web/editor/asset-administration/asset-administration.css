@@ -1465,7 +1465,9 @@ html.asset-admin-preview-page,
 .asset-admin-toolbar-actions .sp-selection-summary {
   align-items: center;
 }
-.sp-shell[data-account-role="Administrator"] .asset-admin-toolbar-actions:has(.sp-selection-summary) :is([role="status"], .sp-button-label) {
+.sp-shell[data-account-role="Administrator"]
+  .asset-admin-toolbar-actions:has(.sp-selection-summary)
+  :is([role="status"], .sp-button-label) {
   line-height: 1;
   text-box-trim: trim-both;
   text-box-edge: cap alphabetic;
