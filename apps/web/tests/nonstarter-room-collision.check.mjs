@@ -36,17 +36,21 @@ try {
   if (await stage.getAttribute("data-placing-asset"))
     await stage.click({ position: { x: 700, y: 480 } });
   await scene((value) => value.environmentAssetId === "room-doors-1-v1");
-
-  await page.getByRole("button", { name: "Asset library", exact: true }).click();
-  const library = page.locator(".asset-picker");
-  await library.getByRole("button", { name: "Sample crate", exact: true }).click();
-  await library.getByRole("button", { name: "Add", exact: true }).click();
+  const emptyDoor = project.document();
+  const chooseCrate = async () => {
+    await page.getByRole("button", { name: "Asset library", exact: true }).click();
+    const library = page.locator(".asset-picker");
+    await library.getByRole("button", { name: "Sample crate", exact: true }).click();
+    await library.getByRole("button", { name: "Add", exact: true }).click();
+  };
+  await chooseCrate();
   await placeAtRoomCenter(page);
   const furnished = await scene((value) =>
     value.objects.some((o) => o.assetId === "test-crate-v1"),
   );
   const crate = furnished.objects.find((o) => o.assetId === "test-crate-v1");
-  const floorY = (furnished.environmentTransform?.position[1] ?? 0) + 0.25739;
+  const doorFloorY = 0.25739;
+  const floorY = (furnished.environmentTransform?.position[1] ?? 0) + doorFloorY;
   assert.ok(
     Math.abs(crate.transform.position[1] - floorY) < 0.001,
     `The crate's base must rest on the Door 1 floor at ${floorY} m, got ${crate.transform.position[1]} m`,
@@ -54,21 +58,14 @@ try {
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await scene((value) => value.objects.length === 0);
 
-  await page.evaluate(async () => {
-    const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
-    const { editorModelCache } = await import("/graphics/scene.ts");
-    const lease = await editorModelCache.acquire(
-      assets.find((asset) => asset.id === "room-doors-2-v1"),
-      new AbortController().signal,
-    );
-    const prototype = Object.getPrototypeOf(Object.getPrototypeOf(lease.value.model));
-    const add = prototype.add;
-    prototype.add = function (...nodes) {
-      for (const node of nodes) if (node.name === "placement-preview") window.roomGhost = node;
-      return add.apply(this, nodes);
-    };
-    lease.release();
-  });
+  const watchPreview = () =>
+    page.evaluate(async () => {
+      const { Scene } = await import("/@id/three");
+      Scene.prototype.addEventListener("childadded", ({ target, child }) => {
+        if (target.fog && child.name === "placement-preview") window.roomGhost = child;
+      });
+    });
+  await watchPreview();
   await chooseRoom("Door 2");
   await page
     .locator('.viewport-stage[data-placing-asset="room-doors-2-v1"]')
@@ -223,6 +220,47 @@ try {
     blockedPosition < -targetZ - 2,
     `A snap cannot place the room wall through a stationary loose crate; got ${blockedPosition}`,
   );
+  for (const [name, pitch, scale, cameraY] of [
+    ["Double-scale Door 1 viewed from below", 0, 2, -2],
+    ["Door 1 pitched 5 degrees", Math.PI / 36, 1, 3],
+  ]) {
+    const imported = structuredClone(emptyDoor);
+    imported.scenes[0].environmentTransform = {
+      position: [0, 0, 0],
+      rotation: [Math.sin(pitch / 2), 0, 0, Math.cos(pitch / 2)],
+      scale: [scale, scale, scale],
+    };
+    imported.scenes[0].startCamera = {
+      position: [0, cameraY, 0],
+      rotation: [-Math.sign(cameraY) * Math.SQRT1_2, 0, 0, Math.SQRT1_2],
+      fovDegrees: 40,
+    };
+    project.setDocument(imported);
+    await page.reload();
+    await openSavedProject(page);
+    await page.getByRole("button", { name: "Third person", exact: true }).click();
+    await watchPreview();
+    await chooseCrate();
+    await stage.hover();
+    await page.waitForFunction(() => window.roomGhost?.visible);
+    const preview = await page.evaluate(() => window.roomGhost.position.toArray());
+    await placeAtRoomCenter(page);
+    const placed = await scene((value) => value.objects.length === 1);
+    const saved = placed.objects[0].transform.position;
+    for (const [kind, [x, y, z]] of [
+      ["preview", preview],
+      ["saved", saved],
+    ]) {
+      assert.ok(Math.abs(x) < 0.1 && Math.abs(z) < 0.1, `${name}: ${kind} must be at the center`);
+      const uphillCrateEdgeZ = z - 0.5;
+      const highestFloor =
+        (doorFloorY * scale) / Math.cos(pitch) - uphillCrateEdgeZ * Math.tan(pitch);
+      assert.ok(
+        Math.abs(y - highestFloor) < 0.001,
+        `${name}: ${kind} crate base at ${y} m must touch the upper floor at ${highestFloor} m`,
+      );
+    }
+  }
   assert.deepEqual(errors, []);
   console.log("Non-Starter room placement and room collision passed.");
 } finally {

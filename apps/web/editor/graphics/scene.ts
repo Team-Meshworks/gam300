@@ -15,12 +15,8 @@ import {
   roomLayoutTransform,
 } from "../../shared/project/room-placement";
 import { fitDisplayedObject } from "./fit-displayed-object";
-import { placementBody } from "./placement-body";
-import {
-  resolveObjectPlacement,
-  placementSupport,
-  type PlacementBody,
-} from "./placement-constraints";
+import { placementBody, type ModelPlacementBody } from "./placement-body";
+import { resolveObjectPlacement, placementMatrix, placementSupport } from "./placement-constraints";
 import { roomAtPosition } from "./room-at-position";
 import { createDisplayContent } from "./display-content";
 import { createExhibitAppearance } from "./exhibit-appearance";
@@ -380,7 +376,7 @@ export function initScene(
   }
   const hotspotSprites = new Map<string, THREE.Sprite>();
   const bounds = new Map<string, THREE.Box3>();
-  const placementShapes = new Map<string, { model: THREE.Object3D; shape: PlacementBody }>();
+  const placementShapes = new Map<string, { model: THREE.Object3D; shape: ModelPlacementBody }>();
   const lastValidTransforms = new Map<string, { before: Transform; after: Transform }>();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   let drag:
@@ -872,7 +868,7 @@ export function initScene(
     id: string,
     assetId: string | null,
     transform: Transform,
-  ): PlacementBody | undefined {
+  ): ModelPlacementBody | undefined {
     if (assetId === null) return;
     const model = models.get(assetId);
     const asset = assets.find((entry) => entry.id === assetId);
@@ -888,7 +884,7 @@ export function initScene(
     return { ...cached.shape, id, transform };
   }
 
-  function collisionBodies(): PlacementBody[] {
+  function collisionBodies(): ModelPlacementBody[] {
     const result = objects.flatMap((object) => {
       if ((object as Partial<ContentObject>).visible === false) return [];
       const body = bodyFor(object.id, object.assetId, object.transform);
@@ -1029,10 +1025,13 @@ export function initScene(
     const body = bodyFor("new-placement", assetId, transform);
     if (!body) return;
     const bodies = collisionBodies();
-    if (!body.room && bodies.some((entry) => entry.room) && !getRoomAtPosition(position)) return;
     if (body.room) return resolveObjectPlacement(body, transform, bodies, "release");
+    const roomId = getRoomAtPosition(position, bodies);
+    const room = bodies.find((entry) => entry.id === roomId);
+    if (!room && bodies.some((entry) => entry.room)) return;
+    const floor = room?.floorAtTransform?.(placementMatrix(room.transform));
     const [x, y, z] = position;
-    const supportY = Math.max(y, walkSpace?.floorHeightAt(x, z, y) ?? y);
+    const supportY = floor?.supportHeight(x, y, z, body.bounds) ?? y;
     const seated: Transform = { ...transform, position: [x, supportY - body.bounds.min.y, z] };
     const resolved = resolveObjectPlacement(
       { ...body, transform: seated },
@@ -1042,27 +1041,20 @@ export function initScene(
     );
     if (!resolved) return;
     const [placedX, placedY, placedZ] = resolved.position;
-    const minY = Math.max(
-      supportY,
-      walkSpace?.floorHeightAt(placedX, placedZ, supportY) ?? supportY,
-    );
+    const minY = floor?.supportHeight(placedX, y, placedZ, body.bounds) ?? y;
     if (placedY + body.bounds.min.y < minY - 1e-5) return;
     return resolved;
   }
 
-  function getRoomAtPosition(position: Vector3Tuple): string | null {
+  function getRoomAtPosition(position: Vector3Tuple, bodies = collisionBodies()): string | null {
     return roomAtPosition(
       position,
-      collisionBodies()
+      bodies
         .filter((body) => body.room)
         .map((body) => ({
           id: body.id,
           bounds: body.room!,
-          transform: new THREE.Matrix4().compose(
-            new THREE.Vector3(...body.transform.position),
-            new THREE.Quaternion(...body.transform.rotation),
-            new THREE.Vector3(...body.transform.scale),
-          ),
+          transform: placementMatrix(body.transform),
         })),
     );
   }
@@ -1102,19 +1094,23 @@ export function initScene(
     if (useSurfaces && !outsideGrid) {
       const bodies = collisionBodies();
       const surfaces: THREE.Object3D[] = [];
+      let floor: THREE.Vector3 | undefined;
       for (const body of bodies) {
         const instance = body.id === projectScene?.id ? environment : instances.get(body.id);
         if (!instance) continue;
         if (body.display) surfaces.push(instance);
-        else if (body.room)
-          instance.traverse((node) => {
-            if (node instanceof THREE.Mesh && node.name === "floor") surfaces.push(node);
-          });
+        else if (body.floorAtTransform) {
+          const hit = body.floorAtTransform(placementMatrix(body.transform)).intersect(ray);
+          if (
+            hit &&
+            (!floor || hit.distanceToSquared(ray.origin) < floor.distanceToSquared(ray.origin))
+          )
+            floor = hit;
+        }
       }
       const hit = new THREE.Raycaster(ray.origin, ray.direction)
         .intersectObjects(surfaces, true)
         .find(visibleRaycastHit);
-      const floor = walkSpace?.intersectFloor(ray);
       if (floor && (!hit || ray.origin.distanceTo(floor) < hit.distance)) {
         point = floor;
       } else if (hit) {
@@ -1132,6 +1128,8 @@ export function initScene(
           point.y = stand.display.top;
           instance.localToWorld(point);
         }
+      } else if (point && getRoomAtPosition(point.toArray(), bodies)) {
+        return;
       }
     }
     if (

@@ -29,7 +29,6 @@ export function createWalkSpace(rooms: readonly Object3D[], props: readonly Walk
   const openGround = !rooms.length ? { y: 0, top: Infinity } : undefined;
   const grids: RoomGrid[] = [];
   const floors: Floor[] = [];
-  const floorHeights = new Set<number>();
   for (const room of rooms) {
     room.updateWorldMatrix(true, true);
     const roomBounds = new Box3().setFromObject(room, true);
@@ -63,7 +62,6 @@ export function createWalkSpace(rooms: readonly Object3D[], props: readonly Walk
         ) {
           const floor = { ...face, y: box.max.y, top: roomBounds.max.y };
           floors.push(floor);
-          floorHeights.add(Math.round(floor.y / EPSILON) * EPSILON);
           grid.floors.add(box, floor);
         }
         grid.faces.add(box, face);
@@ -111,31 +109,6 @@ export function createWalkSpace(rooms: readonly Object3D[], props: readonly Walk
       }
     }
     return best;
-  }
-  function floorSurfaceAt(x: number, z: number, y: number) {
-    const face = support(x, z, y);
-    return face && Math.abs(face.y - y) < EPSILON ? face.y : undefined;
-  }
-  function floorHeightAt(x: number, z: number, near: number) {
-    let closest: number | undefined;
-    for (const y of floorHeights) {
-      if (closest !== undefined && Math.abs(y - near) >= Math.abs(closest - near)) continue;
-      const height = floorSurfaceAt(x, z, y);
-      if (height !== undefined) closest = height;
-    }
-    return closest;
-  }
-  function intersectFloor(ray: Ray) {
-    if (ray.direction.y === 0) return;
-    let nearest = Infinity;
-    for (const y of floorHeights) {
-      const distance = (y - ray.origin.y) / ray.direction.y;
-      if (distance < 0 || distance >= nearest) continue;
-      const x = ray.origin.x + distance * ray.direction.x;
-      const z = ray.origin.z + distance * ray.direction.z;
-      if (floorSurfaceAt(x, z, y) !== undefined) nearest = distance;
-    }
-    if (Number.isFinite(nearest)) return ray.at(nearest, new Vector3());
   }
   function setBody(x: number, z: number, floor: number, eye: number) {
     body.min.set(x - HALF_WIDTH, floor + EPSILON, z - HALF_WIDTH);
@@ -282,8 +255,6 @@ export function createWalkSpace(rooms: readonly Object3D[], props: readonly Walk
     place,
     move,
     insideProp,
-    intersectFloor,
-    floorHeightAt,
     setProps(next: readonly WalkProp[]) {
       obstacles = walkObstacles(next, HALF_WIDTH);
     },
