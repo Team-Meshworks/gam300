@@ -87,38 +87,90 @@ try {
     await page.getByLabel("Password", { exact: true }).fill("Synthetic-long-password1!");
     await page.getByRole("button", { name: "Log in", exact: true }).click();
   }
+  const read = (page, route) =>
+    page.evaluate(async (route) => {
+      const response = await fetch(route);
+      return {
+        status: response.status,
+        bytes: Array.from(new Uint8Array(await response.arrayBuffer())),
+      };
+    }, route);
+  const write = (page, route, body) =>
+    page.evaluate(
+      async ({ route, body }) => {
+        const account = await (await fetch("/api/v1/auth/session")).json();
+        const token = (await (await fetch("/api/v1/auth/csrf")).json()).requestToken;
+        const response = await fetch(route, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-TOKEN": token,
+            "X-Spatia-Account": account.userId,
+          },
+          body: JSON.stringify(body),
+        });
+        return {
+          status: response.status,
+          body: await response.json().catch(() => null),
+        };
+      },
+      { route, body },
+    );
+  async function openCreatorPublish(student) {
+    await student.goto(`${origin}/home`);
+    const card = student.locator(".sp-student-card").filter({ hasText: data.title });
+    await card.getByRole("button", { name: "View details", exact: true }).click();
+    await student.getByRole("button", { name: "Publish", exact: true }).click();
+    await student.getByRole("heading", { name: "Ready to publish your project?", exact: true }).waitFor();
+  }
+  async function restrictToNamedViewer(student, publicationId) {
+    assert.equal((await write(student, `/api/v1/publications/${publicationId}/access`, {
+      audience: "Authenticated", viewerIds: [data.viewerId], action: "audience",
+    })).status, 204);
+  }
   const student = pages.student;
   await student.goto(`${origin}/login`);
   await login(student, "student");
   await student.waitForURL("**/home");
-  await student.goto(`${origin}/publish?projectId=${data.projectId}`);
-  await student.getByRole("heading", { name: "Publish project" }).waitFor();
-  await student.getByText(data.title, { exact: true }).waitFor();
-  await student.getByRole("checkbox", { name: data.viewer, exact: true }).check();
-  await student.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  await openCreatorPublish(student);
   const posted = student.waitForRequest(
     (request) =>
       request.method() === "POST" &&
       new URL(request.url()).pathname === `/api/v1/projects/${data.projectId}/publications`,
   );
-  await student.getByRole("button", { name: "Publish", exact: true }).click();
+  await student.getByRole("button", { name: "Publish Project", exact: true }).click();
   const request = (await posted).postDataJSON();
   assert.equal(request.confirmedRevision, 0);
-  assert.deepEqual(request.intent, {
-    audience: "Authenticated",
-    viewerIds: [data.viewerId],
-  });
-  const link = student.getByRole("link", { name: "Open publication" });
+  assert.deepEqual(request.intent, { audience: "Unlisted", viewerIds: [] });
+  await student.waitForURL("**/home?tab=published");
+  const link = student.getByRole("link", { name: "Preview", exact: true });
   await link.waitFor();
   const linkValue = await link.getAttribute("href");
   assert.equal(linkValue, `https://publications.example.test/p/${request.publicationId}`);
-  await student.getByRole("button", { name: "Copy link" }).click();
+  await student.getByRole("button", { name: "Copy", exact: true }).click();
   await student.getByRole("status").filter({ hasText: "Link copied." }).waitFor();
   const copy = await student.evaluate(() => navigator.clipboard.readText());
   assert.equal(copy, linkValue);
+  const replay = await write(student, `/api/v1/projects/${data.projectId}/publications`, request);
+  assert.equal(replay.status, 200, JSON.stringify(replay.body));
+  assert.equal(replay.body.visitorUrl, linkValue);
+  assert.equal(
+    (
+      await write(student, `/api/v1/projects/${data.projectId}/publications`, {
+        ...request,
+        intent: { audience: "Authenticated", viewerIds: [] },
+      })
+    ).status,
+    409,
+  );
   const localVisitor = `${origin}${new URL(copy).pathname}`;
   const viewer = pages.viewer;
   await viewer.goto(localVisitor);
+  await viewer.getByRole("status").getByText("Exhibition ready").waitFor({ timeout: 30000 });
+  assert.equal((await read(viewer, `/api/v1/publications/${request.publicationId}`)).status, 200,
+    "Creator's unlisted edition opens without signing in");
+  await restrictToNamedViewer(student, request.publicationId);
+  await viewer.reload();
   await viewer.getByRole("heading", { name: "Exhibition unavailable" }).waitFor();
   await viewer.getByRole("link", { name: "Sign in to view exhibition" }).click();
   assert.equal(new URL(viewer.url()).searchParams.get("returnTo"), `/p/${request.publicationId}`);
@@ -142,45 +194,6 @@ try {
 
   const snapshot = `/api/v1/publications/${request.publicationId}`;
   const assetPath = `${snapshot}/assets/${data.assetId}/bytes`;
-  const read = (page, route) =>
-    page.evaluate(async (route) => {
-      const response = await fetch(route);
-      return {
-        status: response.status,
-        bytes: Array.from(new Uint8Array(await response.arrayBuffer())),
-      };
-    }, route);
-  const write = (page, route, body) =>
-    page.evaluate(
-      async ({ route, body }) => {
-        const token = (await (await fetch("/api/v1/auth/csrf")).json()).requestToken;
-        const response = await fetch(route, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-TOKEN": token,
-          },
-          body: JSON.stringify(body),
-        });
-        return {
-          status: response.status,
-          body: await response.json().catch(() => null),
-        };
-      },
-      { route, body },
-    );
-  const replay = await write(student, `/api/v1/projects/${data.projectId}/publications`, request);
-  assert.equal(replay.status, 200);
-  assert.equal(replay.body.visitorUrl, linkValue);
-  assert.equal(
-    (
-      await write(student, `/api/v1/projects/${data.projectId}/publications`, {
-        ...request,
-        intent: { audience: "Authenticated", viewerIds: [] },
-      })
-    ).status,
-    409,
-  );
   for (const audience of ["Public", "Unlisted"])
     assert.equal(
       (
@@ -223,25 +236,24 @@ try {
   assert.equal((await read(outsider, snapshot)).status, 404);
   assert.equal((await read(outsider, assetPath)).status, 404);
   // Publish a second edition so revocation cannot affect the first edition's restart checks.
-  await student.reload();
-  await student.getByRole("heading", { name: "Publish project" }).waitFor();
-  await student.getByRole("checkbox", { name: data.viewer, exact: true }).check();
-  await student.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  await openCreatorPublish(student);
   const secondPost = student.waitForRequest(
     (item) =>
       item.method() === "POST" &&
       new URL(item.url()).pathname === `/api/v1/projects/${data.projectId}/publications`,
   );
-  await student.getByRole("button", { name: "Publish", exact: true }).click();
+  await student.getByRole("button", { name: "Publish Project", exact: true }).click();
   const secondRequest = (await secondPost).postDataJSON();
   assert.notEqual(secondRequest.publicationId, request.publicationId);
-  assert.deepEqual(secondRequest.intent, {
-    audience: "Authenticated",
-    viewerIds: [data.viewerId],
-  });
-  await student.getByRole("link", { name: "Open publication" }).waitFor();
-  const secondLink = student.getByRole("link", { name: "Open publication" });
-  const secondQr = student.getByRole("img", { name: /QR code/i });
+  assert.deepEqual(secondRequest.intent, { audience: "Unlisted", viewerIds: [] });
+  await student.waitForURL("**/home?tab=published");
+  await restrictToNamedViewer(student, secondRequest.publicationId);
+  const secondLink = student.getByRole("link", { name: "Preview", exact: true });
+  await secondLink.waitFor();
+  const secondUrl = await secondLink.getAttribute("href");
+  assert.equal(secondUrl, `https://publications.example.test/p/${secondRequest.publicationId}`);
+  await student.getByRole("button", { name: /^Show QR code for / }).click();
+  const secondQr = student.getByRole("dialog", { name: "QR code", exact: true }).getByRole("img");
   assert.equal(await secondLink.isVisible(), true);
   assert.equal(await secondQr.isVisible(), true);
   // Decode the rendered QR itself and compare it with the acknowledged link
@@ -305,13 +317,18 @@ try {
     action: "revoke",
   });
   await accessSection.getByText("Access revoked", { exact: true }).waitFor();
-  await student
-    .getByRole("region", { name: "Manage publication access" })
-    .getByRole("button", { name: "Check access", exact: true })
-    .click();
-  await student.getByText("Access revoked", { exact: true }).waitFor();
-  assert.equal(await secondLink.count(), 0, "Revocation removes the second edition's share link");
-  assert.equal(await secondQr.count(), 0, "Revocation removes the second edition's QR code");
+  await student.reload();
+  await student.getByRole("heading", { name: "Published Projects", exact: true }).waitFor();
+  await student.getByRole("link", { name: "Preview", exact: true }).waitFor();
+  assert.equal(await student.locator(`a[href="${secondUrl}"]`).count(), 0,
+    "Revocation removes the second edition's share link");
+  assert.notEqual(await student.getByRole("textbox", { name: "Share your project" }).inputValue(), secondUrl,
+    "Revocation removes the second edition's copyable link");
+  assert.equal(await secondQr.count(), 0, "Revocation removes the second edition's open QR code");
+  await student.getByRole("button", { name: /^Show QR code for / }).click();
+  const retainedQr = student.getByRole("dialog", { name: "QR code", exact: true }).getByRole("img");
+  assert.equal(await retainedQr.isVisible(), true);
+  await student.keyboard.press("Escape");
   assert.equal(
     (await read(viewer, secondSnapshot)).status,
     404,

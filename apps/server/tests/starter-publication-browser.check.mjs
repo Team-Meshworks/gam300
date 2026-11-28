@@ -99,26 +99,27 @@ try {
   await student.goto(`${origin}/login`);
   await login(student, "student");
   await student.waitForURL(`${origin}/home`);
-  await student.goto(`${origin}/publish?projectId=${data.projectId}`);
-  await student.getByRole("heading", { name: "Publish project" }).waitFor();
-  await student.getByRole("combobox", { name: "Who can open this publication" }).click();
-  await student.getByRole("option", { name: "Anyone with the link", exact: true }).click();
-  await student.getByRole("checkbox", { name: /confirm.*saved revision/i }).check();
+  await student.getByRole("button", { name: "View details", exact: true }).click();
+  await student.getByRole("button", { name: "Publish", exact: true }).click();
+  await student.getByRole("heading", { name: "Ready to publish your project?", exact: true }).waitFor();
   const posted = student.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
       new URL(response.url()).pathname === `/api/v1/projects/${data.projectId}/publications`,
   );
-  await student.getByRole("button", { name: "Publish", exact: true }).click();
+  await student.getByRole("button", { name: "Publish Project", exact: true }).click();
   const response = await posted;
-  assert.equal(response.status(), 201, `Publish failed: ${await response.text()}`);
+  if (response.status() !== 201) assert.fail(`Publish failed with ${response.status()}: ${await response.text()}`);
   const request = response.request().postDataJSON();
   assert.deepEqual(request.intent, { audience: "Unlisted", viewerIds: [] });
-  const link = student.getByRole("link", { name: "Open publication" });
+  await student.waitForURL(`${origin}/home?tab=published`);
+  const card = student.locator(`article[aria-labelledby="title-${data.projectId}"]`);
+  const link = card.getByRole("link", { name: "Preview", exact: true });
   await link.waitFor();
   const linkValue = await link.getAttribute("href");
   assert.equal(linkValue, `https://publications.example.test/p/${request.publicationId}`);
-  const qr = student.getByRole("img", { name: /QR code/i });
+  await card.getByRole("button", { name: /^Show QR code for / }).click();
+  const qr = student.getByRole("dialog", { name: "QR code", exact: true }).getByRole("img");
   const pixels = await qr.evaluate(async (svg) => {
     const image = new Image();
     image.src = `data:image/svg+xml;base64,${btoa(new XMLSerializer().serializeToString(svg))}`;
