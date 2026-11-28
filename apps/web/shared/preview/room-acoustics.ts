@@ -79,6 +79,34 @@ export function buildImpulse(context: BaseAudioContext, seconds: number, random 
 type Wall = { triangle: THREE.Triangle; bounds: THREE.Box3 };
 // Bounds live in the room's own frame so a rotated room is not inflated to a world-aligned box
 type Room = { box: THREE.Box3; toLocal: THREE.Matrix4; volume: number };
+
+// A wall's facing as a yaw folded into [0°, 90°), rounded to a degree so parallel walls share one
+function wallYaw(normal: THREE.Vector3) {
+  const quarter = Math.PI / 2;
+  const yaw = ((Math.atan2(normal.x, normal.z) % quarter) + quarter) % quarter;
+  return (Math.round(THREE.MathUtils.radToDeg(yaw)) % 90) * THREE.MathUtils.DEG2RAD;
+}
+
+// The room's frame comes from its walls, wherever the rotation was authored (root, child mesh or
+// baked into the vertices): of the wall-aligned yaws, the one with the smallest footprint wins
+function orientedRoom(points: readonly THREE.Vector3[], yaws: ReadonlySet<number>): Room | null {
+  if (points.length === 0) return null;
+  let best: Room | null = null;
+  let bestFootprint = Infinity;
+  const local = new THREE.Vector3();
+  for (const yaw of [0, ...yaws]) {
+    const toLocal = new THREE.Matrix4().makeRotationY(-yaw);
+    const box = new THREE.Box3();
+    for (const point of points) box.expandByPoint(local.copy(point).applyMatrix4(toLocal));
+    const size = box.getSize(local);
+    const footprint = size.x * size.z;
+    if (footprint < bestFootprint - 1e-6) {
+      bestFootprint = footprint;
+      best = { box, toLocal, volume: size.x * size.y * size.z };
+    }
+  }
+  return best;
+}
 type Chain = {
   lowpass: BiquadFilterNode;
   occlusion: GainNode;
@@ -170,41 +198,31 @@ export function createRoomAcoustics(listener: THREE.AudioListener) {
       walls = [];
       for (const root of next) {
         root.updateWorldMatrix(true, true);
-        const toLocal = root.matrixWorld.clone().invert();
-        const box = new THREE.Box3();
-        const meshBox = new THREE.Box3();
-        const meshToLocal = new THREE.Matrix4();
-        root.traverseVisible((node) => {
-          if (!(node instanceof THREE.Mesh)) return;
-          node.geometry.computeBoundingBox();
-          meshToLocal.multiplyMatrices(toLocal, node.matrixWorld);
-          box.union(meshBox.copy(node.geometry.boundingBox!).applyMatrix4(meshToLocal));
-        });
-        if (box.isEmpty()) continue;
-        // Local size times the room's world scale gives its real volume
-        const size = box
-          .getSize(new THREE.Vector3())
-          .multiply(root.getWorldScale(new THREE.Vector3()));
-        rooms.push({ box, toLocal, volume: Math.abs(size.x * size.y * size.z) });
+        const points: THREE.Vector3[] = [];
+        const yaws = new Set<number>();
         root.traverseVisible((node) => {
           if (!(node instanceof THREE.Mesh)) return;
           const vertices = node.geometry.getAttribute("position");
           if (!vertices) return;
           const index = node.geometry.index;
-          const points = Array.from({ length: vertices.count }, (_, i) =>
+          const meshPoints = Array.from({ length: vertices.count }, (_, i) =>
             new THREE.Vector3().fromBufferAttribute(vertices, i).applyMatrix4(node.matrixWorld),
           );
-          const vertex = (i: number) => points[index ? index.getX(i) : i]!;
+          points.push(...meshPoints);
+          const vertex = (i: number) => meshPoints[index ? index.getX(i) : i]!;
           for (let i = 0; i + 2 < (index?.count ?? vertices.count); i += 3) {
             const triangle = new THREE.Triangle(vertex(i), vertex(i + 1), vertex(i + 2));
             // Floors and ceilings never separate rooms; skipping them keeps floor-level sources clear
             if (triangle.getArea() < 1e-8 || Math.abs(triangle.getNormal(normal).y) > 0.7) continue;
+            yaws.add(wallYaw(normal));
             walls.push({
               triangle,
               bounds: new THREE.Box3().setFromPoints([triangle.a, triangle.b, triangle.c]),
             });
           }
         });
+        const room = orientedRoom(points, yaws);
+        if (room) rooms.push(room);
       }
       reverb = undefined;
       for (const chain of chains.values()) chain.nextCheck = clock;

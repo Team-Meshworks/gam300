@@ -246,27 +246,47 @@ describe("room acoustics", () => {
     expect(wets().filter((wet) => wet > 0)).toEqual(roomReverb);
   });
 
-  it("keeps a rotated room's reverb inside its walls", () => {
-    const rotated = () => {
-      const root = room();
-      root.rotation.y = Math.PI / 4;
-      root.updateWorldMatrix(true, true);
-      return root;
-    };
-    // (6, 1, 6) lies 8.5 m along the room's local axis, beyond its 5 m wall
-    const beyond = setup(new Vector3(6, 1, 6));
-    beyond.acoustics.setRooms([rotated()]);
-    beyond.acoustics.update(0.016);
-    expect(beyond.wets().every((wet) => wet === 0)).toBe(true);
+  // The same 10 m room yawed 45°, with the rotation authored on the root, on a child, or in the vertices
+  const rotated = (where: "root" | "child" | "baked") => () => {
+    const root = room();
+    if (where === "root") root.rotation.y = Math.PI / 4;
+    else {
+      const child = new Group();
+      child.add(...root.children);
+      child.rotation.y = Math.PI / 4;
+      root.add(child);
+      if (where === "baked") {
+        child.updateWorldMatrix(true, true);
+        for (const mesh of [...child.children] as Mesh[]) {
+          mesh.geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+          mesh.position.set(0, 0, 0);
+          root.add(mesh);
+        }
+        root.remove(child);
+      }
+    }
+    root.updateWorldMatrix(true, true);
+    return root;
+  };
+  it.each(["root", "child", "baked"] as const)(
+    "keeps a room rotated on its %s inside its walls",
+    (where) => {
+      const rotatedRoom = rotated(where);
+      // (6, 1, 6) lies 8.5 m along the room's local axis, beyond its 5 m wall
+      const beyond = setup(new Vector3(6, 1, 6));
+      beyond.acoustics.setRooms([rotatedRoom()]);
+      beyond.acoustics.update(0.016);
+      expect(beyond.wets().every((wet) => wet === 0)).toBe(true);
 
-    // Inside, it rings exactly like the same room unrotated
-    const inside = setup(new Vector3(2, 1, 2));
-    inside.acoustics.setRooms([rotated()]);
-    inside.acoustics.update(0.016);
-    const levels = inside.wets().filter((wet) => wet > 0);
-    expect(levels).toHaveLength(1);
-    expect(levels[0]).toBeCloseTo(REVERB_BUCKETS[1].wet * EMPTY_WET);
-  });
+      // Inside, it rings exactly like the same room unrotated
+      const inside = setup(new Vector3(2, 1, 2));
+      inside.acoustics.setRooms([rotatedRoom()]);
+      inside.acoustics.update(0.016);
+      const levels = inside.wets().filter((wet) => wet > 0);
+      expect(levels).toHaveLength(1);
+      expect(levels[0]).toBeCloseTo(REVERB_BUCKETS[1].wet * EMPTY_WET);
+    },
+  );
 
   it("restores the sound's chain and disconnects its nodes on detach", () => {
     const { acoustics, source } = setup(new Vector3());
