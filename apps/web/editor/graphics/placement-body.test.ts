@@ -123,14 +123,18 @@ it("selects the lower floor or the imported Mezzanine deck from the camera's sto
   }
 });
 
-it("seats a crate on an overlapping strip and keeps it on the floor when flush with a wall", () => {
+function leftWall(height: number) {
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(0.25, height, 6));
+  wall.name = "Wall_Left";
+  wall.position.set(-2.875, height / 2, 0);
+  return wall;
+}
+
+it("seats a crate on an overlapping strip and keeps it on the floor beside a wall", () => {
   const strip = slab(0.3, 0.18);
   strip.name = "raised-strip";
   strip.position.x = 0.27;
-  const wall = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.5, 6));
-  wall.name = "Wall_Left";
-  wall.position.set(-2.875, 1.25, 0);
-  const { place } = roomPlacement(slab(0.1), strip, wall);
+  const { place } = roomPlacement(slab(0.1), strip, leftWall(2.5));
   const overlapping = place(0, 1.7, 0);
   expect(overlapping?.hit).toBeCloseTo(0.1);
   expect(overlapping?.base).toBeCloseTo(0.3);
@@ -140,4 +144,25 @@ it("seats a crate on an overlapping strip and keeps it on the floor when flush w
   expect(flush?.hit).toBeCloseTo(0.1);
   expect(flush?.x).toBeCloseTo(-2.25);
   expect(flush?.base).toBeCloseTo(0.1);
+
+  const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 4);
+  const rotated = { ...pose, rotation: yaw.toArray() };
+  const body = {
+    id: "crate",
+    bounds: crate,
+    transform: { ...rotated, position: [0, 0.1, 0] as const },
+  };
+  const position = new THREE.Vector3(-2.24, 0.1, 0).applyQuaternion(yaw).toArray();
+  for (const height of [2.5, 4]) {
+    const { room } = roomPlacement(slab(0.1), leftWall(height));
+    const moved = resolveObjectPlacement(
+      body,
+      { ...rotated, position },
+      [{ ...room, transform: rotated }],
+      "release",
+    );
+    expect
+      .soft(moved?.position, `wall height ${height} m`)
+      .toEqual(position.map((value) => expect.closeTo(value, 5)));
+  }
 });

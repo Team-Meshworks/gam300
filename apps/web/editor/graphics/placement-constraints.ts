@@ -3,7 +3,11 @@ import type { Transform } from "../../shared/project/project-types";
 
 type PlacementFloor = {
   intersect(ray: THREE.Ray): THREE.Vector3 | undefined;
-  supportHeight(x: number, surfaceY: number, z: number, footprint: THREE.Box3): number | undefined;
+  supportHeight(
+    surface: THREE.Vector3,
+    worldBounds: THREE.Box3,
+    footprintSides: readonly THREE.Plane[],
+  ): number | undefined;
 };
 export type PlacementBody = {
   id: string;
@@ -98,17 +102,37 @@ function contain(
     : shiftInFrame(proposed, offset, room.transform);
 }
 
+function projectedFootprintSides(bounds: THREE.Box3, frame: THREE.Matrix4, center: THREE.Vector3) {
+  const halfSize = bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+  const halfAxes = [0, 1, 2].map((i) =>
+    new THREE.Vector3().setFromMatrixColumn(frame, i).multiplyScalar(halfSize.getComponent(i)),
+  );
+  const sides: THREE.Plane[] = [];
+  // Each projected box edge gives two parallel sides of its footprint on the floor.
+  for (const axis of halfAxes) {
+    const normal = new THREE.Vector3(-axis.z, 0, axis.x);
+    if (normal.lengthSq() === 0) continue;
+    normal.normalize();
+    const radius = halfAxes.reduce((sum, halfAxis) => sum + Math.abs(normal.dot(halfAxis)), 0);
+    const middle = normal.dot(center);
+    sides.push(
+      new THREE.Plane(normal, radius - middle),
+      new THREE.Plane(normal.clone().negate(), radius + middle),
+    );
+  }
+  return sides;
+}
+
 function clearRoomFloor(
   floor: PlacementFloor,
   body: PlacementBody,
   proposed: Transform,
   dropY?: number,
 ): Transform | undefined {
-  const box = body.bounds.clone().applyMatrix4(placementMatrix(proposed));
-  const anchor =
-    dropY === undefined
-      ? box.getCenter(new THREE.Vector3())
-      : new THREE.Vector3(...proposed.position);
+  const frame = placementMatrix(proposed);
+  const box = body.bounds.clone().applyMatrix4(frame);
+  const center = box.getCenter(new THREE.Vector3());
+  const anchor = dropY === undefined ? center.clone() : new THREE.Vector3(...proposed.position);
   let surfaceY = dropY;
   if (surfaceY === undefined) {
     const previousBox = body.bounds
@@ -127,7 +151,12 @@ function clearRoomFloor(
     }
   }
   const bottom = box.min.y;
-  const support = floor.supportHeight(anchor.x, surfaceY, anchor.z, box);
+  anchor.y = surfaceY;
+  const support = floor.supportHeight(
+    anchor,
+    box,
+    projectedFootprintSides(body.bounds, frame, center),
+  );
   if (support === undefined) return;
   if (bottom >= support - EPSILON) return proposed;
   const [x, y, z] = proposed.position;
