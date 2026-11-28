@@ -83,8 +83,17 @@ try {
     await context.addInitScript(() => {
       window.__THREE_DEVTOOLS__ = new EventTarget();
       window.__publicationScenes = [];
+      window.__publicationCamera = undefined;
       window.__THREE_DEVTOOLS__.addEventListener("observe", (event) => {
         if (event.detail.isScene) window.__publicationScenes.push(event.detail);
+        if (event.detail.isWebGLRenderer) {
+          const renderer = event.detail;
+          const render = renderer.render;
+          renderer.render = (scene, camera) => {
+            window.__publicationCamera = camera;
+            return render.call(renderer, scene, camera);
+          };
+        }
       });
     });
     pages[name] = await context.newPage();
@@ -184,6 +193,40 @@ try {
         `Published display cube has an exporter offset: ${JSON.stringify(placement)}`,
       );
     assert.ok(Math.abs(placement.height - 1.2) < 0.001);
+
+    const crate = await page.evaluate(async (publicationId) => {
+      const manifest = await fetch(`/api/v1/publications/${publicationId}/manifest`).then((r) =>
+        r.json(),
+      );
+      const root = window.__publicationScenes
+        .map((scene) => scene.getObjectByName("99999999-9999-4999-8999-999999999999"))
+        .find(Boolean);
+      if (!root) throw new Error("The published trigger crate was not rendered.");
+      return {
+        nonBlocking: manifest.assets.find((item) => item.id === "trigger-crate-v1")?.nonBlocking,
+        z: root.position.z,
+      };
+    }, request.publicationId);
+    assert.equal(crate.nonBlocking, true);
+    const before = await page.evaluate(() => window.__publicationCamera?.position.toArray());
+    assert.ok(Array.isArray(before) && before[2] > crate.z + 1, `Visitor did not start behind the crate: ${JSON.stringify(before)}`);
+    await page.locator("canvas[aria-label='Exhibition view']").focus();
+    await page.keyboard.down("w");
+    let after;
+    try {
+      const deadline = Date.now() + 5000;
+      do {
+        await page.waitForTimeout(100);
+        after = await page.evaluate(() => window.__publicationCamera?.position.toArray());
+      } while (Array.isArray(after) && after[2] > crate.z - 0.8 && Date.now() < deadline);
+    } finally {
+      await page.keyboard.up("w");
+    }
+    assert.ok(
+      Array.isArray(after) && after[2] < crate.z - 0.8,
+      `Visitor did not walk through the published crate: ${JSON.stringify({ before, after, crate })}`,
+    );
+
     const asset = await assetResponse;
     assert.equal(asset.status(), 200);
     assert.equal(

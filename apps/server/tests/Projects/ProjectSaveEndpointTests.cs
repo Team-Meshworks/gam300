@@ -61,6 +61,34 @@ public sealed class ProjectSaveEndpointTests
     }
 
     [Test]
+    public async Task ProjectPut_TriggerCrateSavesAndReopensThroughTheDevelopmentCatalogue()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        var project = await SeedAsync(fixture);
+        var json = ProjectTestDocuments.Create(project.Id, BodyMarker, 2)
+            .Replace("test-crate-v1", "trigger-crate-v1", StringComparison.Ordinal);
+        var document = JsonNode.Parse(json)!;
+        using var saved = await PutAsync(fixture, project.Id, Envelope(document.ToJsonString(), Guid.NewGuid()));
+
+        await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK);
+
+        using var reopened = await fixture.Client.GetAsync(Path(project.Id));
+
+        await Assert.That(reopened.StatusCode).IsEqualTo(HttpStatusCode.OK);
+
+        var response = await reopened.Content.ReadFromJsonAsync<JsonElement>();
+        await using var documentScope = fixture.App.Services.CreateAsyncScope();
+        var documents = documentScope.ServiceProvider.GetRequiredService<ProjectDocumentService>();
+        var accepted = documents.Read(project.Id, response.GetProperty("document").GetRawText());
+
+        await Assert.That(accepted.Ok).IsTrue();
+
+        var content = (Spatia.ProjectFormat.ContentProject)accepted.Value!;
+
+        await Assert.That(content.Scenes[0].Objects.Any(item => item.AssetId == "trigger-crate-v1")).IsTrue();
+    }
+
+    [Test]
     public async Task ProjectPut_ApprovedStarterRoomInstancesSaveAndReopenInProduction()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Production");

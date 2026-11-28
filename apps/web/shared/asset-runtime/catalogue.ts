@@ -25,6 +25,7 @@ export type CatalogueAsset = Readonly<{
     max: readonly [number, number, number];
   }>;
   displayRole?: "physical" | "digital";
+  nonBlocking?: true;
   category?: string;
   durationSeconds?: number;
   // Local coordinates after bottom-center model normalization, in metres.
@@ -40,6 +41,13 @@ export type CatalogueAsset = Readonly<{
 // This geometry has known ten-metre footprints and named walls for adjoining doors.
 export const STARTER_ROOM_SHA256 =
   "121c9d86eefb1961a697a390967dfeface3ce1f612334d2fbc447551ddfd88d1";
+
+export function isNonBlockingAsset(
+  assets: readonly CatalogueAsset[],
+  id: string | null | undefined,
+) {
+  return !!id && assets.some((asset) => asset.id === id && asset.nonBlocking === true);
+}
 
 export function isStarterRoomModelAsset(asset: CatalogueAsset) {
   return (
@@ -138,7 +146,7 @@ export function isStarterRoomEnvironment(
   return !!environment && environment.sha256.toLowerCase() === STARTER_ROOM_SHA256;
 }
 
-export const assetDragType = "application/x-vthere-asset";
+export const assetDragType = "application/x-spatia-asset";
 
 // Keep the catalogue order and asset IDs used by placement
 // Match literal text so search never evaluates user-supplied patterns

@@ -102,6 +102,7 @@ export const modules = {
       "shared/preview/rule-dispatch.ts",
       "shared/preview/preview-start.ts",
       "shared/preview/walk-space.ts",
+      "shared/preview/non-blocking.ts",
       "shared/preview/MobileControls.tsx",
       "shared/preview/preview.css",
     ],
@@ -417,7 +418,10 @@ export function scan(root = webRoot) {
                 "tests/interaction-navigation.check.mjs",
                 "tests/caching.measure.mjs",
               ].includes(file) && ["threePath", "loaderPath"].includes(argument?.getText(source));
-            const cacheProbe = file === "tests/caching.check.mjs";
+            const cacheProbe = [
+              "tests/caching.check.mjs",
+              "tests/model-preparation.check.mjs",
+            ].includes(file);
             const hotspotProbe = [
               "tests/hotspot-placement.check.mjs",
               "tests/hotspot-rendering.check.mjs",

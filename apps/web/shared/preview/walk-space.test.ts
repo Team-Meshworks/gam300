@@ -1,7 +1,7 @@
 import { Box3, BoxGeometry, Group, Mesh, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { createRoomEntrances } from "../asset-runtime/room-entrances";
-import { createWalkSpace } from "./walk-space";
+import { createWalkSpace, EYE_HEIGHT, touchesObject } from "./walk-space";
 
 function room(x = 0) {
   const root = new Group();
@@ -26,7 +26,7 @@ describe("walking inside rendered rooms", () => {
   createRoomEntrances().sync(rooms);
   const walk = (z: number, dx: number, dz = 0) => {
     const space = createWalkSpace(rooms);
-    const eye = new Vector3(0, 0.9, z);
+    const eye = new Vector3(0, EYE_HEIGHT, z);
     for (let i = 0; i < 650; i++) {
       const next = eye.clone().add(new Vector3(dx, 0, dz));
       space.move(eye, next);
@@ -48,7 +48,7 @@ describe("walking inside rendered rooms", () => {
     const open = room();
     open.remove(open.getObjectByName("Wall_Right")!);
     const space = createWalkSpace([open]);
-    const eye = new Vector3(4.6, 0.9, 0);
+    const eye = new Vector3(4.6, EYE_HEIGHT, 0);
     for (let i = 0; i < 60; i++) {
       const next = eye.clone().add(new Vector3(0.03, 0, 0));
       space.move(eye, next);
@@ -64,7 +64,7 @@ describe("walking inside rendered rooms", () => {
     const eye = new Vector3(-30, -10, 100);
     const floor = space.place(eye);
     expect(floor).toBeCloseTo(6);
-    expect(eye.y).toBeCloseTo(6.9);
+    expect(eye.y).toBeCloseTo(6 + EYE_HEIGHT);
     expect(Math.abs(eye.x - 40)).toBeLessThan(4.8);
     expect(Math.abs(eye.z)).toBeLessThan(4.8);
   });
@@ -79,7 +79,7 @@ describe("walking inside rendered rooms", () => {
       }
       model.rotation.y = Math.PI / 4;
       const space = createWalkSpace([model]);
-      const eye = model.localToWorld(new Vector3(-2, 0.9, 0));
+      const eye = model.localToWorld(new Vector3(-2, EYE_HEIGHT, 0));
       space.place(eye);
       const velocity = new Vector3(0.025, 0, 0).applyQuaternion(model.quaternion);
       for (let i = 0; i < 160; i++) {
@@ -94,7 +94,7 @@ describe("walking inside rendered rooms", () => {
   });
   it("stops a jump under a lintel and lets the visitor walk out again", () => {
     const space = createWalkSpace(rooms);
-    const eye = new Vector3(5, 0.9, 0);
+    const eye = new Vector3(5, EYE_HEIGHT, 0);
     space.place(eye);
     for (let i = 0; i < 80; i++) {
       const next = eye.clone().add(new Vector3(0, 0.025, 0));
@@ -102,14 +102,48 @@ describe("walking inside rendered rooms", () => {
       eye.copy(next);
     }
     expect(eye.y).toBeGreaterThan(1.6);
-    expect(eye.y).toBeLessThanOrEqual(2.4 - (1.55 - 0.9) + 0.0001);
+    expect(eye.y).toBeLessThanOrEqual(2.4 - (1.8 - 1.6) + 0.0001);
     for (let i = 0; i < 120; i++) {
       const next = eye.clone().add(new Vector3(0.025, -0.02, 0));
       space.move(eye, next);
       eye.copy(next);
     }
     expect(eye.x).toBeCloseTo(8);
-    expect(eye.y).toBeCloseTo(0.9);
+    expect(eye.y).toBeCloseTo(EYE_HEIGHT);
+  });
+});
+
+describe("visitor touching an object", () => {
+  const exhibit = (x: number, y = 0.5) => {
+    const root = new Group();
+    const mesh = new Mesh(new BoxGeometry(1, 1, 1));
+    mesh.position.set(x, y, 0);
+    root.add(mesh);
+    return root;
+  };
+  const eye = new Vector3(0, EYE_HEIGHT, 0);
+
+  it("detects overlap with the visitor body box", () => {
+    expect(touchesObject(exhibit(0), eye)).toBe(true);
+  });
+
+  it("ignores objects outside the body box", () => {
+    expect(touchesObject(exhibit(0.8), eye)).toBe(false);
+    expect(touchesObject(exhibit(0, 3), eye)).toBe(false);
+  });
+
+  it("uses the authored world transform", () => {
+    const moved = exhibit(0);
+    moved.position.x = 1;
+    expect(touchesObject(moved, eye)).toBe(false);
+    moved.position.x = 0.1;
+    expect(touchesObject(moved, eye)).toBe(true);
+  });
+
+  it("ignores hidden objects", () => {
+    const hidden = exhibit(0);
+    hidden.visible = false;
+    expect(touchesObject(hidden, eye)).toBe(false);
   });
 });
 
@@ -170,14 +204,14 @@ describe("walking around placed assets", () => {
 
   it("leaves headroom under a raised exhibit and stops a jump against its underside", () => {
     const root = new Group();
-    root.position.y = 1.8;
+    root.position.y = 2;
     const space = createWalkSpace([room()], [{ root, bounds }]);
-    const eye = new Vector3(-1, 0.9, 0);
+    const eye = new Vector3(-1, EYE_HEIGHT, 0);
     space.place(eye);
     advance(space, eye, new Vector3(0.025, 0, 0), 40);
     expect(eye.x).toBeCloseTo(0);
     advance(space, eye, new Vector3(0, 0.025, 0), 50);
-    expect(eye.y).toBeCloseTo(1.15, 1);
+    expect(eye.y).toBeCloseTo(1.8, 1);
   });
 
   it("preserves a narrow aisle between diagonal stands and the space beside a tilted panel", () => {

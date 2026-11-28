@@ -1,15 +1,68 @@
 import * as THREE from "three";
 import { ModelCache } from "../../shared/asset-runtime/ModelCache";
-import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
+import { drawLibraryPreview, type LibraryPreviewAsset } from "./library-preview-frame";
+import type { PreviewResult } from "./library-preview.worker";
+export { editorModelCache } from "./editor-model-cache";
 
 /** Generate local previews of accessible models without persisting their bytes */
 export function generateLibraryPreviews(
-  assets: readonly CatalogueAsset[],
+  assets: readonly LibraryPreviewAsset[],
   onPreview: (id: string, image: string) => void,
   fitFrame = false,
+  sharedCache?: ModelCache,
+): () => void {
+  const pending = assets.filter(
+    (asset) => !asset.thumbnail && (asset.kind === "model" || asset.kind === "environment"),
+  );
+  if (pending.length === 0) return () => {};
+  if (fitFrame || typeof Worker === "undefined" || typeof OffscreenCanvas === "undefined")
+    return generateOnMain(pending, onPreview, fitFrame, sharedCache);
+
+  const remaining = new Map(pending.map((asset) => [asset.id, asset]));
+  let worker: Worker | undefined;
+  let stopFallback: (() => void) | undefined;
+  function finishWorker() {
+    worker?.terminate();
+    worker = undefined;
+    // A worker can finish normally after skipping an individual model.
+    if (remaining.size > 0)
+      stopFallback = generateOnMain([...remaining.values()], onPreview, fitFrame, sharedCache);
+  }
+  try {
+    worker = new Worker(new URL("./library-preview.worker.ts", import.meta.url), {
+      type: "module",
+    });
+    worker.onmessage = ({ data }: MessageEvent<PreviewResult>) => {
+      if (!worker) return;
+      if (data.type !== "preview") return finishWorker();
+      remaining.delete(data.id);
+      onPreview(data.id, data.image);
+    };
+    worker.onerror = (event) => {
+      event.preventDefault();
+      if (worker) finishWorker();
+    };
+    worker.postMessage(
+      pending.map((asset) => ({ ...asset, url: new URL(asset.url, document.baseURI).href })),
+    );
+  } catch {
+    finishWorker();
+  }
+  return () => {
+    worker?.terminate();
+    worker = undefined;
+    stopFallback?.();
+  };
+}
+
+function generateOnMain(
+  assets: readonly LibraryPreviewAsset[],
+  onPreview: (id: string, image: string) => void,
+  fitFrame: boolean,
+  sharedCache?: ModelCache,
 ): () => void {
   const controller = new AbortController();
-  const cache = new ModelCache();
+  const cache = sharedCache ?? new ModelCache();
   void (async () => {
     let renderer: THREE.WebGLRenderer | undefined;
     // Room-choice previews share a light finish; ordinary library previews retain authored materials.
@@ -27,35 +80,20 @@ export function generateLibraryPreviews(
       renderer.setClearColor(0, 0);
       for (const asset of assets) {
         if (controller.signal.aborted) break;
-        if (asset.thumbnail || (asset.kind !== "model" && asset.kind !== "environment")) continue;
         try {
           const lease = await cache.acquire(asset, controller.signal);
           try {
             if (controller.signal.aborted) break;
-            const box = new THREE.Box3().setFromObject(lease.value.model);
-            if (box.isEmpty()) continue;
-            const size = box.getSize(new THREE.Vector3());
-            const center = box.getCenter(new THREE.Vector3());
-            const scene = new THREE.Scene();
-            scene.add(new THREE.AmbientLight(0xffffff, 1.5));
-            const light = new THREE.DirectionalLight(0xffffff, 2);
-            light.position.set(5, 10, 7);
-            const model = lease.value.model.clone(true);
-            if (previewMaterial)
-              model.traverse((node) => {
-                if (node instanceof THREE.Mesh) node.material = previewMaterial;
-              });
-            scene.add(light, model);
-            const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 10000);
-            const distance =
-              (Math.max(size.length(), 0.1) / 2 / Math.sin((35 * Math.PI) / 360)) * 1.05;
-            const offset =
-              asset.kind === "environment"
-                ? new THREE.Vector3(0.7, 1.3, 1).normalize().multiplyScalar(distance)
-                : new THREE.Vector3(0, size.y * 0.1, distance);
-            camera.position.copy(center).add(offset);
-            camera.lookAt(center);
-            renderer.render(scene, camera);
+            if (
+              !(await drawLibraryPreview(
+                renderer,
+                lease.value.model,
+                asset,
+                controller.signal,
+                previewMaterial,
+              ))
+            )
+              continue;
             if (!fitFrame) onPreview(asset.id, renderer.domElement.toDataURL("image/png"));
             else {
               // Fit visible pixels, not hidden geometry, so every room has the same centred frame.
@@ -106,8 +144,9 @@ export function generateLibraryPreviews(
     } catch {
       // WebGL may be unavailable; retain the existing image fallback
     } finally {
-      cache.invalidate();
+      if (!sharedCache) cache.invalidate();
       renderer?.dispose();
+      renderer?.forceContextLoss();
       previewMaterial?.dispose();
     }
   })();

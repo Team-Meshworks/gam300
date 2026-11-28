@@ -6,7 +6,7 @@ import {
   ROOM_TRANSFORM,
 } from "../../shared/project/selection-transform";
 import { createRoomEntrances } from "../../shared/asset-runtime/room-entrances";
-import { createWalkSpace, type WalkProp } from "../../shared/preview/walk-space";
+import { createWalkSpace, touchesObject, type WalkProp } from "../../shared/preview/walk-space";
 import { visibleModelBounds, visibleRaycastHit, nearestExhibitHit } from "./visible-model-bounds";
 import { textSurfacePlacement } from "./text-placement";
 import {
@@ -24,7 +24,9 @@ import {
 import { roomAtPosition } from "./room-at-position";
 import { createDisplayContent } from "./display-content";
 import { createExhibitAppearance } from "./exhibit-appearance";
-import { createPlacementPreview } from "./placement-preview";
+import { createPlacementModel, createPlacementPreview } from "./placement-preview";
+import { prepareModels } from "./model-preparation";
+import { editorModelCache } from "./editor-model-cache";
 import { createActiveClock } from "../../shared/preview/active-clock";
 import { hotspotAnchor } from "./hotspot-anchor";
 import { moveAttachedObjects } from "../../shared/project/attached-transforms";
@@ -44,6 +46,7 @@ import {
   type ModelLease,
 } from "../../shared/asset-runtime/ModelCache";
 import {
+  isNonBlockingAsset,
   isStarterRoomEnvironment,
   isStarterRoomModel,
   isRoomModel as isCatalogueRoomModel,
@@ -52,6 +55,7 @@ import {
   roomFootprint,
   type CatalogueAsset,
 } from "../../shared/asset-runtime/catalogue";
+import { addNonBlockingHitbox } from "../../shared/preview/non-blocking";
 import { HOTSPOT_ASSET_ID } from "../../shared/asset-runtime/hotspot";
 import {
   HOTSPOT_SIZE,
@@ -96,11 +100,7 @@ const MOBILE_GIZMO_HIT_RADIUS = 32;
 // Pointer travel under this many pixels still counts as a click while visiting
 const VISITOR_CLICK_TOLERANCE = 6;
 
-// One lazy renderer-module owner per editor page, shared across viewport retries/remounts
-export const editorModelCache = new ModelCache();
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => editorModelCache.invalidate());
-}
+export { editorModelCache };
 
 export type ViewportStatus =
   | "loading"
@@ -132,6 +132,15 @@ const cursors: Record<NavigationTool, string> = {
 
 export interface InitSceneHandle {
   prepareAsset: (id: string) => Promise<boolean>;
+  preloadAsset: (id: string | null) => void;
+  preparePlacement: (id: string) => Promise<boolean>;
+  isPlacementReady: (id: string) => boolean;
+  isRoomPlacementValid: (id: string, position: Vector3Tuple) => boolean;
+  getDropSurface: (
+    clientX: number,
+    clientY: number,
+    outsideGrid?: boolean,
+  ) => Vector3Tuple | undefined;
   update: (
     nextObjects: readonly SceneObject[],
     nextSelectedId: string | null,
@@ -168,6 +177,7 @@ export interface InitSceneHandle {
   setEditingEnabled: (enabled: boolean, allowInspection?: boolean) => void;
   captureCamera: () => CameraPose;
   showCamera: (pose: CameraPose) => void;
+  visitorTouches: (id: string) => boolean;
   locateObject: (id: string) => void;
   getObjectScreenBounds: (
     id: string,
@@ -186,6 +196,7 @@ export function initScene(
   callbacks: {
     onStatus: (status: ViewportStatus) => void;
     onThumbnail: (id: string, url: string) => void;
+    requestThumbnail?: (id: string) => void;
     onSelect: (id: string | null) => void;
     onTransform: (id: string, transform: Transform) => void;
     onObjectClick: (id: string) => void;
@@ -281,7 +292,18 @@ export function initScene(
   let disposed = false;
   const appearanceRenderer = createExhibitAppearance();
   const models = new Map<string, THREE.Group>();
-  const leases: ModelLease[] = [];
+  const prepared = new Map<
+    string,
+    {
+      lease: ModelLease;
+      preview: ReturnType<typeof createPlacementModel>;
+      used: boolean;
+      expiry: ReturnType<typeof setTimeout> | undefined;
+    }
+  >();
+  let previewId: string | undefined;
+  let chosenId: string | null = null;
+  const sceneAssetIds = new Set<string>();
   let hotspotTemplate: THREE.Sprite | undefined;
   const ready = true;
   let editingEnabled = true;
@@ -299,6 +321,8 @@ export function initScene(
   let environmentId: string | undefined;
   const environmentBounds = new THREE.Box3();
   const instances = new Map<string, THREE.Group>();
+  const touchObjectBox = new THREE.Box3();
+  const touchBodyBox = new THREE.Box3();
   const roomEntrances = createRoomEntrances();
   let selectedIds: readonly string[] = [];
   function findObject(id: string | null) {
@@ -317,6 +341,7 @@ export function initScene(
     for (const object of objects) {
       const instance = instances.get(object.id);
       if (!instance?.visible || (object as Partial<ContentObject>).visible === false) continue;
+      if (isNonBlockingAsset(assets, object.assetId)) continue;
       if (isRoomModel(object.assetId)) {
         rooms.push(instance);
         if (isStarterRoomModel(assets, object.assetId)) starterRooms.push(instance);
@@ -679,6 +704,10 @@ export function initScene(
     objects = nextObjects;
     selectedId = nextSelectedId;
     projectScene = nextScene;
+    sceneAssetIds.clear();
+    if (nextScene?.environmentVisible !== false && nextScene?.environmentAssetId)
+      sceneAssetIds.add(nextScene.environmentAssetId);
+    for (const object of objects) sceneAssetIds.add(object.assetId);
     // A loaded camera resets the view once
     // Selection and placement keep the same camera-pose reference
     const startingCamera = projectScene ? getStartingCamera(projectScene) : null;
@@ -762,7 +791,9 @@ export function initScene(
           instance = new THREE.Group();
           instance.name = object.id;
           // Clone nodes for independent transforms; cache leases own geometry/materials/textures
-          instance.add(model.clone(true));
+          const cloned = model.clone(true);
+          if (isNonBlockingAsset(assets, object.assetId)) addNonBlockingHitbox(cloned);
+          instance.add(cloned);
           instances.set(object.id, instance);
           instanceAssets.set(object.id, object.assetId);
           scene.add(instance);
@@ -792,6 +823,7 @@ export function initScene(
     if (nextEnvironmentId) void prepareAsset(nextEnvironmentId);
     for (const object of objects) void prepareAsset(object.assetId);
     if (projectScene?.hotspots?.length) void prepareAsset(HOTSPOT_ASSET_ID);
+    updateModelOwnership();
   }
 
   function getSelectionBounds(): THREE.Box3 | undefined {
@@ -867,6 +899,7 @@ export function initScene(
   function collisionBodies(): PlacementBody[] {
     const result = objects.flatMap((object) => {
       if ((object as Partial<ContentObject>).visible === false) return [];
+      if (isNonBlockingAsset(assets, object.assetId)) return [];
       const body = bodyFor(object.id, object.assetId, object.transform);
       return body ? [body] : [];
     });
@@ -1047,20 +1080,21 @@ export function initScene(
     return roomId === projectScene?.id ? null : roomId;
   }
 
-  function getDropPosition(
+  function getDropSurface(
     clientX: number,
     clientY: number,
     outsideGrid = false,
-    assetId?: string,
+    useSurfaces = !outsideGrid,
   ): Vector3Tuple | undefined {
     if (!ready || !editingEnabled || modeManager.getState().mode !== "editor") {
       return;
     }
     const ray = screenRay(clientX, clientY);
     let point = ray.intersectPlane(ground, new THREE.Vector3());
-    if (assetId && !outsideGrid) {
+    if (useSurfaces && !outsideGrid) {
+      const bodies = collisionBodies();
       const surfaces: THREE.Object3D[] = [];
-      for (const body of collisionBodies()) {
+      for (const body of bodies) {
         const instance = body.id === projectScene?.id ? environment : instances.get(body.id);
         if (!instance) continue;
         if (body.display) surfaces.push(instance);
@@ -1074,7 +1108,7 @@ export function initScene(
         .find(visibleRaycastHit);
       if (hit) {
         point = hit.point.clone();
-        const stand = collisionBodies().find((body) => {
+        const stand = bodies.find((body) => {
           if (!body.display) return false;
           const instance = instances.get(body.id);
           for (let node: THREE.Object3D | null = hit.object; node; node = node.parent)
@@ -1101,8 +1135,19 @@ export function initScene(
     ) {
       return;
     }
-    const position: Vector3Tuple = [point.x, point.y, point.z];
-    return assetId && !outsideGrid ? resolvePlacement(assetId, position)?.position : position;
+    return [point.x, point.y, point.z];
+  }
+
+  function getDropPosition(
+    clientX: number,
+    clientY: number,
+    outsideGrid = false,
+    assetId?: string,
+  ) {
+    const position = getDropSurface(clientX, clientY, outsideGrid, !!assetId);
+    return assetId && position && !outsideGrid
+      ? resolvePlacement(assetId, position)?.position
+      : position;
   }
 
   function showDropPosition(position: Vector3Tuple | undefined) {
@@ -1291,7 +1336,9 @@ export function initScene(
     if (object === undefined || instance === undefined) return;
     const aim = aimPoint(event);
     const ray = screenRay(aim.x, aim.y);
-    const hit = new THREE.Raycaster(ray.origin, ray.direction).intersectObject(instance, true)[0];
+    const raycaster = new THREE.Raycaster(ray.origin, ray.direction);
+    raycaster.camera = camera;
+    const hit = raycaster.intersectObject(instance, true)[0];
     if (hit === undefined) return;
     const finger = event.pointerType === "touch" ? aim : undefined;
     beginDrag(event, {
@@ -1868,8 +1915,18 @@ export function initScene(
     if (disposed) return;
     const asset = assets.find((asset) => asset.id === id);
     if (!asset) throw new Error("Missing model: " + id);
-    await loadAsset(asset);
-    if (!disposed)
+    try {
+      await loadAsset(asset);
+    } catch (error) {
+      releaseModel(id);
+      throw error;
+    }
+    if (
+      !disposed &&
+      (id === environmentId ||
+        objects.some((object) => object.assetId === id) ||
+        (id === HOTSPOT_ASSET_ID && projectScene?.hotspots?.length))
+    )
       update(objects, selectedId, projectScene, appliedLoadGeneration ?? 0, selectedIds);
   }, loadingChanged);
   function prepareAsset(id: string): Promise<boolean> {
@@ -1878,6 +1935,34 @@ export function initScene(
     if (asset && asset.kind !== "model" && asset.kind !== "environment")
       return Promise.resolve(true);
     return modelLoads.request(id);
+  }
+
+  function releaseModel(id: string) {
+    const owner = prepared.get(id);
+    if (!owner) return;
+    clearTimeout(owner.expiry);
+    prepared.delete(id);
+    models.delete(id);
+    placementShapes.delete(id);
+    modelLoads.forget(id);
+    owner.preview.dispose();
+    owner.lease.release();
+  }
+
+  function updateModelOwnership() {
+    if (disposed) return;
+    for (const [id, owner] of prepared) {
+      if (!models.has(id)) continue; // Preparation still owns the lease
+      if (sceneAssetIds.has(id) || id === previewId || id === chosenId) {
+        clearTimeout(owner.expiry);
+        owner.expiry = undefined;
+        owner.used = true;
+      } else if (owner.expiry === undefined) {
+        // Hand a just-dropped model to the document before releasing the preview.
+        // Direct prepareAsset callers can consume a prepared model in a later task.
+        owner.expiry = setTimeout(() => releaseModel(id), owner.used ? 0 : 30_000);
+      }
+    }
   }
   async function loadAsset(asset: CatalogueAsset) {
     if (asset.id === HOTSPOT_ASSET_ID) {
@@ -1897,9 +1982,19 @@ export function initScene(
       lease.release();
       return;
     }
-    leases.push(lease);
     const { model } = lease.value;
-    if (asset.thumbnail === null && lease.value.thumbnail === undefined) {
+    // Retain the translucent variants so clearing a ghost does not evict its shader programs
+    const preview = createPlacementModel(model);
+    prepared.set(asset.id, { lease, preview, used: false, expiry: undefined });
+    await prepareModels(renderer, [model, preview.model], camera, scene, controller.signal);
+    if (disposed) return;
+    if (
+      asset.thumbnail === null &&
+      lease.value.thumbnail === undefined &&
+      callbacks.requestThumbnail
+    ) {
+      callbacks.requestThumbnail(asset.id);
+    } else if (asset.thumbnail === null && lease.value.thumbnail === undefined) {
       const box = new THREE.Box3().setFromObject(model);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
@@ -1913,24 +2008,31 @@ export function initScene(
           : new THREE.Vector3(0, size.y * 0.1, distance);
       thumbnailCamera.position.copy(center).add(offset);
       thumbnailCamera.lookAt(center);
-      renderer.setPixelRatio(1);
-      renderer.setSize(320, 320, false);
-      renderer.setClearColor(0, 0);
-      renderer.render(thumbnailScene, thumbnailCamera);
-      lease.value.thumbnail = renderer.domElement.toDataURL("image/png");
-      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-      resize();
+      // Thumbnails have no scene fog, so their program differs from the live viewport
+      await renderer.compileAsync(thumbnailScene, thumbnailCamera);
+      if (disposed) return;
+      // Another viewport may finish the shared thumbnail while these shaders compile
+      if (lease.value.thumbnail === undefined) {
+        renderer.setPixelRatio(1);
+        renderer.setSize(320, 320, false);
+        renderer.setClearColor(0, 0);
+        renderer.render(thumbnailScene, thumbnailCamera);
+        lease.value.thumbnail = renderer.domElement.toDataURL("image/png");
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        resize();
+      }
     }
     if (asset.thumbnail === null && lease.value.thumbnail !== undefined) {
       callbacks.onThumbnail(asset.id, lease.value.thumbnail);
     }
     // Preserve exported units and pivots for manifest assets
     models.set(asset.id, model);
+    updateModelOwnership();
   }
   // Defer until the caller has supplied the recovered scene; an empty project downloads no models.
   queueMicrotask(loadingChanged);
 
-  const placementPreview = createPlacementPreview(scene, models);
+  const placementPreview = createPlacementPreview(scene, models, (id) => prepared.get(id)?.preview);
   const textPreview = createDisplayContent(assets, render, models);
   let textPreviewRoot: THREE.Group | undefined;
   let hiddenText: THREE.Object3D | undefined;
@@ -2006,9 +2108,97 @@ export function initScene(
     return placement;
   }
 
+  function placementModelId(id: string | undefined) {
+    const asset = assets.find((entry) => entry.id === id);
+    if (projectScene?.environmentAssetId && asset?.kind === "environment")
+      return roomCompanion(callbacks.selectableAssets ?? assets, asset)?.id;
+    return id;
+  }
+
+  function preparePlacement(id: string) {
+    const modelId = placementModelId(id);
+    return modelId ? prepareAsset(modelId) : Promise.resolve(false);
+  }
+
+  function placementAt(
+    id: string | undefined,
+    position: Vector3Tuple | undefined,
+    ownerId?: string,
+  ) {
+    // Whole layouts replace the environment at its current frame, not at the drop cursor.
+    const layout =
+      !projectScene?.environmentAssetId &&
+      assets.some((asset) => asset.id === id && asset.kind === "environment") &&
+      !isStarterRoomEnvironment(assets, id);
+    if (layout && position) position = projectScene?.environmentTransform?.position ?? [0, 0, 0];
+    id = placementModelId(id);
+    if (!id || !models.has(id)) return;
+    const room = isStarterRoomEnvironment(assets, id) || isRoomModel(id);
+    const rotation = isRoomModel(id)
+      ? roomLayoutTransform(objects, projectScene, isRoomModel)?.rotation
+      : layout
+        ? projectScene?.environmentTransform?.rotation
+        : undefined;
+    const requestedFits =
+      position !== undefined && (!room || roomFitsGrid(position, rotation, footprint(id)));
+    if (isRoomModel(id) && position && requestedFits)
+      position =
+        snapRoomPlacement(
+          position,
+          objects,
+          projectScene?.environmentVisible !== false ? projectScene?.environmentAssetId : undefined,
+          roomLayoutTransform(objects, projectScene, isRoomModel),
+          isRoomModel,
+          footprint,
+          id,
+        ) ?? undefined;
+    let scale = 1;
+    if (id === HOTSPOT_ASSET_ID && position !== undefined) {
+      const target = ownerId ?? selectedId;
+      const owner = target === null ? undefined : instanceFor(target);
+      const anchor = target === null ? undefined : getHotspotAnchor(target);
+      position = undefined;
+      if (owner && anchor) {
+        const world = owner.localToWorld(
+          new THREE.Vector3(anchor[0], anchor[1] + HOTSPOT_SIZE / 2, anchor[2]),
+        );
+        scale = hotspotWorldSize(owner.getWorldScale(new THREE.Vector3())) / HOTSPOT_SIZE;
+        world.y -= (HOTSPOT_SIZE / 2) * scale;
+        position = world.toArray() as Vector3Tuple;
+      }
+    }
+    if (position && !room && id !== HOTSPOT_ASSET_ID) {
+      position = resolvePlacement(id, position)?.position;
+    }
+    if (position && room && projectScene) {
+      const transform: Transform = {
+        position,
+        rotation: rotation ?? [0, 0, 0, 1],
+        scale: [1, 1, 1],
+      };
+      const body = bodyFor("new-placement", id, transform);
+      if (!body || !resolveObjectPlacement(body, transform, collisionBodies(), "release"))
+        position = undefined;
+    }
+    const valid =
+      position !== undefined &&
+      (!room || (requestedFits && roomFitsGrid(position, rotation, footprint(id))));
+    return { id, position, scale, rotation, valid };
+  }
+
   return {
     update,
     prepareAsset,
+    preloadAsset(id) {
+      chosenId = id;
+      updateModelOwnership();
+      if (!disposed && (!id || assets.some((asset) => asset.id === id && asset.kind === "model")))
+        void modelLoads.preload(id);
+    },
+    preparePlacement,
+    isPlacementReady: (id) => models.has(placementModelId(id) ?? ""),
+    isRoomPlacementValid: (id, position) => placementAt(id, position)?.valid ?? false,
+    getDropSurface,
     showTextPlacement,
     clearTextPlacement,
     getDropPosition,
@@ -2037,87 +2227,25 @@ export function initScene(
     getPlacementParent,
     showDropPosition,
     showPlacementPreview(id, position, ownerId) {
-      // Whole layouts replace the environment at its current frame, not at the drop cursor.
-      const layout =
-        !projectScene?.environmentAssetId &&
-        assets.some((asset) => asset.id === id && asset.kind === "environment") &&
-        !isStarterRoomEnvironment(assets, id);
-      if (layout && position) position = projectScene?.environmentTransform?.position ?? [0, 0, 0];
-      if (
-        projectScene?.environmentAssetId &&
-        assets.some((asset) => asset.id === id && asset.kind === "environment")
-      ) {
-        const companion = roomCompanion(
-          callbacks.selectableAssets ?? assets,
-          assets.find((asset) => asset.id === id),
-        );
-        if (!companion) {
-          placementPreview.show(undefined, undefined);
-          render();
-          return false;
-        }
-        id = companion.id;
+      const nextId = placementModelId(id);
+      if (previewId !== nextId) {
+        previewId = nextId;
+        updateModelOwnership();
       }
-      if (id && !models.has(id)) {
-        void prepareAsset(id);
+      const preview = placementAt(id, position, ownerId);
+      if (!preview) {
+        placementPreview.clear();
+        if (id && position) void preparePlacement(id);
         return false;
       }
-      const room = isStarterRoomEnvironment(assets, id) || (!!id && isRoomModel(id));
-      const rotation =
-        id && isRoomModel(id)
-          ? roomLayoutTransform(objects, projectScene, isRoomModel)?.rotation
-          : layout
-            ? projectScene?.environmentTransform?.rotation
-            : undefined;
-      const requestedFits =
-        position !== undefined && (!room || roomFitsGrid(position, rotation, footprint(id!)));
-      if (id && isRoomModel(id) && position && requestedFits)
-        position =
-          snapRoomPlacement(
-            position,
-            objects,
-            projectScene?.environmentVisible !== false
-              ? projectScene?.environmentAssetId
-              : undefined,
-            roomLayoutTransform(objects, projectScene, isRoomModel),
-            isRoomModel,
-            footprint,
-            id,
-          ) ?? undefined;
-      let scale = 1;
-      if (id === HOTSPOT_ASSET_ID && position !== undefined) {
-        const target = ownerId ?? selectedId;
-        const owner = target === null ? undefined : instanceFor(target);
-        const anchor = target === null ? undefined : getHotspotAnchor(target);
-        position = undefined;
-        if (owner && anchor) {
-          const world = owner.localToWorld(
-            new THREE.Vector3(anchor[0], anchor[1] + HOTSPOT_SIZE / 2, anchor[2]),
-          );
-          scale = hotspotWorldSize(owner.getWorldScale(new THREE.Vector3())) / HOTSPOT_SIZE;
-          world.y -= (HOTSPOT_SIZE / 2) * scale;
-          position = world.toArray() as Vector3Tuple;
-        }
-      }
-      if (id && position && !room && id !== HOTSPOT_ASSET_ID) {
-        position = resolvePlacement(id, position)?.position;
-      }
-      if (id && position && room && projectScene) {
-        const transform: Transform = {
-          position,
-          rotation: rotation ?? [0, 0, 0, 1],
-          scale: [1, 1, 1],
-        };
-        const body = bodyFor("new-placement", id, transform);
-        if (!body || !resolveObjectPlacement(body, transform, collisionBodies(), "release"))
-          position = undefined;
-      }
-      const valid =
-        position !== undefined &&
-        (!room || (requestedFits && roomFitsGrid(position, rotation, footprint(id!))));
-      placementPreview.show(id, position, scale, rotation, valid);
-      render();
-      return valid;
+      placementPreview.show(
+        preview.id,
+        preview.position,
+        preview.scale,
+        preview.rotation,
+        preview.valid,
+      );
+      return preview.valid;
     },
     pickObjectAt,
     getHotspotAnchor,
@@ -2139,6 +2267,14 @@ export function initScene(
       fovDegrees: camera.fov,
     }),
     showCamera,
+    visitorTouches: (id) => {
+      if (isNonBlockingAsset(assets, instanceAssets.get(id))) return false;
+      const instance = instanceFor(id);
+      return (
+        instance !== undefined &&
+        touchesObject(instance, camera.position, touchObjectBox, touchBodyBox)
+      );
+    },
     getObjectScreenBounds(id) {
       const box = getObjectBounds(id);
       if (!box || box.isEmpty()) return null;
@@ -2239,10 +2375,7 @@ export function initScene(
       lastValidTransforms.clear();
       disposeModels(scene);
       if (hotspotTemplate) disposeHotspotSprite(hotspotTemplate);
-      for (const lease of leases) {
-        lease.release();
-      }
-      leases.length = 0;
+      for (const id of prepared.keys()) releaseModel(id);
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

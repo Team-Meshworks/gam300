@@ -129,6 +129,7 @@ export function SidePanels({
               onMultiSelect={onMultiSelect}
               onSelect={onSelect}
               onDelete={onDelete}
+              onHotspotRemove={onHotspotRemove}
               mobileDevice={mobileDevice}
               thumbnailFor={thumbnailFor}
             />

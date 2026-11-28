@@ -103,7 +103,7 @@ try {
         ? route.fulfill({
             json: {
               userId,
-              displayName: "VThere",
+              displayName: "Alex Morgan",
               role,
               orgId: role === "Administrator" ? null : orgId,
               mustChangePassword: forced,
@@ -341,7 +341,7 @@ try {
   await page.getByLabel("Confirm new password", { exact: true }).fill("Replacement-password2!");
   await page.getByRole("button", { name: "Change password", exact: true }).click();
   await page.waitForURL(origin + "/admin/dashboard");
-  await page.getByRole("heading", { name: "Welcome Back, VThere", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Welcome Back, Alex Morgan", exact: true }).waitFor();
   const circleOpacity = () =>
     page
       .locator(".sp-shell > .sp-wash")
@@ -897,7 +897,7 @@ try {
   await projectView.getByRole("button", { name: "Back", exact: true }).click();
   await projectView.waitFor({ state: "detached" });
   assert.equal(
-    await page.getByRole("heading", { name: "Welcome Back, VThere", exact: true }).isVisible(),
+    await page.getByRole("heading", { name: "Welcome Back, Alex Morgan", exact: true }).isVisible(),
     true,
   );
   assert.deepEqual(

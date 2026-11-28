@@ -383,7 +383,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       hotspots,
       interactions: sceneState().interactions.filter(
         (rule) =>
-          rule.when.type === "visitor-clicks-hotspot" &&
+          (rule.when.type === "visitor-clicks-hotspot" || rule.when.type === "visitor-touch") &&
           hotspotIds.has(rule.when.targetHotspotId.toLowerCase()),
       ),
       rules: (scene?.rules ?? []).filter((rule) =>
@@ -492,7 +492,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           ...graph.interactions.map((rule) => ({
             ...rule,
             when:
-              rule.when.type === "visitor-clicks-hotspot"
+              rule.when.type === "visitor-clicks-hotspot" || rule.when.type === "visitor-touch"
                 ? { ...rule.when, targetHotspotId: remap(rule.when.targetHotspotId) }
                 : rule.when,
             do:
@@ -530,7 +530,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           ...graph.interactions.map((rule) => ({
             ...rule,
             when:
-              rule.when.type === "visitor-clicks-hotspot"
+              rule.when.type === "visitor-clicks-hotspot" || rule.when.type === "visitor-touch"
                 ? {
                     ...rule.when,
                     targetHotspotId: ids.get(rule.when.targetHotspotId.toLowerCase())!,
@@ -1781,7 +1781,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           hotspots: current.hotspots.filter((hotspot) => hotspot.id.toLowerCase() !== gone),
           interactions: current.interactions.filter(
             (rule) =>
-              rule.when.type !== "visitor-clicks-hotspot" ||
+              (rule.when.type !== "visitor-clicks-hotspot" && rule.when.type !== "visitor-touch") ||
               rule.when.targetHotspotId.toLowerCase() !== gone,
           ),
         }));
@@ -1794,7 +1794,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         interactions: freezeInteractions(
           scene.interactions.filter(
             (interaction) =>
-              interaction.when.type !== "visitor-clicks-hotspot" ||
+              (interaction.when.type !== "visitor-clicks-hotspot" &&
+                interaction.when.type !== "visitor-touch") ||
               interaction.when.targetHotspotId.toLowerCase() !== hotspotId.toLowerCase(),
           ),
         ),
@@ -1814,7 +1815,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
       const hotspotIds = new Set(scene.hotspots.map((hotspot) => hotspot.id.toLowerCase()));
       for (const interaction of nextInteractions) {
         if (
-          interaction.when.type === "visitor-clicks-hotspot" &&
+          (interaction.when.type === "visitor-clicks-hotspot" ||
+            interaction.when.type === "visitor-touch") &&
           !hotspotIds.has(interaction.when.targetHotspotId.toLowerCase())
         ) {
           return invalid("when.targetHotspotId", "Choose a hotspot in this scene");
@@ -1896,7 +1898,11 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
           hotspots: current.hotspots.filter((hotspot) => !gone(hotspot.id)),
           interactions: current.interactions.filter(
             (rule) =>
-              !(rule.when.type === "visitor-clicks-hotspot" && gone(rule.when.targetHotspotId)) &&
+              !(
+                (rule.when.type === "visitor-clicks-hotspot" ||
+                  rule.when.type === "visitor-touch") &&
+                gone(rule.when.targetHotspotId)
+              ) &&
               !(rule.do.type === "play-audio" && "mediaId" in rule.do && gone(rule.do.mediaId)),
           ),
           rules: current.rules.filter(
@@ -1942,7 +1948,8 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         interactions: Object.freeze(
           current.interactions.filter(
             (interaction) =>
-              interaction.when.type !== "visitor-clicks-hotspot" ||
+              (interaction.when.type !== "visitor-clicks-hotspot" &&
+                interaction.when.type !== "visitor-touch") ||
               !removed.has(interaction.when.targetHotspotId.toLowerCase()),
           ),
         ),

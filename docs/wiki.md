@@ -3,9 +3,7 @@
 The [Spatia Handbook](https://51.79.242.181:9443/en/home) is the team's shared
 documentation. Nine handbook pages cover scope/milestones, setup, design, deployment,
 user guidance, testing, team decisions and wiki maintenance. The two original imported
-pages remain available. **Spatia** is the product,
-**Meshworks (Team 32)** is the development team, and **VThere** is the client company
-that commissioned the project. Keep executable configuration in Git and task status in Jira.
+pages remain available. Keep executable configuration in Git and task status in Jira.
 
 ## Access
 
@@ -97,7 +95,6 @@ Snapshots contain credentials and private keys; transfer them only to protected 
   the sidebar and architecture diagram render correctly.
 - Git sync was verified at `4ed3b9e` on `wiki`, containing all nine new handbook pages;
   `main` remained at `5ba6f8f`.
-- The product/team/client naming correction was synced at `7cc786e`.
   Sign-in with `meshworks_team32@pm.me` and the existing password
   succeeded, and a fresh backup completed successfully.
 - Backup shell syntax and systemd units passed validation. Snapshot
