@@ -173,7 +173,12 @@ export function ExhibitionContent({
     setModalItem(null);
     const content = section.current;
     const open = () => {
-      if (details.current) details.current.open = true;
+      const panel = details.current;
+      if (panel) {
+        panel.open = true;
+        if (!panel.contains(panel.ownerDocument.activeElement))
+          panel.querySelector("summary")?.focus({ preventScroll: true });
+      }
       if (document.pointerLockElement) document.exitPointerLock();
     };
     const inspect = (event: Event) => {
