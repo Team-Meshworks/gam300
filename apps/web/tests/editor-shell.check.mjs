@@ -1,3 +1,4 @@
+import { sceneNameInput } from "./authoring-project-fixture.mjs";
 import { launchBrowser } from "./browser-security.mjs";
 import { placeAtRoomCenter } from "./placement-fixture.mjs";
 import { blankProject, serveProject } from "./authoring-project-fixture.mjs";
@@ -63,7 +64,7 @@ try {
   page.on("pageerror", (error) => pageErrors.push(error.stack ?? error.message));
   page.on("console", (message) => {
     if (message.type() === "error") {
-      consoleErrors.push(message.text());
+      consoleErrors.push(`${message.text()} (${message.location().url})`);
     }
   });
   page.on("dialog", (dialog) => {
@@ -268,15 +269,17 @@ try {
   await openDocument(emptyFixture);
   // Reopening the same document must discard uncommitted scene-form drafts.
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
-  await page.getByLabel("Scene name").fill("Uncommitted scene draft");
+  await (await sceneNameInput(page)).fill("Uncommitted scene draft");
   await openDocument(emptyFixture);
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
-  assert.equal(await page.getByLabel("Scene name").inputValue(), emptyFixture.scenes[0].name);
+  assert.equal(await (await sceneNameInput(page)).inputValue(), emptyFixture.scenes[0].name);
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
+  await page.getByRole("button", { name: "1. Default View", exact: true }).dblclick();
   await page.getByLabel("View name").fill("Uncommitted view draft");
   await openDocument(emptyFixture);
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
-  assert.equal(await page.getByLabel("View name").inputValue(), "");
+  assert.equal(await page.getByLabel("View name").count(), 0);
+  await page.getByRole("button", { name: "1. Default View", exact: true }).waitFor();
   await page.getByRole("button", { name: "Scene tree", exact: true }).click();
   const placementBox = await stage.boundingBox();
   const placementPose = fixture.scenes[0].startCamera;

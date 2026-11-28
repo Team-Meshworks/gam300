@@ -208,6 +208,7 @@ try {
         throw error;
       });
     await page.getByRole("button", { name: "Scenes", exact: true }).click();
+    await page.getByRole("button", { name: `1. ${document.scenes[0].name}`, exact: true }).click();
     assert.match(
       await page.getByRole("combobox", { name: "Environment", exact: true }).innerText(),
       /Approved room/,

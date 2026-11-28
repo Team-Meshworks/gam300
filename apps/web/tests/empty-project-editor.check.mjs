@@ -1,3 +1,4 @@
+import { sceneNameInput } from "./authoring-project-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { launchBrowser } from "./browser-security.mjs";
@@ -104,8 +105,8 @@ try {
   await canvas.waitFor();
   assert.ok(await canvas.evaluate((element) => element.width > 0 && element.height > 0));
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
-  await page.getByLabel("Scene name", { exact: true }).fill("Empty scene edited");
-  await page.getByRole("button", { name: "Rename scene", exact: true }).click();
+  await (await sceneNameInput(page)).fill("Empty scene edited");
+  await (await sceneNameInput(page)).press("Enter");
   await page.locator('.save-state[data-state="saved"]').waitFor();
   assert.equal(writes.length, 1);
   assert.equal(document.scenes[0].name, "Empty scene edited");
@@ -118,10 +119,7 @@ try {
   await reopened.goto(url);
   await reopened.getByText("Scene ready", { exact: true }).waitFor();
   await reopened.getByRole("button", { name: "Scenes", exact: true }).click();
-  assert.equal(
-    await reopened.getByLabel("Scene name", { exact: true }).inputValue(),
-    "Empty scene edited",
-  );
+  assert.equal(await (await sceneNameInput(reopened)).inputValue(), "Empty scene edited");
   assert.deepEqual(errors, []);
   await fresh.close();
   catalogueUnavailable = true;

@@ -40,14 +40,17 @@ try {
   await page.goto(server.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
-  await page.getByRole("button", { name: "Delete scene", exact: true }).click();
+  await page
+    .locator('.scene-name[aria-pressed="true"]')
+    .locator("..")
+    .getByRole("button", { name: /^Delete scene / })
+    .click();
   const confirmation = page.getByRole("group", { name: "Confirm scene deletion" });
   const impact = await confirmation.innerText();
   assert.match(impact, /First room/);
-  assert.match(impact, /2 objects and 0 saved views/);
-  assert.match(
-    impact,
-    /Navigation links to this scene and their associated rules will also be deleted/,
+  assert.equal(
+    await confirmation.locator("p").innerText(),
+    "Scene contents and linked navigation will be deleted. Undo restores everything.",
   );
   assert.match(impact, /Undo restores everything/);
   await page.getByRole("button", { name: "2. Second room", exact: true }).click();

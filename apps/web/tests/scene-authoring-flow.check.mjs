@@ -1,3 +1,4 @@
+import { sceneNameInput } from "./authoring-project-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { launchBrowser } from "./browser-security.mjs";
@@ -31,20 +32,58 @@ try {
   await page.goto(project.url);
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
+  await page.getByRole("button", { name: "1. Default View", exact: true }).dblclick();
   await page.getByLabel("View name", { exact: true }).fill("First arrival");
-  await page.getByRole("button", { name: "Capture current view", exact: true }).click();
-  await page.getByText("Starting view: First arrival", { exact: true }).waitFor();
+  await page.getByLabel("View name", { exact: true }).press("Enter");
+  await page.getByRole("button", { name: "1. First arrival", exact: true }).waitFor();
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
-  await page.getByLabel("Scene name", { exact: true }).fill("Second room");
-  await page.getByRole("button", { name: "Add scene", exact: true }).click();
+  await (await sceneNameInput(page)).fill("Cancelled scene rename");
+  await (await sceneNameInput(page)).press("Escape");
+  await page.getByRole("button", { name: "1. First room", exact: true }).waitFor();
+  await page.getByRole("button", { name: "+ Add Scene", exact: true }).click();
+  const addedScene = page.getByRole("button", { name: "2. Scene 2", exact: true });
+  await addedScene.waitFor();
+  assert.equal(await addedScene.getAttribute("aria-pressed"), "true");
+  assert.equal(
+    await addedScene.locator("..").getAttribute("data-selected"),
+    "false",
+    "Adding a scene does not select its row",
+  );
+  await addedScene.click();
+  assert.equal(
+    await addedScene.locator("..").getAttribute("data-selected"),
+    "true",
+    "Clicking a scene selects its row",
+  );
+  await (await sceneNameInput(page)).fill(" ");
+  await (await sceneNameInput(page)).press("Enter");
+  await page
+    .getByText("Enter a scene name between 1 and 120 characters", { exact: true })
+    .waitFor();
+  await (await sceneNameInput(page)).fill("Second room");
+  await (await sceneNameInput(page)).press("Enter");
   await page.getByRole("button", { name: "2. Second room", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Move scene up", exact: true }).focus();
-  await page.keyboard.press("Enter");
+  await page
+    .getByRole("button", { name: "Reorder scene Second room", exact: true })
+    .press("ArrowUp");
   await page.getByRole("button", { name: "1. Second room", exact: true }).waitFor();
+  const reorderTarget = page.locator(".scene-list-panel .saved-view-card").nth(1);
+  const reorderBounds = await reorderTarget.boundingBox();
+  await page
+    .getByRole("button", { name: "Reorder scene Second room", exact: true })
+    .dragTo(reorderTarget, {
+      targetPosition: { x: reorderBounds.width / 2, y: reorderBounds.height - 4 },
+    });
+  await page.getByRole("button", { name: "2. Second room", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await page.getByRole("button", { name: "1. Second room", exact: true }).waitFor();
+  if (process.env.SPATIA_SCENES_SCREENSHOT)
+    await page.locator(".scenes-shell").screenshot({ path: process.env.SPATIA_SCENES_SCREENSHOT });
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
+  await page.getByRole("button", { name: "1. Default View", exact: true }).dblclick();
   await page.getByLabel("View name", { exact: true }).fill("Second arrival");
-  await page.getByRole("button", { name: "Capture current view", exact: true }).click();
-  await page.getByText("Starting view: Second arrival", { exact: true }).waitFor();
+  await page.getByLabel("View name", { exact: true }).press("Enter");
+  await page.getByRole("button", { name: "1. Second arrival", exact: true }).waitFor();
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
   await page.getByRole("button", { name: "2. First room", exact: true }).click();
   await page.getByRole("button", { name: "Interaction", exact: true }).click();
@@ -55,7 +94,7 @@ try {
   assert.notEqual(target, first.id);
   await page.getByLabel("Interaction 1 destination scene", { exact: true }).blur();
   const saved = await project.waitForDocument(
-    (doc) => doc.scenes[1]?.interactions[0]?.do.sceneId === target,
+    (doc) => doc.scenes[1]?.interactions?.[0]?.do.sceneId === target,
   );
   assert.deepEqual(
     saved.scenes.map((scene) => scene.name),
@@ -78,7 +117,11 @@ try {
     "Switching scenes does not add history",
   );
   await page.getByRole("button", { name: "1. Second room", exact: true }).click();
-  await page.getByRole("button", { name: "Delete scene", exact: true }).click();
+  await page
+    .locator('.scene-name[aria-pressed="true"]')
+    .locator("..")
+    .getByRole("button", { name: /^Delete scene / })
+    .click();
   await page.getByRole("button", { name: "Confirm delete scene", exact: true }).click();
   await page.getByRole("button", { name: "Interaction", exact: true }).click();
   assert.equal(

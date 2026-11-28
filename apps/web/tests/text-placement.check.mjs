@@ -86,7 +86,7 @@ try {
   await dialog.getByRole("combobox", { name: "Font size", exact: true }).click();
   const menu = dialog.getByRole("listbox", { name: "Font size", exact: true });
   assert.equal(
-    await menu.evaluate((el) => el.scrollHeight > el.clientHeight),
+    await menu.locator(".asset-filter-options").evaluate((el) => el.scrollHeight > el.clientHeight),
     false,
     "Font sizes should fit without a scrollbar",
   );

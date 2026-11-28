@@ -154,7 +154,9 @@ try {
       assert.equal(assetReads, 0);
       assert.deepEqual(writes, []);
       await page.goto(origin + "/new-project");
-      await page.getByRole("heading", { name: "Access denied", exact: true }).waitFor();
+      await page.waitForURL(origin + "/home");
+      await page.getByRole("heading", { name: "Projects", exact: true }).waitFor();
+      assert.equal(await page.getByRole("button", { name: "New project", exact: true }).count(), 0);
       assert.deepEqual(writes, [], "A direct route must not bypass creator creation restrictions");
       await page.close();
       continue;
@@ -164,6 +166,7 @@ try {
         const key = `spatia.assignment.source:${userId}`;
         await page.evaluate((key) => localStorage.setItem(key, "{partial"), key);
         await page.goto(origin + "/new-project");
+        await page.getByRole("button", { name: "Check status", exact: true }).click();
         await page.getByRole("button", { name: "I checked my projects" }).click();
         await page.waitForURL(origin + "/home");
         assert.equal(await page.evaluate((key) => localStorage.getItem(key), key), null);
@@ -219,7 +222,9 @@ try {
       page.on("dialog", dismissNative);
       await departure.getByRole("button", { name: "Discard and leave", exact: true }).click();
       await page.waitForURL(`${origin}/home`).catch((error) => {
-        throw new Error(JSON.stringify({ nativePrompts, url: page.url() }), { cause: error });
+        throw new Error(JSON.stringify({ nativePrompts, url: page.url() }), {
+          cause: error,
+        });
       });
       page.off("dialog", dismissNative);
       assert.equal(nativePrompts, 0, "Confirmed discard must not ask again through beforeunload");
@@ -237,7 +242,9 @@ try {
         await page.getByRole("button", { name: "Create project" }).click();
         await page
           .getByRole("alert")
-          .filter({ hasText: /browser could not save recovery|could not be confirmed/i })
+          .filter({
+            hasText: /browser could not save recovery|could not be confirmed/i,
+          })
           .first()
           .waitFor();
         assert.equal(writes.length, 0, "A source marker must exist before the project POST");
@@ -256,6 +263,7 @@ try {
       }
       await page.getByRole("button", { name: "Create project" }).click();
       if (missingSource) {
+        await page.getByRole("button", { name: "Check status", exact: true }).click();
         await page.getByText(/project is no longer available or cannot be managed/i).waitFor();
         assert.equal(writes.length, 0);
         assert.equal(assignments.length, 0);
@@ -275,9 +283,14 @@ try {
           await other.getByRole("combobox", { name: /^Class/ }).click();
           await other.getByRole("option", { name: "Class", exact: true }).click();
           await other.getByRole("checkbox", { name: /Alice/ }).check();
-          const otherCreate = other.getByRole("button", { name: "Create project" });
+          const otherCreate = other.getByRole("button", {
+            name: "Create project",
+          });
           await otherCreate.click();
-          const startReplacement = other.getByRole("button", { name: "Start a new project" });
+          await other.getByRole("button", { name: "Check status", exact: true }).click();
+          const startReplacement = other.getByRole("button", {
+            name: "Start a new project",
+          });
           await startReplacement.click();
           await startReplacement.waitFor({ state: "detached" });
           await otherCreate.click();
@@ -285,6 +298,11 @@ try {
           const key = `spatia.assignment.source:${userId}`;
           const replacement = await other.evaluate((key) => localStorage.getItem(key), key);
           assert.ok(replacement);
+          const checkStatus = page.getByRole("button", {
+            name: "Check status",
+            exact: true,
+          });
+          if (await checkStatus.isVisible()) await checkStatus.click();
           await page.getByRole("button", { name: "Start a new project" }).click();
           const retained = await page.evaluate((key) => localStorage.getItem(key), key);
           releaseSource();
@@ -297,7 +315,9 @@ try {
           await page.close();
           continue;
         }
-        const discardSource = page.getByRole("button", { name: "Start a new project" });
+        const discardSource = page.getByRole("button", {
+          name: "Start a new project",
+        });
         const key = `spatia.assignment.source:${userId}`;
         await page.evaluate(async (key) => {
           const acquired = Promise.withResolvers();
@@ -336,7 +356,10 @@ try {
         {
           title: "Blank project",
           operationId: writes[0].operationId,
-          creationGuard: { purpose: "assignment-source", previousOperationId: null },
+          creationGuard: {
+            purpose: "assignment-source",
+            previousOperationId: null,
+          },
         },
       ]);
       assert.equal(assignments.length, 2);
