@@ -4,6 +4,8 @@ import { defineConfig, loadEnv } from "vite";
 import { assetCataloguePlugin } from "./asset-catalogue-plugin.ts";
 import { accountDevelopmentServer, unavailableAccountApi } from "./account-dev-server.ts";
 
+const threeCoreChunk = { name: "three-core", test: /[\\/]three[\\/]build[\\/]three\.core\.js$/ };
+
 export default defineConfig(({ command, mode }) => {
   const webDirectory = fileURLToPath(new URL(".", import.meta.url));
   const accountServer =
@@ -55,6 +57,12 @@ export default defineConfig(({ command, mode }) => {
         },
       },
     ],
+    worker: {
+      format: "es",
+      rolldownOptions: {
+        output: { codeSplitting: { groups: [threeCoreChunk] } },
+      },
+    },
     build: {
       assetsInlineLimit: 0,
       outDir: "../dist/editor",
@@ -70,7 +78,7 @@ export default defineConfig(({ command, mode }) => {
           codeSplitting: {
             groups: [
               { name: "project-format", test: /[\\/]shared[\\/]project[\\/]/ },
-              { name: "three-core", test: /[\\/]three[\\/]build[\\/]three\.core\.js$/ },
+              threeCoreChunk,
               { name: "react", test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
             ],
           },

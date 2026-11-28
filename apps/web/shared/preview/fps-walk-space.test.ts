@@ -4,7 +4,7 @@ import { Box3, Group, PerspectiveCamera, Vector3 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { beforeAll, expect, it } from "vitest";
 import { FpsControls } from "./FpsControls";
-import { createWalkSpace } from "./walk-space";
+import { createWalkSpace, EYE_HEIGHT } from "./walk-space";
 
 let room: Group;
 beforeAll(async () => {
@@ -53,7 +53,7 @@ it.each(["initial engagement", "viewpoint sync", "room visibility resync"])(
         for (let i = 0; i < 300; i++) controls.update(1 / 60);
         expect(camera.position.x).toBeGreaterThan(4.4);
         expect(camera.position.x).toBeLessThan(4.8);
-        expect(camera.position.y).toBeCloseTo(1.1);
+        expect(camera.position.y).toBeCloseTo(position[1] === 1.1 ? position[1] : 0.2 + EYE_HEIGHT);
         expect(Math.abs(camera.position.z)).toBeLessThan(4.8);
         controls.mobileControls.setMove(0, 0);
         if (phase === "initial engagement") controls.disengage();
@@ -70,7 +70,7 @@ it.each(["initial engagement", "runtime room visibility resync"])(
     const tilted = room.clone(true);
     tilted.quaternion.set(0.08715574274765817, 0, 0, 0.9961946980917455);
     const camera = new PerspectiveCamera();
-    camera.position.set(0, 0.9, 0);
+    camera.position.set(0, EYE_HEIGHT, 0);
     camera.rotation.set(0.2, 0.3, 0.1);
     const controls = new FpsControls(camera, document.createElement("canvas"));
     controls.setFlightAllowed(false);
@@ -105,7 +105,7 @@ it.each(["initial engagement", "runtime room visibility resync"])(
       expect(camera.quaternion.angleTo(viewpoint.quaternion)).toBeLessThan(1e-6);
 
       // A later usable room restores walking and still blocks its solid outer wall
-      camera.position.set(0, 0.9, 0);
+      camera.position.set(0, EYE_HEIGHT, 0);
       camera.rotation.set(0, 0, 0);
       controls.setWalkSpace(createWalkSpace([room]));
       controls.mobileControls.setMove(1, 0);

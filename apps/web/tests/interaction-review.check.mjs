@@ -110,8 +110,20 @@ try {
       .evaluateAll((rows) => rows.map((r) => r.dataset.objectId));
     assert.equal(ids.length, 2);
     await page.getByRole("button", { name: "Interaction", exact: true }).click();
+    assert.match(
+      await page.locator(".interaction-help").innerText(),
+      /Touch fires when a visitor walks into the hotspot's object/,
+    );
     await page.getByRole("button", { name: "+ Add Interaction", exact: true }).click();
+    const when = page.getByLabel("Interaction 1 when", { exact: true });
+    assert.deepEqual(
+      await when.locator("option").evaluateAll((options) => options.map((o) => o.value)),
+      ["visitor-clicks-hotspot", "visitor-touch", "scene-starts", "time-elapsed"],
+    );
+    await when.selectOption("visitor-touch");
     const targets = page.getByLabel("Interaction 1 hotspot", { exact: true });
+    assert.equal(await targets.isVisible(), true);
+    await when.selectOption("visitor-clicks-hotspot");
     const choices = await targets
       .locator("option")
       .evaluateAll((options) => options.map((o) => ({ label: o.textContent, value: o.value })));

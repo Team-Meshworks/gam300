@@ -36,4 +36,23 @@ describe("furniture catalogue", () => {
       }),
     ]);
   });
+
+  it("marks the trigger crate as non-blocking", async () => {
+    const plugin = assetCataloguePlugin();
+    const load = plugin.load;
+    if (typeof load !== "function") throw new Error("Expected catalogue loader");
+    const code = await load.call({ addWatchFile() {} } as never, "\0virtual:asset-catalogue");
+    if (typeof code !== "string") throw new Error("Expected generated catalogue");
+    const records = code.slice(code.indexOf("export const assets = "));
+    const imports = [...code.matchAll(/import model(\d+) from /g)]
+      .map(
+        ([, index]) =>
+          `const model${index} = "model-${index}.glb"; const thumbnail${index} = null;`,
+      )
+      .join("\n");
+    const assets = new Function(imports + records.replace("export const assets =", "return"))();
+    expect(assets.find((asset: { id: string }) => asset.id === "trigger-crate-v1")).toEqual(
+      expect.objectContaining({ id: "trigger-crate-v1", nonBlocking: true }),
+    );
+  });
 });

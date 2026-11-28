@@ -22,7 +22,7 @@ export type SceneInteractions = Readonly<{
 export type InteractionHandler = Readonly<{
   sceneStarted(): void;
   objectClicked(objectId: EntityId): void;
-  update(deltaSeconds: number): void;
+  update(deltaSeconds: number, touched?: (objectId: EntityId) => boolean): void;
   reset(): void;
 }>;
 
@@ -34,6 +34,7 @@ export function createInteractionSession(
 ): InteractionHandler {
   let elapsedSeconds = 0;
   const fired = new Set<Interaction>();
+  const touching = new Set<Interaction>();
 
   // UUIDs keep their authored spelling but compare case-insensitively at runtime.
   const objectByHotspot = new Map<string, string>();
@@ -84,19 +85,33 @@ export function createInteractionSession(
         (interaction) => execute(interaction.do, true),
       );
     },
-    update(deltaSeconds) {
+    update(deltaSeconds, touched) {
       if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return;
       elapsedSeconds += deltaSeconds;
       for (const interaction of interactions) {
         if (interaction.when.type !== "time-elapsed" || fired.has(interaction)) continue;
         if (elapsedSeconds < (interaction.when.seconds ?? 2)) continue;
         fired.add(interaction);
-        if (execute(interaction.do)) break;
+        if (execute(interaction.do)) return;
+      }
+      if (!touched) {
+        touching.clear();
+        return;
+      }
+      for (const interaction of interactions) {
+        if (interaction.when.type !== "visitor-touch") continue;
+        const objectId = objectByHotspot.get(interaction.when.targetHotspotId.toLowerCase());
+        const contact = objectId !== undefined && touched(objectId);
+        const wasTouching = touching.has(interaction);
+        if (contact) touching.add(interaction);
+        else touching.delete(interaction);
+        if (contact && !wasTouching && execute(interaction.do)) break;
       }
     },
     reset() {
       elapsedSeconds = 0;
       fired.clear();
+      touching.clear();
       actions.stop();
     },
   };

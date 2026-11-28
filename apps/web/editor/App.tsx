@@ -94,6 +94,28 @@ function removalNotice(label: string, removedRules: number): string {
     : `${label}. Undo restores it.`;
 }
 
+function createThumbnailCache(assets: readonly CatalogueAsset[]) {
+  let snapshot = new Map<string, string>();
+  for (const asset of assets) {
+    if (asset.thumbnail) snapshot.set(asset.id, asset.thumbnail);
+  }
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: (): ReadonlyMap<string, string> => snapshot,
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    set(id: string, url: string) {
+      if (snapshot.get(id) === url) return;
+      snapshot = new Map(snapshot).set(id, url);
+      for (const listener of listeners) listener();
+    },
+  };
+}
+
 export function App({
   server,
   readOnlyPreview = false,
@@ -137,6 +159,8 @@ export function App({
     objectId: string;
     kind: ContentKind;
   } | null>(null);
+  // Start inside the scene, the overview button switch to the orbit camera
+  const [view, setView] = useState<CameraView>("first");
   const [pendingTextDraft, setPendingText] = useState<{
     objectId: string;
     before: SceneObject;
@@ -155,21 +179,42 @@ export function App({
       : undefined;
   }, [pendingText]);
   const [previewPicker, setPreviewPicker] = useState<AssetPickerMode | null>(null);
-  const [generatedThumbnails, setGeneratedThumbnails] = useState<Record<string, string>>({});
-  const onThumbnail = useCallback((id: string, url: string) => {
-    setGeneratedThumbnails((previous) => ({ ...previous, [id]: url }));
-  }, []);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [placingAssetId, setPlacingAssetId] = useState<string | null>(null);
+  const usingPlacement = !!dragging || !!placingAssetId;
+  const thumbnailCache = useMemo(() => createThumbnailCache(editorAssets), [editorAssets]);
+  const thumbnails = useSyncExternalStore(thumbnailCache.subscribe, thumbnailCache.getSnapshot);
+  const [sceneThumbnails, setSceneThumbnails] = useState<ReadonlySet<string>>(() => new Set());
+  const requestThumbnail = useCallback(
+    (id: string) => {
+      if (!thumbnailCache.getSnapshot().has(id))
+        setSceneThumbnails((previous) => (previous.has(id) ? previous : new Set(previous).add(id)));
+    },
+    [thumbnailCache],
+  );
+  const requestedThumbnails = previewPicker ? null : sceneThumbnails;
   useEffect(() => {
-    if (!previewPicker) return;
+    if (usingPlacement) return;
     const missing = editorAssets.filter(
-      (asset) => !asset.thumbnail && belongsInAssetPicker(asset, previewPicker, editorAssets),
+      (asset) =>
+        !asset.thumbnail &&
+        !thumbnailCache.getSnapshot().has(asset.id) &&
+        (previewPicker
+          ? belongsInAssetPicker(asset, previewPicker, editorAssets)
+          : requestedThumbnails?.has(asset.id)),
     );
     if (!missing.length) return;
     let disposed = false;
     let cleanup: (() => void) | undefined;
     void import("./graphics/library-previews")
-      .then(({ generateLibraryPreviews }) => {
-        if (!disposed) cleanup = generateLibraryPreviews(missing, onThumbnail);
+      .then(({ generateLibraryPreviews, editorModelCache }) => {
+        if (!disposed)
+          cleanup = generateLibraryPreviews(
+            previewPicker ? missing : missing.map((asset) => ({ ...asset, sceneLighting: true })),
+            thumbnailCache.set,
+            false,
+            editorModelCache,
+          );
       })
       .catch(() => {
         // Catalogue thumbnails remain available when generated previews cannot load.
@@ -178,17 +223,20 @@ export function App({
       disposed = true;
       cleanup?.();
     };
-  }, [editorAssets, onThumbnail, previewPicker]);
-  const thumbnailFor = (id: string) =>
-    editorAssets.find((asset) => asset.id === id)?.thumbnail ?? generatedThumbnails[id];
+  }, [editorAssets, thumbnailCache, previewPicker, requestedThumbnails, usingPlacement]);
+  const thumbnailFor = (id: string) => thumbnails.get(id);
   const [status, setStatus] = useState<ViewportStatus>("loading");
   const [attempt, setAttempt] = useState(0);
-  const [dragging, setDragging] = useState<string | null>(null);
   const [audioLibrary, setAudioLibrary] = useState<AudioLibraryMode | null>(null);
-  const [placingAssetId, setPlacingAssetId] = useState<string | null>(null);
   const placementVersion = useRef(0);
+  const pendingPlacement = useRef<{
+    assetId: string;
+    before: ReturnType<typeof store.getSnapshot>;
+    ready: Promise<boolean>;
+  } | null>(null);
   const cancelPlacement = useCallback(() => {
     placementVersion.current++;
+    pendingPlacement.current = null;
     setPlacingAssetId(null);
   }, []);
   const [showExhibitTools, setShowExhibitTools] = useState(false);
@@ -197,12 +245,13 @@ export function App({
     function cancel(event: KeyboardEvent) {
       if (event.key === "Escape") {
         cancelPlacement();
+        if (pendingTextDraft) setView((current) => (current === "third" ? "first" : current));
         setPendingText(null);
       }
     }
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
-  }, [cancelPlacement]);
+  }, [cancelPlacement, pendingTextDraft]);
   const [feedback, setFeedback] = useState({ text: "", sequence: 0 });
   const notice = feedback.text;
   const [error, setError] = useState("");
@@ -272,8 +321,6 @@ export function App({
   const visitor = previewSnapshot !== null || readOnlyPreview || modeState?.mode === "visitor";
   const mobileDevice = isMobileTouchDevice();
   const [navigationTool, setNavigationTool] = useState<NavigationTool>("select");
-  // Start inside the scene, the overview button switch to the orbit camera
-  const [view, setView] = useState<CameraView>("first");
   const walking = visitor || view === "first";
   const captured = modeState?.captured ?? false;
   const canCapture = modeState?.canCapture ?? true;
@@ -356,7 +403,7 @@ export function App({
     interactionHandlerRef.current.objectClicked(id);
   }, []);
   const onSceneUpdate = useCallback((deltaSeconds: number) => {
-    interactionHandlerRef.current.update(deltaSeconds);
+    interactionHandlerRef.current.update(deltaSeconds, viewCameraRef.current?.visitorTouches);
   }, []);
   const onInteractionsChange = useCallback(
     (next: Interaction[]) => {
@@ -548,6 +595,66 @@ export function App({
     [assets, store, setNotice],
   );
 
+  function preparePlacement(assetId: string) {
+    const adjoining = projectScene?.environmentAssetId && assetKinds.get(assetId) === "environment";
+    const modelId = adjoining
+      ? roomCompanion(
+          selectionAssets,
+          assets.find((asset) => asset.id === assetId),
+        )?.id
+      : assetId;
+    if (!modelId) {
+      setError("An approved room model is required to add an adjoining room.");
+      return;
+    }
+    if (!viewCamera) return;
+    const request = {
+      assetId,
+      before: store.getSnapshot(),
+      ready: viewCamera.prepareAsset(modelId),
+    };
+    pendingPlacement.current = request;
+    return request;
+  }
+
+  async function placeWhenReady(
+    assetId: string,
+    position: Vector3Tuple,
+    target?: HotspotDropTarget,
+    roomId?: string | null,
+  ) {
+    const version = ++placementVersion.current;
+    const request =
+      pendingPlacement.current?.assetId === assetId
+        ? pendingPlacement.current
+        : preparePlacement(assetId);
+    if (!request) return;
+    const ready = await request.ready;
+    if (version !== placementVersion.current) return;
+    if (
+      !ready ||
+      store.getSnapshot() !== request.before ||
+      viewCameraRef.current !== viewCamera ||
+      visitor ||
+      departing ||
+      manager?.getState().mode === "visitor"
+    ) {
+      cancelPlacement();
+      return;
+    }
+    if (
+      (isStarterRoomEnvironment(assets, assetId) ||
+        isRoomModel(assets, assetId) ||
+        (projectScene?.environmentAssetId && assetKinds.get(assetId) === "environment")) &&
+      viewCamera?.isRoomPlacementValid?.(assetId, position) === false
+    ) {
+      if (!placingAssetId) cancelPlacement();
+      return;
+    }
+    const placed = place(assetId, position, target, roomId);
+    if (placed || !placingAssetId) cancelPlacement();
+  }
+
   function place(
     assetId: string,
     position: Vector3Tuple,
@@ -577,7 +684,7 @@ export function App({
       }
       setError("");
       setNotice("Hotspot attached to the selected object");
-      return;
+      return true;
     }
 
     // Room placement uses the environment slot so it survives JSON reconstruction
@@ -603,7 +710,7 @@ export function App({
           setError(added.error);
         }
         setDragging(null);
-        return;
+        return added.ok;
       }
       const changed = store.setEnvironment(assetId);
       if (!changed.ok) setError(changed.error.message);
@@ -613,7 +720,7 @@ export function App({
         playUiSound("assetPlace");
       }
       setDragging(null);
-      return;
+      return changed.ok;
     }
 
     const resolved = viewCamera?.resolvePlacement?.(assetId, position);
@@ -631,6 +738,7 @@ export function App({
     setSelectedId(result.object.id);
     setNotice(`Added ${result.object.name}`);
     playUiSound("assetPlace");
+    return true;
   }
 
   function openContent(kind: ContentKind) {
@@ -872,6 +980,7 @@ export function App({
               return;
             }
             reportRuleRemoval(before, "Updated content");
+            setView((current) => (current === "third" ? "first" : current));
             setPendingText(null);
             setShowExhibitTools(true);
           }}
@@ -884,15 +993,13 @@ export function App({
           status={status}
           attempt={attempt}
           onStatus={setStatus}
-          onThumbnail={onThumbnail}
+          onThumbnail={thumbnailCache.set}
+          requestThumbnail={requestThumbnail}
           onSelect={onSceneSelect}
           onTransform={onTransform}
           onObjectClick={onObjectClick}
           onSceneUpdate={onSceneUpdate}
-          onPlace={(...args) => {
-            place(...args);
-            cancelPlacement();
-          }}
+          onPlace={placeWhenReady}
           onDragFinish={() => {
             setDragging(null);
           }}
@@ -999,50 +1106,40 @@ export function App({
               onPickerChange={setPreviewPicker}
               assets={selectionAssets.filter((a) => a.kind === "model" || a.kind === "environment")}
               hotspot={HOTSPOT_ASSET}
-              ready={status === "ready"}
+              ready={
+                status === "ready" || (status === "loading" && (!!dragging || !!placingAssetId))
+              }
               thumbnailFor={thumbnailFor}
               onAudio={(mode) => {
                 cancelPlacement();
                 setAudioLibrary(mode);
               }}
-              onAdd={async (assetId) => {
+              onChoose={viewCamera?.preloadAsset}
+              onAdd={(assetId) => {
                 cancelPlacement();
-                const version = placementVersion.current;
-                const before = store.getSnapshot();
-                const adjoiningRoom =
-                  projectScene?.environmentAssetId && assetKinds.get(assetId) === "environment";
-                const modelId = adjoiningRoom
-                  ? roomCompanion(
-                      selectionAssets,
-                      assets.find((asset) => asset.id === assetId),
-                    )?.id
-                  : assetId;
-                if (!modelId) {
-                  setError("An approved room model is required to add an adjoining room.");
-                  return;
-                }
-                if (
-                  !(await viewCamera?.prepareAsset(modelId)) ||
-                  placementVersion.current !== version ||
-                  store.getSnapshot() !== before
-                )
-                  return;
+                const request = preparePlacement(assetId);
+                if (!request) return;
                 setShowExhibitTools(false);
-                // Supplied rooms are complete environment layouts, selected at the scene origin.
                 if (
-                  assetKinds.get(assetId) === "environment" &&
-                  !isStarterRoomEnvironment(assets, assetId) &&
-                  !projectScene?.environmentAssetId
+                  assetId === HOTSPOT_ASSET_ID ||
+                  (assetKinds.get(assetId) === "environment" &&
+                    !isStarterRoomEnvironment(assets, assetId) &&
+                    !projectScene?.environmentAssetId)
                 ) {
-                  place(assetId, [0, 0, 0]);
+                  void placeWhenReady(assetId, [0, 0, 0]);
                   return;
                 }
-                if (assetId === HOTSPOT_ASSET_ID) {
-                  place(assetId, [0, 0, 0]);
-                  return;
-                }
+                // Arm the next click immediately and validate its world position once geometry is ready
+                const version = placementVersion.current;
                 setPlacingAssetId(assetId);
                 setNavigationTool("select");
+                void request.ready.then((ok) => {
+                  if (
+                    placementVersion.current === version &&
+                    (!ok || store.getSnapshot() !== request.before)
+                  )
+                    cancelPlacement();
+                });
               }}
               onDragChange={(assetId) => {
                 if (assetId !== null) cancelPlacement();
@@ -1068,7 +1165,7 @@ export function App({
                 setView("third");
                 setNavigationTool(tool);
               }}
-              showCameraTools={true}
+              showCameraTools={view === "third"}
             />
           )}
           {mobileDevice && walking && mobileControls !== null && (

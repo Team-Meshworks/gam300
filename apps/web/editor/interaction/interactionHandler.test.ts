@@ -23,6 +23,11 @@ const elapsedInteraction: Interaction = {
   do: { type: "print-hi" },
 };
 
+const touchInteraction: Interaction = {
+  when: { type: "visitor-touch", targetHotspotId: "crate-hotspot" },
+  do: { type: "print-hi" },
+};
+
 // Records actions without touching the browser
 function recorder(run = vi.fn()) {
   return { run, stop: vi.fn() };
@@ -137,6 +142,87 @@ describe("interaction handler", () => {
 
     handler.reset();
     handler.update(5);
+    expect(runAction).toHaveBeenCalledTimes(2);
+  });
+
+  it("fires a touch rule on entry and re-arms after the visitor steps away", () => {
+    const runAction = vi.fn();
+    const touching = vi.fn((objectId: string) => objectId === "crate");
+    const handler = createInteractionHandler([touchInteraction], hotspots, recorder(runAction));
+
+    handler.update(0.016, touching);
+    expect(runAction).toHaveBeenCalledExactlyOnceWith(touchInteraction.do);
+    expect(touching).toHaveBeenCalledWith("crate");
+
+    handler.update(0.016, touching);
+    expect(runAction).toHaveBeenCalledOnce();
+
+    handler.update(0.016, () => false);
+    handler.update(0.016, touching);
+    expect(runAction).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores touch rules without a contact query or a matching hotspot", () => {
+    const runAction = vi.fn();
+    const handler = createInteractionHandler(
+      [
+        {
+          when: { type: "visitor-touch", targetHotspotId: "missing" },
+          do: { type: "print-hi" },
+        },
+      ],
+      hotspots,
+      recorder(runAction),
+    );
+
+    handler.update(0.016);
+    handler.update(0.016, () => true);
+
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
+  it("matches touch hotspot IDs case-insensitively", () => {
+    const runAction = vi.fn();
+    const touching = vi.fn((objectId: string) => objectId === "crate");
+    const handler = createInteractionHandler(
+      [
+        {
+          when: { type: "visitor-touch", targetHotspotId: "CRATE-HOTSPOT" },
+          do: { type: "print-hi" },
+        },
+      ],
+      hotspots,
+      recorder(runAction),
+    );
+
+    handler.update(0.016, touching);
+
+    expect(touching).toHaveBeenCalledWith("crate");
+    expect(runAction).toHaveBeenCalledOnce();
+  });
+
+  it("stops touch rules when an elapsed rule has already navigated", () => {
+    const run = vi.fn(() => true);
+    const handler = createInteractionHandler(
+      [{ when: { type: "time-elapsed", seconds: 1 }, do: { type: "print-hi" } }, touchInteraction],
+      hotspots,
+      { run, stop: vi.fn() },
+    );
+
+    handler.update(1, () => true);
+
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it("resets touch contact state", () => {
+    const runAction = vi.fn();
+    const touching = () => true;
+    const handler = createInteractionHandler([touchInteraction], hotspots, recorder(runAction));
+
+    handler.update(0.016, touching);
+    handler.reset();
+    handler.update(0.016, touching);
+
     expect(runAction).toHaveBeenCalledTimes(2);
   });
 

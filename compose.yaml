@@ -1,6 +1,6 @@
 services:
   web:
-    image: ${APP_IMAGE:-vthere:local}
+    image: ${APP_IMAGE:-spatia:local}
     build:
       context: .
       args:

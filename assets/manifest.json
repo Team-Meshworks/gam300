@@ -71,6 +71,43 @@
       "reviewNotes": "Bounds read from GLB metadata. Bottom-centre pivot; browser verification pending."
     },
     {
+      "assetId": "trigger-crate-v1",
+      "name": "Trigger Crate",
+      "kind": "model",
+      "mediaType": "model/gltf-binary",
+      "file": "delivery/trigger-crate.glb",
+      "sourceFile": "source/test-crate.blend",
+      "byteSize": 1932,
+      "sha256": "1abd0d5dc612dd87b8e664e79460fc21a1974f769a2958ed39e5c39f237d49cc",
+      "category": "Triggers",
+      "thumbnail": "delivery/thumbnails/trigger-crate.svg",
+      "access": "development-only",
+      "license": {
+        "status": "pending-team-confirmation",
+        "provenance": "Derived from the contributor-created test crate in source/test-crate.blend; redistribution terms not yet selected."
+      },
+      "boundsMeters": {
+        "max": [
+          0.5,
+          1,
+          0.5
+        ],
+        "min": [
+          -0.5,
+          0,
+          -0.5
+        ]
+      },
+      "pivotMeters": [
+        0,
+        0,
+        0
+      ],
+      "placement": "bottom-center",
+      "nonBlocking": true,
+      "reviewNotes": "Invisible, non-blocking crate used as a hotspot anchor for click triggers; fully transparent BLEND material."
+    },
+    {
       "assetId": "sample-snowglobe-v1",
       "name": "Snow globe",
       "kind": "model",
@@ -87,7 +124,7 @@
       "access": "development-only",
       "license": {
         "status": "pending-team-confirmation",
-        "provenance": "Existing teammate-provided snowglobe GLB, preserved unchanged from web/editor/public/models/snowglobe.glb. Licensing implementation belongs to the VThere team."
+        "provenance": "Existing teammate-provided snowglobe GLB, preserved unchanged from web/editor/public/models/snowglobe.glb."
       },
       "reviewNotes": "Original GLB contains animation; editor does not play animations. Preserve existing bottom-center placement and generated thumbnail. Bounds verification remains pending."
     },

@@ -82,6 +82,9 @@
   max-height: 65dvh;
   overflow: auto;
 }
+.visitor-information.is-hidden {
+  display: none;
+}
 .visitor-information summary {
   list-style: none;
 }
@@ -101,12 +104,64 @@
   margin: 0.75rem 0;
 }
 .visitor-preview figure img,
-.visitor-preview figure video {
+.visitor-preview figure video,
+.visitor-preview figure audio {
+  display: block;
+  margin-inline: auto;
   max-width: 100%;
+}
+.visitor-preview figure img,
+.visitor-preview figure video {
   height: auto;
 }
-.visitor-preview audio {
+.visitor-preview figure figcaption {
+  text-align: center;
+}
+.visitor-preview figure > button {
+  display: block;
+  margin-inline: auto;
+}
+.visitor-media-dialog {
+  box-sizing: border-box;
+  width: min(1120px, calc(100vw - 3rem));
+  max-width: none;
+  max-height: calc(100dvh - 3rem);
+  padding: 3rem 1.75rem 1.5rem;
+  border: 1px solid #ded7cc;
+  border-radius: 1rem;
+  background: #fffdf9;
+  color: #292522;
+  box-shadow: var(--shadow);
+}
+.visitor-media-dialog::backdrop {
+  background: rgb(41 39 35 / 55%);
+}
+.visitor-media-dialog[open] {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.75rem;
+}
+.visitor-media-dialog img,
+.visitor-media-dialog video {
+  display: block;
+  width: 100%;
+  height: min(84dvh, calc(100dvh - 10rem));
   max-width: 100%;
+  object-fit: contain;
+  margin-inline: auto;
+}
+.visitor-media-dialog audio {
+  max-width: 100%;
+}
+.visitor-media-dialog p {
+  margin: 0;
+  max-width: 100%;
+  white-space: pre-wrap;
+  text-align: center;
+}
+.visitor-media-dialog-caption {
+  color: #4b4740;
 }
 @media (max-width: 600px) {
   .visitor-preview button,

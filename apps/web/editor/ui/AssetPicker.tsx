@@ -1,6 +1,6 @@
 import { LibraryRail } from "./LibraryRail";
 import { useDragImage } from "./use-drag-image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { playUiSound } from "../audio/ui-sounds";
 import {
@@ -49,6 +49,7 @@ export function AssetPicker({
   ready,
   thumbnailFor,
   onAdd,
+  onChoose,
   onDragChange,
   onClose,
   mode = "assets",
@@ -57,6 +58,7 @@ export function AssetPicker({
   ready: boolean;
   thumbnailFor: (assetId: string) => string | undefined;
   onAdd: (assetId: string) => void;
+  onChoose?: ((assetId: string | null) => void) | undefined;
   onDragChange: (assetId: string | null) => void;
   onClose: () => void;
   mode?: AssetPickerMode;
@@ -66,6 +68,7 @@ export function AssetPicker({
   const labels = pickerLabels[mode];
   const setDragImage = useDragImage();
   const [chosen, setChosen] = useState<string | null>(null);
+  useEffect(() => () => onChoose?.(null), [onChoose]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AssetFilter>("all");
   const [favourites, setFavourites] = useState<string[]>(loadFavourites);
@@ -201,6 +204,7 @@ export function AssetPicker({
                         return;
                       }
                       setChosen(asset.id);
+                      onChoose?.(asset.id);
                       playUiSound("assetSelect");
                     }}
                     onDragStart={(event) => {

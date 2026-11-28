@@ -7,7 +7,7 @@ import { isPortableHttpsUrl } from "../project/portable-url";
 import { createInteractionSession } from "../preview/interaction-session";
 import { dispatchRules } from "../preview/rule-dispatch";
 import { createRoomAcoustics } from "../preview/room-acoustics";
-import type { WalkProp } from "../preview/walk-space";
+import { touchesObject, type WalkProp } from "../preview/walk-space";
 
 export type VisitorScene = PlayerSnapshot["document"]["scenes"][number];
 
@@ -26,6 +26,7 @@ export function createVisitorPlayback(
   beginNavigationEvent: () => void = () => {},
   audioPermissionHint = "Select Enable audio to allow playback",
   visibilityChanged?: (object: THREE.Object3D) => void,
+  nonBlockingIds: ReadonlySet<string> = new Set(),
 ) {
   // Keep timing, zone entry and camera movement scoped to this visit rather than the saved rules
   let started = false,
@@ -178,6 +179,13 @@ export function createVisitorPlayback(
         departing = navigate(action.sceneId, "", deliberate) !== false;
         break;
     }
+  }
+  const objectBox = new THREE.Box3();
+  const bodyBox = new THREE.Box3();
+  function visitorTouches(objectId: string) {
+    if (nonBlockingIds.has(objectId.toLowerCase())) return false;
+    const object = root(objectId);
+    return object !== undefined && touchesObject(object, camera.position, objectBox, bodyBox);
   }
   const legacySession = createInteractionSession(interactions, hotspots, {
     run(action) {
@@ -411,7 +419,7 @@ export function createVisitorPlayback(
       if (!started || disposed || departing || document.hidden) return;
       elapsed += delta;
       // Timed triggers fire once per scene visit; re-entering creates a fresh playback session
-      legacySession.update(delta);
+      legacySession.update(delta, visitorTouches);
       run((rule) => {
         const trigger = rule.trigger;
         if (trigger.type === "elapsed" && elapsed >= trigger.seconds && !timers.has(rule.id)) {

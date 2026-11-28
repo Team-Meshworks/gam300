@@ -13,6 +13,7 @@
 		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 		Cache-Control no-cache
 	}
+	header /manifest.webmanifest Content-Type application/manifest+json
 	@immutable path /assets/*
 	header @immutable Cache-Control "public, max-age=31536000, immutable"
 	respond /healthz "ok" 200

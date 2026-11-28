@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { ExhibitionCanvas } from "./ExhibitionCanvas";
 import { ExhibitionContent } from "./ExhibitionContent";
 import type { PlayerSnapshot } from "./player-snapshot";
+import { createPlayerGraphics } from "./player-graphics";
 import "./player.css";
 
 export function ExhibitionPlayer({
@@ -12,6 +13,8 @@ export function ExhibitionPlayer({
   previewControls?: ReactNode;
 }) {
   const [scene, setScene] = useState(0);
+  const graphics = useMemo(createPlayerGraphics, [exhibition]);
+  useEffect(() => () => graphics.dispose(), [graphics]);
   const [viewpoint, setViewpoint] = useState<Readonly<{ id: string }>>();
 
   const [readyScene, setReadyScene] = useState<number | null>(null);
@@ -55,6 +58,7 @@ export function ExhibitionPlayer({
       )}
       <ExhibitionCanvas
         key={`${scene}-${visit}`}
+        graphics={graphics}
         exhibition={exhibition}
         beginNavigationEvent={beginInput}
         onPlaybackReady={onPlaybackReady}

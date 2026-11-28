@@ -10,7 +10,7 @@
   "categories": {
     "correctness": "off"
   },
-  "ignorePatterns": ["dist/**", "node_modules/**", "test-results/**"],
+  "ignorePatterns": ["dist/**", "test-results/**"],
   "overrides": [
     {
       "files": ["**/*.ts", "**/*.tsx"],
