@@ -1,3 +1,4 @@
+import { useEffectEvent } from "react";
 import { environmentObject } from "../shared/project/selection-transform";
 import { AudioLibrary, type AudioLibraryMode } from "./ui/AudioLibrary";
 import { ExhibitPopups } from "./ui/ExhibitPopups";
@@ -59,6 +60,7 @@ const EMPTY_HOTSPOTS: readonly ProjectHotspot[] = Object.freeze([]);
 export type ServerEditorSession = {
   assets: readonly CatalogueAsset[];
   selectionAssets: readonly CatalogueAsset[];
+  refreshCatalogue?: () => Promise<void>;
   store: ReturnType<typeof createDocumentStore>;
   title: string;
   dirty: boolean;
@@ -74,6 +76,7 @@ export type ServerEditorSession = {
   publishLabel?: "Request approval" | "Awaiting approval" | "Publish";
   publishDisabled?: boolean;
   importFile: (file: File) => Promise<void>;
+  recoverImport?: () => void;
 };
 
 function countSceneRules(
@@ -185,6 +188,12 @@ export function App({
   const [attempt, setAttempt] = useState(0);
   const [dragging, setDragging] = useState<string | null>(null);
   const [audioLibrary, setAudioLibrary] = useState<AudioLibraryMode | null>(null);
+  const refreshLibrary = useEffectEvent(() => {
+    void server.refreshCatalogue?.();
+  });
+  useEffect(() => {
+    if (previewPicker || audioLibrary || contentEdit) refreshLibrary();
+  }, [previewPicker, audioLibrary, contentEdit]);
   const [placingAssetId, setPlacingAssetId] = useState<string | null>(null);
   const placementVersion = useRef(0);
   const cancelPlacement = useCallback(() => {
@@ -763,7 +772,7 @@ export function App({
           }}
           scenes={
             <Scenes
-              key={`${loadGeneration}:${activeSceneId}:${projectScene?.name}`}
+              key={loadGeneration}
               scenes={project?.scenes ?? []}
               activeSceneId={activeSceneId}
               assets={selectionAssets}

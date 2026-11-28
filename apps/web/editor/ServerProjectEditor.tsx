@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CatalogueAsset } from "../shared/asset-runtime/catalogue";
 import { assets } from "virtual:asset-catalogue";
 import { App } from "./App";
+import { Dialog } from "../shared/ui/Dialog";
 import { playUiSound } from "./audio/ui-sounds";
 import { BaseModelChooser } from "./home/BaseModelChooser";
 import { needsBaseModel } from "./home/base-model";
@@ -31,7 +32,10 @@ import { MAX_PROJECT_BYTES } from "../shared/project/project-limits";
 import { createWorkspaceClient, isId, projectReceipt } from "./home/workspace-api";
 import { isRecord, readField } from "../shared/project/validation-helpers";
 import { Icon } from "./ui/Icon";
+import { PendingCreateRecovery } from "./home/PendingCreateRecovery";
 import {
+  finishConfirmedCreation,
+  loadCreationHead,
   createOperationKey,
   sendCreateOperation,
   readCreateOperation,
@@ -236,14 +240,16 @@ export function ServerProjectEditor({ projectId }: { projectId: string }) {
 
 function ServerProjectSession({
   projectId,
-  catalogue,
-  available,
+  catalogue: initialCatalogue,
+  available: initialAvailable,
 }: {
   projectId: string;
   catalogue: readonly CatalogueAsset[];
   available: readonly CatalogueAsset[];
 }) {
-  const editorAssets = useMemo(() => [...catalogue, HOTSPOT_ASSET], [catalogue]);
+  const [catalogue, setCatalogue] = useState(initialCatalogue);
+  const [available, setAvailable] = useState(initialAvailable);
+  const editorAssets = useMemo(() => [...initialCatalogue, HOTSPOT_ASSET], [initialCatalogue]);
   const kinds = useMemo(
     () => new Map(editorAssets.map((asset) => [asset.id, asset.kind])),
     [editorAssets],
@@ -253,8 +259,12 @@ function ServerProjectSession({
   const [choosingBase, setChoosingBase] = useState(false);
   const [signedOut, setSignedOut] = useState(false);
   const current = useRef<Active | null>(null);
-  const retained = useRef<{ accountId: string; recovery: RecoverySession } | null>(null);
+  const retained = useRef<{
+    accountId: string;
+    recovery: RecoverySession;
+  } | null>(null);
   const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [importError, setImportError] = useState("");
   const [status, setStatus] = useState<ServerSaveStatus>("saved");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -270,6 +280,26 @@ function ServerProjectSession({
   } | null>(null);
   const [requestApproval, setRequestApproval] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [importRecovery, setImportRecovery] = useState<Active | null>(null);
+  const [importRecoveryBusy, setImportRecoveryBusy] = useState(false);
+  const [pendingImportOwner, setPendingImportOwner] = useState<Active | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    const check = () =>
+      void loadCreationHead(active.accountId, "import")
+        .then((head) => {
+          if (!cancelled && !active.controller.signal.aborted)
+            setPendingImportOwner(head.state === "unacknowledged" ? active : null);
+        })
+        .catch(() => undefined);
+    check();
+    window.addEventListener("focus", check);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", check);
+    };
+  }, [active]);
   const [approvalVersion, setApprovalVersion] = useState(0);
   useEffect(() => {
     if (!active || status !== "saved") return;
@@ -308,7 +338,12 @@ function ServerProjectSession({
               !review.latestDecision;
           }
           if (!controller.signal.aborted)
-            setApproval({ owner: active!, revision, approved: value.approved, pending });
+            setApproval({
+              owner: active!,
+              revision,
+              approved: value.approved,
+              pending,
+            });
         }
       } catch {
         // Submission and publication pages retain their authoritative checks if readiness is unavailable
@@ -473,7 +508,10 @@ function ServerProjectSession({
       return identity;
 
     // Lock the live draft before awaiting account-scoped recovery storage
-    retained.current = { accountId: owner.accountId, recovery: owner.session.getRecovery() };
+    retained.current = {
+      accountId: owner.accountId,
+      recovery: owner.session.getRecovery(),
+    };
     owner.controller.abort();
     current.current = null;
     setActive(null);
@@ -560,16 +598,17 @@ function ServerProjectSession({
     return true;
   }
 
-  async function run(action: () => Promise<void>) {
+  async function run(action: () => Promise<void>, reportError = setError) {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setError("");
+    setImportError("");
     try {
       await action();
     } catch (cause) {
       if (!wasPickerCancelled(cause)) {
-        setError(
+        reportError(
           cause instanceof Error ? cause.message : "The operation failed. Your draft was kept.",
         );
       }
@@ -596,6 +635,13 @@ function ServerProjectSession({
     });
     if (saved && !active?.controller.signal.aborted) playUiSound("save");
     return saved;
+  }
+
+  async function recoverCommittedImport(owner: Active) {
+    const head = await loadCreationHead(owner.accountId, "import");
+    if (owner.controller.signal.aborted || head.state !== "unacknowledged") return false;
+    setImportRecovery(owner);
+    return true;
   }
 
   async function importFile(file: File) {
@@ -632,6 +678,7 @@ function ServerProjectSession({
       if (!identity) {
         return;
       }
+      if (await recoverCommittedImport(active)) return;
       const projectAccess = identity.orgId
         ? null
         : await workspace.read(`/api/v1/projects/${projectId}/assignments`);
@@ -667,8 +714,9 @@ function ServerProjectSession({
       }
       // A lost receipt may already have created the project; keep the existing creation guard
       if (result.kind !== "confirmed" || !projectReceipt(result.value) || !isRecord(result.value)) {
+        if (await recoverCommittedImport(active)) return;
         throw new Error(
-          "Import could not be confirmed; select the same file again to safely retry this import",
+          "Import could not be confirmed; select the same file again to safely retry this import.",
         );
       }
       const preserved = await active.session.prepareToLeave("save");
@@ -677,8 +725,15 @@ function ServerProjectSession({
           "The imported project is in All Projects; keep this draft open until its save completes",
         );
       }
+      await finishConfirmedCreation(
+        localStorage,
+        active.accountId,
+        "import",
+        result.value,
+        workspace.write,
+      );
       location.assign(`/?projectId=${encodeURIComponent(String(result.value.projectId))}`);
-    });
+    }, setImportError);
   }
 
   function requestDeparture(destination: NonNullable<typeof departure>) {
@@ -748,6 +803,40 @@ function ServerProjectSession({
     });
   }
 
+  const refreshVersion = useRef(0);
+  async function refreshCatalogue() {
+    const owner = current.current;
+    if (!owner) return;
+    const version = ++refreshVersion.current;
+    const valid = () =>
+      current.current === owner &&
+      !owner.controller.signal.aborted &&
+      version === refreshVersion.current;
+    try {
+      const identity = await checkDraftAccount(owner);
+      if (!identity || !valid()) return;
+      const [approved, retainedAssets] = await Promise.all([
+        readServerAssets(owner.accountId, owner.controller.signal),
+        readServerAssets(owner.accountId, owner.controller.signal, fetch, projectId),
+      ]);
+      if (!valid()) return;
+      const next = [...(identity.developmentAssetsAllowed ? assets : []), ...approved];
+      const all = [
+        ...new Map(
+          [...catalogue, ...next, ...retainedAssets].map((asset) => [asset.id, asset]),
+        ).values(),
+      ];
+      if (JSON.stringify(all) !== JSON.stringify(catalogue)) {
+        for (const asset of all) kinds.set(asset.id, asset.kind);
+        store.updateCatalogue([...all, HOTSPOT_ASSET]);
+        setCatalogue(all);
+      }
+      if (JSON.stringify(next) !== JSON.stringify(available)) setAvailable(next);
+    } catch {
+      if (valid()) setError("Could not refresh the asset library. Reopen it to retry.");
+    }
+  }
+
   async function chooseBaseModel(assetId: string) {
     await run(async () => {
       if (
@@ -781,6 +870,7 @@ function ServerProjectSession({
           server={{
             assets: catalogue,
             selectionAssets: available,
+            refreshCatalogue,
             store,
             title: active.title,
             dirty: status !== "saved",
@@ -791,6 +881,9 @@ function ServerProjectSession({
             save,
             leave: () => requestDeparture("home"),
             importFile,
+            ...(pendingImportOwner === active
+              ? { recoverImport: () => setImportRecovery(active) }
+              : {}),
             openServerVersion: () => requestDeparture("reload"),
             logout: () => requestDeparture("logout"),
             ...(!parseProgressContext(new URLSearchParams(location.search), projectId)
@@ -888,6 +981,71 @@ function ServerProjectSession({
           </div>
           {error && <p role="alert">{error}</p>}
         </ChoiceDialog>
+      )}
+      {active && importError && (
+        <Dialog
+          title="Import not confirmed"
+          variant="account"
+          hideFooterClose
+          className="sp-account-confirmation creator-import-dialog"
+          onClose={() => setImportError("")}
+        >
+          <section className="creator-import-recovery">
+            <p className="creator-import-error" role="alert">
+              {importError}
+            </p>
+            <div className="creator-recovery-actions creator-recovery-versions">
+              <button type="button" onClick={() => setImportError("")}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="creator-recovery-primary-action"
+                onClick={() => {
+                  setImportError("");
+                  document.getElementById("project-import")?.click();
+                }}
+              >
+                Choose file
+              </button>
+            </div>
+          </section>
+        </Dialog>
+      )}
+      {active && importRecovery === active && (
+        <Dialog
+          title="Recover earlier import"
+          closeDisabled={importRecoveryBusy}
+          variant="account"
+          hideFooterClose
+          className="sp-account-confirmation creator-import-dialog"
+          onClose={() => {
+            if (!importRecoveryBusy) setImportRecovery(null);
+          }}
+        >
+          <PendingCreateRecovery
+            key={active.accountId}
+            actorId={active.accountId}
+            purpose="import"
+            active={!busy}
+            importOnly
+            onBusyChange={setImportRecoveryBusy}
+            prepareRecovered={async (value) => {
+              active.controller.signal.throwIfAborted();
+              const preserved = await active.session.prepareToLeave("save");
+              if (!preserved.ok || !preserved.value)
+                throw new Error(
+                  "Save or export your current project before opening the imported project.",
+                );
+              active.controller.signal.throwIfAborted();
+              return value;
+            }}
+            onRecovered={(value) => {
+              if (!active.controller.signal.aborted)
+                location.assign(`/?projectId=${encodeURIComponent(value.id)}`);
+            }}
+          />
+        </Dialog>
       )}
       {publishOpen && active && (
         <PublishDialog

@@ -159,6 +159,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
   // The store stays empty until the authorized project has been validated and loaded.
   let project: ProjectDocument | null = null;
+  const initializedViewScenes = new Set<string>();
   let projectAssets: ReadonlyMap<string, string> = new Map();
 
   // Keep history here so the buttons and future edit controls share one undo order.
@@ -1227,6 +1228,16 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         "Change environment",
       );
     },
+    initializeDefaultViewpoint(): ValidationResult<true> {
+      const scene = activeScene();
+      if (!scene) return invalid("scene", "Create a scene first");
+      if (initializedViewScenes.has(scene.id)) return { ok: true, value: true };
+      const result = scene.viewpoints?.length
+        ? { ok: true as const, value: true as const }
+        : editViews([{ id: createId(), name: "Default View", camera: scene.startCamera }]);
+      if (result.ok) initializedViewScenes.add(scene.id);
+      return result;
+    },
     addViewpoint(name: string, camera: CameraPose): ValidationResult<true> {
       if (!name.trim() || name.trim().length > 120)
         return invalid("name", "Enter a viewpoint name between 1 and 120 characters");
@@ -1428,6 +1439,13 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
         clearEdit();
       }
     },
+    updateCatalogue(next: readonly CatalogueAsset[]) {
+      assets = next;
+      projectAssets = new Map([
+        ...projectAssets,
+        ...next.map((asset) => [asset.id, asset.kind] as const),
+      ]);
+    },
     getSnapshot: () => snapshot,
     getRecoveryHistory() {
       if (state.project === null) return undefined;
@@ -1468,6 +1486,7 @@ export function createDocumentStore(assets: readonly CatalogueAsset[]) {
 
       // Publish only after both the document and optional recovery history have passed
       loadGeneration++;
+      initializedViewScenes.clear();
       project = loaded;
       clipboard = null;
       pasteCount = 0;

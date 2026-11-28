@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import type { CameraView } from "../graphics/modeManager";
 import type { ServerEditorSession } from "../App";
 import { Icon } from "./Icon";
@@ -44,6 +44,24 @@ export function TopBar({
   settingsPanel: ReactNode;
   onSettings: () => void;
 }) {
+  const header = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const element = header.current;
+    const shell = element?.closest<HTMLElement>(".editor-shell");
+    if (!element || !shell) return;
+    const update = () =>
+      shell.style.setProperty(
+        "--editor-header-height",
+        `${element.getBoundingClientRect().height}px`,
+      );
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      shell.style.removeProperty("--editor-header-height");
+    };
+  }, []);
   const menu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     // Clicking back into the editor closes the project options
@@ -71,7 +89,7 @@ export function TopBar({
         : "saved";
 
   return (
-    <header className="app-header">
+    <header className="app-header" ref={header}>
       <h1 className="sr-only">Spatia</h1>
 
       <div className="project-card" inert={visitor}>
@@ -110,10 +128,11 @@ export function TopBar({
               disabled={busy || session.busy || !ready}
               onClick={() => {
                 closeMenu();
-                document.getElementById("project-import")?.click();
+                if (session.recoverImport) session.recoverImport();
+                else document.getElementById("project-import")?.click();
               }}
             >
-              Import
+              {session.recoverImport ? "Recover Earlier Import" : "Import"}
             </button>
             {session.failed && (
               <button

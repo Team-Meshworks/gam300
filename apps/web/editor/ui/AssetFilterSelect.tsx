@@ -141,22 +141,24 @@ export function AssetFilterSelect({
         aria-label={label}
         onToggle={(event) => setOpen(event.newState === "open")}
       >
-        {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            role="option"
-            aria-selected={option.value === value}
-            disabled={option.disabled}
-            tabIndex={-1}
-            onClick={() => {
-              onChange(option.value);
-              close();
-            }}
-          >
-            {option.label}
-          </button>
-        ))}
+        <div className="asset-filter-options">
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              disabled={option.disabled}
+              tabIndex={-1}
+              onClick={() => {
+                onChange(option.value);
+                close();
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
     </span>
   );
