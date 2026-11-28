@@ -61,7 +61,10 @@ export function ExistingProjectPicker({
         await onSeparate?.();
       } else {
         if (action === "review")
-          setSelected({ ...(await projects.read(actorId, projectId!, source)), context });
+          setSelected({
+            ...(await projects.read(actorId, projectId!, source)),
+            context,
+          });
         else {
           if (!selected || selected.context !== context)
             throw new Error("Review the project for the current account first.");
@@ -82,23 +85,11 @@ export function ExistingProjectPicker({
   return (
     <section className="sp-creation-notice sp-create-recovery" aria-label="Choose existing project">
       <p>
-        Choose an exact project by its identifier. A matching title does not prove that an earlier
-        request created it.
+        Review the project details to choose the correct result. Projects can share the same title.
       </p>
       {source && (
         <p>Only active projects you can manage can be selected as an assignment source.</p>
       )}
-      <Button
-        disabled={!active || busy}
-        onClick={() => {
-          setRows(null);
-          setSelected(null);
-          setError("");
-          setRefresh((value) => value + 1);
-        }}
-      >
-        Refresh existing projects
-      </Button>
       {rows === null || loadedContext !== context ? (
         <p role="status">{error ? "Project list unavailable." : "Loading existing projects…"}</p>
       ) : (
@@ -110,7 +101,8 @@ export function ExistingProjectPicker({
                 .map((row) => (
                   <li key={row.projectId}>
                     <span>
-                      {row.title} — {row.projectId} — {row.archived ? "Archived" : "Active"}
+                      {row.title}
+                      {row.archived ? " (Archived)" : ""}
                     </span>{" "}
                     <Button
                       disabled={
@@ -125,13 +117,12 @@ export function ExistingProjectPicker({
                 ))}
             </ul>
           ) : (
-            <p>No accessible projects were returned.</p>
+            <p>No projects are available.</p>
           )}
           {selected?.context === context && (
             <div>
               <p>
-                Selected existing project: {selected.title} ({selected.projectId}), revision{" "}
-                {selected.revision}. {selected.archived ? "Archived." : "Active."}
+                Selected project: {selected.title}. {selected.archived ? "Archived." : "Active."}
               </p>
               <Button
                 disabled={!active || busy}
@@ -149,6 +140,19 @@ export function ExistingProjectPicker({
         </>
       )}
       {error && <p role="alert">{error}</p>}
+      <div className="sp-form-dialog-actions">
+        <Button
+          disabled={!active || busy}
+          onClick={() => {
+            setRows(null);
+            setSelected(null);
+            setError("");
+            setRefresh((value) => value + 1);
+          }}
+        >
+          Refresh projects
+        </Button>
+      </div>
     </section>
   );
 }

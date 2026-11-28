@@ -120,15 +120,20 @@ it("clears only the observed actor's exact historical sentinel after rechecking 
   expect(await clearHistoricalCreation(store, actor, "1", verify)).toBe(true);
   expect(store.getItem(historicalCreationKey(two))).toBe("1");
 });
-it("disambiguates equal class names in one shared mapping while preserving unique labels", () => {
-  const labels = classLabels([
+it("disambiguates equal class names without exposing IDs or changing selection keys", () => {
+  const classes = [
     { id: one, label: "History" },
     { id: two, label: "History" },
     { id: archived, label: "Geography" },
+  ];
+  const labels = classLabels(classes);
+  expect([...labels.entries()]).toEqual([
+    [one, "History (1)"],
+    [two, "History (2)"],
+    [archived, "Geography"],
   ]);
-  expect([...labels.values()]).toEqual([
-    "History (" + one + ")",
-    "History (" + two + ")",
-    "Geography",
-  ]);
+  for (const item of classes) {
+    expect(labels.get(item.id)).not.toContain(item.id);
+    expect(classLabels([...classes].reverse()).get(item.id)).toBe(labels.get(item.id));
+  }
 });

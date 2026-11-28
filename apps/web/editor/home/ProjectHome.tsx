@@ -16,6 +16,7 @@ import defaultProjectImage from "./assets/default-project-neutral.jpg";
 import { projectCover } from "./dashboard";
 
 import {
+  finishConfirmedCreation,
   createOperationKey,
   readCreateOperation,
   sendCreateOperation,
@@ -140,6 +141,18 @@ export function ProjectHome({
               archived: !project.archived,
             },
           );
+    if (
+      kind === "duplicate" &&
+      outcome.kind === "confirmed" &&
+      projectReceipt(outcome.value, project)
+    )
+      await finishConfirmedCreation(
+        localStorage,
+        session.userId,
+        "duplicate",
+        outcome.value,
+        api.write,
+      );
     try {
       setRecoverable(readCreateOperation(localStorage, operationKey, session.userId) !== null);
     } catch {

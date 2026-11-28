@@ -10,6 +10,8 @@ import {
   releaseCreateOperation,
   duplicateCreateReceipt,
   creationReceipt,
+  finishConfirmedCreation,
+  releaseAcknowledgedCreation,
 } from "./create-operation";
 import { isId, projectReceipt, type WriteResult } from "./workspace-api";
 import { isRecord, readField } from "../../shared/project/validation-helpers";
@@ -32,7 +34,12 @@ function sendCreateOperation(
   return sendGuardedCreateOperation(store, key, actorId, server.write, verify, input, server.read);
 }
 
-const value = { projectId: other, revision: 0, updatedAt: "2026-11-14T00:00:00Z", archived: false };
+const value = {
+  projectId: other,
+  revision: 0,
+  updatedAt: "2026-11-14T00:00:00Z",
+  archived: false,
+};
 const input = { path: "/api/v1/projects", body: { title: "Museum" } };
 it("persists before dispatch and replays the original body after a lost reply and reload", async () => {
   const store = storage();
@@ -54,7 +61,10 @@ it("persists before dispatch and replays the original body after a lost reply an
     value,
   });
   expect(server.writes[1]).toEqual(server.writes[0]);
-  expect(readCreateOperation(store, key, actor)).toEqual({ ...pending, receipt: value });
+  expect(readCreateOperation(store, key, actor)).toEqual({
+    ...pending,
+    receipt: value,
+  });
   expect(await sendCreateOperation(store, key, actor, server, projectReceipt)).toEqual({
     kind: "confirmed",
     value,
@@ -285,7 +295,11 @@ async function generations(
       const entry = [...pending.entries()].at(-1);
       return Response.json(
         entry
-          ? { state: "unacknowledged", operationId: entry[0], receipt: entry[1] }
+          ? {
+              state: "unacknowledged",
+              operationId: entry[0],
+              receipt: entry[1],
+            }
           : { state: "ready", operationId: predecessor, receipt: null },
       );
     },
@@ -309,7 +323,11 @@ async function generations(
         return Response.json({ code: "creation_state_changed" }, { status: 409 });
       const receipt =
         path === "/api/v1/classes"
-          ? { id: crypto.randomUUID(), organizationId: other, name: readField(body, "name") }
+          ? {
+              id: crypto.randomUUID(),
+              organizationId: other,
+              name: readField(body, "name"),
+            }
           : { ...value, projectId: crypto.randomUUID() };
       predecessor = operationId;
       pending.set(operationId, receipt);
@@ -605,7 +623,10 @@ it.each([false, true])(
     });
     release.resolve();
     expect(parallel.kind).toBe("confirmed");
-    expect(await original).toMatchObject({ kind: "rejected", code: "creation_recovery_required" });
+    expect(await original).toMatchObject({
+      kind: "rejected",
+      code: "creation_recovery_required",
+    });
     if (forget) expect(first.getItem(key)).toBeNull();
     else expect(readCreateOperation(first, key, actor)!.body.operationId).toBe(originalId);
     expect(server.committed.size).toBe(1);
@@ -672,7 +693,9 @@ it("keeps a successful import receipt without acknowledging it so recovery needs
 
 it("fails closed on unavailable or malformed generation discovery, including unchanged legacy keyed retries", async () => {
   const store = storage();
-  const server = await serveCreation({ head: () => new Response(null, { status: 404 }) });
+  const server = await serveCreation({
+    head: () => new Response(null, { status: 404 }),
+  });
   const key = createOperationKey(actor, "project");
 
   expect(
@@ -744,7 +767,12 @@ it.each([200, 201])(
   async (status) => {
     const server = await serveCreation({
       write: () => Response.json(null, { status }),
-      head: () => Response.json({ state: "unacknowledged", operationId: other, receipt: value }),
+      head: () =>
+        Response.json({
+          state: "unacknowledged",
+          operationId: other,
+          receipt: value,
+        }),
     });
     expect(await acknowledgeCreation(actor, "project", other, server.write, server.read)).toEqual({
       kind: "unknown",
@@ -758,3 +786,60 @@ it.each([200, 201])(
     expect((await server.read(actor, "project")).state).toBe("unacknowledged");
   },
 );
+
+it("finishes only the verified current receipt and retains recovery when acknowledgement fails", async () => {
+  const store = storage();
+  const key = createOperationKey(actor, "project");
+  const server = await serveCreation({
+    write: (path) =>
+      path.endsWith("/acknowledge") ? new Response(null, { status: 204 }) : Response.json(value),
+  });
+  await sendCreateOperation(store, key, actor, server, projectReceipt, input);
+  const saved = store.getItem(key);
+  expect(
+    await finishConfirmedCreation(store, actor, "project", { ...value, revision: 9 }, server.write),
+  ).toBe(false);
+  expect(store.getItem(key)).toBe(saved);
+  expect(
+    await finishConfirmedCreation(store, actor, "project", value, async () => ({
+      kind: "rejected",
+      message: "Unavailable",
+    })),
+  ).toBe(false);
+  expect(store.getItem(key)).toBe(saved);
+  expect(await finishConfirmedCreation(store, actor, "project", value, server.write)).toBe(true);
+  expect(store.getItem(key)).toBeNull();
+});
+
+it("clears only an acknowledged matching browser receipt, preserving uncertain and different operations", async () => {
+  const store = storage();
+  const key = createOperationKey(actor, "project");
+  const server = await serveCreation({ write: () => Response.json(value) });
+  await sendCreateOperation(store, key, actor, server, projectReceipt, input);
+  const operation = readCreateOperation(store, key, actor)!;
+  const head = {
+    state: "ready" as const,
+    operationId: operation.body.operationId,
+    receipt: null,
+  };
+  const saved = store.getItem(key);
+  expect(
+    await releaseAcknowledgedCreation(store, actor, "project", {
+      ...head,
+      operationId: other,
+    }),
+  ).toBe(false);
+  expect(
+    await releaseAcknowledgedCreation(store, actor, "project", {
+      ...head,
+      state: "unacknowledged",
+      receipt: value,
+    }),
+  ).toBe(false);
+  expect(store.getItem(key)).toBe(saved);
+  expect(await releaseAcknowledgedCreation(store, actor, "project", head)).toBe(true);
+  expect(store.getItem(key)).toBeNull();
+  store.setItem(key, JSON.stringify({ ...operation, receipt: undefined }));
+  expect(await releaseAcknowledgedCreation(store, actor, "project", head)).toBe(false);
+  expect(store.getItem(key)).not.toBeNull();
+});

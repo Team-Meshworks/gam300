@@ -19,7 +19,10 @@ export type CreateOperation = {
     operationId: string;
     name?: unknown;
     orgId?: unknown;
-    creationGuard?: { purpose: CreationPurpose; previousOperationId: string | null };
+    creationGuard?: {
+      purpose: CreationPurpose;
+      previousOperationId: string | null;
+    };
   };
   payloadDigest?: string;
   receipt?: unknown;
@@ -43,7 +46,11 @@ export function creationHead(value: unknown, purpose: CreationPurpose): Creation
     throw new Error(
       "Creation recovery is incompatible or unavailable. Your entries and saved request are unchanged. Update the app and server together before creating.",
     );
-  return { operationId: value.operationId, state: value.state, receipt: value.receipt };
+  return {
+    operationId: value.operationId,
+    state: value.state,
+    receipt: value.receipt,
+  };
 }
 
 export function creationReceipt(value: unknown, purpose: CreationPurpose): boolean {
@@ -124,6 +131,60 @@ export async function releaseCreateOperation(
       throw new Error("The browser could not release this request.");
     return true;
   });
+}
+
+// A ready server head confirms that this exact operation was already acknowledged.
+export async function releaseAcknowledgedCreation(
+  storage: Store,
+  actorId: string,
+  purpose: CreationPurpose,
+  head: CreationHead,
+): Promise<boolean> {
+  if (purpose === "assignment-source" || head.state !== "ready" || head.operationId === null)
+    return false;
+  try {
+    const key = createOperationKey(actorId, purpose);
+    const observed = storage.getItem(key);
+    const operation = readCreateOperation(storage, key, actorId);
+    if (
+      !observed ||
+      !operation ||
+      operation.body.operationId !== head.operationId ||
+      !creationReceipt(operation.receipt, purpose)
+    )
+      return false;
+    return await releaseCreateOperation(storage, actorId, purpose, observed);
+  } catch {
+    return false;
+  }
+}
+
+// Only dismiss the exact receipt already verified by the active creation flow.
+export async function finishConfirmedCreation(
+  storage: Store,
+  actorId: string,
+  purpose: CreationPurpose,
+  receipt: unknown,
+  write: Write,
+): Promise<boolean> {
+  try {
+    const key = createOperationKey(actorId, purpose);
+    const observed = storage.getItem(key);
+    const operation = readCreateOperation(storage, key, actorId);
+    if (
+      !observed ||
+      !operation?.receipt ||
+      JSON.stringify(operation.receipt) !== JSON.stringify(receipt)
+    )
+      return false;
+    const result = await acknowledgeCreation(actorId, purpose, operation.body.operationId, write);
+    return (
+      result.kind === "confirmed" &&
+      (await releaseCreateOperation(storage, actorId, purpose, observed))
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function duplicateCreateReceipt(value: unknown, operation: CreateOperation | null): boolean {
@@ -245,7 +306,11 @@ export async function sendCreateOperation(
           };
       }
       if (!operation) {
-        if (!input) return { kind: "rejected", message: "There is no saved creation to retry." };
+        if (!input)
+          return {
+            kind: "rejected",
+            message: "There is no saved creation to retry.",
+          };
         operation = {
           actorId,
           path: input.path,
