@@ -1,3 +1,4 @@
+import { sceneNameInput } from "./authoring-project-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createServer } from "vite";
@@ -27,6 +28,7 @@ const projectId = doc.projectId,
   classId = "44444444-4444-4444-8444-444444444444",
   assignmentId = "55555555-5555-4555-8555-555555555555";
 let role = "Educator";
+let creatorCanPublish = true;
 let developmentAssetsAllowed = false;
 let releaseSave;
 const saveGate = new Promise((resolve) => (releaseSave = resolve));
@@ -69,15 +71,36 @@ revision = 1;
 try {
   await server.listen();
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
-  browser = await launchBrowser({ target: origin, args: ["--enable-unsafe-swiftshader"] });
+  browser = await launchBrowser({
+    target: origin,
+    args: ["--enable-unsafe-swiftshader"],
+  });
   let page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
   page.setDefaultTimeout(15000);
   const mockApi = async (route) => {
     const req = route.request(),
       path = new URL(req.url()).pathname;
     const reply = (json, status = 200) => route.fulfill({ json, status });
-    if (req.method() === "POST" && path.endsWith("/submissions"))
-      submissionRequests.push(req.postDataJSON());
+    if (req.method() === "POST" && path.endsWith("/submissions")) {
+      assert.equal(path, `/api/v1/projects/${projectId}/submissions`);
+      assert.equal(req.headers()["x-spatia-account"], student);
+      assert.equal(req.headers()["x-csrf-token"], "csrf");
+      const body = req.postDataJSON();
+      assert.equal(body.expectedRevision, revision);
+      assert.equal(body.completionConfirmed, true);
+      submissionRequests.push(body);
+      return reply(
+        {
+          projectId,
+          submissionId: body.submissionId,
+          revision: body.expectedRevision,
+          submittedAt: "2026-11-02T01:00:00Z",
+          dueAtUnixSeconds: 1793581199,
+          isLate: false,
+        },
+        201,
+      );
+    }
     if (path === "/api/v1/auth/session")
       return reply({
         userId: role === "Educator" ? actor : student,
@@ -96,7 +119,11 @@ try {
             revision: 0,
             updatedAt: "2026-11-02T01:00:00Z",
             archived: false,
-            permissions: { canEdit: true, canManage: true, canPublish: true },
+            permissions: {
+              canEdit: true,
+              canManage: role === "Educator",
+              canPublish: role !== "Creator" || creatorCanPublish,
+            },
           },
         ],
         nextCursor: null,
@@ -142,6 +169,8 @@ try {
           {
             assignmentId,
             title: "Museum",
+            description: "Museum description",
+            instructions: "Museum instructions",
             dueAtUnixSeconds: 1793581199,
             projects: [{ projectId, studentId: student }],
           },
@@ -188,7 +217,10 @@ try {
         nextCursor: null,
       });
     if (path.endsWith("/submissions"))
-      return reply({ items: role === "Educator" ? [submittedSummary] : [], nextCursor: null });
+      return reply({
+        items: role === "Educator" ? [submittedSummary] : [],
+        nextCursor: null,
+      });
     if (path === `/api/v1/projects/${projectId}/exhibition`)
       return reply({
         projectId,
@@ -217,7 +249,7 @@ try {
         permissions: {
           canEdit: true,
           canManage: role === "Educator",
-          canPublish: true,
+          canPublish: role !== "Creator" || creatorCanPublish,
         },
       });
     return reply({}, 404);
@@ -257,6 +289,20 @@ try {
     }
   }
   await check("teacher has a separate read-only project view", async () => {
+    const reviewButton = page.getByRole("button", {
+      name: "Review",
+      exact: true,
+    });
+    await reviewButton.hover();
+    const surface = await reviewButton.evaluate((element) => {
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      context.fillStyle = getComputedStyle(element).backgroundColor;
+      context.fillRect(0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data];
+    });
+    assert.equal(surface[3], 255, "Review hover stays opaque");
+    assert.ok(Math.max(...surface.slice(0, 3)) < 250, "Review hover is not white");
     assert.equal(await page.getByRole("button", { name: "Review", exact: true }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "Leave editor" }).count(), 0);
@@ -322,20 +368,23 @@ try {
     assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "Review", exact: true }).count(), 0);
     await page.getByRole("button", { name: "Scenes", exact: true }).click();
-    await page.getByLabel("Scene name", { exact: true }).fill("Saved before approval");
+    await (await sceneNameInput(page)).fill("Saved before approval");
     const saveRequest = page.waitForRequest(
       (request) =>
         request.method() === "PUT" &&
         new URL(request.url()).pathname === `/api/v1/projects/${projectId}`,
     );
-    await page.getByRole("button", { name: "Rename scene", exact: true }).click();
+    await (await sceneNameInput(page)).press("Enter");
     await page.getByRole("button", { name: "Request approval", exact: true }).click();
     const dialog = page.locator(".creator-approval-dialog");
     await saveRequest;
     assert.equal(new URL(page.url()).pathname, "/");
     // Keep submission unavailable while the save and current revision are still being verified
     assert.equal(await dialog.getAttribute("aria-busy"), "true");
-    const markCompleted = dialog.getByRole("button", { name: "Mark as Completed", exact: true });
+    const markCompleted = dialog.getByRole("button", {
+      name: "Mark as Completed",
+      exact: true,
+    });
     assert.equal(await markCompleted.isDisabled(), true);
     await markCompleted.evaluate((button) => button.click());
     assert.equal(submissionRequests.length, 0);
@@ -347,6 +396,16 @@ try {
       await dialog.getByRole("button", { name: "Mark as Completed", exact: true }).isEnabled(),
       true,
     );
+    await markCompleted.hover();
+    const hover = await markCompleted.evaluate((element) => {
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      context.fillStyle = getComputedStyle(element).backgroundColor;
+      context.fillRect(0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data];
+    });
+    assert.equal(hover[3], 255);
+    assert.ok(Math.max(...hover.slice(0, 3)) < 120, "Approval hover stays dark");
     assert.equal(saved, 1);
     assert.equal(savedDocument.scenes[0].name, "Saved before approval");
     assert.equal(submissionRequests.length, 0);
@@ -358,22 +417,45 @@ try {
   page.setDefaultTimeout(15000);
   await page.route("**/api/v1/**", mockApi);
   await page.route("**/home?**", mockHome);
-  await check("student publication route remains approval-gated", async () => {
+  await check("student legacy publication route redirects without publishing", async () => {
     await page.goto(origin + `/publish?projectId=${projectId}`);
-    await page.getByRole("heading", { name: "Publish project", exact: true }).waitFor();
+    await page.waitForURL(origin + "/home");
+    await page.getByRole("button", { name: "View details", exact: true }).waitFor();
     assert.equal(
-      await page.getByRole("button", { name: "Publish", exact: true }).isDisabled(),
-      true,
+      await page.getByRole("heading", { name: "Publish project", exact: true }).count(),
+      0,
     );
     assert.equal(publications.length, 0);
   });
+  creatorCanPublish = false;
   await page.goto(origin + "/review");
   await check("student submission remains reachable without Publish", async () => {
-    await page.getByLabel("Class", { exact: true }).selectOption(classId);
-    await page.getByLabel("Assignment", { exact: true }).selectOption(assignmentId);
-    await page.getByLabel("Your assigned project", { exact: true }).selectOption(projectId);
-    await page.getByRole("button", { name: "Submit for review", exact: true }).waitFor();
-    assert.equal(await page.getByRole("button", { name: /Publish project/i }).count(), 0);
+    await page.waitForURL(origin + "/home");
+    const beforeSubmissions = submissionRequests.length;
+    const beforePublications = publications.length;
+    const beforeSaves = saved;
+    await page.getByRole("button", { name: "View details", exact: true }).click();
+    await page.getByRole("button", { name: "Request approval", exact: true }).click();
+    const complete = page.getByRole("button", { name: "Mark as Completed", exact: true });
+    await complete.waitFor();
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("button")].some(
+        (button) => button.textContent === "Mark as Completed" && !button.disabled,
+      ),
+    );
+    assert.equal(await complete.isEnabled(), true);
+    await complete.click();
+    await page.getByText("Your teacher is reviewing your work", { exact: true }).waitFor();
+    assert.equal(submissionRequests.length, beforeSubmissions + 1);
+    assert.equal(submissionRequests.at(-1).expectedRevision, revision);
+    assert.equal(submissionRequests.at(-1).completionConfirmed, true);
+    assert.match(
+      submissionRequests.at(-1).submissionId,
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    assert.equal(publications.length, beforePublications);
+    assert.equal(saved, beforeSaves);
+    await page.getByRole("button", { name: "Back to Project", exact: true }).click();
   });
   role = "Educator";
   await page.goto(origin + "/review");
@@ -408,7 +490,9 @@ try {
         await page.getByRole("button", { name: "Review", exact: true }).isEnabled(),
         true,
       );
-      await page.screenshot({ path: "test-results/teacher-packaged-environments.png" });
+      await page.screenshot({
+        path: "test-results/teacher-packaged-environments.png",
+      });
     },
   );
   developmentAssetsAllowed = false;
@@ -446,7 +530,9 @@ try {
       "/admin/dashboard?view=projects",
     );
     await page.getByText("Scene ready", { exact: true }).waitFor();
-    await page.screenshot({ path: "test-results/admin-readonly-project.png" });
+    await page.screenshot({
+      path: "test-results/admin-readonly-project.png",
+    });
     assert.equal(saved, writesBeforeAdmin);
     assert.equal(publications.length, publicationsBeforeAdmin);
   });

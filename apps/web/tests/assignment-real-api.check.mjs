@@ -1,3 +1,4 @@
+import { sceneNameInput } from "./authoring-project-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
@@ -190,21 +191,21 @@ try {
     timezoneId: "Asia/Singapore",
   });
   const student = await login(studentContext, process.env.SPATIA_TEST_STUDENT);
-  await student.goto(`${origin}/classes`);
-  await student.getByRole("button", { name: "Live class assignment", exact: true }).click();
-  await student.getByText("Explain each exhibit.", { exact: true }).waitFor();
-  await student.getByRole("button", { name: "Open your project", exact: true }).click();
+  await student.locator(`#student-project-${project}`).click();
+  const assignedDetails = student.getByRole("dialog", { name: "Project details", exact: true });
+  await assignedDetails.getByText("Explain each exhibit.", { exact: true }).waitFor();
+  await assignedDetails.getByRole("button", { name: "Open project", exact: true }).click();
   await student.waitForURL(`**/?projectId=${project}`);
   await student.getByRole("button", { name: "Rooms", exact: true }).click();
   await student.getByRole("button", { name: "Approved browser room", exact: true }).click();
   await student.locator('.save-state[data-state="saved"]').waitFor();
   await student.getByRole("button", { name: "Scenes", exact: true }).click();
-  await student.getByLabel("Scene name", { exact: true }).fill("Saved by student");
+  await (await sceneNameInput(student)).fill("Saved by student");
   const savedResponse = student.waitForResponse(
     (item) =>
       item.url().endsWith(`/api/v1/projects/${project}`) && item.request().method() === "PUT",
   );
-  await student.getByRole("button", { name: "Rename scene", exact: true }).click();
+  await (await sceneNameInput(student)).press("Enter");
   assert.equal((await savedResponse).status(), 200);
   await student.locator('.save-state[data-state="saved"]').waitFor();
   const outsiderContext = await browser.newContext({ ignoreHTTPSErrors: true });
@@ -225,16 +226,19 @@ try {
   const fresh = await login(freshContext, process.env.SPATIA_TEST_STUDENT);
   await fresh.goto(`${origin}/?projectId=${project}`);
   await fresh.getByRole("button", { name: "Scenes", exact: true }).click();
-  assert.equal(
-    await fresh.getByLabel("Scene name", { exact: true }).inputValue(),
-    "Saved by student",
-  );
+  assert.equal(await (await sceneNameInput(fresh)).inputValue(), "Saved by student");
   // Follow the same assigned project across both roles and an anonymous visitor.
   await fresh.getByRole("button", { name: "Request approval", exact: true }).click();
-  const approval = fresh.getByRole("dialog", { name: "Finish your work first", exact: true });
+  const approval = fresh.getByRole("dialog", {
+    name: "Finish your work first",
+    exact: true,
+  });
   await approval.getByRole("button", { name: "Mark as Completed", exact: true }).click();
   await fresh
-    .getByRole("dialog", { name: "Your teacher is reviewing your work", exact: true })
+    .getByRole("dialog", {
+      name: "Your teacher is reviewing your work",
+      exact: true,
+    })
     .getByRole("button", { name: "Back to Project", exact: true })
     .click();
   await approval.waitFor({ state: "detached" });
@@ -246,7 +250,10 @@ try {
       reviewProjectId: project,
     })}`,
   );
-  const review = page.getByRole("dialog", { name: "Review submission", exact: true });
+  const review = page.getByRole("dialog", {
+    name: "Review submission",
+    exact: true,
+  });
   await review.getByLabel("Your review").fill("The saved room is ready to share.");
   await review.getByRole("button", { name: "Approve to publish", exact: true }).click();
   await review
@@ -255,7 +262,10 @@ try {
     .waitFor();
   await fresh.goto(`${origin}/home`);
   await fresh.locator(`#student-project-${project}`).click();
-  const details = fresh.getByRole("dialog", { name: "Project details", exact: true });
+  const details = fresh.getByRole("dialog", {
+    name: "Project details",
+    exact: true,
+  });
   await details.getByText("The saved room is ready to share.", { exact: true }).waitFor();
   await details.getByRole("button", { name: "Publish", exact: true }).click();
   const publishing = fresh.getByRole("dialog", {
@@ -304,7 +314,7 @@ try {
     view: "published",
   });
   await page.goto(teacherEdition.href);
-  await page.getByRole("link", { name: "Review current submission" }).click();
+  await page.getByRole("button", { name: "Review", exact: true }).click();
   await review.waitFor();
   assert.equal(new URL(page.url()).searchParams.get("reviewProjectId"), project);
   const visitorContext = await browser.newContext({ ignoreHTTPSErrors: true });

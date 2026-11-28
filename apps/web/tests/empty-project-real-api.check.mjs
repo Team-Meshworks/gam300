@@ -1,3 +1,4 @@
+import { sceneNameInput } from "./authoring-project-fixture.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { launchBrowser } from "./browser-security.mjs";
@@ -137,14 +138,14 @@ try {
     timezoneId: "Asia/Singapore",
   });
   const student = await login(studentContext, process.env.SPATIA_TEST_STUDENT);
-  await student.goto(`${origin}/classes`);
-  await student.getByRole("button", { name: "Empty class assignment", exact: true }).click();
-  await student.getByText("Explain each exhibit.", { exact: true }).waitFor();
-  await student.getByRole("button", { name: "Open your project", exact: true }).click();
+  await student.locator(`#student-project-${assignedId}`).click();
+  const assignedDetails = student.getByRole("dialog", { name: "Project details", exact: true });
+  await assignedDetails.getByText("Explain each exhibit.", { exact: true }).waitFor();
+  await assignedDetails.getByRole("button", { name: "Open project", exact: true }).click();
   await student.waitForURL(`**/?projectId=${assignedId}`);
   await sceneReady(student);
   await student.getByRole("button", { name: "Scenes", exact: true }).click();
-  assert.equal(await student.getByLabel("Scene name", { exact: true }).inputValue(), "Scene");
+  assert.equal(await (await sceneNameInput(student)).inputValue(), "Scene");
   const outsider = await browser.newContext({ ignoreHTTPSErrors: true });
   await login(outsider, process.env.SPATIA_TEST_OUTSIDER);
   assert.equal(
