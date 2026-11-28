@@ -14,10 +14,15 @@ export async function checkAdminAssets(page, origin) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(origin + "/assets");
   const dialog = page.getByRole("dialog");
-  const nameField = dialog.getByRole("textbox", { name: "Asset name", exact: true });
+  const nameField = dialog.getByRole("textbox", { name: "Asset Name", exact: true });
   const save = dialog.getByRole("button", { name: "Save Changes", exact: true });
   const card = (name) =>
     page.getByRole("article").filter({ has: page.getByRole("heading", { name, exact: true }) });
+  const viewDetails = (name) =>
+    card(name)
+      .getByRole("button", { name: /View details/ })
+      .click();
+  const closeDetails = () => dialog.getByRole("button", { name: "Close asset details" }).click();
   const file = (name) => resolve("../../assets/delivery", name);
   async function choose(label, name) {
     await dialog.getByRole("combobox", { name: label, exact: true }).click();
@@ -34,7 +39,8 @@ export async function checkAdminAssets(page, origin) {
   }
   await upload("test-crate.glb", "Handling Crate");
   await upload("modern-bench-2.glb", "Gallery Bench", true);
-  await card("Gallery Bench").getByRole("link", { name: "Gallery Bench" }).click();
+  await viewDetails("Gallery Bench");
+  await dialog.getByRole("button", { name: "Gallery Bench", exact: true }).click();
   assert.ok(await nameField.evaluate((input) => input === document.activeElement));
   await nameField.fill("North Gallery Bench");
   await choose("Filter Category", "Furniture");
@@ -49,6 +55,8 @@ export async function checkAdminAssets(page, origin) {
   const editResult = await editResponse.json();
   assert.equal(editResponse.status(), 200, editResult.code);
   assert.equal(editResult.name, "North Gallery Bench");
+  await dialog.getByRole("button", { name: "North Gallery Bench", exact: true }).waitFor();
+  await closeDetails();
   await card("North Gallery Bench").waitFor();
   await page.reload();
   await card("North Gallery Bench")
@@ -66,15 +74,23 @@ export async function checkAdminAssets(page, origin) {
   );
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 
-  await card("Handling Crate").getByRole("link", { name: "3D Model" }).click();
+  await closeDetails();
+  await viewDetails("Handling Crate");
+  const typeButton = dialog.getByRole("button", { name: "Edit asset type" });
+  assert.equal((await typeButton.innerText()).trim(), "3D Model");
+  await typeButton.click();
   await choose("Asset Type", "Audio");
   assert.ok(await save.isDisabled());
   const replacement = dialog.getByLabel("Choose asset file");
   assert.equal(await replacement.getAttribute("accept"), ".m4a");
   await replacement.setInputFiles(file("audio/calm-piano.m4a"));
+  await dialog.getByRole("button", { name: "Handling Crate", exact: true }).click();
   await nameField.fill("Gallery Soundtrack");
   await save.click();
-  await card("Gallery Soundtrack").getByRole("link", { name: "Audio" }).waitFor();
+  await dialog.getByRole("button", { name: "Gallery Soundtrack", exact: true }).waitFor();
+  assert.equal((await typeButton.innerText()).trim(), "Audio");
+  await closeDetails();
+  await card("Gallery Soundtrack").waitFor();
   await card("Handling Crate").waitFor({ state: "hidden" });
 
   for (const name of ["North Gallery Bench", "Gallery Soundtrack"]) {
@@ -87,14 +103,21 @@ export async function checkAdminAssets(page, origin) {
   }
   await page.getByRole("tab", { name: "Deleted (3)", exact: true }).click();
   const select = (name) => page.getByRole("checkbox", { name: "Select " + name, exact: true });
-  await select("all visible assets").check();
+  const startSelection = page.getByRole("button", { name: "Select assets", exact: true });
+  assert.equal(await select("Handling Crate").count(), 0);
+  await startSelection.click();
+  await page.getByRole("button", { name: "Select all", exact: true }).click();
   await select("Gallery Soundtrack").uncheck();
   await captureAdminPreview(page, "deleted-assets");
-  const remove = page.getByRole("button", { name: "Delete selected", exact: true });
+  const remove = page.getByRole("button", { name: "Delete permanently", exact: true });
   await remove.click();
-  assert.equal(await dialog.getByRole("listitem").count(), 2);
+  await dialog
+    .getByRole("heading", { name: "Permanently delete 2 assets?", exact: true })
+    .waitFor();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.ok(await select("Handling Crate").isChecked());
+  assert.ok(await select("North Gallery Bench").isChecked());
+  assert.equal(await select("Gallery Soundtrack").isChecked(), false);
   await remove.click();
   await captureAdminPreview(page, "confirm-bulk-delete", dialog);
 
@@ -115,5 +138,7 @@ export async function checkAdminAssets(page, origin) {
   await page.getByRole("tab", { name: "Deleted (3)", exact: true }).click();
   await card("Handling Crate").getByText("Permanently deleted", { exact: true }).waitFor();
   await card("North Gallery Bench").getByText("Permanently deleted", { exact: true }).waitFor();
+  assert.equal(await select("Gallery Soundtrack").count(), 0);
+  await startSelection.click();
   assert.ok(await select("Gallery Soundtrack").isEnabled());
 }
