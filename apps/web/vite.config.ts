@@ -12,7 +12,8 @@ export default defineConfig(({ command, mode }) => {
       : {};
   return {
     appType: "mpa",
-    server: accountServer,
+    server:
+      mode === "browser-check" ? { ...accountServer, hmr: false, watch: null } : accountServer,
     preview: accountServer,
     root: fileURLToPath(new URL("./editor", import.meta.url)),
     plugins: [

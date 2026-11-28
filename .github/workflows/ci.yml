@@ -241,7 +241,7 @@ jobs:
         run: |
           mkdir -p test-results
           node prepare-dashboard-font.mjs
-          node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort \
+          node node_modules/vite/bin/vite.js --mode browser-check --host 127.0.0.1 --port 5173 --strictPort \
             > "test-results/dev-server-${{ matrix.name }}.log" 2>&1 &
           echo $! > vite.pid
           curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-connrefused \
