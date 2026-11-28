@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { handleDeleteShortcut, handleHistoryShortcut } from "./history-shortcuts";
+import {
+  handleDeleteShortcut,
+  handleHistoryShortcut,
+  handleSaveShortcut,
+} from "./history-shortcuts";
 
 function keyEvent(overrides = {}) {
   return {
@@ -73,5 +77,52 @@ describe("delete shortcut", () => {
     handleDeleteShortcut(keyEvent({ key: "Delete" }), remove, false);
     handleDeleteShortcut(keyEvent({ key: "Delete", ctrlKey: false, repeat: true }), remove, false);
     expect(remove).not.toHaveBeenCalled();
+  });
+});
+
+describe("save shortcut", () => {
+  const save = (overrides = {}, previewing = false) => {
+    const actions = { save: vi.fn(), exportFile: vi.fn() };
+    const event = keyEvent({ key: "s", ...overrides });
+    handleSaveShortcut(event, actions, previewing);
+    return { actions, event };
+  };
+
+  it.each([
+    [{}, "save"],
+    [{ key: "S" }, "save"],
+    [{ ctrlKey: false, metaKey: true }, "save"],
+    [{ key: "S", shiftKey: true }, "exportFile"],
+  ] as const)("handles %j as %s", (overrides, action) => {
+    const { actions, event } = save(overrides);
+    expect(actions[action]).toHaveBeenCalledOnce();
+    expect(actions[action === "save" ? "exportFile" : "save"]).not.toHaveBeenCalled();
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Ctrl+S from the browser's Save Page As in Preview without saving", () => {
+    const { actions, event } = save({}, true);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(actions.save).not.toHaveBeenCalled();
+    expect(actions.exportFile).not.toHaveBeenCalled();
+  });
+
+  it("saves once while the keys are held down", () => {
+    const { actions, event } = save({ repeat: true });
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(actions.save).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ isComposing: true }],
+    [{ defaultPrevented: true }],
+    [{ altKey: true }],
+    [{ ctrlKey: false }],
+    [{ key: "d" }],
+  ])("ignores %j", (overrides) => {
+    const { actions, event } = save(overrides);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(actions.save).not.toHaveBeenCalled();
+    expect(actions.exportFile).not.toHaveBeenCalled();
   });
 });
