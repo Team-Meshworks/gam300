@@ -1030,7 +1030,24 @@ export function initScene(
     if (!body) return;
     const bodies = collisionBodies();
     if (!body.room && bodies.some((entry) => entry.room) && !getRoomAtPosition(position)) return;
-    return resolveObjectPlacement(body, transform, bodies, "release");
+    if (body.room) return resolveObjectPlacement(body, transform, bodies, "release");
+    const [x, y, z] = position;
+    const supportY = Math.max(y, walkSpace?.floorHeightAt(x, z, y) ?? y);
+    const seated: Transform = { ...transform, position: [x, supportY - body.bounds.min.y, z] };
+    const resolved = resolveObjectPlacement(
+      { ...body, transform: seated },
+      seated,
+      bodies,
+      "release",
+    );
+    if (!resolved) return;
+    const [placedX, placedY, placedZ] = resolved.position;
+    const minY = Math.max(
+      supportY,
+      walkSpace?.floorHeightAt(placedX, placedZ, supportY) ?? supportY,
+    );
+    if (placedY + body.bounds.min.y < minY - 1e-5) return;
+    return resolved;
   }
 
   function getRoomAtPosition(position: Vector3Tuple): string | null {
@@ -1097,7 +1114,10 @@ export function initScene(
       const hit = new THREE.Raycaster(ray.origin, ray.direction)
         .intersectObjects(surfaces, true)
         .find(visibleRaycastHit);
-      if (hit) {
+      const floor = walkSpace?.intersectFloor(ray);
+      if (floor && (!hit || ray.origin.distanceTo(floor) < hit.distance)) {
+        point = floor;
+      } else if (hit) {
         point = hit.point.clone();
         const stand = bodies.find((body) => {
           if (!body.display) return false;

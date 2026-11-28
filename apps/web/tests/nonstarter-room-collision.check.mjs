@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { launchPersistentBrowser } from "./browser-security.mjs";
 import { openSavedProject, serveProject } from "./authoring-project-fixture.mjs";
+import { placeAtRoomCenter } from "./placement-fixture.mjs";
 
 const target = process.argv[2] ?? "http://127.0.0.1:5197/";
 const browser = await launchPersistentBrowser({ target, args: ["--enable-unsafe-swiftshader"] });
@@ -35,6 +36,23 @@ try {
   if (await stage.getAttribute("data-placing-asset"))
     await stage.click({ position: { x: 700, y: 480 } });
   await scene((value) => value.environmentAssetId === "room-doors-1-v1");
+
+  await page.getByRole("button", { name: "Asset library", exact: true }).click();
+  const library = page.locator(".asset-picker");
+  await library.getByRole("button", { name: "Sample crate", exact: true }).click();
+  await library.getByRole("button", { name: "Add", exact: true }).click();
+  await placeAtRoomCenter(page);
+  const furnished = await scene((value) =>
+    value.objects.some((o) => o.assetId === "test-crate-v1"),
+  );
+  const crate = furnished.objects.find((o) => o.assetId === "test-crate-v1");
+  const floorY = (furnished.environmentTransform?.position[1] ?? 0) + 0.25739;
+  assert.ok(
+    Math.abs(crate.transform.position[1] - floorY) < 0.001,
+    `The crate's base must rest on the Door 1 floor at ${floorY} m, got ${crate.transform.position[1]} m`,
+  );
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await scene((value) => value.objects.length === 0);
 
   await page.evaluate(async () => {
     const { assets } = await import("/@id/__x00__virtual:asset-catalogue");
