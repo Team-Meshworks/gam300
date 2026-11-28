@@ -1,4 +1,4 @@
-import { Box3, BoxGeometry, Group, Mesh, Object3D, Vector3 } from "three";
+import { Box3, BoxGeometry, Group, MathUtils, Mesh, Object3D, PlaneGeometry, Vector3 } from "three";
 import type { AudioListener, PositionalAudio } from "three";
 import { describe, expect, it } from "vitest";
 import { createRoomEntrances } from "../asset-runtime/room-entrances";
@@ -287,6 +287,49 @@ describe("room acoustics", () => {
       expect(levels[0]).toBeCloseTo(REVERB_BUCKETS[1].wet * EMPTY_WET);
     },
   );
+
+  it("opens a room whose floor is one detailed mesh", () => {
+    // 160 x 160 quads without an index: 153,600 vertices in a single mesh
+    const detailed = room();
+    detailed.add(
+      new Mesh(new PlaneGeometry(10, 10, 160, 160).rotateX(-Math.PI / 2).toNonIndexed()),
+    );
+    detailed.updateWorldMatrix(true, true);
+    const { acoustics, wets } = setup(new Vector3(0, 1, 0));
+    expect(() => acoustics.setRooms([detailed])).not.toThrow();
+    acoustics.update(0.016);
+    expect(wets().filter((wet) => wet > 0)).toHaveLength(1);
+  });
+
+  it("fits a long room at its exact fractional yaw", () => {
+    // A 40 x 5 m gallery yawed 22.4°: a whole-degree fit would tilt its bounds past the long wall
+    const gallery = new Group();
+    const box = (w: number, h: number, d: number, x: number, y: number, z: number) => {
+      const mesh = new Mesh(new BoxGeometry(w, h, d));
+      mesh.position.set(x, y, z);
+      gallery.add(mesh);
+    };
+    box(40, 0.2, 5, 0, -0.1, 0);
+    box(40, 3, 0.2, 0, 1.5, 2.4);
+    box(40, 3, 0.2, 0, 1.5, -2.4);
+    box(0.2, 3, 5, 19.9, 1.5, 0);
+    box(0.2, 3, 5, -19.9, 1.5, 0);
+    gallery.rotation.y = MathUtils.degToRad(22.4);
+    gallery.updateWorldMatrix(true, true);
+    const at = (x: number, z: number) => new Vector3(x, 1, z).applyMatrix4(gallery.matrixWorld);
+    for (const end of [-19, 19]) {
+      // 20 cm outside the long wall near each end
+      const outside = setup(at(end, 2.7));
+      outside.acoustics.setRooms([gallery]);
+      outside.acoustics.update(0.016);
+      expect(outside.wets().every((wet) => wet === 0)).toBe(true);
+      // and just inside it, the room rings
+      const inside = setup(at(end, 2.2));
+      inside.acoustics.setRooms([gallery]);
+      inside.acoustics.update(0.016);
+      expect(inside.wets().some((wet) => wet > 0)).toBe(true);
+    }
+  });
 
   it("restores the sound's chain and disconnects its nodes on detach", () => {
     const { acoustics, source } = setup(new Vector3());

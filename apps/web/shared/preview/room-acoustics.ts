@@ -80,21 +80,28 @@ type Wall = { triangle: THREE.Triangle; bounds: THREE.Box3 };
 // Bounds live in the room's own frame so a rotated room is not inflated to a world-aligned box
 type Room = { box: THREE.Box3; toLocal: THREE.Matrix4; volume: number };
 
-// A wall's facing as a yaw folded into [0°, 90°), rounded to a degree so parallel walls share one
+// A wall's facing as a yaw folded into [0°, 90°), so perpendicular and opposite walls agree
 function wallYaw(normal: THREE.Vector3) {
   const quarter = Math.PI / 2;
-  const yaw = ((Math.atan2(normal.x, normal.z) % quarter) + quarter) % quarter;
-  return (Math.round(THREE.MathUtils.radToDeg(yaw)) % 90) * THREE.MathUtils.DEG2RAD;
+  return ((Math.atan2(normal.x, normal.z) % quarter) + quarter) % quarter;
+}
+// Candidate yaws grouped by whole degree so a detailed room tries only a few, each keeping the exact
+// angle of its largest wall: fitting a rounded angle would tilt the bounds past a long wall
+type Yaws = Map<number, { yaw: number; area: number }>;
+function addYaw(yaws: Yaws, yaw: number, area: number) {
+  const key = Math.round(THREE.MathUtils.radToDeg(yaw)) % 90;
+  const known = yaws.get(key);
+  if (!known || area > known.area) yaws.set(key, { yaw, area });
 }
 
 // The room's frame comes from its walls, wherever the rotation was authored (root, child mesh or
 // baked into the vertices): of the wall-aligned yaws, the one with the smallest footprint wins
-function orientedRoom(points: readonly THREE.Vector3[], yaws: ReadonlySet<number>): Room | null {
+function orientedRoom(points: readonly THREE.Vector3[], yaws: Yaws): Room | null {
   if (points.length === 0) return null;
   let best: Room | null = null;
   let bestFootprint = Infinity;
   const local = new THREE.Vector3();
-  for (const yaw of [0, ...yaws]) {
+  for (const yaw of [0, ...[...yaws.values()].map((candidate) => candidate.yaw)]) {
     const toLocal = new THREE.Matrix4().makeRotationY(-yaw);
     const box = new THREE.Box3();
     for (const point of points) box.expandByPoint(local.copy(point).applyMatrix4(toLocal));
@@ -199,7 +206,7 @@ export function createRoomAcoustics(listener: THREE.AudioListener) {
       for (const root of next) {
         root.updateWorldMatrix(true, true);
         const points: THREE.Vector3[] = [];
-        const yaws = new Set<number>();
+        const yaws: Yaws = new Map();
         root.traverseVisible((node) => {
           if (!(node instanceof THREE.Mesh)) return;
           const vertices = node.geometry.getAttribute("position");
@@ -208,13 +215,14 @@ export function createRoomAcoustics(listener: THREE.AudioListener) {
           const meshPoints = Array.from({ length: vertices.count }, (_, i) =>
             new THREE.Vector3().fromBufferAttribute(vertices, i).applyMatrix4(node.matrixWorld),
           );
-          points.push(...meshPoints);
+          // One push per point: spreading a detailed mesh as arguments overflows the call stack
+          for (const point of meshPoints) points.push(point);
           const vertex = (i: number) => meshPoints[index ? index.getX(i) : i]!;
           for (let i = 0; i + 2 < (index?.count ?? vertices.count); i += 3) {
             const triangle = new THREE.Triangle(vertex(i), vertex(i + 1), vertex(i + 2));
             // Floors and ceilings never separate rooms; skipping them keeps floor-level sources clear
             if (triangle.getArea() < 1e-8 || Math.abs(triangle.getNormal(normal).y) > 0.7) continue;
-            yaws.add(wallYaw(normal));
+            addYaw(yaws, wallYaw(normal), triangle.getArea());
             walls.push({
               triangle,
               bounds: new THREE.Box3().setFromPoints([triangle.a, triangle.b, triangle.c]),
