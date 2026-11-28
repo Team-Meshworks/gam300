@@ -1,3 +1,4 @@
+import type { EncodedProjectImage } from "./project-image";
 import { assignmentSession } from "./assignment-api";
 import { isId } from "../home/workspace-api";
 import { isRecord } from "../../shared/project/validation-helpers";
@@ -15,6 +16,7 @@ export type PendingAssignmentEdit = {
     instructions: string;
     dueAtUnixSeconds: number;
     studentIds: string[];
+    image?: EncodedProjectImage;
   };
 };
 export type AssignmentEditResult =
@@ -134,6 +136,8 @@ export async function submitAssignmentEdit(
         body: JSON.stringify(pending.body),
       },
     );
+    if ([401, 403, 404].includes(response.status) && !previouslyUncertain)
+      return { kind: "rejected", message: "You no longer have access to edit this assignment." };
     if ([400, 409, 422].includes(response.status) && !previouslyUncertain)
       return {
         kind: "rejected",

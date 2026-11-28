@@ -1,3 +1,5 @@
+import { ProjectImageFields } from "./ProjectImageFields";
+import { SkeletonBox } from "skullet/react";
 import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../shared/ui/Button";
@@ -18,6 +20,7 @@ import {
   type PendingAssignmentEdit,
 } from "./assignment-edit";
 import { localDeadlineInput } from "./deadline";
+import { encodeProjectImage, type ProjectImage } from "./project-image";
 import { StudentSelector } from "./StudentSelector";
 import type { EligibleStudent } from "./new-project-form";
 
@@ -31,13 +34,15 @@ export function AssignmentEditDialog({
   inline = false,
 }: {
   inline?: boolean;
-  field?: "dueDate" | "description" | "instructions";
+  field?: "dueDate" | "description" | "instructions" | "image";
   classId: string;
   actorId: string;
   details: AssignmentDetails;
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageType, setImageType] = useState<ProjectImage["type"]>(details.image?.type ?? "cover");
   const [title, setTitle] = useState(details.title);
   const [description, setDescription] = useState(details.description);
   const [instructions, setInstructions] = useState(details.instructions);
@@ -69,6 +74,7 @@ export function AssignmentEditDialog({
     .sort()
     .join(",");
   const dirty =
+    imageFile !== null ||
     title !== details.title ||
     description !== details.description ||
     instructions !== details.instructions ||
@@ -148,7 +154,7 @@ export function AssignmentEditDialog({
       setMessage("Check the project details, due date and selected enrolled students.");
       return;
     }
-    const request = retry
+    const baseRequest: PendingAssignmentEdit | null = retry
       ? pending
       : {
           actorId,
@@ -164,12 +170,23 @@ export function AssignmentEditDialog({
             studentIds: [...selected],
           },
         };
-    if (!request) return;
+    if (!baseRequest) return;
+    let request: PendingAssignmentEdit = baseRequest;
     inFlight.current = true;
     let safelyStored = false;
     setPhase("sending");
     setMessage("");
     try {
+      if (!retry && imageFile) {
+        try {
+          const image = await encodeProjectImage(imageFile, imageType);
+          request = { ...request, body: { ...request.body, image } };
+        } catch (error) {
+          setPhase("ready");
+          setMessage(error instanceof Error ? error.message : "Choose a valid project image.");
+          return;
+        }
+      }
       const result = await navigator.locks.request(
         assignmentEditKey(actorId, details.assignmentId),
         async () => {
@@ -279,11 +296,15 @@ export function AssignmentEditDialog({
         ? "Edit Project Description"
         : field === "instructions"
           ? "Edit Project Instructions"
-          : "Edit project details";
+          : field === "image"
+            ? "Change image"
+            : "Edit project details";
   const content = (
     <>
       {message && <p role="alert">{message}</p>}
-      {phase === "loading" && !inline && <LoadingSkeleton label="Loading students" />}
+      {phase === "loading" && !inline && field !== "image" && (
+        <LoadingSkeleton label="Loading students" />
+      )}
       {phase === "error" && (
         <Button
           onClick={() => {
@@ -312,6 +333,26 @@ export function AssignmentEditDialog({
         </section>
       )}
       <fieldset disabled={phase !== "ready"}>
+        {field === "image" &&
+          (phase === "loading" ? (
+            <div
+              className="sp-image-fields-loading"
+              role="status"
+              aria-label="Loading project image"
+              aria-busy="true"
+            >
+              <SkeletonBox width="40%" height={18} radius={4} />
+              <SkeletonBox width="100%" height={44} radius={12} />
+              <SkeletonBox width="55%" height={18} radius={4} />
+            </div>
+          ) : (
+            <ProjectImageFields
+              imageType={imageType}
+              onType={setImageType}
+              imageFile={imageFile}
+              onFile={setImageFile}
+            />
+          ))}
         {showAll && (
           <Field id="edit-assignment-title" label="Project title">
             <input
@@ -369,7 +410,7 @@ export function AssignmentEditDialog({
             </p>
           ))}
       </fieldset>
-      <div className="sp-actions">
+      <div className={`sp-actions${field === "image" ? " sp-form-dialog-actions" : ""}`}>
         <Button disabled={phase === "sending"} onClick={close}>
           Cancel
         </Button>
@@ -411,8 +452,8 @@ export function AssignmentEditDialog({
   ) : (
     <Dialog
       title={heading}
-      variant="account"
-      className={`sp-assignment-edit-dialog${field === "dueDate" ? " sp-assignment-edit-dialog--date" : ""}`}
+      variant={field === "image" ? "admin" : "account"}
+      className={`sp-assignment-edit-dialog${field === "dueDate" ? " sp-assignment-edit-dialog--date" : field === "image" ? " sp-project-image-dialog sp-dialog--form" : ""}`}
       closeDisabled={phase === "sending"}
       onClose={close}
     >
