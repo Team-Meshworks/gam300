@@ -1184,13 +1184,15 @@ export function App({
             <>
               {captured && <span className="crosshair" aria-hidden="true" />}
               <p className="walk-hint">
-                {visitor
-                  ? captured
-                    ? "Preview mode \u00b7 Left click to interact \u00b7 Hold Alt for the mouse \u00b7 Esc to stop"
-                    : `Preview mode \u00b7 ${canCapture ? "Click the scene" : "Drag"} to look around \u00b7 WASD to walk \u00b7 Space to jump`
-                  : captured
-                    ? "Click selects what's under the + \u00b7 Hold the click to carry it, scroll to push or pull \u00b7 Hold right click to turn it \u00b7 Hold Alt for the mouse \u00b7 Esc to stop"
-                    : `${canCapture ? "Click the scene" : "Drag"} to look around \u00b7 WASD to walk \u00b7 Space to jump, double tap to fly \u00b7 C to go down`}
+                {mobileDevice && !visitor
+                  ? "Use Move and Look to explore · Tap an object to select · Jump twice to fly"
+                  : visitor
+                    ? captured
+                      ? "Preview mode \u00b7 Left click to interact \u00b7 Hold Alt for the mouse \u00b7 Esc to stop"
+                      : `Preview mode \u00b7 ${canCapture ? "Click the scene" : "Drag"} to look around \u00b7 WASD to walk \u00b7 Space to jump`
+                    : captured
+                      ? "Click selects what's under the + \u00b7 Hold the click to carry it, scroll to push or pull \u00b7 Hold right click to turn it \u00b7 Hold Alt for the mouse \u00b7 Esc to stop"
+                      : `${canCapture ? "Click the scene" : "Drag"} to look around \u00b7 WASD to walk \u00b7 Space to jump, double tap to fly \u00b7 C to go down`}
               </p>
             </>
           )}

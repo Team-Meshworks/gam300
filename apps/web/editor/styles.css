@@ -3870,3 +3870,251 @@ dialog.sp-dialog.sp-display-dialog {
 .panel-slot .editor-panel.position-panel:has(> .panel-empty) {
   padding-bottom: calc(1.1rem - 8px + 0.15px);
 }
+
+/* Editor touch controls get their own lane above the dock and beside the panel rail. */
+@media (max-width: 80rem) and (hover: none) and (pointer: coarse) {
+  .editor-shell:not(.is-previewing) .mobile-controls {
+    inset: auto 1rem calc(9.5rem + env(safe-area-inset-bottom)) 1rem;
+    z-index: 1;
+    padding: 0;
+  }
+  .editor-shell:not(.is-previewing) .mobile-joystick {
+    width: 6rem;
+    height: 6rem;
+    flex-shrink: 0;
+  }
+  .editor-shell:not(.is-previewing) .mobile-joystick-thumb {
+    width: 3rem;
+    height: 3rem;
+  }
+  .editor-shell:not(.is-previewing) .mobile-controls-left {
+    gap: 0.5rem;
+  }
+  .editor-shell:not(.is-previewing) .mobile-jump-button {
+    min-width: 3.5rem;
+    padding-inline: 0.5rem;
+  }
+  .editor-shell:not(.is-previewing) .library {
+    top: calc(var(--editor-header-height, 8rem) + 0.75rem);
+    bottom: calc(16.25rem + env(safe-area-inset-bottom));
+  }
+  .editor-shell:not(.is-previewing) .walk-hint {
+    left: 5rem;
+    top: calc(var(--editor-header-height, 8rem) + 0.75rem);
+    width: calc(100% - 6rem);
+    max-width: 36rem;
+    translate: none;
+  }
+}
+
+@media (max-width: 60rem) and (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 30rem) {
+  .editor-shell:not(.is-previewing) .library {
+    right: 0.75rem;
+    bottom: auto;
+    height: 2.75rem;
+  }
+  .editor-shell:not(.is-previewing) .panel-rail {
+    flex-direction: row;
+    gap: 0.5rem;
+    max-height: none;
+    overflow: visible;
+  }
+  .editor-shell:not(.is-previewing) .rail-button {
+    flex-shrink: 0;
+  }
+  .editor-shell:not(.is-previewing) .library .panel-slot {
+    top: 3.25rem;
+    left: auto;
+    right: 0;
+    width: 20rem;
+    max-height: calc(100dvh - var(--editor-header-height, 8rem) - 4.75rem);
+  }
+  .editor-shell:not(.is-previewing) .mobile-controls {
+    bottom: calc(8.875rem + env(safe-area-inset-bottom));
+    right: 1rem;
+  }
+  .editor-shell:not(.is-previewing) .bottom-dock[data-edge="bottom"] {
+    left: 50%;
+    max-width: calc(100% - 2rem);
+  }
+  .editor-shell:not(.is-previewing) .mobile-joystick {
+    width: 5rem;
+    height: 5rem;
+  }
+  .editor-shell:not(.is-previewing) .walk-hint {
+    left: 18rem;
+    width: calc(100% - 19rem);
+  }
+}
+
+@media (max-width: 60rem) and (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  .editor-shell:not(.is-previewing) .library {
+    top: calc(var(--editor-header-height, 8rem) + 4.75rem);
+    bottom: calc(16.25rem + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 80rem) and (hover: none) and (pointer: coarse) {
+  /* Recovery notices remain readable, but cannot cover or intercept authoring controls. */
+  .server-session-error {
+    z-index: 0;
+    pointer-events: none;
+  }
+}
+
+@media (max-width: 80rem) and (hover: none) and (pointer: coarse) {
+  .editor-shell:not(.is-previewing) .mobile-controls-left {
+    position: static;
+  }
+  .editor-shell:not(.is-previewing) .mobile-jump-button {
+    position: absolute;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+  }
+}
+@media (max-width: 60rem) and (max-height: 30rem) and (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  .editor-shell > .app-header {
+    grid-template-columns: minmax(16rem, 1fr) auto auto;
+  }
+  .app-header .project-card {
+    grid-column: auto;
+  }
+  .app-header .history-controls {
+    margin: 0;
+  }
+  .editor-shell:not(.is-previewing) .library .panel-slot {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(28rem, calc(100vw - 12rem));
+    max-height: calc(100dvh - var(--editor-header-height, 4.5rem) - 9rem);
+  }
+  .editor-shell:not(.is-previewing) .mobile-jump-button {
+    left: 5.5rem;
+    bottom: 1rem;
+    transform: none;
+    width: 4rem;
+  }
+  .editor-shell:not(.is-previewing) .bottom-dock[data-edge="top"] {
+    left: 50%;
+    top: calc(var(--editor-header-height, 4.5rem) + 4rem);
+    max-width: calc(100% - 12rem);
+  }
+  .editor-shell:not(.is-previewing):has(.bottom-dock[data-edge="top"]) .mobile-controls {
+    bottom: 0.75rem;
+  }
+  .editor-shell:not(.is-previewing) .bottom-dock:is([data-edge="left"], [data-edge="right"]) {
+    top: calc(var(--editor-header-height, 4.5rem) + 4rem);
+    bottom: 0.75rem;
+    transform: none;
+    max-height: calc(100dvh - var(--editor-header-height, 4.5rem) - 4.75rem);
+  }
+  .editor-shell:not(.is-previewing) .bottom-dock[data-edge="left"] {
+    left: 0.75rem;
+  }
+  .editor-shell:not(.is-previewing) .bottom-dock[data-edge="right"] {
+    right: 0.75rem;
+  }
+  .editor-shell:not(.is-previewing)
+    .bottom-dock:is([data-edge="left"], [data-edge="right"])
+    :is(.mode-bar, .scene-toolbar) {
+    max-height: calc(100dvh - var(--editor-header-height, 4.5rem) - 4.75rem);
+    overflow-y: auto;
+  }
+  .editor-shell:not(.is-previewing):has(.bottom-dock:is([data-edge="left"], [data-edge="right"]))
+    .mobile-controls {
+    left: 9.75rem;
+    right: 9.75rem;
+  }
+}
+
+@media (min-width: 61rem) and (max-width: 80rem) and (hover: none) and (pointer: coarse) {
+  .editor-shell:not(.is-previewing) .mobile-joystick {
+    width: 7rem;
+    height: 7rem;
+  }
+  .editor-shell:not(.is-previewing) .mobile-joystick-thumb {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+  .editor-shell:not(.is-previewing) .library {
+    bottom: calc(17.25rem + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 60rem) and (max-height: 30rem) and (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  .editor-shell:not(.is-previewing) .bottom-dock:is([data-edge="bottom"], [data-edge="top"]) {
+    flex-direction: row;
+    max-width: calc(100% - 12rem);
+  }
+  .editor-shell:not(.is-previewing):has(.bottom-dock[data-edge="top"]) .library .panel-slot {
+    top: 7.25rem;
+    max-height: calc(100dvh - var(--editor-header-height, 4.5rem) - 13.5rem);
+  }
+  .editor-shell:not(.is-previewing):has(.bottom-dock:is([data-edge="left"], [data-edge="right"]))
+    .mobile-controls {
+    bottom: 0.75rem;
+  }
+  .editor-shell:not(.is-previewing):has(.bottom-dock:is([data-edge="left"], [data-edge="right"]))
+    .library
+    .panel-slot {
+    max-height: calc(100dvh - var(--editor-header-height, 4.5rem) - 10rem);
+  }
+}
+
+@media (min-width: 61rem) and (max-width: 80rem) and (hover: none) and (pointer: coarse) {
+  .editor-shell:not(.is-previewing):has(.bottom-dock:is([data-edge="left"], [data-edge="right"]))
+    .mobile-controls {
+    bottom: 1rem;
+  }
+  .editor-shell:not(.is-previewing):has(.bottom-dock[data-edge="left"]) .walk-hint {
+    left: 10rem;
+    width: calc(100% - 11rem);
+  }
+}
+
+/* Export confirmation belongs to authoring; real save/recovery errors remain visible. */
+.server-editor-shell:has(> .visitor-preview) > .server-session-error[data-export-notice="true"] {
+  display: none;
+}
+
+/* Preview action-button decoration must not override the existing joystick component. */
+.server-editor-shell > .visitor-preview .mobile-joystick {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .server-editor-shell > .visitor-preview .visitor-information[open] {
+    max-height: calc(100dvh - 19rem);
+  }
+}
+
+@media (max-width: 80rem) and (hover: none) and (pointer: coarse) {
+  .server-editor-shell > .visitor-preview .mobile-joystick {
+    width: 6rem;
+    height: 6rem;
+  }
+  .server-editor-shell > .visitor-preview .mobile-joystick-thumb {
+    width: 3rem;
+    height: 3rem;
+  }
+}
+@media (max-width: 60rem) and (max-height: 30rem) and (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  .server-editor-shell > .visitor-preview .mobile-joystick {
+    width: 5rem;
+    height: 5rem;
+  }
+}
+@media (min-width: 61rem) and (max-width: 80rem) and (hover: none) and (pointer: coarse) {
+  .server-editor-shell > .visitor-preview .mobile-joystick {
+    width: 7rem;
+    height: 7rem;
+  }
+  .server-editor-shell > .visitor-preview .mobile-joystick-thumb {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+}

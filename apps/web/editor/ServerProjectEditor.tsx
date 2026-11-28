@@ -1151,7 +1151,13 @@ function ServerProjectSession({
         </ChoiceDialog>
       )}
       {active && (error || saveError) && !candidate && !departure && !choosingBase && (
-        <p className="server-session-error" role="alert">
+        <p
+          className="server-session-error"
+          role="alert"
+          data-export-notice={
+            !saveError && error?.startsWith("Project download started.") ? "true" : undefined
+          }
+        >
           {error}
           {error && saveError && " "}
           {saveError}

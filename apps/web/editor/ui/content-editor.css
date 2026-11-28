@@ -767,3 +767,30 @@ dialog.content-dialog.pdf-content-dialog .content-tabs button:disabled {
 dialog.content-dialog.pdf-content-dialog .content-tabs button:disabled .content-tab-icon {
   opacity: 0.4;
 }
+
+@media (max-width: 60rem) and (max-height: 30rem) and (hover: none) and (pointer: coarse) {
+  dialog.content-dialog.pdf-content-dialog {
+    --library-height: calc(100dvh - 24px);
+    height: var(--library-height);
+  }
+  dialog.content-dialog.pdf-content-dialog > form {
+    padding-block: 12px;
+  }
+  dialog.content-dialog.pdf-content-dialog .asset-picker-head {
+    margin-bottom: 8px;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-actions {
+    margin-top: 8px;
+    flex-shrink: 0;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-text-surface {
+    min-height: 96px;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-rich-input {
+    padding: 12px;
+  }
+  dialog.content-dialog.pdf-content-dialog .content-format {
+    margin: 0;
+    flex-shrink: 0;
+  }
+}
