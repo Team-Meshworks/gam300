@@ -77,6 +77,8 @@ it("opens a standalone project in details without inventing student assignments"
     }),
   );
   expect(html).toContain("Existing museum");
-  expect(html).toContain("Student assignments are not available");
+  expect(html).toContain("<h1>Existing museum</h1>");
+  expect(html).toContain("Independent project");
+  expect(html).not.toContain("Project ID:");
   expect(html).toContain("Open project");
 });

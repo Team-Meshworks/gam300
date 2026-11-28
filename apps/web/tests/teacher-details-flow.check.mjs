@@ -505,8 +505,7 @@ try {
     .click();
   assert.equal(new URL(page.url()).searchParams.get("projectId"), otherId);
   await page.reload();
-  await page.getByRole("heading", { name: "Project Details", exact: true }).waitFor();
-  await page.getByRole("heading", { name: "Standalone", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Standalone", exact: true, level: 1 }).waitFor();
   await page.getByRole("button", { name: "Close project details" }).click();
   assert.equal(new URL(page.url()).search, "");
   await assignmentCard.getByRole("button", { name: "View Details" }).click();
@@ -545,11 +544,20 @@ try {
     .waitFor();
   await page.getByRole("button", { name: "Add Bob to class", exact: true }).click();
   await page
-    .getByRole("dialog", { name: "Add Student to Class", exact: true })
-    .getByRole("button", { name: "Add to Class", exact: true })
-    .click();
-  await page.getByRole("rowheader", { name: "@Bob", exact: true }).waitFor();
+    .getByRole("status")
+    .filter({ hasText: /^Added to class$/ })
+    .waitFor();
+  assert.equal(
+    await page.getByRole("dialog", { name: "Add Student to Class", exact: true }).count(),
+    0,
+  );
   assert.equal(enrolled, true);
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await page.getByRole("rowheader", { name: "@Bob", exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole("button", { name: "Add Bob to class", exact: true }).count(),
+    0,
+  );
   await page
     .getByText("Your administrator creates accounts for new students.", { exact: true })
     .waitFor();

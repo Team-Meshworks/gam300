@@ -1,10 +1,11 @@
+import { StandaloneProjectImageDialog } from "./StandaloneProjectImageDialog";
 import { SelectionToggle } from "../../shared/ui/SelectionToggle";
 import { LoadingSkeleton } from "../../shared/ui/LoadingSkeleton";
 import { Icon } from "@iconify/react/offline";
 import { SkeletonBox } from "skullet/react";
 import commentIcon from "@iconify-icons/lucide/message-square";
 import closeIcon from "@iconify-icons/lucide/x";
-import pencilIcon from "@iconify-icons/lucide/pencil-line";
+import imagePencilIcon from "@iconify-icons/lucide/pencil";
 import checkIcon from "@iconify-icons/lucide/circle-check";
 import pendingIcon from "@iconify-icons/lucide/clock-3";
 import rejectedIcon from "@iconify-icons/lucide/circle-alert";
@@ -55,29 +56,68 @@ export function TeacherStandaloneDetails({
   project,
   onBack,
   onOpen,
+  actorId,
+  onSaved,
 }: {
   project: ProjectSummary;
+  actorId?: string;
+  onSaved?: (project: ProjectSummary) => void;
   onBack: () => void;
   onOpen: () => void;
 }) {
+  const [changingImage, setChangingImage] = useState(false);
   return (
-    <section className="sp-panel-surface sp-teacher-detail">
+    <section className="sp-panel-surface sp-teacher-detail sp-independent-detail">
       <div className="sp-teacher-detail-head">
         <div>
-          <h1>Project Details</h1>
-          <h2>{project.title}</h2>
-          <p>
-            Project ID: <code>{project.projectId}</code>
-          </p>
+          <h1>{project.title}</h1>
+          <p>{project.archived ? "Archived project" : "Independent project"}</p>
         </div>
         <Button className="sp-close-button" aria-label="Close project details" onClick={onBack}>
           <Icon icon={closeIcon} aria-hidden="true" />
         </Button>
       </div>
-      <p>Student assignments are not available from this project view.</p>
-      <Button disabled={!project.permissions.canEdit || project.archived} onClick={onOpen}>
-        Open project
-      </Button>
+      <div className="sp-project-image">
+        <img
+          className="sp-teacher-detail-cover"
+          alt="Project cover"
+          src={
+            project.image
+              ? project.image.url + "?v=" + encodeURIComponent(project.updatedAt)
+              : projectCover(project.title, true)
+          }
+        />
+        {actorId && onSaved && project.permissions.canManage && !project.archived && (
+          <Button
+            className="sp-project-image-edit"
+            aria-label="Change image"
+            title="Change image"
+            onClick={() => setChangingImage(true)}
+          >
+            <Icon icon={imagePencilIcon} aria-hidden="true" />
+          </Button>
+        )}
+      </div>
+      <div className="sp-independent-actions">
+        <Button
+          variant="primary"
+          disabled={!project.permissions.canEdit || project.archived}
+          onClick={onOpen}
+        >
+          Open project
+        </Button>
+      </div>
+      {changingImage && actorId && onSaved && (
+        <StandaloneProjectImageDialog
+          project={project}
+          actorId={actorId}
+          onClose={() => setChangingImage(false)}
+          onSaved={(updated) => {
+            onSaved(updated);
+            setChangingImage(false);
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -136,7 +176,9 @@ export function TeacherProjectDetails({
     }
   }
   const [studentTab, setStudentTab] = useState<"all" | "progress" | "awaiting">("all");
-  const [editing, setEditing] = useState<"dueDate" | "description" | "instructions" | null>(null);
+  const [editing, setEditing] = useState<
+    "dueDate" | "description" | "instructions" | "image" | null
+  >(null);
   const [editError, setEditError] = useState("");
   const { details } = item;
   const dueDate =
@@ -248,7 +290,7 @@ export function TeacherProjectDetails({
   );
   const editControl = editing && actorId && (
     <AssignmentEditDialog
-      inline
+      inline={editing !== "image"}
       field={editing}
       classId={item.classId}
       actorId={actorId}
@@ -340,11 +382,28 @@ export function TeacherProjectDetails({
       <div className="sp-teacher-columns">
         <div className="sp-teacher-info">
           <div className="sp-teacher-project-identity">
-            <img
-              className="sp-teacher-detail-cover"
-              src={details.image?.url ?? projectCover(details.title)}
-              alt=""
-            />
+            <div className="sp-project-image">
+              <img
+                className="sp-teacher-detail-cover"
+                src={
+                  details.image
+                    ? details.image.url + "?v=" + (details.revision ?? 0)
+                    : projectCover(details.title)
+                }
+                alt=""
+              />
+              {actorId && (
+                <Button
+                  className="sp-project-image-edit"
+                  aria-label="Change image"
+                  title="Change image"
+                  disabled={details.revision === undefined || Boolean(editing)}
+                  onClick={() => setEditing("image")}
+                >
+                  <Icon icon={imagePencilIcon} aria-hidden="true" />
+                </Button>
+              )}
+            </div>
             <h2>{details.title}</h2>
           </div>
           {actorId && (
@@ -363,6 +422,7 @@ export function TeacherProjectDetails({
               />
             </div>
           )}
+          {editing === "image" && editControl}
           <dl className="sp-teacher-metadata">
             {details.organizationName && (
               <>
@@ -414,7 +474,7 @@ export function TeacherProjectDetails({
                 onClick={() => setEditing("dueDate")}
                 aria-label="Edit Due Date"
               >
-                <Icon icon={pencilIcon} aria-hidden="true" />
+                <Icon icon={imagePencilIcon} aria-hidden="true" />
                 <span className="sp-button-label">Edit</span>
               </Button>
             )}
@@ -432,7 +492,7 @@ export function TeacherProjectDetails({
                 onClick={() => setEditing("description")}
                 aria-label="Edit Project Description"
               >
-                <Icon icon={pencilIcon} aria-hidden="true" />
+                <Icon icon={imagePencilIcon} aria-hidden="true" />
                 <span className="sp-button-label">Edit</span>
               </Button>
             )}
@@ -450,7 +510,7 @@ export function TeacherProjectDetails({
                 onClick={() => setEditing("instructions")}
                 aria-label="Edit Project Instructions"
               >
-                <Icon icon={pencilIcon} aria-hidden="true" />
+                <Icon icon={imagePencilIcon} aria-hidden="true" />
                 <span className="sp-button-label">Edit</span>
               </Button>
             )}
@@ -672,7 +732,10 @@ export function TeacherProjectDetails({
                   onCompleted={async () => {
                     const states = await moderation.publicationStates(selectedIds);
                     await refreshAssignment();
-                    setPublicationStates((current) => ({ ...current, ...states }));
+                    setPublicationStates((current) => ({
+                      ...current,
+                      ...states,
+                    }));
                     if (selectedIds.every((id) => states[id.toLowerCase()]!.removed)) {
                       setSelectingProjects(false);
                       setSelectedProjects([]);
@@ -855,7 +918,11 @@ export function TeacherProjects({
         id,
         title: item.details.title,
         classId: item.classId,
-        ...(item.details.image ? { imageUrl: item.details.image.url } : {}),
+        ...(item.details.image
+          ? {
+              imageUrl: item.details.image.url + "?v=" + (item.details.revision ?? 0),
+            }
+          : {}),
         status,
         metadata: `${item.className} · ${submitted === null ? "Submission count unavailable" : `${submitted} student submission${submitted === 1 ? "" : "s"}`}`,
         onDetails: () => {
@@ -875,7 +942,11 @@ export function TeacherProjects({
     ...standalone.map((project) => ({
       id: project.projectId,
       title: project.title,
-      ...(project.image ? { imageUrl: project.image.url } : {}),
+      ...(project.image
+        ? {
+            imageUrl: project.image.url + "?v=" + encodeURIComponent(project.updatedAt),
+          }
+        : {}),
       status: "In Progress" as const,
       metadata: "Independent project",
       onDetails: () => {
@@ -889,15 +960,31 @@ export function TeacherProjects({
       },
     })),
   ];
+  const detailParams = new URLSearchParams(location.search);
+  const openingStandalone =
+    !items && !error && detailParams.has("projectId") && !detailParams.has("assignmentId");
   const openingDetails =
-    !items &&
-    !error &&
-    (new URLSearchParams(location.search).has("assignmentId") ||
-      new URLSearchParams(location.search).has("projectId"));
+    !items && !error && (detailParams.has("assignmentId") || openingStandalone);
   return renderWorkspace(
     <>
       {selected && error && <p role="alert">{error}</p>}
-      {openingDetails ? (
+      {openingStandalone ? (
+        <section
+          className="sp-panel-surface sp-teacher-detail sp-independent-detail"
+          aria-busy="true"
+          aria-label="Loading project details"
+        >
+          <div className="sp-teacher-detail-head" aria-hidden="true">
+            <SkeletonBox width="50%" height={30} radius={6} />
+          </div>
+          <div className="sp-teacher-detail-cover" aria-hidden="true">
+            <SkeletonBox width="100%" height="100%" radius={24} />
+          </div>
+          <div className="sp-independent-actions" aria-hidden="true">
+            <SkeletonBox width={115} height={44} radius={22} />
+          </div>
+        </section>
+      ) : openingDetails ? (
         <section
           className="sp-panel-surface sp-teacher-detail"
           aria-busy="true"
@@ -925,6 +1012,13 @@ export function TeacherProjects({
       ) : selectedStandalone ? (
         <TeacherStandaloneDetails
           project={selectedStandalone}
+          actorId={session.userId}
+          onSaved={(updated) => {
+            setStandalone((current) =>
+              current.map((row) => (row.projectId === updated.projectId ? updated : row)),
+            );
+            setSelectedStandalone(updated);
+          }}
           onBack={() => {
             setSelectedStandalone(null);
             history.replaceState(history.state, "", "/home");

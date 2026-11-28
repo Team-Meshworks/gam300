@@ -240,12 +240,12 @@ export function FacilitatorProjectView({
           {loaded?.opened.document.title ?? (published ? "Published project" : "Student project")}
         </h1>
         {session.role === "Educator" && published && context && (
-          <a
-            className="sp-button facilitator-project-review facilitator-submission-link"
-            href={reviewReturnUrl(new URLSearchParams(location.search))}
+          <Button
+            className="facilitator-project-review"
+            onClick={() => location.assign(reviewReturnUrl(new URLSearchParams(location.search)))}
           >
-            Review current submission
-          </a>
+            Review
+          </Button>
         )}
         {session.role === "Educator" && !published && (
           <Button

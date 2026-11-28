@@ -82,7 +82,8 @@ try {
         "Educator cards should be side-by-side at desktop width",
       );
       await cards.first().getByRole("button", { name: "View Details" }).click();
-      await page.getByRole("heading", { name: "Project Details", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "Silk Road", exact: true }).waitFor();
+      await page.getByText("Independent project", { exact: true }).waitFor();
       await page.getByRole("button", { name: "Close project details" }).click();
     } else {
       assert.ok(
