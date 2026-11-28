@@ -133,10 +133,30 @@ export function SidePanels({
               thumbnailFor={thumbnailFor}
             />
           )}
-          {panel === "scenes" && <div className="editor-panel">{scenes}</div>}
+          {panel === "scenes" && (
+            <section
+              className="editor-panel saved-views-shell scenes-shell"
+              aria-labelledby="scenes-heading"
+            >
+              <h2 id="scenes-heading">
+                <Icon
+                  name="info"
+                  title="Each scene holds its own environment, objects and saved views"
+                />
+                Scenes
+              </h2>
+              {scenes}
+            </section>
+          )}
           {panel === "views" && (
-            <section className="editor-panel" aria-labelledby="saved-views-heading">
-              <h2 id="saved-views-heading">Saved Views</h2>
+            <section
+              className="editor-panel saved-views-shell"
+              aria-labelledby="saved-views-heading"
+            >
+              <h2 id="saved-views-heading">
+                <Icon name="info" title="Frame the view, give it a name, capture it" />
+                Saved Views
+              </h2>
               {savedViews}
             </section>
           )}
@@ -197,7 +217,7 @@ function PositionPanel({
   room: boolean;
 }) {
   return (
-    <section className="editor-panel" aria-labelledby="position-heading">
+    <section className="editor-panel position-panel" aria-labelledby="position-heading">
       <PanelHeading id="position-heading">Position</PanelHeading>
       {object === undefined ? (
         <p className="panel-empty">Select an object to edit its position, rotation and scale.</p>

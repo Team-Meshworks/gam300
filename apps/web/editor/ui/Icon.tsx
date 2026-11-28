@@ -382,7 +382,7 @@ export function Icon({ name, title }: { name: IconName; title?: string }) {
   }
   const { viewBox, body } = icon;
   return (
-    <svg className="icon" viewBox={viewBox} aria-hidden="true">
+    <svg className="icon" data-icon={name} viewBox={viewBox} aria-hidden="true">
       {title && <title>{title}</title>}
       {body}
     </svg>
