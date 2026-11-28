@@ -118,8 +118,8 @@ internal sealed class AuthenticatedPublicationIntegration(IHostEnvironment envir
                 return PublicationRejection.InvalidAssets;
 
             await database.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO development_publication_assets (publication_id, asset_id, kind, media_type, sha256, placement)
-                VALUES ({edition.Id}, {asset.Id}, {asset.Kind}, {asset.MediaType}, {asset.Sha256}, {asset.Placement})
+                INSERT INTO development_publication_assets (publication_id, asset_id, kind, media_type, sha256, placement, non_blocking)
+                VALUES ({edition.Id}, {asset.Id}, {asset.Kind}, {asset.MediaType}, {asset.Sha256}, {asset.Placement}, {asset.NonBlocking})
                 """, cancellationToken);
         }
 

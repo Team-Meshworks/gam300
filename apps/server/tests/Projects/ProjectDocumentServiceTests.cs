@@ -83,6 +83,7 @@ public sealed class ProjectDocumentServiceTests
 
     [Test]
     [Arguments("model", "library-untitled-v1")]
+    [Arguments("model", "trigger-crate-v1")]
     [Arguments("environment", "room-space1-v1")]
     [Arguments("environment", "room-doors-1-v1")]
     [Arguments("environment", "room-doors-2-v1")]

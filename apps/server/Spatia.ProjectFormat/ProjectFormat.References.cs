@@ -182,7 +182,7 @@ public static partial class ProjectFormat
 
                     var trigger = Get(item, "when");
 
-                    if (String(trigger, "type") == "visitor-clicks-hotspot")
+                    if (String(trigger, "type") is "visitor-clicks-hotspot" or "visitor-touch")
                         Ref(String(trigger, "targetHotspotId"), ["hotspot"], sceneId, $"{path}.when.targetHotspotId");
                 });
             }

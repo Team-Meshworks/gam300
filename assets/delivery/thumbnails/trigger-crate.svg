@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Invisible trigger crate">
+  <rect width="256" height="256" rx="24" fill="#101827"/>
+  <g fill="none" stroke="#7dd3fc" stroke-width="6" stroke-dasharray="12 10">
+    <path d="M64 84 128 52l64 32v88l-64 32-64-32z"/>
+    <path d="M64 84l64 32 64-32M128 116v88"/>
+  </g>
+  <circle cx="128" cy="116" r="26" fill="#0ea5e9" fill-opacity="0.18" stroke="#38bdf8" stroke-width="5"/>
+  <circle cx="128" cy="116" r="9" fill="#e0f2fe"/>
+  <text x="128" y="234" fill="#bae6fd" font-family="sans-serif" font-size="20" text-anchor="middle">TRIGGER CRATE</text>
+</svg>

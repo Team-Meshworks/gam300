@@ -215,6 +215,7 @@ try {
     { afterNewerChoice: "test-room-v1", afterCancel: "" },
     "A late asset preparation cannot replace the newer selection or re-arm canceled placement",
   );
+  await delayedPage.getByRole("button", { name: "Third person", exact: true }).click();
   for (const tool of ["Orbit", "Pan"]) {
     const before = await delayedPicker.document();
     await startDelayedPick();
@@ -332,7 +333,7 @@ try {
   await page.getByRole("status").filter({ hasText: "Scene ready" }).waitFor();
   assert.equal(
     await page.getByRole("group", { name: "Camera tools", exact: true }).isVisible(),
-    true,
+    false,
   );
   await page.getByRole("button", { name: "Third person", exact: true }).click();
   // Observe viewport-owned room clones so connection checks never inspect or alter cached source models

@@ -10,7 +10,7 @@ public sealed class StarterPublicationBrowserTests
     public async Task Browser_StudentSharesStarterRoomWithAnonymousVisitors()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
-        var (data, _) = await PublicationEndpointTests.PrepareAsync(fixture, starterRoom: true, displayCube: true);
+        var (data, _) = await PublicationEndpointTests.PrepareAsync(fixture, starterRoom: true, displayCube: true, triggerCrate: true);
         var (certificate, key) = fixture.WritePemFiles();
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 

@@ -57,6 +57,7 @@ export type HotspotDropTarget = Readonly<{
 
 export type InteractionTrigger =
   | Readonly<{ type: "visitor-clicks-hotspot"; targetHotspotId: EntityId }>
+  | Readonly<{ type: "visitor-touch"; targetHotspotId: EntityId }>
   | Readonly<{ type: "scene-starts" }>
   | Readonly<{ type: "time-elapsed"; seconds?: number }>;
 

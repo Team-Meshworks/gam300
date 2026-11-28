@@ -188,6 +188,17 @@ describe("project IDs and asset references", () => {
       ok: false,
       error: { path: "project.scenes[0].interactions[0].when.targetHotspotId" },
     });
+
+    scene.interactions = [
+      {
+        when: { type: "visitor-touch", targetHotspotId: "missing" },
+        do: { type: "print-hi" },
+      },
+    ];
+    expect(validateProject(project, assets)).toMatchObject({
+      ok: false,
+      error: { path: "project.scenes[0].interactions[0].when.targetHotspotId" },
+    });
   });
 
   it("allows only one hotspot per object, comparing UUID case-insensitively", () => {

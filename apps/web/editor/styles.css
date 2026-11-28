@@ -953,6 +953,20 @@ a {
     place-items: center;
   }
 }
+.scene-tree-hotspot-remove {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #d65b4b;
+  color: #fff;
+  font-size: 1.15rem;
+  line-height: 1;
+}
 .hotspot-indicator {
   display: inline-flex;
   align-items: center;

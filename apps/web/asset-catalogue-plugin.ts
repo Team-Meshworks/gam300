@@ -35,6 +35,7 @@ const allowedIds = new Set([
   "sample-coast-video-v1",
   "test-room-v1",
   "test-crate-v1",
+  "trigger-crate-v1",
   "sample-snowglobe-v1",
   "library-untitled-v1",
   "test-room-module-v1",
@@ -83,6 +84,7 @@ type Entry = {
     max: readonly [number, number, number];
   };
   displayRole?: "physical" | "digital";
+  nonBlocking?: true;
   displayTop?: number;
   displaySurface?: {
     position: readonly [number, number, number];
@@ -156,6 +158,9 @@ export function assetCataloguePlugin(): Plugin {
       (!Number.isFinite(entry.durationSeconds) || entry.durationSeconds! <= 0)
     ) {
       throw new Error("Invalid audio duration: " + entry.assetId);
+    }
+    if (entry.nonBlocking !== undefined && (entry.kind !== "model" || entry.nonBlocking !== true)) {
+      throw new Error("Invalid non-blocking flag: " + entry.assetId);
     }
     if (entry.displayRole !== undefined) {
       if (entry.kind !== "model" || !["physical", "digital"].includes(entry.displayRole)) {
@@ -303,6 +308,8 @@ export function assetCataloguePlugin(): Plugin {
             index +
             ",displayRole:" +
             JSON.stringify(entry.displayRole) +
+            ",nonBlocking:" +
+            JSON.stringify(entry.nonBlocking) +
             ",displayTop:" +
             JSON.stringify(entry.displayTop) +
             ",displaySurface:" +
