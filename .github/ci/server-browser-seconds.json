@@ -1,0 +1,16 @@
+{
+  "AccountDirectoryBrowserTests": 70.31,
+  "AssetAdministrationBrowserTests": 11.78,
+  "AssetRemovalBrowserTests": 13.54,
+  "CreationRecoveryBrowserTests": 30.49,
+  "EntryLoginIntegrationTests": 18.79,
+  "ProductionRoomBrowserTests": 66.1,
+  "ProjectGrantBrowserTests": 63.75,
+  "ProjectReadEndpointTests": 23.67,
+  "ProxyChainTests": 1.46,
+  "PublicationAccessEndpointTests": 8.29,
+  "PublicationPublishingBrowserTests": 27.62,
+  "RequestSecurityTests": 5.01,
+  "ReviewScreensIntegrationTests": 33.07,
+  "StarterPublicationBrowserTests": 21.56
+}

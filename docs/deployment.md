@@ -193,6 +193,7 @@ shared helpers, configuration, assets, server changes and an unavailable compari
 full browser set. Each browser group runs against its own Vite server. The catalog in
 [`browser-checks.json`](../.github/ci/browser-checks.json) records seconds per command and its
 optional route. CI assigns the longest commands first to the least-loaded of six runners.
+Player walking runs independently from the preview parity checks. Locally, `npm run test:player-parity` runs both.
 Each group retains logs, screenshots and measured durations in `browser-seconds.tsv`.
 Update the catalog with representative full-run timings when the workload changes.
 
@@ -230,7 +231,8 @@ for a comparable run, down from 729.71 MiB. Organization billing covers a differ
 
 Three server test runners each use a disposable, loopback-only PostgreSQL 18.6 service on
 a memory-backed volume. Each builds in Release while preparing browser and proxy tooling,
-then discovers the full TUnit inventory. Recorded class durations determine each partition. The format
+then discovers the full TUnit inventory. The planner distributes the serialized browser cases before
+filling each runner by total class duration. The format
 checks run once alongside project-format validation. EF migration checks run once on the first
 server runner. Each runner verifies its TRX against its selected cases. All three runners must report
 the same partition digest. Full runs always exercise every shard. PRs also exercise every shard for

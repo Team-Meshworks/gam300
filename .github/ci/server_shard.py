@@ -35,7 +35,9 @@ def run(shard, count):
         raise ValueError("Expected at least one test class per shard and unique discovered test UIDs")
 
     recorded = json.loads((HERE / "server-class-seconds.json").read_text())
-    shards = balance({name: recorded.get(name, len(cases)) for name, cases in groups.items()}, count)
+    browser = json.loads((HERE / "server-browser-seconds.json").read_text())
+    shards = balance({name: recorded.get(name, len(cases)) for name, cases in groups.items()}, count,
+                     serial_seconds=browser)
     cases = [test for name in shards[shard - 1] for test in groups[name]]
     directory = Path("test-results/ci") / str(shard)
     directory.mkdir(parents=True, exist_ok=True)

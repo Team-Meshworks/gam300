@@ -87,6 +87,15 @@ class CiSelectionTests(unittest.TestCase):
         self.assertCountEqual(sum(shards, []), weights.keys())
         self.assertEqual(sorted(sum(weights[name] for name in shard) for shard in shards), [10, 11])
 
+    def test_serial_cases_are_spread_before_filling_by_total_class_time(self):
+        weights = dict.fromkeys("abcdefghi", 10)
+        serial = {"a": 9, "d": 9, "g": 9, "retired": 99}
+        shards = balance(weights, 3, serial_seconds=serial)
+        self.assertCountEqual(sum(shards, []), weights.keys())
+        for shard in shards:
+            self.assertEqual(sum(serial.get(name, 0) for name in shard), 9)
+            self.assertEqual(sum(weights[name] for name in shard), 30)
+
 
 if __name__ == "__main__":
     unittest.main()

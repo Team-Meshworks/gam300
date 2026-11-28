@@ -173,12 +173,14 @@ Run the canonical check block below from `apps/server/` so the scoped SDK pin ap
 
 CI executes the full suite across three Ubuntu runners with independent PostgreSQL 18.6 services.
 Each discovers the current assembly and assigns whole classes using the recorded case durations
-in [`server-class-seconds.json`](../../.github/ci/server-class-seconds.json). New classes start with
+in [`server-class-seconds.json`](../../.github/ci/server-class-seconds.json). The planner distributes
+browser-locked cases first, then fills each runner by total class time. New classes start with
 a weight of one second per discovered case. All three runners verify their TRX results against the
 assigned cases and must agree on every UID in the partition. Each `server-checks-<shard>-<commit>`
 artifact contains its report, case selection and measured class durations in `class-seconds.json`.
-Use all shards from representative full runs to refresh the weights. The standalone cold-restart
-acceptance remains a local operator check.
+Use all shards from representative full runs to refresh the weights. For
+[`server-browser-seconds.json`](../../.github/ci/server-browser-seconds.json), sum the TRX durations
+of cases marked `NotInParallel("Browser")` on the class or method. The standalone cold-restart acceptance remains a local operator check.
 
 The assembly caps concurrency at four per runner. Browser scenarios and proxy checks share the
 `Browser` lock. The API cases in mixed classes use their class lock, and only tests that change
