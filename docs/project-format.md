@@ -149,6 +149,10 @@ project; viewpoints must belong to the interaction's scene. References compare
 UUIDs case-insensitively and retain their authored spelling. These are separate
 from the v2 content-rule `navigateScene` and `moveCamera` variants.
 
+`visitor-touch` targets a hotspot like `visitor-clicks-hotspot`, but fires when the
+visitor's walking body first intersects the rendered bounds of that hotspot's object.
+Contacts re-arm after the visitor steps away; hidden objects cannot trigger it.
+
 Scene navigation enters the destination's configured starting camera and runs its
 scene-start interactions. Moving to a viewpoint immediately applies its position,
 rotation and field of view. Preview stays active across scene changes; exiting

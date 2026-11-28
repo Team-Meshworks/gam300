@@ -4,9 +4,9 @@ import { walkObstacles, type WalkProp } from "./walk-obstacles";
 export type { WalkProp } from "./walk-obstacles";
 
 // Flat-floor walkthrough dimensions in world metres, independent of model scale
-export const EYE_HEIGHT = 0.9;
+export const EYE_HEIGHT = 1.6;
 const HALF_WIDTH = 0.22;
-const HEIGHT = 1.55;
+const HEIGHT = 1.8;
 const MAX_STEP = 0.24;
 const EPSILON = 0.0001;
 const footprint = Array.from({ length: 8 }, (_, index) => {
@@ -21,6 +21,30 @@ type RoomGrid = {
   floors: ReturnType<typeof walkGrid<Floor>>;
 };
 type Support = Pick<Floor, "y" | "top">;
+
+// Use the same body dimensions for proximity triggers so touching matches walking collisions
+export function touchesObject(
+  root: Object3D,
+  eye: Vector3,
+  box = new Box3(),
+  body = new Box3(),
+): boolean {
+  for (let node: Object3D | null = root; node; node = node.parent) if (!node.visible) return false;
+  root.updateWorldMatrix(true, true);
+  box.makeEmpty();
+  const transformed = new Box3();
+  root.traverseVisible((node) => {
+    if (!(node instanceof Mesh)) return;
+    const geometry = node.geometry;
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    if (geometry.boundingBox)
+      box.union(transformed.copy(geometry.boundingBox).applyMatrix4(node.matrixWorld));
+  });
+  if (box.isEmpty()) return false;
+  body.min.set(eye.x - HALF_WIDTH, eye.y - EYE_HEIGHT, eye.z - HALF_WIDTH);
+  body.max.set(eye.x + HALF_WIDTH, eye.y - EYE_HEIGHT + HEIGHT, eye.z + HALF_WIDTH);
+  return body.intersectsBox(box);
+}
 
 // Use the triangles after normalization, world transforms and doorway cuts. In particular,
 // the bounding box of a wall with a doorway includes the empty space under its lintel

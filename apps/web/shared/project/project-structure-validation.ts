@@ -130,15 +130,17 @@ function validateTrigger(
   if (!Object.hasOwn(raw, "type")) {
     return invalid(`${path}.type`, "Required field is missing");
   }
-  switch (readField(raw, "type")) {
-    case "visitor-clicks-hotspot": {
+  const type = readField(raw, "type");
+  switch (type) {
+    case "visitor-clicks-hotspot":
+    case "visitor-touch": {
       const fields = checkFields(raw, ["type", "targetHotspotId"], path);
       if (!fields.ok) return fields;
       const target = readText(readField(raw, "targetHotspotId"), `${path}.targetHotspotId`, budget);
       if (!target.ok) return target;
       return {
         ok: true,
-        value: { type: "visitor-clicks-hotspot", targetHotspotId: target.value },
+        value: { type, targetHotspotId: target.value },
       };
     }
     case "scene-starts": {

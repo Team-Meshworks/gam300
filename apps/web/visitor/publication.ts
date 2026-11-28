@@ -31,6 +31,7 @@ export function readPublicationManifest(value: unknown, publicationId: string) {
   const seen = new Set<string>();
   const assets: CatalogueAsset[] = value.assets.map((asset: unknown) => {
     const placement = record(asset) && "placement" in asset ? asset.placement : undefined;
+    const nonBlocking = record(asset) && "nonBlocking" in asset ? asset.nonBlocking : undefined;
     if (
       !record(asset) ||
       !("id" in asset) ||
@@ -44,6 +45,8 @@ export function readPublicationManifest(value: unknown, publicationId: string) {
         asset.kind !== "video") ||
       (placement !== undefined && placement !== null && placement !== "bottom-center") ||
       (placement === "bottom-center" && asset.kind !== "model" && asset.kind !== "environment") ||
+      (nonBlocking !== undefined && typeof nonBlocking !== "boolean") ||
+      (nonBlocking === true && asset.kind !== "model") ||
       !("sha256" in asset) ||
       typeof asset.sha256 !== "string" ||
       !/^[a-f0-9]{64}$/.test(asset.sha256) ||
@@ -61,6 +64,7 @@ export function readPublicationManifest(value: unknown, publicationId: string) {
       sha256: asset.sha256,
       thumbnail: null,
       ...(asset.kind === "model" ? displayGeometry.get(asset.sha256) : undefined),
+      ...(nonBlocking === true ? { nonBlocking: true as const } : {}),
       ...(placement === "bottom-center" ? { placement } : {}),
       // Match the editor's approved-room origin using metadata bound to the exact digest
       ...(boundsMeters ? { boundsMeters, placement: "bottom-center" as const } : {}),

@@ -141,6 +141,9 @@ try {
   await page.locator(".object-row").last().click();
   const before = await saved((doc) => doc.scenes[0].objects.length === 2);
   const target = before.scenes[0].objects.find((object) => object.assetId === "display-cube-v1");
+  const viewToggle = page.getByRole("button", { name: "Third person", exact: true });
+  await viewToggle.click();
+  assert.equal(await viewToggle.getAttribute("aria-pressed"), "false");
   async function draft() {
     await page.getByRole("button", { name: "Edit text", exact: true }).click();
     assert.equal(
@@ -154,9 +157,17 @@ try {
     await page.locator(".viewport-stage[data-placing-text]").waitFor();
   }
   await draft();
+  assert.equal(await viewToggle.getAttribute("aria-pressed"), "true");
   await page.keyboard.press("Escape");
   assert.equal(await page.locator("[data-placing-text]").count(), 0);
+  assert.equal(
+    await viewToggle.getAttribute("aria-pressed"),
+    "false",
+    "Cancelling plinth text placement returns to first person",
+  );
   assert.deepEqual(project.document(), before);
+  await viewToggle.click();
+  assert.equal(await viewToggle.getAttribute("aria-pressed"), "true");
   await draft();
   const stage = page.locator(".viewport-stage"),
     box = await stage.boundingBox(),
@@ -197,6 +208,11 @@ try {
   await page.screenshot({ path: "test-results/text-placement/preview.png" });
   await page.mouse.click(chosen.x, chosen.y);
   await page.locator(".viewport-stage[data-placing-text]").waitFor({ state: "detached" });
+  assert.equal(
+    await viewToggle.getAttribute("aria-pressed"),
+    "false",
+    "Placing text on a plinth returns to first person",
+  );
   const placed = await saved(
     (doc) =>
       doc.scenes[0].objects.find((object) => object.id === target.id)?.components?.[0]?.placement,

@@ -62,7 +62,7 @@ internal static class PublicationDeliveryEndpoints
                         return Unavailable(context);
 
                     var rows = await database.Database.SqlQuery<DevelopmentAssetMetadata>($"""
-                        SELECT asset_id AS "AssetId", kind AS "Kind", media_type AS "MediaType", sha256 AS "Sha256", placement AS "Placement"
+                        SELECT asset_id AS "AssetId", kind AS "Kind", media_type AS "MediaType", sha256 AS "Sha256", placement AS "Placement", non_blocking AS "NonBlocking"
                         FROM development_publication_assets WHERE publication_id = {id} AND asset_id = {reference.AssetId}
                             AND sha256 = {reference.Sha256}
                         """).ToArrayAsync(token);
@@ -75,6 +75,7 @@ internal static class PublicationDeliveryEndpoints
                         id = reference.AssetId,
                         kind = rows[0].Kind,
                         placement = rows[0].Placement,
+                        nonBlocking = rows[0].NonBlocking,
                         sha256 = reference.Sha256,
                         url = $"{ApiV1Endpoints.Prefix}/publications/{id:D}/assets/{Uri.EscapeDataString(reference.AssetId)}/bytes"
                     });
@@ -380,6 +381,10 @@ internal static class PublicationDeliveryEndpoints
         public string Kind { get; set; } = "";
         public string MediaType { get; set; } = "";
         public string Sha256 { get; set; } = "";
+        public bool NonBlocking
+        {
+            get; set;
+        }
     }
 
     private sealed class DevelopmentAssetBytes

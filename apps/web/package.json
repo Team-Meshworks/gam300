@@ -36,13 +36,15 @@
     "test:scene-authoring-flow": "node tests/scene-authoring-flow.check.mjs",
     "test:history": "node tests/history-recovery.check.mjs",
     "test:deployment": "node tests/deployment.check.mjs",
-    "lint": "oxlint . --max-warnings 0 --report-unused-disable-directives-severity warn",
+    "lint": "oxlint . --ignore-pattern node_modules/ --max-warnings 0 --report-unused-disable-directives-severity warn",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test:display-tools": "node tests/display-tools.check.mjs",
     "test:furniture-tools": "node tests/furniture-tools.check.mjs",
     "test:viewpoints": "node tests/viewpoints.check.mjs",
     "test:placement-collision": "node tests/placement-collision.check.mjs",
+    "test:non-blocking-placement": "node tests/non-blocking-placement.check.mjs",
+    "test:non-blocking-carry": "node tests/non-blocking-carry.check.mjs",
     "test:moving-room-collision": "node tests/moving-room-collision.check.mjs",
     "test:starter-room-transform": "node tests/starter-room-transform.check.mjs",
     "test:nonstarter-room-collision": "node tests/nonstarter-room-collision.check.mjs",
@@ -132,7 +134,7 @@
     "playwright": "1.63.0",
     "typescript": "6.0.2",
     "vite": "8.3.3",
-    "vitest": "5.0.1"
+    "vitest": "5.0.3"
   },
   "allowScripts": {
     "bun@1.4.5": true

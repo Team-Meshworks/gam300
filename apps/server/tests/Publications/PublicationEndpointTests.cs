@@ -1228,7 +1228,7 @@ public sealed class PublicationEndpointTests
     }
 
     internal static async Task<(ReviewSubmissionEndpointTests.Seeded Data, AssetCandidate Asset)> PrepareAsync(
-        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false, Guid? assetOwner = null, bool content = false, bool enabledRule = false, long revision = 0, bool starterRoom = false, bool displayCube = false)
+        HttpsApplicationFixture fixture, bool approve = true, bool interactions = false, Guid? assetOwner = null, bool content = false, bool enabledRule = false, long revision = 0, bool starterRoom = false, bool displayCube = false, bool triggerCrate = false)
     {
         fixture.App.Configuration["Publication:Origin"] = "https://publications.example.test";
         var data = await ReviewSubmissionEndpointTests.SeedAsync(fixture, false);
@@ -1261,9 +1261,15 @@ public sealed class PublicationEndpointTests
             project.Revision = revision;
             var document = JsonNode.Parse(project.DocumentJson)!;
             document["scenes"]![0]!["environmentAssetId"] = starterRoom ? "test-room-v1" : asset.Id.ToString();
-            document["scenes"]![0]!["objects"] = displayCube
-                ? JsonNode.Parse("""[{"id":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","name":"Display cube","assetId":"display-cube-v1","transform":{"position":[2,0,-3],"rotation":[0,0,0,1],"scale":[1,1,1]}}]""")
-                : new JsonArray();
+            var objects = new JsonArray();
+            if (displayCube)
+                objects.Add(JsonNode.Parse("""{"id":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","name":"Display cube","assetId":"display-cube-v1","transform":{"position":[2,0,-3],"rotation":[0,0,0,1],"scale":[1,1,1]}}"""));
+            if (triggerCrate)
+                objects.Add(JsonNode.Parse("""{"id":"99999999-9999-4999-8999-999999999999","name":"Trigger crate","assetId":"trigger-crate-v1","transform":{"position":[0,0,0],"rotation":[0,0,0,1],"scale":[1,1,1]}}"""));
+            document["scenes"]![0]!["objects"] = objects;
+
+            if (triggerCrate)
+                document["scenes"]![0]!["startCamera"] = JsonNode.Parse("""{"position":[0,1.6,4],"rotation":[0,0,0,1],"fovDegrees":40}""");
 
             if (interactions)
             {

@@ -25,6 +25,7 @@ export type CatalogueAsset = Readonly<{
     max: readonly [number, number, number];
   }>;
   displayRole?: "physical" | "digital";
+  nonBlocking?: true;
   category?: string;
   durationSeconds?: number;
   // Local coordinates after bottom-center model normalization, in metres.
@@ -40,6 +41,13 @@ export type CatalogueAsset = Readonly<{
 // This geometry has known ten-metre footprints and named walls for adjoining doors.
 export const STARTER_ROOM_SHA256 =
   "121c9d86eefb1961a697a390967dfeface3ce1f612334d2fbc447551ddfd88d1";
+
+export function isNonBlockingAsset(
+  assets: readonly CatalogueAsset[],
+  id: string | null | undefined,
+) {
+  return !!id && assets.some((asset) => asset.id === id && asset.nonBlocking === true);
+}
 
 export function isStarterRoomModelAsset(asset: CatalogueAsset) {
   return (

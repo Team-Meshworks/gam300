@@ -102,6 +102,7 @@ export const modules = {
       "shared/preview/rule-dispatch.ts",
       "shared/preview/preview-start.ts",
       "shared/preview/walk-space.ts",
+      "shared/preview/non-blocking.ts",
       "shared/preview/MobileControls.tsx",
       "shared/preview/preview.css",
     ],

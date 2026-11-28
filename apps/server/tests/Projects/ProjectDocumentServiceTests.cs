@@ -31,7 +31,7 @@ public sealed class ProjectDocumentServiceTests
             "room-doors-1-module-v1", "display-cube-v1", "display-full-glass-case-v1", "display-half-glass-case-v1",
             "display-one-sided-glass-case-v1", "display-rectangle-stand-v1", "display-rectangle-panel-v1",
             "display-square-stand-v1", "display-square-panel-v1", "furniture-modern-bench-1-v1",
-            "furniture-modern-bench-2-v1", "library-untitled-v1"];
+            "furniture-modern-bench-2-v1", "library-untitled-v1", "trigger-crate-v1"];
         var furnished = scene with
         {
             EnvironmentAssetId = "room-doors-1-2-v1",
