@@ -6,19 +6,15 @@ import type { PlacementBody } from "./placement-constraints";
 
 const FLOOR_EPSILON = 0.0001;
 
-export type ModelPlacementBody = PlacementBody & {
-  floorAtTransform?: ReturnType<typeof createPlacementFloor>["atTransform"];
-};
-
 export function placementBody(
   id: string,
   transform: Transform,
   model: THREE.Object3D,
   asset: CatalogueAsset,
   roomModel = isStarterRoomModelAsset(asset),
-): ModelPlacementBody {
+): PlacementBody {
   const bounds = visibleModelBounds(model);
-  const body: ModelPlacementBody = { id, transform, bounds };
+  const body: PlacementBody = { id, transform, bounds };
   if (asset.kind === "environment" || roomModel) {
     const interior = bounds.clone();
     model.traverse((node) => {
@@ -93,7 +89,6 @@ function clipFloorEdge(polygon: THREE.Vector3[], axis: "x" | "z", edge: number, 
 function createPlacementFloor(model: THREE.Object3D, bounds: THREE.Box3) {
   const faces: { triangle: THREE.Triangle; supporting: boolean }[] = [];
   let lowest = Infinity;
-  const floorBand = bounds.min.y + Math.max(0.35, (bounds.max.y - bounds.min.y) * 0.1);
   model.updateWorldMatrix(true, true);
   model.traverseVisible((node) => {
     if (!(node instanceof THREE.Mesh)) return;
@@ -104,8 +99,6 @@ function createPlacementFloor(model: THREE.Object3D, bounds: THREE.Box3) {
       new THREE.Vector3().fromBufferAttribute(vertices, i).applyMatrix4(node.matrixWorld),
     );
     const vertex = (i: number) => points[geometry.index ? geometry.index.getX(i) : i]!;
-    let namedFloor: THREE.Object3D | null = node;
-    while (namedFloor && !/^floor(?:_\d+)?$/i.test(namedFloor.name)) namedFloor = namedFloor.parent;
     const candidates: { triangle: THREE.Triangle; up: number }[] = [];
     const normal = new THREE.Vector3();
     let signedVolume = 0;
@@ -116,10 +109,8 @@ function createPlacementFloor(model: THREE.Object3D, bounds: THREE.Box3) {
       const triangle = new THREE.Triangle(a, b, c);
       const up = triangle.getNormal(normal).y;
       signedVolume += up * triangle.getArea() * ((a.y + b.y + c.y) / 3 - bounds.min.y);
-      const high = Math.max(a.y, b.y, c.y);
-      if (!namedFloor && high > floorBand) continue;
-      const sloped = high - Math.min(a.y, b.y, c.y) > FLOOR_EPSILON;
-      candidates.push({ triangle, up: namedFloor || !sloped ? up : 0 });
+      const belowRoomTop = Math.min(a.y, b.y, c.y) < bounds.max.y - FLOOR_EPSILON;
+      candidates.push({ triangle, up: belowRoomTop ? up : 0 });
     }
     // A closed mesh's signed volume identifies its outward winding, including mirrored imports.
     const open = Math.abs(signedVolume) <= FLOOR_EPSILON ** 3;

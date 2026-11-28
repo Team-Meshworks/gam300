@@ -15,8 +15,13 @@ import {
   roomLayoutTransform,
 } from "../../shared/project/room-placement";
 import { fitDisplayedObject } from "./fit-displayed-object";
-import { placementBody, type ModelPlacementBody } from "./placement-body";
-import { resolveObjectPlacement, placementMatrix, placementSupport } from "./placement-constraints";
+import { placementBody } from "./placement-body";
+import {
+  resolveObjectPlacement,
+  placementMatrix,
+  placementSupport,
+  type PlacementBody,
+} from "./placement-constraints";
 import { roomAtPosition } from "./room-at-position";
 import { createDisplayContent } from "./display-content";
 import { createExhibitAppearance } from "./exhibit-appearance";
@@ -376,7 +381,7 @@ export function initScene(
   }
   const hotspotSprites = new Map<string, THREE.Sprite>();
   const bounds = new Map<string, THREE.Box3>();
-  const placementShapes = new Map<string, { model: THREE.Object3D; shape: ModelPlacementBody }>();
+  const placementShapes = new Map<string, { model: THREE.Object3D; shape: PlacementBody }>();
   const lastValidTransforms = new Map<string, { before: Transform; after: Transform }>();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   let drag:
@@ -868,7 +873,7 @@ export function initScene(
     id: string,
     assetId: string | null,
     transform: Transform,
-  ): ModelPlacementBody | undefined {
+  ): PlacementBody | undefined {
     if (assetId === null) return;
     const model = models.get(assetId);
     const asset = assets.find((entry) => entry.id === assetId);
@@ -884,7 +889,7 @@ export function initScene(
     return { ...cached.shape, id, transform };
   }
 
-  function collisionBodies(): ModelPlacementBody[] {
+  function collisionBodies(): PlacementBody[] {
     const result = objects.flatMap((object) => {
       if ((object as Partial<ContentObject>).visible === false) return [];
       const body = bodyFor(object.id, object.assetId, object.transform);
@@ -1026,27 +1031,10 @@ export function initScene(
     if (!body) return;
     const bodies = collisionBodies();
     if (body.room) return resolveObjectPlacement(body, transform, bodies, "release");
-    const roomId = getRoomAtPosition(position, bodies);
-    const room = bodies.find((entry) => entry.id === roomId);
-    if (!room && bodies.some((entry) => entry.room)) return;
-    const floor = room?.floorAtTransform?.(placementMatrix(room.transform));
+    if (bodies.some((entry) => entry.room) && !getRoomAtPosition(position, bodies)) return;
     const [x, y, z] = position;
-    const supportAt = (px: number, pz: number) =>
-      floor ? floor.supportHeight(px, y, pz, body.bounds) : y;
-    const supportY = supportAt(x, z);
-    if (supportY === undefined) return;
-    const seated: Transform = { ...transform, position: [x, supportY - body.bounds.min.y, z] };
-    const resolved = resolveObjectPlacement(
-      { ...body, transform: seated },
-      seated,
-      bodies,
-      "release",
-    );
-    if (!resolved) return;
-    const [placedX, placedY, placedZ] = resolved.position;
-    const minY = placedX === x && placedZ === z ? supportY : supportAt(placedX, placedZ);
-    if (minY === undefined || placedY + body.bounds.min.y < minY - 1e-5) return;
-    return resolved;
+    const seated: Transform = { ...transform, position: [x, y - body.bounds.min.y, z] };
+    return resolveObjectPlacement({ ...body, transform: seated }, seated, bodies, "release", y);
   }
 
   function getRoomAtPosition(position: Vector3Tuple, bodies = collisionBodies()): string | null {
