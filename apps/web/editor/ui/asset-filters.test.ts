@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import {
+  activeTag,
+  anyTag,
   filterAssets,
   filterOptions,
   loadFavourites,
   saveFavourites,
+  tagOptions,
   toggleFavourite,
 } from "./asset-filters";
 
@@ -87,5 +90,16 @@ describe("asset tags", () => {
     ]);
     // A tag filter still narrows the active search rather than replacing it
     expect(filterAssets(tagged, "all", [], "tin", "Early Singapore")).toEqual([]);
+  });
+
+  it("treats a real tag named all as a tag, not as every tag", () => {
+    const items: CatalogueAsset[] = [
+      { ...asset("tagged crate", "Objects"), tags: ["all"] },
+      asset("plain crate", "Objects"),
+    ];
+    expect(tagOptions(items).map(({ value }) => value)).toEqual([anyTag, "all"]);
+    expect(activeTag(items, "all")).toBe("all");
+    expect(filterAssets(items, "all", [], "", "all").map(({ id }) => id)).toEqual(["tagged crate"]);
+    expect(filterAssets(items, "all", [], "", anyTag)).toHaveLength(2);
   });
 });

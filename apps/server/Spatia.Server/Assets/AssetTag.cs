@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Spatia.Server.Assets;
 
 /// <summary>One shared catalogue tag that administrators can attach to assets</summary>
@@ -37,14 +39,15 @@ public static class AssetTags
             return null;
         var name = string.Join(' ', tag.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         return name.Length is > 0 and <= MaxLength && Key(name).Length > 0
-            && name.All(character => char.IsLetterOrDigit(character) || character is ' ' or '-' or '\'' or '&' or '(' or ')' or '.' or ',')
+            // Whole code points, so supplementary letters such as CJK Extension B match the browser's \p{L}
+            && name.EnumerateRunes().All(rune => Rune.IsLetterOrDigit(rune) || rune.Value is ' ' or '-' or '\'' or '&' or '(' or ')' or '.' or ',')
             ? name
             : null;
     }
 
     /// <summary>Case, spacing and punctuation never distinguish two tags</summary>
     public static string Key(string name) =>
-        new(name.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+        string.Concat(name.EnumerateRunes().Where(Rune.IsLetterOrDigit).Select(rune => Rune.ToLowerInvariant(rune).ToString()));
 
     /// <summary>Normalises a request, merging duplicates in order, or returns null when any tag is invalid</summary>
     public static string[]? Read(IReadOnlyCollection<string?>? tags)

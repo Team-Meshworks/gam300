@@ -78,6 +78,12 @@ export interface AssetAdministrationService {
     details: AssetDetails,
     signal: AbortSignal,
   ): Promise<AssetAdministrationResult<AssetCandidate>>;
+  // Names only the tag, so the server removes it from the asset's current tags without resending other details
+  removeTag(
+    id: string,
+    tag: string,
+    signal: AbortSignal,
+  ): Promise<AssetAdministrationResult<AssetCandidate>>;
   review(
     id: string,
     input: { source: string; license: string; reviewNotes: string },

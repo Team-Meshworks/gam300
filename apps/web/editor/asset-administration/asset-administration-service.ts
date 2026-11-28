@@ -304,6 +304,13 @@ export function createAssetAdministrationService(
         headers: { "Content-Type": "application/json" },
       }),
 
+    removeTag: (id, tag, signal) =>
+      request(`${base}/${encodeURIComponent(id)}/tags/remove`, signal, isCandidate, {
+        method: "POST",
+        body: JSON.stringify({ tag }),
+        headers: { "Content-Type": "application/json" },
+      }),
+
     // Approval records the human decision; a successful upload never calls this automatically
     review: (id, input, signal) =>
       request(`${base}/${encodeURIComponent(id)}/approve`, signal, isCandidate, {

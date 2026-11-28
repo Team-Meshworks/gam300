@@ -53,7 +53,9 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         if (tags.Length == 0)
             return [];
         var now = DateTimeOffset.UtcNow;
-        foreach (var name in tags)
+        // Insert in key order so two edits adding the same new tags in opposite orders cannot deadlock;
+        // the result below still follows the requested display order
+        foreach (var name in tags.OrderBy(AssetTags.Key, StringComparer.Ordinal))
         {
             var key = AssetTags.Key(name);
             await database.Database.ExecuteSqlInterpolatedAsync(
@@ -151,6 +153,25 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
                     update.SetProperty(asset => asset.Tags, tags);
             }, token);
         return changed == 1 ? await ReadRecordAsync(id, token) : null;
+    }
+
+    // Takes one tag off whatever the asset holds now, so a stale dialog cannot overwrite newer edits
+    public async Task<AssetAdministrationRecord?> RemoveTagAsync(Guid id, string tag, CancellationToken token)
+    {
+        var current = await database.AssetCandidates
+            .FromSqlInterpolated($"SELECT * FROM asset_candidates WHERE id = {id} FOR NO KEY UPDATE")
+            .Where(asset => !asset.Deleted).Select(asset => asset.Tags).SingleOrDefaultAsync(token);
+        if (current is null)
+            return null;
+
+        var key = AssetTags.Key(tag);
+        var remaining = current.Where(name => AssetTags.Key(name) != key).ToArray();
+        if (remaining.Length != current.Length)
+        {
+            await database.AssetCandidates.Where(asset => asset.Id == id)
+                .ExecuteUpdateAsync(update => update.SetProperty(asset => asset.Tags, remaining), token);
+        }
+        return await ReadRecordAsync(id, token);
     }
 
     // Changing media type creates a new validated version. Saved projects can still use the original ID and bytes.

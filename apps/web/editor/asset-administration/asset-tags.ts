@@ -6,7 +6,11 @@ export function tagKey(name: string): string {
 const ALLOWED = /^[\p{L}\p{Nd} \-'&().,]+$/u;
 
 export function normalizeTag(input: string, maxLength: number): string | null {
-  const name = input.trim().replace(/\s+/g, " ");
+  // Split on Unicode White_Space like the server, rather than \s, which also eats U+FEFF
+  const name = input
+    .split(/\p{White_Space}+/u)
+    .filter(Boolean)
+    .join(" ");
   return name.length > 0 && name.length <= maxLength && ALLOWED.test(name) && tagKey(name)
     ? name
     : null;

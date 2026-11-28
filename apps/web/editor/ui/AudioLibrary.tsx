@@ -5,6 +5,7 @@ import { AssetFilterSelect } from "./AssetFilterSelect";
 import { AssetTagList } from "./AssetTagList";
 import {
   activeTag,
+  anyTag,
   loadFavourites,
   saveFavourites,
   tagOptions,
@@ -35,7 +36,7 @@ export function AudioLibrary({
   const [query, setQuery] = useState("");
   const initialFilter = mode === "background" ? "BGM" : "all";
   const [filter, setFilter] = useState(initialFilter);
-  const [tagChoice, setTagChoice] = useState("all");
+  const [tagChoice, setTagChoice] = useState(anyTag);
   const [favourites, setFavourites] = useState(loadFavourites);
   const [error, setError] = useState("");
   // Background music keeps its category; spatial sources can use any approved clip
@@ -53,7 +54,7 @@ export function AudioLibrary({
     (asset) =>
       (asset.name.toLowerCase().includes(search) ||
         (asset.tags ?? []).some((name) => name.toLowerCase().includes(search))) &&
-      (tag === "all" || (asset.tags ?? []).includes(tag)) &&
+      (tag === anyTag || (asset.tags ?? []).includes(tag)) &&
       (filter === "all" ||
         (filter === "favourites" ? favourites.includes(asset.id) : asset.category === filter)),
   );
@@ -175,11 +176,11 @@ export function AudioLibrary({
           className="ui-button asset-picker-reset"
           type="button"
           aria-label="Reset audio filters"
-          disabled={!query && filter === "all" && tag === "all"}
+          disabled={!query && filter === "all" && tag === anyTag}
           onClick={() => {
             setQuery("");
             setFilter("all");
-            setTagChoice("all");
+            setTagChoice(anyTag);
           }}
         >
           Reset

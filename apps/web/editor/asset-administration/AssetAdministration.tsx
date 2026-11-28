@@ -76,7 +76,8 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [query, setQuery] = useState("");
-  const [tagFilter, setTagFilter] = useState("all");
+  // Empty means every tag; no real tag is empty, so a tag named "all" still filters
+  const [tagFilter, setTagFilter] = useState("");
   const [tab, setTab] = useState("all");
   const [selection, setSelection] = useState<Selection>(() => {
     if (initialUpload) return { kind: "upload" };
@@ -209,13 +210,13 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     a.localeCompare(b),
   );
   // A tag removed from its last asset drops out of the menu, so fall back to every tag
-  const activeTag = tagsInUse.includes(tagFilter) ? tagFilter : "all";
+  const activeTag = tagsInUse.includes(tagFilter) ? tagFilter : "";
   const search = query.trim().toLocaleLowerCase();
   const visible = items.filter(
     (asset) =>
       (asset.name.toLocaleLowerCase().includes(search) ||
         (asset.tags ?? []).some((tag) => tag.toLocaleLowerCase().includes(search))) &&
-      (activeTag === "all" || (asset.tags ?? []).includes(activeTag)) &&
+      (activeTag === "" || (asset.tags ?? []).includes(activeTag)) &&
       (tab === "deleted"
         ? asset.deleted
         : !asset.deleted && (tab === "all" || (tab === "hidden" ? asset.hidden : !asset.hidden))),
@@ -238,7 +239,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const loadingDialog = Boolean(selection && loading && !data);
   const title = kind === "environment" ? "All 3D Spaces" : "All Assets";
   const noun = kind === "environment" ? "3D spaces" : "assets";
-  const filtered = query.trim().length > 0 || tab !== "all" || activeTag !== "all";
+  const filtered = query.trim().length > 0 || tab !== "all" || activeTag !== "";
   // Spaces use the small fixed catalogue without category filtering
   const categoryChoices =
     uploadKind === "environment" ? null : (data?.policy.categories[uploadKind] ?? null);
@@ -352,7 +353,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   function checkLibrary() {
     setSelection(null);
     setQuery("");
-    setTagFilter("all");
+    setTagFilter("");
     setTab("all");
     setLoading(true);
     setReload((value) => value + 1);
@@ -413,26 +414,12 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     );
   }
 
-  // Taking one tag off saves straight away and leaves the asset details open
+  // Taking one tag off saves straight away and leaves the asset details open.
+  // Only the tag is sent, so edits another admin made since this dialog opened are kept.
   async function removeTag(asset: AssetCandidate, tag: string) {
     if (locked) return;
     await mutate(
-      (signal) =>
-        service.updateDetails(
-          asset.id,
-          {
-            name: asset.name,
-            kind: asset.kind,
-            category: asset.category ?? null,
-            review: {
-              source: asset.source ?? "",
-              license: asset.license ?? "",
-              reviewNotes: asset.reviewNotes ?? "",
-            },
-            tags: (asset.tags ?? []).filter((other) => other !== tag),
-          },
-          signal,
-        ),
+      (signal) => service.removeTag(asset.id, tag, signal),
       `Removed the ${tag} tag from ${asset.name}.`,
     );
   }
@@ -669,7 +656,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
             label="Filter by tag"
             value={activeTag}
             options={[
-              { value: "all", label: "Tags" },
+              { value: "", label: "Tags" },
               ...tagsInUse.map((tag) => ({ value: tag, label: `Tag: ${tag}` })),
             ]}
             onChange={(value) => {
@@ -903,7 +890,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                   <Button
                     onClick={() => {
                       setQuery("");
-                      setTagFilter("all");
+                      setTagFilter("");
                       setTab("all");
                     }}
                   >

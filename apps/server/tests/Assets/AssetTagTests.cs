@@ -13,6 +13,14 @@ namespace Spatia.Server.Tests;
 public sealed class AssetTagTests
 {
     [Test]
+    public async Task SupplementaryLettersAreValidTagsAsInTheBrowser()
+    {
+        // CJK Extension B sits outside the BMP, so it arrives as a surrogate pair
+        await Assert.That(AssetTags.Normalize("\U00020000 Kampong")).IsEqualTo("\U00020000 Kampong");
+        await Assert.That(AssetTags.Key("\U00020000 Kampong")).IsEqualTo("\U00020000kampong");
+    }
+
+    [Test]
     public async Task AdministratorsTagAssetsReusingExistingTagsAndAddingNewOnes()
     {
         var audio = await File.ReadAllBytesAsync(Path.GetFullPath(
@@ -49,14 +57,23 @@ public sealed class AssetTagTests
         }
 
         // Editing without tags, as an older client would, leaves them unchanged
-        using (var keep = await AuthTestRequests.PutAsync(fixture.Client, path, details with { Tags = null }, await fixture.GetCsrfAsync()))
+        using (var keep = await AuthTestRequests.PutAsync(fixture.Client, path, details with
+        {
+            Tags = null
+        }, await fixture.GetCsrfAsync()))
         {
             await Assert.That((await keep.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!.Tags)
                 .IsEquivalentTo(new[] { "Modern Singapore" });
         }
 
-        using (var invalid = await AuthTestRequests.PutAsync(fixture.Client, path, details with { Tags = ["<bad>"] }, await fixture.GetCsrfAsync()))
+        using (var invalid = await AuthTestRequests.PutAsync(fixture.Client, path, details with
+        {
+            Tags = ["<bad>"]
+        }, await fixture.GetCsrfAsync()))
+        {
             await AuthTestRequests.AssertProblemAsync(invalid, HttpStatusCode.BadRequest, "invalid_asset_input");
+        }
+
         using (var invalidUpload = await UploadAsync(fixture, audio, ["<bad>"]))
             await AuthTestRequests.AssertProblemAsync(invalidUpload, HttpStatusCode.BadRequest, "invalid_asset_input");
 
@@ -67,6 +84,49 @@ public sealed class AssetTagTests
             .Single(item => item.GetProperty("id").GetGuid() == track.Id);
         await Assert.That(entry.GetProperty("tags").EnumerateArray().Select(tag => tag.GetString()!).ToArray())
             .IsEquivalentTo(new[] { "Modern Singapore" });
+    }
+
+    [Test]
+    public async Task RemovingOneTagKeepsNewerEditsFromAnotherAdministrator()
+    {
+        var audio = await File.ReadAllBytesAsync(Path.GetFullPath(
+            "../../../../../../assets/delivery/audio/calm-piano.m4a", AppContext.BaseDirectory));
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Production");
+        var admin = await fixture.CreateAccountAsync(ApplicationRoles.Administrator);
+        await fixture.SignInAsync(admin);
+
+        using var upload = await UploadAsync(fixture, audio, ["Post-war", "Early Singapore"]);
+        var track = (await upload.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+
+        // Another admin renames the asset and adds a tag after this dialog opened with the old details
+        var newer = new AssetDetailsRequest("Renamed piano", "audio", "BGM", new("Archive", "CC0", "Checked"),
+            ["Post-war", "Early Singapore", "Modern Singapore"]);
+        using (var save = await AuthTestRequests.PutAsync(fixture.Client, $"/api/v1/admin/assets/{track.Id}/details", newer, await fixture.GetCsrfAsync()))
+            await Assert.That(save.StatusCode).IsEqualTo(HttpStatusCode.OK);
+
+        // The stale dialog's X names only the tag, so the newer name, provenance and tag survive
+        var path = $"/api/v1/admin/assets/{track.Id}/tags/remove";
+        using (var remove = await AuthTestRequests.PostAsync(fixture, path, new AssetTagRemovalRequest("post war")))
+        {
+            await Assert.That(remove.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            var record = (await remove.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!;
+            await Assert.That(record.Name).IsEqualTo("Renamed piano");
+            await Assert.That(record.Source).IsEqualTo("Archive");
+            await Assert.That(record.Tags).IsEquivalentTo(new[] { "Early Singapore", "Modern Singapore" });
+        }
+
+        // Removing a tag the asset no longer has changes nothing
+        using (var again = await AuthTestRequests.PostAsync(fixture, path, new AssetTagRemovalRequest("Post-war")))
+        {
+            await Assert.That(again.StatusCode).IsEqualTo(HttpStatusCode.OK);
+            await Assert.That((await again.Content.ReadFromJsonAsync<AssetAdministrationRecord>())!.Tags)
+                .IsEquivalentTo(new[] { "Early Singapore", "Modern Singapore" });
+        }
+
+        using (var invalid = await AuthTestRequests.PostAsync(fixture, path, new AssetTagRemovalRequest("<bad>")))
+            await AuthTestRequests.AssertProblemAsync(invalid, HttpStatusCode.BadRequest, "invalid_asset_input");
+        using (var missing = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/assets/{Guid.NewGuid()}/tags/remove", new AssetTagRemovalRequest("Post-war")))
+            await AuthTestRequests.AssertProblemAsync(missing, HttpStatusCode.Conflict, "asset_conflict");
     }
 
     private static async Task<string[]> PolicyTagsAsync(HttpsApplicationFixture fixture)

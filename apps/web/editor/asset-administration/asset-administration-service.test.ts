@@ -806,3 +806,20 @@ it.each(["{", "{}", JSON.stringify({ assetId: candidate.id, operationId: "" })])
     expect(http.requests).toHaveLength(0);
   },
 );
+
+it("removes a tag by naming only that tag, so newer details are not resent", async () => {
+  const http = await serveResponses(
+    Response.json({ requestToken: "token" }),
+    Response.json({ ...candidate, name: "Renamed elsewhere", tags: ["Modern Singapore"] }),
+  );
+  const result = await createAssetAdministrationService(actor, http.fetch).removeTag(
+    candidate.id,
+    "Post-war",
+    new AbortController().signal,
+  );
+  expect(result.ok && result.value.name).toBe("Renamed elsewhere");
+  const sent = http.requests[1]!;
+  expect(new URL(sent.url).pathname).toBe(`/api/v1/admin/assets/${candidate.id}/tags/remove`);
+  expect(sent.method).toBe("POST");
+  expect(await sent.json()).toEqual({ tag: "Post-war" });
+});

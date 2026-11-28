@@ -5,6 +5,7 @@ import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/c
 import { playUiSound } from "../audio/ui-sounds";
 import {
   activeTag,
+  anyTag,
   categoryOf,
   filterAssets,
   filterOptions,
@@ -74,7 +75,7 @@ export function AssetPicker({
   useEffect(() => () => onChoose?.(null), [onChoose]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AssetFilter>("all");
-  const [tagChoice, setTagChoice] = useState("all");
+  const [tagChoice, setTagChoice] = useState(anyTag);
   const tags = tagOptions(assets);
   const tag = activeTag(assets, tagChoice);
   const [favourites, setFavourites] = useState<string[]>(loadFavourites);
@@ -149,12 +150,12 @@ export function AssetPicker({
           className="ui-button asset-picker-reset"
           type="button"
           aria-label={furniture ? "Reset furniture filters" : "Reset asset filters"}
-          disabled={query === "" && filter === "all" && tag === "all"}
+          disabled={query === "" && filter === "all" && tag === anyTag}
           onClick={() => {
             // Clear browsing restrictions without losing the selected card or changing the scene
             setQuery("");
             setFilter("all");
-            setTagChoice("all");
+            setTagChoice(anyTag);
           }}
         >
           Reset

@@ -100,6 +100,29 @@ public static partial class AssetAdministrationEndpoints
             return Results.Ok(record);
         }).WithMetadata(new RequestSizeLimitAttribute(40 * 1024));
 
+        // One-click removal names only the tag, leaving every newer field and tag on the asset as it is
+        group.MapPost("/{id:guid}/tags/remove", async (Guid id, AssetTagRemovalRequest request, HttpContext context,
+            AssetAdministrationService service, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
+        {
+            if (AssetTags.Normalize(request.Tag) is not { } tag)
+                return Invalid(context);
+
+            await using var transaction = await database.Database.BeginTransactionAsync(token);
+            if (await RecheckAdministratorAsync(context, access, token) is { } denied)
+                return denied;
+
+            var record = await service.RemoveTagAsync(id, tag, token);
+            if (await RecheckAdministratorAsync(context, access, token) is { } changed)
+                return changed;
+            if (record is null)
+                return ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before editing it");
+
+            await transaction.CommitAsync(token);
+            if (await RecheckAdministratorAsync(context, access, token) is not null)
+                return CommittedWrite.WithoutRepresentation(context);
+            return Results.Ok(record);
+        }).WithMetadata(new RequestSizeLimitAttribute(4 * 1024));
+
         // Allow the bounded review fields even when JSON escapes non-ASCII text
         group.MapPost("/{id:guid}/approve", async (Guid id, AssetReviewRequest request, HttpContext context,
             AssetAdministrationService service, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
