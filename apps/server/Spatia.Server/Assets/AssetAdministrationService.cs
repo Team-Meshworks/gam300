@@ -26,6 +26,7 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             CatalogueSource = asset.CatalogueSource,
             CatalogueLicense = asset.CatalogueLicense,
             CatalogueReviewNotes = asset.CatalogueReviewNotes,
+            Tags = asset.Tags,
             Sha256 = asset.Sha256,
             Bytes = Array.Empty<byte>(),
             Status = asset.Status,
@@ -42,18 +43,41 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
     public async Task<AssetAdministrationRecord[]> ListAsync(CancellationToken token) =>
         (await CandidateMetadata.OrderByDescending(asset => asset.CreatedAt).Take(AssetIntakePolicy.CatalogueLimit).ToArrayAsync(token)).Select(Record).ToArray();
 
+    public async Task<string[]> ListTagsAsync(CancellationToken token) =>
+        await database.CatalogueTags.AsNoTracking().OrderBy(tag => tag.Name).Select(tag => tag.Name).ToArrayAsync(token);
+
+    // Unknown tags join the shared list; a matching key reuses the existing spelling instead.
+    // Concurrent admins adding the same new tag both end up with the one stored row.
+    internal async Task<string[]> ResolveTagsAsync(string[] tags, Guid actor, CancellationToken token)
+    {
+        if (tags.Length == 0)
+            return [];
+        var now = DateTimeOffset.UtcNow;
+        foreach (var name in tags)
+        {
+            var key = AssetTags.Key(name);
+            await database.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO asset_tags (key, name, created_by, created_at) VALUES ({key}, {name}, {actor}, {now}) ON CONFLICT (key) DO NOTHING", token);
+        }
+        var keys = tags.Select(AssetTags.Key).ToArray();
+        var stored = await database.CatalogueTags.AsNoTracking().Where(tag => keys.Contains(tag.Key))
+            .ToDictionaryAsync(tag => tag.Key, tag => tag.Name, token);
+        return keys.Select(key => stored[key]).ToArray();
+    }
+
     internal async Task<AssetAdministrationRecord> ReadRecordAsync(Guid id, CancellationToken token) =>
         Record(await CandidateMetadata.SingleAsync(asset => asset.Id == id, token));
 
     public async Task<(AssetAdministrationRecord? Record, bool Created, bool QuotaExceeded)?> SubmitAsync(string name, string kind, string? category,
-        byte[] bytes, Guid actor, AssetReviewRequest? metadata, CancellationToken token, string? displayName = null)
+        byte[] bytes, Guid actor, AssetReviewRequest? metadata, CancellationToken token, string? displayName = null, string[]? tags = null)
     {
         if (database.Database.CurrentTransaction is null)
             throw new InvalidOperationException("Asset uploads require a caller-owned transaction.");
 
         // Repeat input bounds here because the service can be called outside the HTTP upload handler
+        var requestedTags = AssetTags.Read(tags);
         if (!AssetIntakePolicy.Accepts(name, kind, category) || (displayName is not null && !AssetIntakePolicy.ValidDisplayName(displayName))
-            || bytes.Length is < 1 or > AssetIntakePolicy.MaxBytes || actor == Guid.Empty)
+            || bytes.Length is < 1 or > AssetIntakePolicy.MaxBytes || actor == Guid.Empty || requestedTags is null)
         {
             return null;
         }
@@ -82,12 +106,14 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
             return (null, false, true);
 
         // New candidates alone consume quota and receive an immutable ID and the submitted provenance.
+        var storedTags = await ResolveTagsAsync(requestedTags, actor, token);
         var asset = new AssetCandidate
         {
             Id = Guid.NewGuid(),
             Name = label,
             Kind = kind,
             Category = category,
+            Tags = storedTags,
             Sha256 = digest,
             Bytes = bytes,
             Status = validation.Value.Valid ? "approved" : "invalid",
@@ -106,15 +132,24 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         return (Record(asset), true, false);
     }
 
-    public async Task<AssetAdministrationRecord?> UpdateDetailsAsync(Guid id, AssetDetailsRequest details, CancellationToken token)
+    public async Task<AssetAdministrationRecord?> UpdateDetailsAsync(Guid id, AssetDetailsRequest details, Guid actor, CancellationToken token)
     {
+        // Omitted tags leave the asset's tags unchanged for clients that predate tagging
+        var requestedTags = details.Tags is null ? null : AssetTags.Read(details.Tags) ?? throw new ArgumentException("Invalid tags", nameof(details));
+        if (!await database.AssetCandidates.AnyAsync(asset => asset.Id == id && !asset.Deleted && asset.Kind == details.Kind, token))
+            return null;
+        var tags = requestedTags is null ? null : await ResolveTagsAsync(requestedTags, actor, token);
         var changed = await database.AssetCandidates.Where(asset => asset.Id == id && !asset.Deleted && asset.Kind == details.Kind)
-            .ExecuteUpdateAsync(update => update
-                .SetProperty(asset => asset.CatalogueName, details.Name.Trim())
-                .SetProperty(asset => asset.CatalogueCategory, details.Category)
-                .SetProperty(asset => asset.CatalogueSource, details.Review.Source ?? "")
-                .SetProperty(asset => asset.CatalogueLicense, details.Review.License ?? "")
-                .SetProperty(asset => asset.CatalogueReviewNotes, details.Review.ReviewNotes ?? ""), token);
+            .ExecuteUpdateAsync(update =>
+            {
+                update.SetProperty(asset => asset.CatalogueName, details.Name.Trim())
+                    .SetProperty(asset => asset.CatalogueCategory, details.Category)
+                    .SetProperty(asset => asset.CatalogueSource, details.Review.Source ?? "")
+                    .SetProperty(asset => asset.CatalogueLicense, details.Review.License ?? "")
+                    .SetProperty(asset => asset.CatalogueReviewNotes, details.Review.ReviewNotes ?? "");
+                if (tags is not null)
+                    update.SetProperty(asset => asset.Tags, tags);
+            }, token);
         return changed == 1 ? await ReadRecordAsync(id, token) : null;
     }
 
@@ -243,5 +278,5 @@ public sealed class AssetAdministrationService(ApplicationDbContext database, As
         JsonSerializer.Deserialize<string[]>(asset.ValidationJson) ?? [],
         asset.Deleted ? (asset.RemovedFromProjects || asset.Status != "approved" ? [] : ["remove"])
             : asset.Status == "approved" ? [asset.Hidden ? "show" : "hide", "delete"] : ["delete"], asset.Sha256, asset.CatalogueSource ?? asset.Source,
-        asset.CatalogueLicense ?? asset.License, asset.CatalogueReviewNotes ?? asset.ReviewNotes, $"{ApiV1Endpoints.Prefix}/admin/assets/{asset.Id}/bytes");
+        asset.CatalogueLicense ?? asset.License, asset.CatalogueReviewNotes ?? asset.ReviewNotes, $"{ApiV1Endpoints.Prefix}/admin/assets/{asset.Id}/bytes", asset.Tags);
 }

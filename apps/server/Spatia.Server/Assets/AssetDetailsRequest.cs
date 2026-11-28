@@ -1,3 +1,4 @@
 namespace Spatia.Server.Assets;
 
-public sealed record AssetDetailsRequest(string Name, string Kind, string? Category, AssetReviewRequest Review);
+// Tags are optional so an older client leaves existing tags untouched
+public sealed record AssetDetailsRequest(string Name, string Kind, string? Category, AssetReviewRequest Review, string[]? Tags = null);

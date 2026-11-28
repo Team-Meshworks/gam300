@@ -47,6 +47,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     /// <summary>Gets private candidates and retained approved asset versions</summary>
     public DbSet<AssetCandidate> AssetCandidates => Set<AssetCandidate>();
+    /// <summary>Gets the shared catalogue tags administrators attach to assets</summary>
+    public DbSet<AssetTag> CatalogueTags => Set<AssetTag>();
     /// <summary>Gets organization-owned classes.</summary>
     public DbSet<Classroom> Classrooms => Set<Classroom>();
 
@@ -87,6 +89,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     {
         base.OnModelCreating(builder);
         builder.ApplyConfiguration(new AssetCandidateConfiguration());
+        builder.ApplyConfiguration(new AssetTagConfiguration());
         builder.ApplyConfiguration(new AssetRemovalReceiptConfiguration());
         builder.ApplyConfiguration(new BulkImportReceiptConfiguration());
         builder.ApplyConfiguration(new CreationReceiptConfiguration());

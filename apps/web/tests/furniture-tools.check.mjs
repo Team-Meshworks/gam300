@@ -52,7 +52,7 @@ try {
     assert.ok((await picture.getAttribute("src")).includes(`modern-bench-${index + 1}.png`));
     if (index === 0) {
       const filter = library.getByRole("combobox", { name: "Filter furniture" });
-      assert.equal(await filter.textContent(), "All furniture");
+      assert.equal(await filter.textContent(), "Filters");
       await checkFilterPosition();
       await library.getByRole("searchbox", { name: "Search furniture" }).fill("bench 2");
       assert.equal(await option.count(), 0);

@@ -2,7 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import type { CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import type { ValidationResult } from "../../shared/project/validation-helpers";
 import { AssetFilterSelect } from "./AssetFilterSelect";
-import { loadFavourites, saveFavourites, toggleFavourite } from "./asset-filters";
+import { AssetTagList } from "./AssetTagList";
+import {
+  activeTag,
+  loadFavourites,
+  saveFavourites,
+  tagOptions,
+  toggleFavourite,
+} from "./asset-filters";
 import { Icon } from "./Icon";
 import selectedRail from "./assets/editor-video-selected-bg.svg?no-inline";
 import "./audio-library.css";
@@ -28,6 +35,7 @@ export function AudioLibrary({
   const [query, setQuery] = useState("");
   const initialFilter = mode === "background" ? "BGM" : "all";
   const [filter, setFilter] = useState(initialFilter);
+  const [tagChoice, setTagChoice] = useState("all");
   const [favourites, setFavourites] = useState(loadFavourites);
   const [error, setError] = useState("");
   // Background music keeps its category; spatial sources can use any approved clip
@@ -37,9 +45,15 @@ export function AudioLibrary({
   const categories = [
     ...new Set(tracks.flatMap((asset) => (asset.category ? [asset.category] : []))),
   ];
+  const tags = tagOptions(tracks);
+  const tag = activeTag(tracks, tagChoice);
+  const search = query.trim().toLowerCase();
+  // The tag menu and the category filter each narrow the search on their own
   const shown = tracks.filter(
     (asset) =>
-      asset.name.toLowerCase().includes(query.trim().toLowerCase()) &&
+      (asset.name.toLowerCase().includes(search) ||
+        (asset.tags ?? []).some((name) => name.toLowerCase().includes(search))) &&
+      (tag === "all" || (asset.tags ?? []).includes(tag)) &&
       (filter === "all" ||
         (filter === "favourites" ? favourites.includes(asset.id) : asset.category === filter)),
   );
@@ -133,11 +147,20 @@ export function AudioLibrary({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
+          {/* Tags sit left of the filters and only appear once a track is tagged */}
+          {tags.length > 1 && (
+            <AssetFilterSelect
+              label="Filter audio by tag"
+              value={tag}
+              options={tags}
+              onChange={setTagChoice}
+            />
+          )}
           <AssetFilterSelect
             label="Filter audio"
             value={filter}
             options={[
-              { value: "all", label: "All audio" },
+              { value: "all", label: "Filters" },
               { value: "favourites", label: "Favourites" },
               ...categories.map((category) => ({
                 value: category,
@@ -152,10 +175,11 @@ export function AudioLibrary({
           className="ui-button asset-picker-reset"
           type="button"
           aria-label="Reset audio filters"
-          disabled={!query && filter === "all"}
+          disabled={!query && filter === "all" && tag === "all"}
           onClick={() => {
             setQuery("");
             setFilter("all");
+            setTagChoice("all");
           }}
         >
           Reset
@@ -191,6 +215,7 @@ export function AudioLibrary({
                   <span className="asset-card-info">
                     <span className="asset-tag">{asset.category}</span>
                     <span className="asset-name">{asset.name}</span>
+                    <AssetTagList tags={asset.tags} />
                   </span>
                 </button>
                 <button
@@ -222,7 +247,7 @@ export function AudioLibrary({
           <p className="panel-empty asset-picker-empty" role="status">
             {query || filter === "favourites"
               ? "No audio matches this search and filter."
-              : "No clips in this category yet. Choose All audio to browse available clips."}
+              : "No clips in this category yet. Choose Filters to browse available clips."}
           </p>
         )}
       </div>

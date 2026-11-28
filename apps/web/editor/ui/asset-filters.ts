@@ -1,5 +1,6 @@
 import {
   assetCategories,
+  catalogueTags,
   searchAssets,
   type CatalogueAsset,
 } from "../../shared/asset-runtime/catalogue";
@@ -21,7 +22,7 @@ export function filterOptions(
   const categories = assetCategories.slice(1);
   // Derive availability from the whole catalogue so typing a query never reshuffles the menu
   return [
-    { value: "all", label: "All assets" },
+    { value: "all", label: "Filters" },
     { value: "favourites", label: "Favourites" },
     ...categories.map((name) => ({
       value: `category:${name}`,
@@ -31,20 +32,33 @@ export function filterOptions(
   ];
 }
 
+// Tags have their own menu beside the filters; they come from the assets, so new tags appear as soon as something uses them
+export function tagOptions(assets: readonly CatalogueAsset[]): { value: string; label: string }[] {
+  return [
+    { value: "all", label: "Tags" },
+    ...catalogueTags(assets).map((tag) => ({ value: tag, label: tag })),
+  ];
+}
+
+// A tag removed from its last asset drops out of the menu, so fall back to every tag
+export function activeTag(assets: readonly CatalogueAsset[], tag: string): string {
+  return tag !== "all" && catalogueTags(assets).includes(tag) ? tag : "all";
+}
+
 export function filterAssets(
   assets: readonly CatalogueAsset[],
   filter: AssetFilter,
   favourites: readonly string[],
   query = "",
+  tag = "all",
 ): CatalogueAsset[] {
   // Share literal name/category matching with the existing library behavior and preserve catalogue order
   const category = filter.startsWith("category:") ? filter.slice("category:".length) : "All";
   const matches = searchAssets(assets, query, category);
 
-  // Favourites narrow the same results rather than bypassing the active search
-  return filter === "favourites"
-    ? matches.filter((asset) => favourites.includes(asset.id))
-    : matches;
+  // Favourites and the tag menu narrow the same results rather than bypassing the active search
+  const tagged = tag === "all" ? matches : matches.filter((asset) => asset.tags?.includes(tag));
+  return filter === "favourites" ? tagged.filter((asset) => favourites.includes(asset.id)) : tagged;
 }
 
 export function toggleFavourite(favourites: readonly string[], id: string): string[] {

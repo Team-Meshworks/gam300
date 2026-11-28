@@ -1502,3 +1502,153 @@ html.asset-admin-preview-page,
 .asset-admin .asset-admin-bulk-outcome {
   margin-bottom: 12px;
 }
+
+/* Tags span the full form width; chips toggle shared tags and the input adds new ones */
+.asset-admin-tags {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 8px;
+  font: var(--aa-text-body)/1.4 var(--aa-font);
+}
+.asset-admin-tags > legend {
+  margin-bottom: 8px;
+  padding: 0;
+  color: var(--aa-dialog-muted);
+  font-weight: 600;
+}
+.asset-admin-tag-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.asset-admin-tag {
+  padding: 6px 14px;
+  border: 1px solid var(--aa-dialog-border);
+  border-radius: 999px;
+  background: var(--aa-paper);
+  color: var(--aa-heading);
+  font: 600 var(--aa-text-small)/1.3 var(--aa-font);
+  cursor: pointer;
+}
+.asset-admin-tag[aria-pressed="true"] {
+  border-color: var(--aa-primary);
+  background: var(--aa-primary);
+  color: var(--aa-paper);
+}
+.asset-admin-tag:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+/* The toolbar tag menu sits between the tabs and Add; its label is read aloud but not shown */
+.asset-admin-tag-filter {
+  flex: 0 1 220px;
+  margin-left: auto;
+}
+.asset-admin-tag-filter > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Chosen tags read as bubbles everywhere; the X takes one tag off the asset */
+.asset-admin-tag-bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.asset-admin-tag-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 12px;
+  border: 1px solid var(--aa-primary);
+  border-radius: 999px;
+  background: var(--aa-primary);
+  color: var(--aa-paper);
+  font: 600 var(--aa-text-small)/1.3 var(--aa-font);
+}
+.asset-admin-tag-bubble:not(:has(button)) {
+  padding-right: 12px;
+}
+.asset-admin-tag-bubble > button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.asset-admin-tag-bubble > button:hover:not(:disabled),
+.asset-admin-tag-bubble > button:focus-visible {
+  background: color-mix(in srgb, var(--aa-paper) 25%, transparent);
+}
+.asset-admin-tag-bubble > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+/* The details row matches the other read-only fields, with bubbles in place of text */
+.asset-admin-tag-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid var(--aa-dialog-border);
+  border-radius: 20px;
+  background: var(--aa-paper);
+}
+.asset-admin-tag-none {
+  color: var(--aa-heading);
+  font-weight: 600;
+}
+.asset-admin-tag-field > button {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--aa-muted);
+  cursor: pointer;
+}
+.asset-admin-tag-field > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.asset-admin-tag-add {
+  display: flex;
+  gap: 8px;
+}
+.asset-admin-tag-add > input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--aa-dialog-border);
+  border-radius: 20px;
+  background: var(--aa-paper);
+  color: var(--aa-heading);
+  font: 500 var(--aa-text-body)/1.4 var(--aa-font);
+}
+.asset-admin-tag-hint {
+  margin: 0;
+  color: var(--aa-dialog-muted);
+  font-size: var(--aa-text-small);
+}
