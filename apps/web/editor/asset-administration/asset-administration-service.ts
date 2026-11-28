@@ -222,6 +222,12 @@ export function createAssetAdministrationService(
         kind: "unavailable",
         message: "The server is handling too many requests. Wait a moment, then try again.",
       };
+    if (code === "asset_stale")
+      return {
+        ok: false,
+        kind: "invalid",
+        message: "Another administrator changed this asset. Reload it before saving.",
+      };
     if (code === "invalid_replacement")
       return { ok: false, kind: "invalid", message: "Choose a valid file for the new asset type." };
     if (code === "replacement_exists")
@@ -274,7 +280,7 @@ export function createAssetAdministrationService(
         return { ok: false, kind: "unavailable", message: "Download failed. Please try again" };
       }
     },
-    submit: ({ file, name, kind, category, review, replaces }, signal) => {
+    submit: ({ file, name, kind, category, review, tags = [], replaces }, signal) => {
       const query = new URLSearchParams({ name: file.name, kind });
       if (name !== undefined) query.set("displayName", name);
       if (replaces) query.set("replaces", replaces);
@@ -282,6 +288,8 @@ export function createAssetAdministrationService(
       if (category !== null) {
         query.set("category", category);
       }
+      // One value per tag, so commas or other punctuation in a tag survive unchanged
+      for (const tag of tags) query.append("tags", tag);
       return request(`${base}?${query}`, signal, isCandidate, {
         method: "POST",
         body: file,
@@ -300,6 +308,13 @@ export function createAssetAdministrationService(
       request(`${base}/${encodeURIComponent(id)}/details`, signal, isCandidate, {
         method: "PUT",
         body: JSON.stringify(details),
+        headers: { "Content-Type": "application/json" },
+      }),
+
+    removeTag: (id, tag, signal) =>
+      request(`${base}/${encodeURIComponent(id)}/tags/remove`, signal, isCandidate, {
+        method: "POST",
+        body: JSON.stringify({ tag }),
         headers: { "Content-Type": "application/json" },
       }),
 
@@ -346,6 +361,7 @@ function isCandidate(value: unknown): value is AssetCandidate {
     (value.kind === "model" || value.kind === "environment" || value.kind === "audio") &&
     "category" in value &&
     (value.category === null || typeof value.category === "string") &&
+    (!("tags" in value) || value.tags === undefined || strings(value.tags)) &&
     "status" in value &&
     typeof value.status === "string" &&
     ["pending", "approved", "invalid", "unavailable"].includes(value.status) &&
@@ -410,6 +426,13 @@ function isAdministrationData(value: unknown): value is AssetAdministrationData 
         ))) &&
     "canForceRemove" in policy &&
     typeof policy.canForceRemove === "boolean" &&
+    (!("tags" in policy) || policy.tags === undefined || strings(policy.tags)) &&
+    (!("maxTags" in policy) ||
+      policy.maxTags === undefined ||
+      typeof policy.maxTags === "number") &&
+    (!("maxTagLength" in policy) ||
+      policy.maxTagLength === undefined ||
+      typeof policy.maxTagLength === "number") &&
     "categories" in policy &&
     isObject(policy.categories) &&
     "environment" in policy.categories &&

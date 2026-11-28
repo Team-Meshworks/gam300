@@ -4,16 +4,20 @@ import { useEffect, useState } from "react";
 import { assetDragType, type CatalogueAsset } from "../../shared/asset-runtime/catalogue";
 import { playUiSound } from "../audio/ui-sounds";
 import {
+  activeTag,
+  anyTag,
   categoryOf,
   filterAssets,
   filterOptions,
   loadFavourites,
   saveFavourites,
+  tagOptions,
   toggleFavourite,
   type AssetFilter,
 } from "./asset-filters";
 import { Icon } from "./Icon";
 import { AssetFilterSelect } from "./AssetFilterSelect";
+import { AssetTagList } from "./AssetTagList";
 import type { AssetPickerMode } from "./asset-selection";
 
 const pickerLabels = {
@@ -71,9 +75,12 @@ export function AssetPicker({
   useEffect(() => () => onChoose?.(null), [onChoose]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AssetFilter>("all");
+  const [tagChoice, setTagChoice] = useState(anyTag);
+  const tags = tagOptions(assets);
+  const tag = activeTag(assets, tagChoice);
   const [favourites, setFavourites] = useState<string[]>(loadFavourites);
   // Browsing changes only local controls; the chosen stable ID and placement history stay intact
-  const shown = filterAssets(assets, filter, favourites, query);
+  const shown = filterAssets(assets, filter, favourites, query, tag);
   const chosenAsset = assets.find((asset) => asset.id === chosen);
   // Keep the chosen ID available to assistive technology when browsing hides its card
   const chosenHidden = chosenAsset !== undefined && !shown.includes(chosenAsset);
@@ -116,13 +123,22 @@ export function AssetPicker({
             value={query}
             onChange={(event) => setQuery(event.currentTarget.value)}
           />
+          {/* Tags sit left of the filters and only appear once something in this library is tagged */}
+          {tags.length > 1 && (
+            <AssetFilterSelect
+              value={tag}
+              label={furniture ? "Filter furniture by tag" : "Filter assets by tag"}
+              options={tags}
+              onChange={setTagChoice}
+            />
+          )}
           <AssetFilterSelect
             value={filter}
             label={furniture ? "Filter furniture" : "Filter assets"}
             options={
               furniture
                 ? [
-                    { value: "all", label: "All furniture" },
+                    { value: "all", label: "Filters" },
                     { value: "favourites", label: "Favourites" },
                   ]
                 : filterOptions(assets)
@@ -134,11 +150,12 @@ export function AssetPicker({
           className="ui-button asset-picker-reset"
           type="button"
           aria-label={furniture ? "Reset furniture filters" : "Reset asset filters"}
-          disabled={query === "" && filter === "all"}
+          disabled={query === "" && filter === "all" && tag === anyTag}
           onClick={() => {
             // Clear browsing restrictions without losing the selected card or changing the scene
             setQuery("");
             setFilter("all");
+            setTagChoice(anyTag);
           }}
         >
           Reset
@@ -225,6 +242,7 @@ export function AssetPicker({
                     <span className="asset-card-info">
                       {category !== undefined && <span className="asset-tag">{category}</span>}
                       <span className="asset-name">{asset.name}</span>
+                      <AssetTagList tags={asset.tags} />
                     </span>
                   </button>
                   <button

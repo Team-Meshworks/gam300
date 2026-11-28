@@ -23,6 +23,7 @@ public static class AssetDeliveryEndpoints
                     Name = asset.CatalogueName ?? asset.Name,
                     asset.Kind,
                     Category = asset.CatalogueCategory ?? asset.Category,
+                    asset.Tags,
                     url = ApiV1Endpoints.Prefix + "/assets/" + asset.Id + "/bytes",
                     asset.Sha256,
                     thumbnail = (string?)null
@@ -59,6 +60,7 @@ public static class AssetDeliveryEndpoints
                     Name = asset.CatalogueName ?? asset.Name,
                     asset.Kind,
                     Category = asset.CatalogueCategory ?? asset.Category,
+                    asset.Tags,
                     url = ApiV1Endpoints.Prefix + "/projects/" + projectId + "/assets/" + asset.Id + "/bytes",
                     asset.Sha256,
                     thumbnail = (string?)null

@@ -119,7 +119,7 @@ public sealed class HostBoundaryTests
             "POST /api/v1/classes/", "PUT /api/v1/classes/legacy-resolution", "POST /api/v1/classes/{id:guid}/assignments", "PUT /api/v1/classes/{id:guid}/members/{userId:guid}", "DELETE /api/v1/classes/{id:guid}/members/{userId:guid}",
             "GET /api/v1/creation-operations/{purpose}", "POST /api/v1/creation-operations/{purpose}/{operationId:guid}/acknowledge",
             "GET /api/v1/admin/assets/", "GET /api/v1/admin/assets/{id:guid}/bytes", "POST /api/v1/admin/assets/", "POST /api/v1/admin/assets/{id:guid}/approve",
-            "PUT /api/v1/admin/assets/{id:guid}/details", "POST /api/v1/admin/assets/{id:guid}/availability", "PUT /api/v1/admin/assets/{id:guid}/removals/{operationId:guid}",
+            "PUT /api/v1/admin/assets/{id:guid}/details", "POST /api/v1/admin/assets/{id:guid}/tags/remove", "POST /api/v1/admin/assets/{id:guid}/availability", "PUT /api/v1/admin/assets/{id:guid}/removals/{operationId:guid}",
             "POST /api/v1/admin/assets/{id:guid}/removals/{operationId:guid}/reconcile", "GET /api/v1/assets", "GET /api/v1/assets/{id:guid}/bytes",
             "GET /api/v1/projects/{projectId:guid}/assets/{id:guid}/bytes", "GET /api/v1/projects/{projectId:guid}/assets", "GET /api/v1/projects/{projectId:guid}/publication-links", "GET /api/v1/projects/publication-links",
             "GET,HEAD /api/v1/publications/{publicationId}", "GET /api/v1/publications/{publicationId}/manifest", "GET,HEAD /api/v1/publications/{publicationId}/assets/{assetId}/bytes",
