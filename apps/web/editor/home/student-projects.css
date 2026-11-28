@@ -821,7 +821,7 @@
 .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-image {
   align-self: center;
   width: 216px;
-  height: 352px;
+  height: min(352px, calc(100dvh - 104px));
   margin: 0;
   border-radius: 20px;
 }
@@ -1008,8 +1008,7 @@
 .sp-shell.sp-shell.sp-shell--creator:has(.sp-student-dashboard) {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
-  min-height: 0;
+  height: max(100dvh, 35rem);
   padding-bottom: var(--sp-workspace-bottom-space);
 }
 .sp-shell.sp-shell.sp-shell--creator:has(.sp-student-dashboard) > .sp-account-header {
@@ -1059,7 +1058,7 @@
 }
 
 /* Keep long descriptions in the details popup rather than stretching the summary card */
-.sp-shell--creator .sp-student-card:not(.sp-student-card--published) .sp-card-description {
+.sp-shell--creator .sp-student-card .sp-card-description {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -1083,7 +1082,7 @@
 }
 /* Keep long details inside the original compact frame */
 .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail {
-  height: 408px;
+  height: min(408px, calc(100dvh - 48px));
   box-sizing: border-box;
 }
 .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-content {
@@ -1149,7 +1148,7 @@
 }
 
 /* Let inline hover padding extend below the text without being clipped */
-.sp-shell--creator .sp-student-card:not(.sp-student-card--published) .sp-card-description {
+.sp-shell--creator .sp-student-card .sp-card-description {
   -webkit-line-clamp: 2;
 }
 .sp-shell--creator
@@ -1254,5 +1253,16 @@
 @media (min-width: 1101px) {
   .sp-shell.sp-shell.sp-shell.sp-shell--creator > .sp-workspace:has(> .sp-student-dashboard) {
     padding-inline: 50px;
+  }
+}
+
+@media (max-width: 600px) and (max-height: 650px) {
+  .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail {
+    height: auto;
+    grid-template-rows: auto auto;
+  }
+  .sp-shell--creator .sp-creator-detail-dialog .sp-student-detail-scroll {
+    flex: none;
+    overflow: visible;
   }
 }

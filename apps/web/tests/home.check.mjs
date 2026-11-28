@@ -202,15 +202,39 @@ try {
     await page.getByRole("dialog", { name: "Leave this page?" }).waitFor();
     await page.getByRole("button", { name: "Keep editing" }).click();
     assert.equal(await page.getByLabel("Project title").inputValue(), "Unsent assignment");
+    const creatorWrites = [];
+    page.on("request", (request) => {
+      if (
+        !["GET", "HEAD"].includes(request.method()) &&
+        /^\/api\/v1\/(projects|classes)(\/|$)/.test(new URL(request.url()).pathname)
+      )
+        creatorWrites.push({ method: request.method(), url: request.url() });
+    });
     account = { ...session, role: "Creator" };
     await page.reload();
-    await page.getByRole("heading", { name: "Access denied" }).waitFor();
+    await page.waitForURL(origin + "/home");
+    await page.getByRole("heading", { name: "Projects", exact: true }).waitFor();
     assert.equal(await page.getByLabel("Project title").count(), 0);
-    await page.goto(origin + "/classes");
-    await page.getByRole("heading", { name: "Classes", exact: true }).waitFor();
-    assert.equal(await page.getByRole("button", { name: "New assignment" }).count(), 0);
-    await page.goto(origin + "/review");
-    await page.getByRole("heading", { name: "Submission review" }).waitFor();
+    assert.equal(await page.getByText("Unsent assignment", { exact: true }).count(), 0);
+    for (const path of ["/classes", "/new-project", "/review", "/publish?projectId=" + projectId]) {
+      await page.goto(origin + path);
+      await page.waitForURL(origin + "/home");
+      await page.getByRole("heading", { name: "Projects", exact: true }).waitFor();
+      assert.equal(await page.getByLabel("Project title").count(), 0);
+      assert.equal(await page.getByRole("button", { name: "New assignment" }).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "New Project", exact: true }).count(), 0);
+      assert.equal(
+        await page
+          .getByRole("heading", { name: /^(Classes|Submission review|Publish project)$/ })
+          .count(),
+        0,
+      );
+    }
+    assert.deepEqual(
+      creatorWrites,
+      [],
+      "Retired Creator routes must not submit project or assignment writes",
+    );
     console.log("Legacy class and assignment routes use the guarded workspace");
   } else if (process.argv[3] === "admin") {
     account = { ...session, role: "Administrator", orgId: null };

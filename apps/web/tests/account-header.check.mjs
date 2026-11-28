@@ -1,3 +1,4 @@
+import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchBrowser } from "./browser-security.mjs";
@@ -11,6 +12,7 @@ const session = {
   role: "Educator",
   mustChangePassword: false,
 };
+const creationRecovery = creationRecoveryFixture();
 let current = session;
 let sessionReads = 0;
 let sessionFailure = false;
@@ -50,6 +52,11 @@ try {
         });
       }
       return route.fulfill(snapshot ? { json: snapshot } : { status: 401 });
+    }
+    if (path.startsWith("/api/v1/creation-operations/")) {
+      if (!current || route.request().headers()["x-spatia-account"] !== current.userId)
+        return route.fulfill({ status: 403 });
+      if (await creationRecovery.handle(route, current.userId)) return;
     }
     if (path === "/api/v1/auth/csrf")
       return route.fulfill({ json: { requestToken: "test-token" } });
@@ -147,7 +154,7 @@ try {
   }
   current = session;
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(`${origin}/review`);
+  await page.goto(`${origin}/review`, { waitUntil: "domcontentloaded" });
   await page.getByText("First Educator", { exact: true }).waitFor();
   const before = sessionReads;
   current = {
@@ -305,6 +312,7 @@ try {
   assert.equal(await page.locator(".sp-header-account .sp-avatar").textContent(), "👩‍🎨");
   const emptyProjects = page.getByText("No projects assigned yet.", { exact: true });
   await emptyProjects.waitFor();
+  assert.equal(await page.getByText("Find an existing project", { exact: true }).count(), 0);
   holdNextSession = true;
   const creatorRecheck = new Promise((resolve) => {
     sessionStarted = resolve;
@@ -324,6 +332,50 @@ try {
   await page.waitForFunction(() => !document.querySelector(".sp-shell").closest("[inert]"));
   await page.getByRole("tab", { name: "Published", exact: true }).click();
   await page.getByText("No published projects yet.", { exact: true }).waitFor();
+  await page.goto(`${origin}/review`, { waitUntil: "domcontentloaded" });
+  await page.waitForURL(`${origin}/home`);
+  await emptyProjects.waitFor();
+  assert.equal(
+    await page.getByRole("heading", { name: "Submission review", exact: true }).count(),
+    0,
+  );
+  for (const path of [
+    "/classes",
+    "/classes/",
+    "/classes/?organisation=1&classId=old#assignments",
+    "/publish",
+    "/publish?projectId=old",
+    "/publish/?projectId=old#access",
+    "/review",
+    "/review/?classId=old&assignmentId=old&projectId=old",
+    "/new-project",
+    "/new-project/?classId=old",
+  ]) {
+    await page.goto(origin + path, { waitUntil: "domcontentloaded" });
+    await page.waitForURL(`${origin}/home`);
+    await emptyProjects.waitFor();
+    assert.equal(
+      await page
+        .getByRole("heading", { name: /^(Classes|Publish project|Submission review)$/ })
+        .count(),
+      0,
+    );
+    assert.equal(await page.getByRole("link", { name: "Classes", exact: true }).count(), 0);
+  }
+  for (const stale of [
+    "/classes",
+    "/review?projectId=old",
+    "/publish?projectId=old",
+    "/new-project",
+    "/editor",
+    "/editor.html",
+  ]) {
+    await page.goto(`${origin}/login?returnTo=${encodeURIComponent(stale)}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await page.waitForURL(`${origin}/home`);
+    await emptyProjects.waitFor();
+  }
   console.log(
     "Shared header parity, account rechecks, stale responses and uncertain logout are guarded.",
   );

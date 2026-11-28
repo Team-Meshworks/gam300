@@ -200,13 +200,21 @@ try {
   await page.getByRole("button", { name: "New assignment" }).click();
   await page.getByRole("heading", { name: "New class assignment" }).waitFor();
   mode = "Creator";
-  for (const path of ["new-project", "organisations", "admin/dashboard"]) {
+  for (const path of ["organisations", "admin/dashboard"]) {
     await screen(path, "Access denied");
   }
-  await screen("classes", "Classes");
-  assert.equal(await page.getByRole("button", { name: "New assignment" }).count(), 0);
-  await screen("publish", "Publish project");
-  await screen("review", "Submission review");
+  for (const path of ["new-project", "classes", "publish", "review"]) {
+    await page.goto(`${origin}/${path}`);
+    await page.waitForURL(`${origin}/home`);
+    await page.getByRole("heading", { name: "Projects", exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "New assignment" }).count(), 0);
+    assert.equal(
+      await page
+        .getByRole("heading", { name: /^(Classes|Publish project|Submission review)$/ })
+        .count(),
+      0,
+    );
+  }
   mode = "anonymous";
   const projectQuery = "?projectId=aefea67c-caca-4300-923c-937f1c785578";
   for (const path of [

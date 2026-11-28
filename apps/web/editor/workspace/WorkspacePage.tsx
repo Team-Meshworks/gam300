@@ -2,24 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceAccountGate, type WorkspaceAccess } from "../accounts/WorkspaceAccountGate";
 import { WorkspaceShell } from "../../shared/ui/WorkspaceShell";
 import { HomePage } from "../home/HomePage";
-import { WorkspaceNavigation } from "../home/WorkspaceNavigation";
 import { AccountDirectoryPage } from "../directory/AccountDirectoryPage";
 import type { DashboardProject } from "../admin/dashboard-client";
 import { AdminDashboard } from "../admin/AdminDashboard";
 import { EducatorReviewLink } from "../reviews/EducatorReviewLink";
-import { ReviewWorkspace } from "../reviews/ReviewWorkspace";
 import { PublicationPage } from "../publications/PublicationPage";
 import { AssetAdministration } from "../asset-administration/AssetAdministration";
 import { createAssetAdministrationService } from "../asset-administration/asset-administration-service";
 import { useWorkspaceDeparture } from "./useWorkspaceDeparture";
 
 const screens = [
-  { id: "publish", title: "Publish project", roles: ["Educator", "Creator"] },
+  { id: "publish", title: "Publish project", roles: ["Educator"] },
   { id: "assets", title: "3D Assets", roles: ["Administrator"] },
   { id: "spaces", title: "3D Spaces", roles: ["Administrator"] },
   { id: "admin/dashboard", title: "Dashboard", roles: ["Administrator"] },
   { id: "classes", title: "Classes", roles: ["Administrator", "Educator"] },
-  { id: "review", title: "Submission review", roles: ["Creator"] },
   { id: "organisations", title: "Organisations", roles: ["Administrator"] },
 ];
 
@@ -65,6 +62,11 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
     () => createAssetAdministrationService(session.userId),
     [session.userId],
   );
+  const creatorLegacyPage = session.role === "Creator" && ["/review", "/publish"].includes(path);
+  useEffect(() => {
+    if (active && creatorLegacyPage) location.replace("/home");
+  }, [active, creatorLegacyPage]);
+  if (creatorLegacyPage) return null;
   if (session.role === "Educator" && location.pathname.replace(/\/$/, "") === "/review")
     return (
       <WorkspaceShell
@@ -84,7 +86,6 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
         : "/classes";
   const dashboard = screen?.id === "admin/dashboard" && session.role === "Administrator";
   const organisations = screen?.id === "organisations" && permitted.includes(screen);
-  const review = screen?.id === "review" && permitted.includes(screen);
   return (
     <WorkspaceShell
       onClick={(event) => {
@@ -118,7 +119,7 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
       }}
       header={{
         account: session,
-        homeHref: review ? "/home" : fallback,
+        homeHref: fallback,
         locked: guard.pending,
         onSignOut: () => navigate(onSignOut),
       }}
@@ -130,9 +131,7 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
             : undefined
       }
     >
-      {review ? (
-        <WorkspaceNavigation role={session.role} current="reviews" />
-      ) : !dashboard && !organisations && session.role !== "Administrator" ? (
+      {!dashboard && !organisations && session.role !== "Administrator" ? (
         <nav className="sp-workspace-links" aria-label="Workspace screens">
           <a href="/home">Projects</a>
           {permitted
@@ -152,11 +151,9 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
         <h1>Access denied</h1>
       ) : (
         <>
-          {!dashboard &&
-            !review &&
-            !organisations &&
-            screen.id !== "assets" &&
-            screen.id !== "spaces" && <h1 className="sp-page-heading">{screen.title}</h1>}
+          {!dashboard && !organisations && screen.id !== "assets" && screen.id !== "spaces" && (
+            <h1 className="sp-page-heading">{screen.title}</h1>
+          )}
           {(screen.id === "assets" || screen.id === "spaces") && (
             <AssetAdministration
               key={`${session.userId}:${route.key}`}
@@ -185,9 +182,6 @@ function OtherWorkspacePage({ session, active, onSignOut }: WorkspaceAccess) {
                 )
               }
             />
-          )}
-          {screen.id === "review" && (
-            <ReviewWorkspace session={session} guard={guard} onGuard={setGuard} />
           )}
           {screen.id === "organisations" && (
             <AccountDirectoryPage

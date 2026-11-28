@@ -64,6 +64,7 @@ it("shows the selected student's project details and open control", () => {
   );
   expect(html).toContain("Silk Road");
   expect(html).toContain("Explore trade");
+  expect(html).not.toContain("Project ID:");
   expect(html).toContain("Build a museum");
   expect(html).toContain("Open project");
   expect(html).toContain('aria-label="Reviews"');

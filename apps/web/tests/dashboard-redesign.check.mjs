@@ -1,3 +1,4 @@
+import jsQR from "jsqr";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
@@ -202,7 +203,24 @@ try {
         return route.fulfill({ json: { items: [] } });
       return route.fulfill({ status: 404 });
     });
+    async function assertCurrentCreatorLinks() {
+      const obsolete = await page
+        .locator("a[href], form[action]")
+        .evaluateAll((elements) =>
+          elements
+            .map((element) => element.getAttribute("href") ?? element.getAttribute("action"))
+            .filter(
+              (href) =>
+                href &&
+                /^\/(classes|review|publish|new-project)(?:\/|$)/.test(
+                  new URL(href, location.origin).pathname,
+                ),
+            ),
+        );
+      assert.deepEqual(obsolete, [], "Creator UI must not link to retired screens");
+    }
     async function capture(name) {
+      if (role === "Creator") await assertCurrentCreatorLinks();
       for (const width of [1440, 390]) {
         await page.setViewportSize({ width, height: 900 });
         assert.ok(
@@ -217,6 +235,21 @@ try {
           card && card.width > 0 && card.x >= 0 && card.x + card.width <= width,
           `${name} card is clipped at ${width}`,
         );
+        if (name === "creator-published") {
+          const descriptions = await page
+            .locator(".sp-student-card--published .sp-card-description")
+            .evaluateAll((nodes) =>
+              nodes.map((node) => ({
+                height: node.getBoundingClientRect().height,
+                lineHeight: parseFloat(getComputedStyle(node).lineHeight),
+              })),
+            );
+          assert.ok(descriptions.length > 0);
+          assert.ok(
+            descriptions.every((row) => row.height <= row.lineHeight * 2 + 1),
+            `Published descriptions exceed two lines at ${width}`,
+          );
+        }
         await page.screenshot({
           path: `../../.artifacts/dashboard-check/${name}-${width}.png`,
           fullPage: true,
@@ -325,6 +358,7 @@ try {
         const details = page.getByRole("dialog", { name: "Project details", exact: true });
         await page.getByRole("button", { name: "View details", exact: true }).first().click();
         await details.waitFor();
+        await assertCurrentCreatorLinks();
         assert.equal(
           await details.getByRole("button", { name: "Publish", exact: true }).count(),
           0,
@@ -391,6 +425,32 @@ try {
         const linkField = page.getByRole("textbox", { name: "Share your project" });
         assert.equal(await linkField.inputValue(), `https://spatia.example/p/${publicationId}`);
         assert.equal(await linkField.getAttribute("readonly"), "");
+        await page.getByRole("button", { name: /^Show QR code for / }).click();
+        const qrPixels = await page
+          .getByRole("dialog", { name: "QR code", exact: true })
+          .getByRole("img")
+          .evaluate(async (svg) => {
+            const size = svg.viewBox.baseVal.width * 6;
+            const image = new Image();
+            image.src =
+              "data:image/svg+xml;charset=utf-8," +
+              encodeURIComponent(new XMLSerializer().serializeToString(svg));
+            await image.decode();
+            const canvas = document.createElement("canvas");
+            canvas.width = canvas.height = size;
+            const context = canvas.getContext("2d");
+            context.drawImage(image, 0, 0, size, size);
+            return { size, data: Array.from(context.getImageData(0, 0, size, size).data) };
+          });
+        assert.equal(
+          jsQR(new Uint8ClampedArray(qrPixels.data), qrPixels.size, qrPixels.size)?.data,
+          await linkField.inputValue(),
+        );
+        await page.keyboard.press("Escape");
+        await page
+          .getByRole("dialog", { name: "QR code", exact: true })
+          .waitFor({ state: "hidden" });
+
         await page.context().grantPermissions([], { origin });
         const shareCard = page.locator(".sp-student-card--published");
         const shareHeight = (await shareCard.boundingBox()).height;

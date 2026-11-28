@@ -33,8 +33,14 @@ try {
   const pendingKey = "spatia.create:" + session.userId + ":import";
   await page.evaluate((key) => localStorage.setItem(key, "{partial"), pendingKey);
   await page.reload();
-  const recovery = page.getByRole("region", { name: "Release pending import request" });
-  const checkList = recovery.getByRole("button", { name: "Check current projects", exact: true });
+  await page.getByRole("button", { name: "Check status", exact: true }).click();
+  const recovery = page.getByRole("region", {
+    name: "Release pending import request",
+  });
+  const checkList = recovery.getByRole("button", {
+    name: "Check current projects",
+    exact: true,
+  });
   const release = recovery.getByRole("button", {
     name: "I checked the list; release this saved request",
     exact: true,
@@ -50,6 +56,7 @@ try {
   );
 
   await page.reload();
+  await page.getByRole("button", { name: "Check status", exact: true }).click();
   await checkList.click();
   await recovery.getByText("No accessible projects were returned.", { exact: true }).waitFor();
   await release.click();
@@ -129,7 +136,9 @@ try {
         return;
       }
       if (path.startsWith("/api/v1/creation-operations/") && request.method() === "GET")
-        return route.fulfill({ json: { state: "ready", operationId: null, receipt: null } });
+        return route.fulfill({
+          json: { state: "ready", operationId: null, receipt: null },
+        });
       if (path.endsWith("/acknowledge")) {
         acknowledgements.push(path);
         raceHead = null;
@@ -138,12 +147,20 @@ try {
       if (path === "/api/v1/projects/" + projectA) {
         holdReviewSession = true;
         return route.fulfill({
-          json: { projectId: projectA, revision: 0, document: { title: "Review A" } },
+          json: {
+            projectId: projectA,
+            revision: 0,
+            document: { title: "Review A" },
+          },
         });
       }
       if (path === "/api/v1/projects/" + projectB)
         return route.fulfill({
-          json: { projectId: projectB, revision: 0, document: { title: "Review B" } },
+          json: {
+            projectId: projectB,
+            revision: 0,
+            document: { title: "Review B" },
+          },
         });
       if (path === "/api/v1/projects")
         return route.fulfill({ json: { items: [], nextCursor: null } });
@@ -151,7 +168,10 @@ try {
     });
     try {
       await racePage.goto(origin + "/home");
-      const panel = racePage.getByRole("region", { name: "Release pending import request" });
+      await racePage.getByRole("button", { name: "Check status", exact: true }).click();
+      const panel = racePage.getByRole("region", {
+        name: "Release pending import request",
+      });
       await panel.getByRole("button", { name: "Review recovered project" }).click();
       await reviewPending;
       raceHead = operationB;
@@ -166,6 +186,11 @@ try {
       await racePage.evaluate(
         () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
       );
+      const status = racePage.getByRole("button", {
+        name: "Check status",
+        exact: true,
+      });
+      if (await status.isVisible()) await status.click();
       await panel
         .getByRole("button", { name: "Review recovered project" })
         .and(racePage.locator(":enabled"))

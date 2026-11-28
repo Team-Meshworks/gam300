@@ -40,6 +40,12 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
     if (path === "/new-project") return session.role === "Educator" ? "assignment" : "denied";
     return "projects";
   });
+  const creatorLegacyPage =
+    session.role === "Creator" &&
+    ["/classes", "/new-project"].includes(location.pathname.replace(/\/$/, ""));
+  useEffect(() => {
+    if (active && creatorLegacyPage) location.replace("/home");
+  }, [active, creatorLegacyPage]);
   const organisationView =
     session.role === "Educator" &&
     view === "classes" &&
@@ -171,7 +177,7 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
         !organisationView &&
         !(session.role === "Educator" && view === "assignment" && newProject) &&
         navigationBar}
-      {view === "projects" && (
+      {view === "projects" && session.role !== "Creator" && (
         <PendingCreateRecovery
           key={session.userId}
           actorId={session.userId}
@@ -180,7 +186,7 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
           onRecovered={(value) => openProject(value.id)}
         />
       )}
-      {view === "projects" && (
+      {view === "projects" && session.role !== "Creator" && (
         <>
           <HistoricalProjectRecovery
             key={session.userId + ":" + historicalVersion}
@@ -189,27 +195,30 @@ function HomeWorkspace({ session, active, onSignOut }: WorkspaceAccess) {
             onOpen={openProject}
             onSeparate={() => setHistoricalVersion((value) => value + 1)}
           />
-          {!historicalPresent && (
-            <details
-              className="sp-existing-projects"
-              onToggle={(event) => setFindExisting(event.currentTarget.open)}
-            >
-              <summary>Find an existing project</summary>
-              {findExisting && (
-                <ExistingProjectPicker
-                  actorId={session.userId}
-                  active={active && !navigation.locked}
-                  onSelect={(project) => openProject(project.projectId)}
-                />
-              )}
-            </details>
-          )}
+          {!historicalPresent &&
+            dashboard !== "facilitator" &&
+            dashboard !== "facilitator-details" && (
+              <details
+                className="sp-existing-projects"
+                onToggle={(event) => setFindExisting(event.currentTarget.open)}
+              >
+                <summary>Find an existing project</summary>
+                {findExisting && (
+                  <ExistingProjectPicker
+                    actorId={session.userId}
+                    active={active && !navigation.locked}
+                    onSelect={(project) => openProject(project.projectId)}
+                  />
+                )}
+              </details>
+            )}
         </>
       )}
       {content}
       {confirmation}
     </WorkspaceShell>
   );
+  if (creatorLegacyPage) return null;
   if (view === "projects" && session.role === "Educator")
     return (
       <TeacherProjects

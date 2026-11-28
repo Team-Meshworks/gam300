@@ -28,15 +28,15 @@ export function WorkspaceNavigation({
   const active = current === "assignment" ? "classes" : current;
   const items: NavigationItem[] = [
     { id: "projects", label: "Projects", href: "/home", action: onProjects },
-    { id: "classes", label: "Classes", href: "/classes", action: onClasses },
+    ...(role !== "Creator"
+      ? [{ id: "classes", label: "Classes", href: "/classes", action: onClasses }]
+      : []),
     ...(role === "Administrator"
       ? [
           { id: "organisations", label: "Organisations", href: "/organisations" },
           { id: "dashboard", label: "Dashboard", href: "/admin/dashboard" },
         ]
-      : role === "Creator"
-        ? [{ id: "reviews", label: "Submissions and reviews", href: "/review" }]
-        : []),
+      : []),
   ];
 
   return (
