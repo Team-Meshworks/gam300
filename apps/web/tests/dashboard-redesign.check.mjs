@@ -253,6 +253,7 @@ try {
         await page.screenshot({
           path: `../../.artifacts/dashboard-check/${name}-${width}.png`,
           fullPage: true,
+          timeout: 30_000,
         });
       }
       await page.setViewportSize({ width: 1440, height: 900 });
@@ -599,6 +600,7 @@ try {
         await page.screenshot({
           path: `../../.artifacts/dashboard-check/${role}-${width}.png`,
           fullPage: true,
+          timeout: 30_000,
         });
       }
       assert.deepEqual(errors, []);
