@@ -1,3 +1,4 @@
+import { sceneNameInput } from "./authoring-project-fixture.mjs";
 import { launchBrowser } from "./browser-security.mjs";
 import { creationRecoveryFixture } from "./creation-recovery-fixture.mjs";
 import assert from "node:assert/strict";
@@ -99,11 +100,11 @@ async function projectOption(name) {
 }
 async function ready() {
   await page.getByRole("button", { name: "Scenes", exact: true }).click();
-  await page.getByLabel("Scene name", { exact: true }).waitFor();
+  await (await sceneNameInput(page)).waitFor();
 }
 async function edit(name) {
-  await page.getByLabel("Scene name", { exact: true }).fill(name);
-  await page.getByRole("button", { name: "Rename scene", exact: true }).click();
+  await (await sceneNameInput(page)).fill(name);
+  await (await sceneNameInput(page)).press("Enter");
 }
 async function saved() {
   await page.waitForFunction(
@@ -341,7 +342,7 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
     }
     const name = `Catalogue capability ${String(capability)}`;
     await scenario.getByRole("button", { name: "Scenes", exact: true }).click();
-    await scenario.getByLabel("Scene name", { exact: true }).fill(name);
+    await (await sceneNameInput(scenario)).fill(name);
     const savedCapability = scenario.waitForResponse((response) => {
       const request = response.request();
       return (
@@ -351,7 +352,7 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
         request.postDataJSON().document.scenes[0].name === name
       );
     });
-    await scenario.getByRole("button", { name: "Rename scene", exact: true }).click();
+    await (await sceneNameInput(scenario)).press("Enter");
     const written = (await savedCapability).request().postDataJSON().document;
     assert.equal(written.scenes[0].environmentAssetId, approvedId);
     assert.deepEqual(
@@ -367,6 +368,127 @@ async function catalogueScenario(capability, revokeDuringRead = false, companion
     await isolated.close();
   }
 }
+async function committedImportRecoveryScenario() {
+  const isolated = await browser.newContext();
+  const receipts = creationRecoveryFixture();
+  const incoming = { ...structuredClone(fixture), title: "Committed import with lost response" };
+  const importedId = "65555555-5555-4555-8555-555555555555";
+  const imports = [],
+    acknowledgements = [];
+  const ackStarted = Promise.withResolvers();
+  const ackGate = Promise.withResolvers();
+  await isolated.route("**/api/v1/**", async (route) => {
+    const request = route.request(),
+      path = new URL(request.url()).pathname;
+    if (path.startsWith("/api/v1/creation-operations/")) {
+      if (request.method() === "POST") {
+        acknowledgements.push(path);
+        ackStarted.resolve();
+        await ackGate.promise;
+      }
+      if (await receipts.handle(route, alice)) return;
+    }
+    if (path === "/api/v1/projects" && request.method() === "POST") {
+      imports.push(request.postDataJSON());
+      receipts.commit(request, {
+        projectId: importedId,
+        revision: 0,
+        archived: false,
+        updatedAt: "2026-11-28T00:00:00Z",
+      });
+      return route.abort("failed");
+    }
+    if (path === `/api/v1/projects/${importedId}`)
+      return route.fulfill({
+        json: {
+          projectId: importedId,
+          revision: 0,
+          document: { ...incoming, projectId: importedId },
+          permissions: { canEdit: true },
+        },
+      });
+    return api(route);
+  });
+  try {
+    account = alice;
+    const editor = await isolated.newPage();
+    await editor.goto(url);
+    await editor.locator('.save-state[data-state="saved"]').waitFor();
+    const original = JSON.stringify(document);
+    await editor.locator("#project-import").setInputFiles({
+      name: "project.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(incoming)),
+    });
+    const dialog = editor.getByRole("dialog", { name: "Recover earlier import", exact: true });
+    await dialog.waitFor();
+    await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
+    await editor.reload();
+    const backup = editor.getByRole("dialog", { name: "Recover your changes?", exact: true });
+    await Promise.race([
+      backup.waitFor(),
+      editor.locator('.save-state[data-state="saved"]').waitFor(),
+    ]);
+    if (await backup.isVisible())
+      await backup.getByRole("button", { name: "Use saved version", exact: true }).click();
+    await editor.locator('.save-state[data-state="saved"]').waitFor();
+    await editor.getByLabel("Project options", { exact: true }).click();
+    await editor.getByRole("button", { name: "Recover Earlier Import", exact: true }).click();
+    await dialog.waitFor();
+    assert.equal(imports.length, 1);
+    const operationKey = "spatia.create:" + alice + ":import";
+    const pending = await editor.evaluate((key) => localStorage.getItem(key), operationKey);
+    if (process.env.SPATIA_IMPORT_RECOVERY_SCREENSHOT)
+      await editor.screenshot({ path: process.env.SPATIA_IMPORT_RECOVERY_SCREENSHOT });
+    await dialog
+      .getByText("An earlier import completed. Review it before opening it.", { exact: true })
+      .waitFor();
+    account = bob;
+    await dialog.getByRole("button", { name: "Review import", exact: true }).click();
+    await dialog
+      .getByRole("alert")
+      .filter({ hasText: /account changed/i })
+      .waitFor();
+    assert.equal(acknowledgements.length, 0);
+    assert.equal(await editor.evaluate((key) => localStorage.getItem(key), operationKey), pending);
+    account = alice;
+    await dialog.getByRole("button", { name: "Review import", exact: true }).click();
+    await dialog.getByText(/Committed import with lost response/).waitFor();
+    if (process.env.SPATIA_IMPORT_RECOVERY_SCREENSHOT)
+      await editor.screenshot({
+        path: process.env.SPATIA_IMPORT_RECOVERY_SCREENSHOT.replace(".png", "-reviewed.png"),
+      });
+    await dialog.getByRole("button", { name: "Open imported project", exact: true }).click();
+    await ackStarted.promise;
+    assert.equal(
+      await dialog.getByRole("button", { name: "Close dialog", exact: true }).isDisabled(),
+      true,
+    );
+    await editor.keyboard.press("Escape");
+    assert.equal(await dialog.isVisible(), true);
+    ackGate.resolve();
+    await editor.waitForURL("**/?projectId=" + importedId);
+    assert.deepEqual(acknowledgements, [
+      `/api/v1/creation-operations/import/${imports[0].operationId}/acknowledge`,
+    ]);
+    assert.equal(
+      imports.length,
+      1,
+      "Receipt recovery must not send another create request or need the file again",
+    );
+    assert.equal(await editor.evaluate((key) => localStorage.getItem(key), operationKey), null);
+    assert.equal(
+      JSON.stringify(document),
+      original,
+      "Recovery must preserve the current server project",
+    );
+  } finally {
+    ackGate.resolve();
+    account = alice;
+    await isolated.close();
+  }
+}
+
 async function importScenario() {
   const isolated = await browser.newContext();
   const incoming = { ...structuredClone(fixture), title: "Imported copy" };
@@ -416,7 +538,7 @@ async function importScenario() {
         buffer: Buffer.from(text),
       });
     await upload("{}");
-    await editor.locator(".server-session-error").waitFor();
+    await editor.locator(".server-session-error, .creator-import-error").waitFor();
     assert.equal(imports.length, 0, "Malformed imports never reach project creation");
     const original = JSON.stringify(document);
     await upload(JSON.stringify(incoming));
@@ -632,6 +754,7 @@ try {
   await page.getByRole("button", { name: "Retry opening" }).click();
   await saved();
   await importScenario();
+  await committedImportRecoveryScenario();
   await page.getByRole("button", { name: "Leave editor" }).focus();
   await page.keyboard.press("Enter");
   // An unchanged server draft leaves directly without a redundant confirmation
@@ -665,7 +788,7 @@ try {
   await page.getByRole("button", { name: "Recover changes", exact: true }).click();
   await ready();
   assert.equal(
-    await page.getByLabel("Scene name", { exact: true }).inputValue(),
+    await (await sceneNameInput(page)).inputValue(),
     "Rejected draft retained for correction",
   );
   mode = "saved";
@@ -690,10 +813,7 @@ try {
     "Confirm a user-requested save and warn when departure opens over a dirty project",
   );
   await page.getByRole("button", { name: /^(Cancel|Keep editing)$/ }).click();
-  assert.equal(
-    await page.getByLabel("Scene name", { exact: true }).inputValue(),
-    "Draft before publishing",
-  );
+  assert.equal(await (await sceneNameInput(page)).inputValue(), "Draft before publishing");
   assert.notEqual(document.scenes[0].name, "Draft before publishing");
   mode = "saved";
   await page.getByRole("button", { name: "Leave editor", exact: true }).click();
@@ -709,10 +829,7 @@ try {
   const fresh = await freshContext.newPage();
   await fresh.goto(url);
   await fresh.getByRole("button", { name: "Scenes", exact: true }).click();
-  assert.equal(
-    await fresh.getByLabel("Scene name", { exact: true }).inputValue(),
-    document.scenes[0].name,
-  );
+  assert.equal(await (await sceneNameInput(fresh)).inputValue(), document.scenes[0].name);
   await freshContext.close();
   mode = "failed";
   await edit("Offline edit");
@@ -752,10 +869,7 @@ try {
   assert.equal(writes.length, attempts);
   await page.getByRole("button", { name: "Recover changes", exact: true }).click();
   await ready();
-  assert.equal(
-    await page.getByLabel("Scene name", { exact: true }).inputValue(),
-    "Conflicting local edit",
-  );
+  assert.equal(await (await sceneNameInput(page)).inputValue(), "Conflicting local edit");
   await page.getByRole("alert").filter({ hasText: "Another revision" }).waitFor();
   await projectOption("Open Server Version");
   await page.getByRole("button", { name: "Exit", exact: true }).click();
@@ -764,7 +878,7 @@ try {
   await page.getByRole("button", { name: "Use saved version", exact: true }).click();
   await saved();
   await ready();
-  assert.equal(await page.getByLabel("Scene name", { exact: true }).inputValue(), "Offline edit");
+  assert.equal(await (await sceneNameInput(page)).inputValue(), "Offline edit");
   // An acknowledgement for an older edit must not mark newer work saved.
   mode = "delayed";
   const firstSave = page.waitForRequest(
@@ -798,10 +912,7 @@ try {
   await page.goto(url);
   await page.getByRole("button", { name: "Recover changes", exact: true }).click();
   await ready();
-  assert.equal(
-    await page.getByLabel("Scene name", { exact: true }).inputValue(),
-    "Draft retained after sign-out",
-  );
+  assert.equal(await (await sceneNameInput(page)).inputValue(), "Draft retained after sign-out");
   await saved();
   assert.equal(document.scenes[0].name, "Draft retained after sign-out");
 
@@ -847,10 +958,7 @@ try {
   await restoreAfterExpiry();
   await page.getByRole("button", { name: "Retry opening" }).click();
   await ready();
-  assert.equal(
-    await page.getByLabel("Scene name", { exact: true }).inputValue(),
-    "Only live draft after expiry",
-  );
+  assert.equal(await (await sceneNameInput(page)).inputValue(), "Only live draft after expiry");
   await saved();
   assert.equal(document.scenes[0].name, "Only live draft after expiry");
 
@@ -874,12 +982,9 @@ try {
   await page.reload();
   await saved();
   await ready();
-  assert.equal(
-    await page.getByLabel("Scene name", { exact: true }).inputValue(),
-    "Only live draft after expiry",
-  );
+  assert.equal(await (await sceneNameInput(page)).inputValue(), "Only live draft after expiry");
   assert.equal(await page.getByRole("dialog").count(), 0);
-  const departureName = await page.getByLabel("Scene name", { exact: true }).elementHandle();
+  const departureName = await (await sceneNameInput(page)).elementHandle();
   // Hold the final backup completion after preservation, while App is still mounted.
   mode = "saved";
   await edit("Preserved departure edit");

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { sceneNameInput } from "../../web/tests/authoring-project-fixture.mjs";
 import { createHash } from "node:crypto";
 
 // Called inside the existing disposable HTTPS/PostgreSQL fixture. Only static editor
@@ -95,27 +96,27 @@ export async function checkServerEditor(
   };
   try {
     const page = await open(accounts[0], true);
-    await page.getByLabel("Scene name", { exact: true }).fill("SCRUM-67 actual editor save");
-    await page.getByRole("button", { name: "Rename scene", exact: true }).click();
+    await (await sceneNameInput(page)).fill("SCRUM-67 actual editor save");
+    await (await sceneNameInput(page)).press("Enter");
     await page.locator('.save-state[data-state="saved"]').waitFor();
     const fresh = await open(accounts[0]);
     assert.equal(
-      await fresh.getByLabel("Scene name", { exact: true }).inputValue(),
+      await (await sceneNameInput(fresh)).inputValue(),
       "SCRUM-67 actual editor save",
     );
     // The second authenticated editor creates a real revision conflict in the first.
-    await fresh.getByLabel("Scene name", { exact: true }).fill("Another editor's saved revision");
-    await fresh.getByRole("button", { name: "Rename scene", exact: true }).click();
+    await (await sceneNameInput(fresh)).fill("Another editor's saved revision");
+    await (await sceneNameInput(fresh)).press("Enter");
     await fresh.locator('.save-state[data-state="saved"]').waitFor();
-    await page.getByLabel("Scene name", { exact: true }).fill("Keep these conflicting edits");
-    await page.getByRole("button", { name: "Rename scene", exact: true }).click();
+    await (await sceneNameInput(page)).fill("Keep these conflicting edits");
+    await (await sceneNameInput(page)).press("Enter");
     await page.getByRole("alert").filter({ hasText: "Another revision" }).waitFor();
     await page.getByRole("button", { name: "Leave editor", exact: true }).click();
     await page.getByRole("button", { name: "Exit", exact: true }).click();
     await page.getByRole("dialog").getByRole("alert").waitFor();
     await page.getByRole("button", { name: "Keep editing", exact: true }).click();
     assert.equal(
-      await page.getByLabel("Scene name", { exact: true }).inputValue(),
+      await (await sceneNameInput(page)).inputValue(),
       "Keep these conflicting edits",
     );
     console.log(
