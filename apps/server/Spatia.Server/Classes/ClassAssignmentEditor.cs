@@ -10,7 +10,7 @@ using Spatia.Server.Projects;
 namespace Spatia.Server.Classes;
 
 internal sealed record EditClassAssignmentRequest(Guid? MutationId, long? ExpectedRevision, long? DueAtUnixSeconds,
-    string? Title, string? Description, string? Instructions, Guid[]? StudentIds);
+    string? Title, string? Description, string? Instructions, Guid[]? StudentIds, ProjectImageUpload? Image = null);
 
 internal static class ClassAssignmentEditor
 {
@@ -58,6 +58,16 @@ internal static class ClassAssignmentEditor
             request.Instructions,
             studentIds = requestedStudents
         }));
+        var replacement = request.Image is null ? null : ProjectImageValidation.Read(request.Image);
+        if (request.Image is not null && replacement is null)
+            return ApiProblems.Create(context, 422, "invalid_project_image", "Choose a valid PNG, JPEG or WebP image within the image limits.");
+
+        if (replacement is not null)
+        {
+            // Keep old receipts replayable and bind new image mutations to the complete image intent.
+            digest = SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { digest, request.Image }));
+        }
+
         var mappings = await database.ClassAssignmentStudents.Where(row => row.AssignmentId == assignmentId).ToArrayAsync(cancellationToken);
         var mappedProjectIds = mappings.Select(row => row.ProjectId).ToArray();
         var visible = await access.VisibleProjects(account).Where(project => mappedProjectIds.Contains(project.Id))
@@ -96,8 +106,6 @@ internal static class ClassAssignmentEditor
             return ApiProblems.Create(context, 422, "invalid_class_members", "Choose active students enrolled in this class.");
 
         var newStudents = requestedStudents.Except(mappings.Select(row => row.StudentId)).ToArray();
-        var sourceImageId = await database.Projects.Where(project => project.Id == assignment.SourceProjectId)
-            .Select(project => project.ImageId).SingleAsync(cancellationToken);
         var projectIds = mappings.Where(row => row.IsActive || requestedStudents.Contains(row.StudentId))
             .Select(row => row.ProjectId).Concat(newStudents.Length > 0 ? [assignment.SourceProjectId] : Array.Empty<Guid>())
             .Distinct().Order().ToArray();
@@ -118,9 +126,17 @@ internal static class ClassAssignmentEditor
             return ApiProblems.Create(context, 409, "assignment_source_changed", "The original project changed. New student drafts cannot be created from it.");
         }
 
+        // Student drafts initially share the source image. Replacements belong only to this assignment.
+        var imageSource = mappings.FirstOrDefault(row => row.IsActive)?.ProjectId ?? assignment.SourceProjectId;
+        var assignmentImageId = replacement?.Id ?? await database.Projects.Where(project => project.Id == imageSource)
+            .Select(project => project.ImageId).SingleAsync(cancellationToken);
+        if (replacement is not null)
+            database.ProjectImages.Add(replacement);
+
         var metadataChanged = assignment.Title != request.Title || assignment.Description != request.Description
             || assignment.Instructions != request.Instructions || assignment.DueAtUnixSeconds != request.DueAtUnixSeconds;
 
+        var replacedImageIds = new HashSet<Guid>();
         foreach (var mapping in mappings)
         {
             var active = requestedStudents.Contains(mapping.StudentId);
@@ -128,10 +144,21 @@ internal static class ClassAssignmentEditor
             if (!mapping.IsActive && !active)
                 continue;
 
-            if (!metadataChanged && active == mapping.IsActive)
+            if (!metadataChanged && active == mapping.IsActive && replacement is null)
                 continue;
 
             var project = await database.Projects.SingleAsync(row => row.Id == mapping.ProjectId, cancellationToken);
+            if (active && (replacement is not null || !mapping.IsActive))
+            {
+                if (project.ImageId is { } previous && previous != assignmentImageId)
+                    replacedImageIds.Add(previous);
+
+                project.ImageId = assignmentImageId;
+            }
+
+            // Changing only the dashboard image preserves the authored revision and its review status.
+            if (!metadataChanged && active == mapping.IsActive)
+                continue;
 
             if (project.Revision >= Project.MaxRevision)
                 return Conflict(context);
@@ -191,7 +218,7 @@ internal static class ClassAssignmentEditor
                     .Append(new ProjectAssignment { ProjectId = projectId, UserId = student, CanEdit = true, CanPublish = true }).ToArray();
 
                 if (ProjectLifecycleEndpoints.StageDraft(database, documents, classroom!.OrganizationId,
-                    ProjectLifecycleEndpoints.Copy(sourceDocument.Value!, projectId, request.Title!), grants, sourceImageId) is null)
+                    ProjectLifecycleEndpoints.Copy(sourceDocument.Value!, projectId, request.Title!), grants, assignmentImageId) is null)
                 {
                     return Unavailable(context);
                 }
@@ -225,6 +252,12 @@ internal static class ClassAssignmentEditor
         assignment.LastEditActorId = account.UserId;
         assignment.LastEditDigest = digest;
         await database.SaveChangesAsync(cancellationToken);
+        if (replacedImageIds.Count > 0)
+        {
+            await database.ProjectImages.Where(image => replacedImageIds.Contains(image.Id)
+                && !database.Projects.Any(project => project.ImageId == image.Id)).ExecuteDeleteAsync(cancellationToken);
+        }
+
         var (_, recheck) = await ClassroomEndpoints.FindAsync(id, context, database, access, true, false, cancellationToken);
 
         if (recheck is not null)

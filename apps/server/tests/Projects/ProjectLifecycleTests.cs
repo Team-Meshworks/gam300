@@ -88,6 +88,38 @@ public sealed class ProjectLifecycleTests
     }
 
     [Test]
+    public async Task IndependentProjectImage_ReplacementSurvivesReloadAndRejectsStaleWrites()
+    {
+        await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
+        await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Educator));
+        var id = await CreateAsync(fixture, new { title = Marker });
+        using var listed = await fixture.Client.GetAsync("/api/v1/projects");
+        var project = (await listed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0];
+        var bytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGO0iapgYGAAAAUYARBocWoMAAAAAElFTkSuQmCC");
+        var path = Path(id, "/image");
+        var update = new
+        {
+            expectedUpdatedAt = project.GetProperty("updatedAt").GetDateTimeOffset(),
+            image = new { type = "cover", contentType = "image/png", data = bytes }
+        };
+
+        using var saved = await SendAsync(fixture, HttpMethod.Put, path, update);
+        await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var reloaded = await fixture.Client.GetAsync(path);
+        await Assert.That(reloaded.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(await reloaded.Content.ReadAsByteArrayAsync()).IsEquivalentTo(bytes);
+
+        using var replay = await SendAsync(fixture, HttpMethod.Put, path, update);
+        await Assert.That(replay.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var stale = await SendAsync(fixture, HttpMethod.Put, path, new
+        {
+            update.expectedUpdatedAt,
+            image = new { type = "panorama", contentType = "image/png", data = bytes }
+        });
+        await Assert.That(stale.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+    }
+
+    [Test]
     public async Task ProjectImages_InvalidUploadDoesNotCreateAProjectOrImage()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");

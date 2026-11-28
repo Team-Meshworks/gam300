@@ -1,6 +1,7 @@
 using System.Data;
 using System.Globalization;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Spatia.Server.Accounts;
@@ -29,6 +30,7 @@ public static class ClassroomEndpoints
         group.MapPost("/{id:guid}/assignments", ClassAssignmentCoordinator.CreateAsync)
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPatch("/{id:guid}/assignments/{assignmentId:guid}", ClassAssignmentEditor.UpdateAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(3 * 1024 * 1024))
             .RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapPut("/{id:guid}/members/{userId:guid}", AddMemberAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);
         group.MapDelete("/{id:guid}/members/{userId:guid}", RemoveMemberAsync).RequireRateLimiting(SecurityPolicies.AccountWriteRateLimit);

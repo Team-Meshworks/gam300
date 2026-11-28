@@ -70,6 +70,38 @@ public sealed class ClassAssignmentCoordinatorTests
         var metadata = (await detail.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("image");
 
         await Assert.That(metadata.GetProperty("url").GetString()).IsEqualTo(imagePath);
+
+        // Replacing an assignment cover keeps the original source image and requires facilitator access.
+        var replacementBytes = Convert.FromBase64String("UklGRjIAAABXRUJQVlA4ICYAAACQAQCdASoCAAEAAUAmJQBOl0AAcwAA/vDXA+KAUjhzvzfY9pgAAA==");
+        var replacementPath = $"/api/v1/classes/{data.ClassroomId:D}/assignments/{request.RequestId:D}";
+        var replacement = new
+        {
+            mutationId = Guid.NewGuid(),
+            expectedRevision = 0,
+            request.Title, request.Description, request.Instructions, request.DueAtUnixSeconds, request.StudentIds,
+            image = new { type = "panorama", contentType = "image/webp", data = replacementBytes }
+        };
+        using var unauthorizedEdit = new HttpRequestMessage(HttpMethod.Patch, replacementPath) { Content = JsonContent.Create(replacement) };
+        unauthorizedEdit.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync(student));
+        using var denied = await student.SendAsync(unauthorizedEdit);
+        await Assert.That(denied.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+
+        using var edit = new HttpRequestMessage(HttpMethod.Patch, replacementPath) { Content = JsonContent.Create(replacement) };
+        edit.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync());
+        using var saved = await fixture.Client.SendAsync(edit);
+        await Assert.That(saved.StatusCode).IsEqualTo(HttpStatusCode.OK);
+
+        using var reloaded = await student.GetAsync(replacementPath);
+        var savedImage = (await reloaded.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("image");
+        await Assert.That(savedImage.GetProperty("type").GetString()).IsEqualTo("panorama");
+        using var savedBytes = await student.GetAsync(savedImage.GetProperty("url").GetString());
+        await Assert.That(await savedBytes.Content.ReadAsByteArrayAsync()).IsEquivalentTo(replacementBytes);
+
+        await using var verify = fixture.Database.Services.CreateAsyncScope();
+        var db = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await Assert.That((await db.Projects.SingleAsync(row => row.Id == data.SourceProject)).ImageId).IsEqualTo(imageId);
+        await Assert.That(await db.Projects.Where(row => projects.Values.Contains(row.Id))
+            .AllAsync(row => row.ImageId != null && row.ImageId != imageId)).IsTrue();
     }
 
     [Test]
