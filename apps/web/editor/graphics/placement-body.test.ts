@@ -45,17 +45,17 @@ it("keeps an open plinth open and measures its full solid bounds", () => {
 
 const crate = new THREE.Box3(new THREE.Vector3(-0.5, 0, -0.5), new THREE.Vector3(0.5, 1, 0.5));
 
-function slab(top: number, width = 6) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.1, 6));
+function slab(top: number, width = 6, thickness = 0.1) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, thickness, 6));
   mesh.name = "floor";
-  mesh.position.y = top - 0.05;
+  mesh.position.y = top - thickness / 2;
   return mesh;
 }
 
-function roomPlacement(...slabs: THREE.Mesh[]) {
+function roomPlacement(...meshes: THREE.Mesh[]) {
   const wall = new THREE.Mesh(new THREE.BoxGeometry(0.1, 4, 6));
-  wall.position.set(-3, 2, 0);
-  const model = new THREE.Group().add(...slabs, wall);
+  wall.position.set(3, 2, 0);
+  const model = new THREE.Group().add(...meshes, wall);
   const room = placementBody("room", pose, model, {
     id: "room",
     kind: "environment",
@@ -72,7 +72,7 @@ function roomPlacement(...slabs: THREE.Mesh[]) {
     const transform = { ...pose, position: [x, hit.y, z] as const };
     const body = { id: "crate", bounds: crate, transform };
     const released = resolveObjectPlacement(body, transform, [room], "release", hit.y);
-    return { hit: hit.y, base: released?.position[1] };
+    return { hit: hit.y, base: released?.position[1], x: released?.position[0] };
   }
   return { room, place };
 }
@@ -99,24 +99,45 @@ it("supports a new crate and one moved uphill on the same pitched floor", () => 
 });
 
 it("selects the lower floor or the imported Mezzanine deck from the camera's storey", () => {
-  const deck = slab(2.5);
+  const deck = slab(2.5, 3, 0.2);
   deck.name = "Mezzanine";
-  const { place } = roomPlacement(slab(0.1), deck);
+  const { place, room } = roomPlacement(slab(0.1), deck);
   const lower = place(0, 1.7, 0);
   expect(lower?.hit).toBeCloseTo(0.1);
   expect(lower?.base).toBeCloseTo(0.1);
   const upper = place(0, 3.5, 0);
   expect(upper?.hit).toBeCloseTo(2.5);
   expect(upper?.base).toBeCloseTo(2.5);
+  const transform = { ...pose, position: [0, 0.1, 0] as const };
+  const body = { id: "crate", bounds: crate, transform };
+  const move = (x: number, y: number) =>
+    resolveObjectPlacement(body, { ...pose, position: [x, y, 0] }, [room], "release");
+  expect(move(0, 1.3)?.position[1]).toBeCloseTo(1.3);
+  expect(move(2, 1.45)?.position).toEqual([2, 1.45, 0]);
+  for (const [x, y] of [
+    [0, 1.45],
+    [1.75, 1.45],
+    [0, 1.6],
+  ] as const) {
+    expect(move(x, y)).toBeUndefined();
+  }
 });
 
-it("seats the entire crate above a narrow raised strip that misses its centre and corners", () => {
+it("seats a crate on an overlapping strip and keeps it on the floor when flush with a wall", () => {
   const strip = slab(0.3, 0.18);
   strip.name = "raised-strip";
   strip.position.x = 0.27;
-  const { place } = roomPlacement(slab(0.1), strip);
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.5, 6));
+  wall.name = "Wall_Left";
+  wall.position.set(-2.875, 1.25, 0);
+  const { place } = roomPlacement(slab(0.1), strip, wall);
   const overlapping = place(0, 1.7, 0);
   expect(overlapping?.hit).toBeCloseTo(0.1);
   expect(overlapping?.base).toBeCloseTo(0.3);
   expect(place(1, 1.7, 0)?.base).toBeCloseTo(0.1);
+  expect(place(-2.24, 1.7, 0)?.base).toBeCloseTo(0.1);
+  const flush = place(-2.5, 1.7, 0);
+  expect(flush?.hit).toBeCloseTo(0.1);
+  expect(flush?.x).toBeCloseTo(-2.25);
+  expect(flush?.base).toBeCloseTo(0.1);
 });

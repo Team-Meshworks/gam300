@@ -100,30 +100,34 @@ function contain(
 
 function clearRoomFloor(
   floor: PlacementFloor,
-  bounds: THREE.Box3,
+  body: PlacementBody,
   proposed: Transform,
   dropY?: number,
 ): Transform | undefined {
-  const box = bounds.clone().applyMatrix4(placementMatrix(proposed));
+  const box = body.bounds.clone().applyMatrix4(placementMatrix(proposed));
   const anchor =
     dropY === undefined
       ? box.getCenter(new THREE.Vector3())
       : new THREE.Vector3(...proposed.position);
   let surfaceY = dropY;
   if (surfaceY === undefined) {
+    const previousBox = body.bounds
+      .clone()
+      .applyMatrix4(placementMatrix(body.previous ?? body.transform));
+    const probeY = THREE.MathUtils.clamp(previousBox.max.y, box.min.y, box.max.y);
     const ray = new THREE.Ray(
-      new THREE.Vector3(anchor.x, box.max.y + EPSILON, anchor.z),
+      new THREE.Vector3(anchor.x, probeY + EPSILON, anchor.z),
       new THREE.Vector3(0, -1, 0),
     );
     surfaceY = floor.intersect(ray)?.y;
     if (surfaceY === undefined) {
       ray.direction.y = 1;
-      return floor.intersect(ray) ? undefined : proposed;
+      if (floor.intersect(ray)) return;
+      surfaceY = box.min.y;
     }
   }
   const bottom = box.min.y;
-  const offsets = box.translate(new THREE.Vector3(-anchor.x, 0, -anchor.z));
-  const support = floor.supportHeight(anchor.x, surfaceY, anchor.z, offsets);
+  const support = floor.supportHeight(anchor.x, surfaceY, anchor.z, box);
   if (support === undefined) return;
   if (bottom >= support - EPSILON) return proposed;
   const [x, y, z] = proposed.position;
@@ -172,7 +176,7 @@ export function resolveObjectPlacement(
   if (room) {
     const contained = contain(body, result, room);
     if (!contained) return;
-    const supported = floor ? clearRoomFloor(floor, body.bounds, contained, dropY) : contained;
+    const supported = floor ? clearRoomFloor(floor, body, contained, dropY) : contained;
     if (!supported) return;
     result = supported;
   } else if (
@@ -245,11 +249,7 @@ export function resolveObjectPlacement(
     }
   }
   if (room) {
-    if (
-      floor &&
-      result !== beforeDisplay &&
-      clearRoomFloor(floor, body.bounds, result, dropY) !== result
-    )
+    if (floor && result !== beforeDisplay && clearRoomFloor(floor, body, result, dropY) !== result)
       return;
     const checked = contain(body, result, room);
     // A support snap must not push an exhibit through the room to make it fit

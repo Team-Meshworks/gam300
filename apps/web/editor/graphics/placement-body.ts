@@ -74,8 +74,8 @@ function clipFloorEdge(polygon: THREE.Vector3[], axis: "x" | "z", edge: number, 
   const clipped: THREE.Vector3[] = [];
   let previous = polygon.at(-1)!;
   for (const current of polygon) {
-    const inside = (current[axis] - edge) * sign >= 0;
-    const previousInside = (previous[axis] - edge) * sign >= 0;
+    const inside = (current[axis] - edge) * sign > 0;
+    const previousInside = (previous[axis] - edge) * sign > 0;
     if (inside !== previousInside) {
       const t = (edge - previous[axis]) / (current[axis] - previous[axis]);
       clipped.push(previous.clone().lerp(current, t));
@@ -84,6 +84,17 @@ function clipFloorEdge(polygon: THREE.Vector3[], axis: "x" | "z", edge: number, 
     previous = current;
   }
   return clipped;
+}
+
+function hasFootprintArea(polygon: THREE.Vector3[]) {
+  const origin = polygon[0]!;
+  let twiceArea = 0;
+  for (let i = 2; i < polygon.length; i++) {
+    const a = polygon[i - 1]!;
+    const b = polygon[i]!;
+    twiceArea += (a.x - origin.x) * (b.z - origin.z) - (a.z - origin.z) * (b.x - origin.x);
+  }
+  return Math.abs(twiceArea) > FLOOR_EPSILON * FLOOR_EPSILON;
 }
 
 function createPlacementFloor(model: THREE.Object3D, bounds: THREE.Box3) {
@@ -114,16 +125,10 @@ function createPlacementFloor(model: THREE.Object3D, bounds: THREE.Box3) {
     }
     // A closed mesh's signed volume identifies its outward winding, including mirrored imports.
     const open = Math.abs(signedVolume) <= FLOOR_EPSILON ** 3;
-    const meshFaces = candidates.map(({ triangle, up }) => ({
-      triangle,
-      supporting: Math.abs(up) > FLOOR_EPSILON && (open || up * signedVolume > 0),
-    }));
-    if (meshFaces.some((face) => face.supporting)) {
-      for (const face of meshFaces) {
-        faces.push(face);
-        const { a, b, c } = face.triangle;
-        if (face.supporting) lowest = Math.min(lowest, a.y, b.y, c.y);
-      }
+    for (const { triangle, up } of candidates) {
+      const supporting = Math.abs(up) > FLOOR_EPSILON && (open || up * signedVolume > 0);
+      faces.push({ triangle, supporting });
+      if (supporting) lowest = Math.min(lowest, triangle.a.y, triangle.b.y, triangle.c.y);
     }
   });
 
@@ -159,8 +164,7 @@ function createPlacementFloor(model: THREE.Object3D, bounds: THREE.Box3) {
       }
       return hit;
     }
-    function supportHeight(x: number, minimumY: number, z: number, base: THREE.Box3) {
-      const footprint = base.clone().translate(new THREE.Vector3(x, minimumY - base.min.y, z));
+    function supportHeight(x: number, minimumY: number, z: number, footprint: THREE.Box3) {
       const up = new THREE.Ray(
         new THREE.Vector3(x, minimumY + FLOOR_EPSILON, z),
         new THREE.Vector3(0, 1, 0),
@@ -171,10 +175,10 @@ function createPlacementFloor(model: THREE.Object3D, bounds: THREE.Box3) {
         if (
           box.max.y < minimumY - FLOOR_EPSILON ||
           box.min.y >= ceiling ||
-          box.max.x < footprint.min.x ||
-          box.min.x > footprint.max.x ||
-          box.max.z < footprint.min.z ||
-          box.min.z > footprint.max.z
+          box.max.x <= footprint.min.x + FLOOR_EPSILON ||
+          box.min.x >= footprint.max.x - FLOOR_EPSILON ||
+          box.max.z <= footprint.min.z + FLOOR_EPSILON ||
+          box.min.z >= footprint.max.z - FLOOR_EPSILON
         )
           continue;
         let polygon = [triangle.a, triangle.b, triangle.c];
@@ -182,12 +186,12 @@ function createPlacementFloor(model: THREE.Object3D, bounds: THREE.Box3) {
           polygon = clipFloorEdge(polygon, axis, footprint.min[axis], 1);
           polygon = clipFloorEdge(polygon, axis, footprint.max[axis], -1);
         }
-        if (polygon.length) {
+        if (polygon.length && (!supporting || hasFootprintArea(polygon))) {
           const heights = polygon.map((p) => p.y);
           overlaps.push({ low: Math.min(...heights), high: Math.max(...heights), supporting });
         }
       }
-      const height = base.max.y - base.min.y;
+      const height = footprint.max.y - footprint.min.y;
       let highest = minimumY;
       let reachable = highest + height;
       for (const { low, high, supporting } of overlaps.sort((a, b) => a.low - b.low)) {
@@ -195,7 +199,14 @@ function createPlacementFloor(model: THREE.Object3D, bounds: THREE.Box3) {
         if (supporting) highest = Math.max(highest, high);
         reachable = Math.max(reachable, high, highest + height);
       }
-      return highest + height <= ceiling + FLOOR_EPSILON ? highest : undefined;
+      const bottom = Math.max(footprint.min.y, highest);
+      const top = bottom + height;
+      if (
+        top > ceiling + FLOOR_EPSILON ||
+        overlaps.some(({ low, high }) => low < top - FLOOR_EPSILON && high > bottom + FLOOR_EPSILON)
+      )
+        return;
+      return highest;
     }
     return { intersect, supportHeight };
   }
