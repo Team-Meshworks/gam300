@@ -18,6 +18,7 @@ import { fitDisplayedObject } from "./fit-displayed-object";
 import { placementBody } from "./placement-body";
 import {
   resolveObjectPlacement,
+  placementMatrix,
   placementSupport,
   type PlacementBody,
 } from "./placement-constraints";
@@ -1038,23 +1039,22 @@ export function initScene(
     const body = bodyFor("new-placement", assetId, transform);
     if (!body) return;
     const bodies = collisionBodies();
-    if (!body.room && bodies.some((entry) => entry.room) && !getRoomAtPosition(position)) return;
-    return resolveObjectPlacement(body, transform, bodies, "release");
+    if (body.room) return resolveObjectPlacement(body, transform, bodies, "release");
+    if (bodies.some((entry) => entry.room) && !getRoomAtPosition(position, bodies)) return;
+    const [x, y, z] = position;
+    const seated: Transform = { ...transform, position: [x, y - body.bounds.min.y, z] };
+    return resolveObjectPlacement({ ...body, transform: seated }, seated, bodies, "release", y);
   }
 
-  function getRoomAtPosition(position: Vector3Tuple): string | null {
+  function getRoomAtPosition(position: Vector3Tuple, bodies = collisionBodies()): string | null {
     return roomAtPosition(
       position,
-      collisionBodies()
+      bodies
         .filter((body) => body.room)
         .map((body) => ({
           id: body.id,
           bounds: body.room!,
-          transform: new THREE.Matrix4().compose(
-            new THREE.Vector3(...body.transform.position),
-            new THREE.Quaternion(...body.transform.rotation),
-            new THREE.Vector3(...body.transform.scale),
-          ),
+          transform: placementMatrix(body.transform),
         })),
     );
   }
@@ -1094,19 +1094,26 @@ export function initScene(
     if (useSurfaces && !outsideGrid) {
       const bodies = collisionBodies();
       const surfaces: THREE.Object3D[] = [];
+      let floor: THREE.Vector3 | undefined;
       for (const body of bodies) {
         const instance = body.id === projectScene?.id ? environment : instances.get(body.id);
         if (!instance) continue;
         if (body.display) surfaces.push(instance);
-        else if (body.room)
-          instance.traverse((node) => {
-            if (node instanceof THREE.Mesh && node.name === "floor") surfaces.push(node);
-          });
+        else if (body.floorAtTransform) {
+          const hit = body.floorAtTransform(placementMatrix(body.transform)).intersect(ray);
+          if (
+            hit &&
+            (!floor || hit.distanceToSquared(ray.origin) < floor.distanceToSquared(ray.origin))
+          )
+            floor = hit;
+        }
       }
       const hit = new THREE.Raycaster(ray.origin, ray.direction)
         .intersectObjects(surfaces, true)
         .find(visibleRaycastHit);
-      if (hit) {
+      if (floor && (!hit || ray.origin.distanceTo(floor) < hit.distance)) {
+        point = floor;
+      } else if (hit) {
         point = hit.point.clone();
         const stand = bodies.find((body) => {
           if (!body.display) return false;
@@ -1121,6 +1128,8 @@ export function initScene(
           point.y = stand.display.top;
           instance.localToWorld(point);
         }
+      } else if (point && getRoomAtPosition(point.toArray(), bodies)) {
+        return;
       }
     }
     if (

@@ -1,12 +1,21 @@
 import * as THREE from "three";
 import type { Transform } from "../../shared/project/project-types";
 
+type PlacementFloor = {
+  intersect(ray: THREE.Ray): THREE.Vector3 | undefined;
+  supportHeight(
+    surface: THREE.Vector3,
+    worldBounds: THREE.Box3,
+    footprintSides: readonly THREE.Plane[],
+  ): number | undefined;
+};
 export type PlacementBody = {
   id: string;
   transform: Transform;
   previous?: Transform;
   bounds: THREE.Box3;
   room?: THREE.Box3;
+  floorAtTransform?: (frame: THREE.Matrix4) => PlacementFloor;
   display?: { top: number; interior?: THREE.Box3 };
 };
 const EPSILON = 1e-5;
@@ -92,11 +101,74 @@ function contain(
     ? proposed
     : shiftInFrame(proposed, offset, room.transform);
 }
+
+function projectedFootprintSides(bounds: THREE.Box3, frame: THREE.Matrix4, center: THREE.Vector3) {
+  const halfSize = bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+  const halfAxes = [0, 1, 2].map((i) =>
+    new THREE.Vector3().setFromMatrixColumn(frame, i).multiplyScalar(halfSize.getComponent(i)),
+  );
+  const sides: THREE.Plane[] = [];
+  // Each projected box edge gives two parallel sides of its footprint on the floor.
+  for (const axis of halfAxes) {
+    const normal = new THREE.Vector3(-axis.z, 0, axis.x);
+    if (normal.lengthSq() === 0) continue;
+    normal.normalize();
+    const radius = halfAxes.reduce((sum, halfAxis) => sum + Math.abs(normal.dot(halfAxis)), 0);
+    const middle = normal.dot(center);
+    sides.push(
+      new THREE.Plane(normal, radius - middle),
+      new THREE.Plane(normal.clone().negate(), radius + middle),
+    );
+  }
+  return sides;
+}
+
+function clearRoomFloor(
+  floor: PlacementFloor,
+  body: PlacementBody,
+  proposed: Transform,
+  dropY?: number,
+): Transform | undefined {
+  const frame = placementMatrix(proposed);
+  const box = body.bounds.clone().applyMatrix4(frame);
+  const center = box.getCenter(new THREE.Vector3());
+  const anchor = dropY === undefined ? center.clone() : new THREE.Vector3(...proposed.position);
+  let surfaceY = dropY;
+  if (surfaceY === undefined) {
+    const previousBox = body.bounds
+      .clone()
+      .applyMatrix4(placementMatrix(body.previous ?? body.transform));
+    const probeY = THREE.MathUtils.clamp(previousBox.max.y, box.min.y, box.max.y);
+    const ray = new THREE.Ray(
+      new THREE.Vector3(anchor.x, probeY + EPSILON, anchor.z),
+      new THREE.Vector3(0, -1, 0),
+    );
+    surfaceY = floor.intersect(ray)?.y;
+    if (surfaceY === undefined) {
+      ray.direction.y = 1;
+      if (floor.intersect(ray)) return;
+      surfaceY = box.min.y;
+    }
+  }
+  const bottom = box.min.y;
+  anchor.y = surfaceY;
+  const support = floor.supportHeight(
+    anchor,
+    box,
+    projectedFootprintSides(body.bounds, frame, center),
+  );
+  if (support === undefined) return;
+  if (bottom >= support - EPSILON) return proposed;
+  const [x, y, z] = proposed.position;
+  return { ...proposed, position: [x, y + support - bottom, z] };
+}
+
 export function resolveObjectPlacement(
   body: PlacementBody,
   proposed: Transform,
   bodies: readonly PlacementBody[],
   phase: "drag" | "release",
+  dropY?: number,
 ): Transform | undefined {
   if (
     ![...proposed.position, ...proposed.rotation, ...proposed.scale].every(Number.isFinite) ||
@@ -129,10 +201,13 @@ export function resolveObjectPlacement(
     ),
   );
   let result = proposed;
+  const floor = room?.floorAtTransform?.(placementMatrix(room.transform));
   if (room) {
     const contained = contain(body, result, room);
     if (!contained) return;
-    result = contained;
+    const supported = floor ? clearRoomFloor(floor, body, contained, dropY) : contained;
+    if (!supported) return;
+    result = supported;
   } else if (
     rooms.some(
       (entry) =>
@@ -150,6 +225,7 @@ export function resolveObjectPlacement(
         position: [result.position[0], result.position[1] - box.min.y, result.position[2]],
       };
   }
+  const beforeDisplay = result;
   for (const stand of bodies) {
     if (stand.id === body.id || !stand.display) continue;
     const box = relativePlacementBounds(body.bounds, result, stand.transform);
@@ -202,6 +278,8 @@ export function resolveObjectPlacement(
     }
   }
   if (room) {
+    if (floor && result !== beforeDisplay && clearRoomFloor(floor, body, result, dropY) !== result)
+      return;
     const checked = contain(body, result, room);
     // A support snap must not push an exhibit through the room to make it fit
     if (
@@ -210,6 +288,12 @@ export function resolveObjectPlacement(
     )
       return;
   }
+  if (
+    dropY !== undefined &&
+    !floor &&
+    body.bounds.clone().applyMatrix4(placementMatrix(result)).min.y < dropY - EPSILON
+  )
+    return;
   return result;
 }
 
