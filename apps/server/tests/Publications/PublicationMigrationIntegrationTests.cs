@@ -18,7 +18,7 @@ public sealed class PublicationMigrationIntegrationTests
         const string publicationMigration = "20261029094707_AddPublicationSnapshots";
         const string assetMigration = "20261031112544_AddAssetIntake";
         const string currentDevMigration = "20261103080036_AddAccountDisplayName";
-        await using var fixture = await PostgresAccountFixture.CreateAsync(draftMigration);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync(draftMigration);
         await using var scope = fixture.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var migrator = database.GetService<IMigrator>();

@@ -112,7 +112,7 @@ public sealed partial class ReceiptMigrationRollbackTests
     [Arguments("asset")]
     public async Task EmptyReceiptTablesCanDowngradeAndReapplyWithoutChangingExistingResources(string kind)
     {
-        await using var fixture = await PostgresAccountFixture.CreateAsync(Removal);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync(Removal);
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var actor = new ApplicationUser { Id = Guid.NewGuid(), UserName = "receipt-migration", NormalizedUserName = "RECEIPT-MIGRATION" };

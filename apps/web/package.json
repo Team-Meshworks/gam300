@@ -12,10 +12,11 @@
     "predev": "node prepare-dashboard-font.mjs",
     "dev": "vite",
     "build": "npm run build:editor && npm run build:visitor",
-    "prebuild:editor": "node prepare-dashboard-font.mjs",
-    "build:editor": "npm run typecheck && vite build",
+    "build:editor": "npm run typecheck && npm run bundle:editor --",
+    "prebundle:editor": "node prepare-dashboard-font.mjs",
+    "bundle:editor": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b",
+    "typecheck": "bun check --no-script -b",
     "check:architecture": "node architecture.mjs",
     "graph:architecture": "node architecture.mjs --write",
     "test:architecture": "node architecture.check.mjs",
@@ -55,7 +56,6 @@
     "test:ui": "node tests/ui-foundation.check.mjs",
     "test:entry": "node tests/entry.check.mjs",
     "test:home": "node tests/home.check.mjs",
-    "test:home-welcome": "node tests/home-welcome.check.mjs",
     "test:dashboards": "node tests/dashboard-redesign.check.mjs",
     "test:account-header": "node tests/account-header.check.mjs",
     "test:project-creation": "node tests/project-creation.check.mjs",
@@ -64,7 +64,9 @@
     "test:publication": "node tests/publication.check.mjs",
     "test:publication-access": "node tests/publication-access.check.mjs",
     "test:publication-readiness": "node tests/publication-readiness.check.mjs",
-    "test:player-parity": "node --test tests/shared-player-boundary.test.mjs && node tests/editable-preview.check.mjs && node tests/preview-visitor-parity.check.mjs && node tests/player-walking.check.mjs",
+    "test:player-parity": "npm run test:player-preview-parity && npm run test:player-walking",
+    "test:player-preview-parity": "node --test tests/shared-player-boundary.test.mjs && node tests/editable-preview.check.mjs && node tests/preview-visitor-parity.check.mjs",
+    "test:player-walking": "node tests/player-walking.check.mjs",
     "test:visitor": "node tests/visitor.check.mjs",
     "test:workspace-assignments": "node tests/workspace-assignments.check.mjs",
     "test:entry-config": "node tests/account-dev-server.check.mjs",
@@ -73,7 +75,6 @@
     "test:classes": "node tests/class-assignment.check.mjs",
     "test:assignment-screen": "node tests/assignment-screen.check.mjs",
     "test:project-grants": "node tests/project-grants.check.mjs",
-    "test:deadline": "node tests/deadline.check.mjs",
     "test:review-directory": "node tests/review-directory.check.mjs",
     "test:accounts": "node tests/account-directory.check.mjs",
     "test:organization-deletion": "node tests/organization-deletion.check.mjs",
@@ -124,6 +125,7 @@
     "@types/react-dom": "19.2.7",
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "6.1.1",
+    "bun": "1.4.5",
     "eslint-plugin-react-hooks": "7.1.1",
     "fake-indexeddb": "6.2.8",
     "gltf-validator": "2.0.0-dev.3.10",
@@ -135,5 +137,8 @@
     "typescript": "6.0.2",
     "vite": "8.3.3",
     "vitest": "5.0.3"
+  },
+  "allowScripts": {
+    "bun@1.4.5": true
   }
 }

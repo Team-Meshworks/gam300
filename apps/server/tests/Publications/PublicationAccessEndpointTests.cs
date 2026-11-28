@@ -16,7 +16,7 @@ using Spatia.Server.Publications;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel("Browser")]
+[NotInParallel(nameof(PublicationAccessEndpointTests))]
 public sealed class PublicationAccessEndpointTests
 {
     [Test]
@@ -102,6 +102,7 @@ public sealed class PublicationAccessEndpointTests
     }
 
     [Test]
+    [NotInParallel("Browser")]
     public async Task Browser_PublicationAudienceLifecycleAndProtectedBytesUseCurrentAuthority()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");

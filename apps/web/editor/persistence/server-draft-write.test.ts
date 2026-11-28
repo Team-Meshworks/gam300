@@ -151,6 +151,7 @@ describe("server draft transport", () => {
     // Retry after logout as well; an ended session must not begin another fetch
     expect(await saving).toEqual({ kind: "failed" });
     expect(requests).toHaveLength(1);
+    expect(requests[0]?.signal.aborted).toBe(true);
     expect(await writeServerDraft(request, account.signal, fetcher)).toEqual({ kind: "failed" });
     expect(requests).toHaveLength(1);
   });

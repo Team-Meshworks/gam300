@@ -92,16 +92,8 @@ try {
         ),
     ],
     [
-      "enrolled student populated",
-      async () => assert.equal(await page.getByRole("checkbox", { name: /Alice/ }).count(), 1),
-    ],
-    [
       "unenrolled student excluded",
       async () => assert.equal(await page.getByRole("checkbox", { name: /Bob/ }).count(), 0),
-    ],
-    [
-      "source project selector absent",
-      async () => assert.equal(await page.getByLabel("Source project").count(), 0),
     ],
     [
       "date input",

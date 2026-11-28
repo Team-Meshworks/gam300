@@ -10,162 +10,110 @@ namespace Spatia.Server.Tests;
 public sealed class ProjectDocumentServiceTests
 {
     [Test]
-    [Arguments("room-space1-module-v1")]
-    [Arguments("room-doors-1-module-v1")]
-    public async Task Documents_AdjoiningRoomModelsRoundTrip(string assetId)
+    public async Task Documents_AcceptsPackagedRoomsAndReopensFurnishedScene()
     {
-        var fixture = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json"));
-        var json = fixture.Replace("test-crate-v1", assetId, StringComparison.Ordinal);
-        var id = Guid.Parse(JsonNode.Parse(json)!["projectId"]!.GetValue<string>());
-        var service = Create("Development");
-        var parsed = service.Read(id, json);
+        var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json"));
+        var development = Create("Development");
+        var template = (LegacyProject)development.Read(json).Value!;
+        var id = Guid.Parse(template.ProjectId);
+        var scene = template.Scenes.Single();
+        string[] rooms = ["room-space1-v1", "room-doors-1-v1", "room-doors-2-v1", "room-doors-3-v1", "room-doors-4-v1",
+            "room-doors-1-2-v1", "room-doors-1-3-v1", "room-doors-1-4-v1", "room-doors-2-3-v1", "room-doors-2-4-v1",
+            "room-doors-3-4-v1", "room-doors-1-2-3-v1", "room-doors-1-2-4-v1", "room-doors-1-3-4-v1",
+            "room-doors-2-3-4-v1", "room-doors-1-2-3-4-v1"];
+        foreach (var room in rooms)
+        {
+            var input = json.Replace(scene.EnvironmentAssetId, room, StringComparison.Ordinal);
+            await Assert.That(development.Read(id, input).Ok).IsTrue().Because(room);
+        }
 
-        await Assert.That(parsed.Ok).IsTrue();
+        string[] models = ["test-crate-v1", "sample-snowglobe-v1", "test-room-module-v1", "room-space1-module-v1",
+            "room-doors-1-module-v1", "display-cube-v1", "display-full-glass-case-v1", "display-half-glass-case-v1",
+            "display-one-sided-glass-case-v1", "display-rectangle-stand-v1", "display-rectangle-panel-v1",
+            "display-square-stand-v1", "display-square-panel-v1", "furniture-modern-bench-1-v1",
+            "furniture-modern-bench-2-v1", "library-untitled-v1", "trigger-crate-v1"];
+        var furnished = scene with
+        {
+            EnvironmentAssetId = "room-doors-1-2-v1",
+            Objects = models.Select(model => scene.Objects[0] with
+            {
+                Id = Guid.NewGuid().ToString("D"),
+                AssetId = model,
+            }).ToArray(),
+        };
 
-        var saved = service.Serialize(parsed.Value!);
+        var saved = development.Serialize(template with
+        {
+            Scenes = [furnished]
+        });
 
-        await Assert.That(saved.Ok).IsTrue();
-        await Assert.That(service.Read(id, saved.Value!).Ok).IsTrue();
-        await Assert.That(Create("Production").Read(id, json).Ok).IsFalse();
+        await Assert.That(saved.Error).IsNull();
+        await Assert.That(development.Read(id, saved.Value!).Ok).IsTrue();
+        var stored = development.ReadStored(id, 1, saved.Value!);
+        await Assert.That(stored.Ok).IsTrue();
+
+        var reopened = (LegacyProject)stored.Value!;
+        var reopenedScene = reopened.Scenes.Single();
+        await Assert.That(reopenedScene.EnvironmentAssetId).IsEqualTo(furnished.EnvironmentAssetId);
+        await Assert.That(reopenedScene.Objects.Select(item => item.AssetId).SequenceEqual(models)).IsTrue();
     }
 
     [Test]
-    public async Task Documents_UseOnlyThePackagedDevelopmentCatalogue()
+    public async Task Documents_EnforceDevelopmentCatalogueAndAssetKinds()
     {
         var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json"));
         var id = Guid.Parse(JsonNode.Parse(json)!["projectId"]!.GetValue<string>());
         var development = Create("Development");
 
-        await Assert.That(development.Read(id, json).Ok).IsTrue();
-        await Assert.That(development.Read(id, json.Replace("test-crate-v1", "sample-snowglobe-v1", StringComparison.Ordinal)).Ok).IsTrue();
-
-        foreach (var standId in new[] { "display-cube-v1", "display-full-glass-case-v1", "display-half-glass-case-v1",
-            "display-one-sided-glass-case-v1", "display-rectangle-stand-v1", "display-rectangle-panel-v1", "display-square-stand-v1", "display-square-panel-v1" })
-        {
-            await Assert.That(development.Read(id, json.Replace("test-crate-v1", standId, StringComparison.Ordinal)).Ok).IsTrue();
-        }
-
-        await Assert.That(development.Read(id, json.Replace("test-crate-v1", "test-room-module-v1", StringComparison.Ordinal)).Ok).IsTrue();
         await Assert.That(development.Read(id, json.Replace("test-crate-v1", "demo-image-v1", StringComparison.Ordinal)).Ok).IsFalse();
+        await Assert.That(development.Read(id, json.Replace("test-crate-v1", "test-room-v1", StringComparison.Ordinal)).Ok).IsFalse();
         await Assert.That(development.Read(id, json.Replace("test-room-v1", "test-crate-v1", StringComparison.Ordinal)).Ok).IsFalse();
-
-        foreach (var asset in new[] { "display-square-stand-v1", "display-cube-v1" })
-        {
-            var fixture = json.Replace("test-crate-v1", asset, StringComparison.Ordinal);
-
-            await Assert.That(development.Read(id, fixture).Ok).IsTrue();
-            await Assert.That(Create("Production").Read(id, fixture).Ok).IsFalse();
-        }
-
         await Assert.That(Create("Production").Read(id, json).Ok).IsFalse();
         await Assert.That(Create("Testing").Read(id, json).Ok).IsFalse();
     }
 
     [Test]
-    [Arguments("furniture-modern-bench-1-v1")]
-    [Arguments("furniture-modern-bench-2-v1")]
-    public async Task Documents_PackagedBenchModelsRoundTripOnlyInDevelopment(string assetId)
-    {
-        var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json"))
-            .Replace("test-crate-v1", assetId, StringComparison.Ordinal);
-        var id = Guid.Parse(JsonNode.Parse(json)!["projectId"]!.GetValue<string>());
-        var development = Create("Development");
-        var document = development.Read(id, json);
-
-        await Assert.That(document.Ok).IsTrue();
-
-        var saved = development.Serialize(document.Value!);
-
-        await Assert.That(saved.Ok).IsTrue();
-        await Assert.That(development.Read(id, saved.Value!).Ok).IsTrue();
-        await Assert.That(Create("Production").Read(id, json).Ok).IsFalse();
-    }
-
-    [Test]
-    [Arguments("model", "library-untitled-v1")]
-    [Arguments("model", "trigger-crate-v1")]
-    [Arguments("environment", "room-space1-v1")]
-    [Arguments("environment", "room-doors-1-v1")]
-    [Arguments("environment", "room-doors-2-v1")]
-    [Arguments("environment", "room-doors-3-v1")]
-    [Arguments("environment", "room-doors-4-v1")]
-    [Arguments("environment", "room-doors-1-2-v1")]
-    [Arguments("environment", "room-doors-1-3-v1")]
-    [Arguments("environment", "room-doors-1-4-v1")]
-    [Arguments("environment", "room-doors-2-3-v1")]
-    [Arguments("environment", "room-doors-2-4-v1")]
-    [Arguments("environment", "room-doors-3-4-v1")]
-    [Arguments("environment", "room-doors-1-2-3-v1")]
-    [Arguments("environment", "room-doors-1-2-4-v1")]
-    [Arguments("environment", "room-doors-1-3-4-v1")]
-    [Arguments("environment", "room-doors-2-3-4-v1")]
-    [Arguments("environment", "room-doors-1-2-3-4-v1")]
-    public async Task Documents_NewPackagedAssetsRoundTripOnlyInDevelopment(string kind, string assetId)
-    {
-        var fixture = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "m1-project.json"));
-        var json = fixture.Replace(kind == "environment" ? "test-room-v1" : "test-crate-v1", assetId, StringComparison.Ordinal);
-        var id = Guid.Parse(JsonNode.Parse(json)!["projectId"]!.GetValue<string>());
-        var development = Create("Development");
-        var document = development.Read(id, json);
-
-        await Assert.That(document.Ok).IsTrue();
-
-        var saved = development.Serialize(document.Value!);
-
-        await Assert.That(saved.Ok).IsTrue();
-        await Assert.That(development.Read(id, saved.Value!).Ok).IsTrue();
-        await Assert.That(development.ReadStored(id, 1, saved.Value!).Ok).IsTrue();
-
-        var wrongKind = fixture.Replace(kind == "environment" ? "test-crate-v1" : "test-room-v1", assetId, StringComparison.Ordinal);
-
-        await Assert.That(development.Read(id, wrongKind).Ok).IsFalse();
-        await Assert.That(Create("Production").Read(id, json).Ok).IsFalse();
-    }
-
-    [Test]
-    [Arguments("image", "sample-landscape-image-v1")]
-    [Arguments("image", "sample-coast-image-v1")]
-    [Arguments("video", "sample-coast-video-v1")]
-    [Arguments("image", "sample-dunes-image-v1")]
-    [Arguments("image", "sample-forest-image-v1")]
-    [Arguments("image", "sample-sunset-image-v1")]
-    [Arguments("image", "sample-valley-image-v1")]
-    [Arguments("video", "sample-dunes-video-v1")]
-    [Arguments("video", "sample-forest-video-v1")]
-    [Arguments("video", "sample-sunset-video-v1")]
-    public async Task Documents_SampleMediaRoundTripsOnlyInDevelopment(string kind, string assetId)
+    [Arguments("image")]
+    [Arguments("video")]
+    public async Task Documents_PackagedMediaRoundTripOnlyInDevelopment(string kind)
     {
         var id = Guid.NewGuid();
         var input = JsonNode.Parse(ProjectTestDocuments.Create(id, "Sample media", 2))!;
         var components = input["scenes"]![0]!["objects"]![0]!["components"]!.AsArray();
-        components.Add(new JsonObject
+        string[] assets = kind == "image"
+            ? ["sample-landscape-image-v1", "sample-coast-image-v1", "sample-dunes-image-v1",
+                "sample-forest-image-v1", "sample-sunset-image-v1", "sample-valley-image-v1"]
+            : ["sample-coast-video-v1", "sample-dunes-video-v1", "sample-forest-video-v1", "sample-sunset-video-v1"];
+        foreach (var assetId in assets)
         {
-            ["id"] = Guid.NewGuid().ToString("D"),
-            ["type"] = kind,
-            ["assetId"] = assetId,
-            ["caption"] = "Sample caption",
-        });
-        var component = components.Last()!;
-
-        if (kind == "image")
-        {
-            component["alt"] = "Sample landscape";
-        }
-        else
-        {
-            component["loop"] = false;
-            component["volume"] = 1;
+            var component = new JsonObject
+            {
+                ["id"] = Guid.NewGuid().ToString("D"),
+                ["type"] = kind,
+                ["assetId"] = assetId,
+                ["caption"] = "Sample caption",
+            };
+            if (kind == "image")
+            {
+                component["alt"] = "Sample landscape";
+            }
+            else
+            {
+                component["loop"] = false;
+                component["volume"] = 1;
+            }
+            components.Add(component);
         }
 
         var development = Create("Development");
         var accepted = development.Read(id, input.ToJsonString());
-
         await Assert.That(accepted.Ok).IsTrue();
-
         var saved = development.Serialize(accepted.Value!);
-
         await Assert.That(saved.Ok).IsTrue();
         await Assert.That(development.Read(id, saved.Value!).Ok).IsTrue();
+        var savedComponents = JsonNode.Parse(saved.Value!)!["scenes"]![0]!["objects"]![0]!["components"]!.AsArray();
+        await Assert.That(savedComponents.Where(item => (string?)item!["type"] == kind)
+            .Select(item => (string?)item!["assetId"]).SequenceEqual(assets)).IsTrue();
         await Assert.That(Create("Production").Read(id, input.ToJsonString()).Ok).IsFalse();
     }
 

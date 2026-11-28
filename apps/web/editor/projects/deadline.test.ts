@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import {
   localDeadlineInput,
   formatDueDate,
@@ -19,6 +19,30 @@ it("maps a valid local date and time to Unix seconds", () => {
   expect(localDeadlineToUnixSeconds("2028-02-29T15:30")).toBe(
     new Date("2028-02-29T15:30").getTime() / 1000,
   );
+});
+
+it("displays a shared deadline in each local time zone and handles New York clock changes", () => {
+  const instant = Date.UTC(2026, 11, 1, 7, 30) / 1000;
+  const displayIn = (timeZone: string) =>
+    new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone,
+    }).format(instant * 1000);
+  try {
+    vi.stubEnv("TZ", "Asia/Singapore");
+    expect(localDeadlineToUnixSeconds("2026-12-01T15:30")).toBe(instant);
+    expect(formatLocalDeadline(instant)).toBe(displayIn("Asia/Singapore"));
+
+    vi.stubEnv("TZ", "America/New_York");
+    expect(formatLocalDeadline(instant)).toBe(displayIn("America/New_York"));
+    expect(localDeadlineToUnixSeconds("2026-03-08T02:30")).toBeNull();
+    expect(localDeadlineToUnixSeconds("2026-11-01T01:30")).toBe(
+      Date.UTC(2026, 10, 1, 5, 30) / 1000,
+    );
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
 
 it("rejects invalid, incomplete and out-of-range deadlines", () => {

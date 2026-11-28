@@ -17,7 +17,7 @@ using Spatia.Server.Projects;
 
 namespace Spatia.Server.Tests;
 
-[NotInParallel("Browser")]
+[NotInParallel(nameof(ProjectReadEndpointTests))]
 public sealed class ProjectReadEndpointTests
 {
     private const string BodyMarker = "private-read-document-sentinel";
@@ -355,6 +355,7 @@ public sealed class ProjectReadEndpointTests
     }
 
     [Test]
+    [NotInParallel("Browser")]
     public async Task Browser_ProjectListOpenAndAccountSwitchUseCurrentSession()
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(map: app =>
@@ -450,7 +451,8 @@ public sealed class ProjectReadEndpointTests
         await Assert.That(browserOutput.Contains("largest catalogue asset streamed over HTTPS", StringComparison.Ordinal)).IsTrue();
         await Assert.That(string.IsNullOrWhiteSpace(await error)).IsTrue();
 
-        await File.WriteAllTextAsync(System.IO.Path.Combine(serverDirectory, ".artifacts/scrum45-part7-browser-version.txt"), browserOutput);
+        var artifacts = Directory.CreateDirectory(System.IO.Path.Combine(serverDirectory, ".artifacts"));
+        await File.WriteAllTextAsync(System.IO.Path.Combine(artifacts.FullName, "scrum45-part7-browser-version.txt"), browserOutput);
     }
 
     [Test]

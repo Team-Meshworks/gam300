@@ -171,19 +171,23 @@ the lockfiles.
 
 Run the canonical check block below from `apps/server/` so the scoped SDK pin applies.
 
-The repository CI also runs that block on Ubuntu with a disposable PostgreSQL 18.6
-service and the Chromium account and project-read checks. Server failures block image publishing;
-reports are retained as `server-checks-<commit>`. The bootstrap process tests use the
-server assembly referenced by the running test build, including Debug builds. The
-standalone cold-restart acceptance below still targets an explicitly prebuilt Release
-application and is not part of the CI job.
+CI executes the full suite across three Ubuntu runners with independent PostgreSQL 18.6 services.
+Each discovers the current assembly and assigns whole classes using the recorded case durations
+in [`server-class-seconds.json`](../../.github/ci/server-class-seconds.json). The planner distributes
+browser-locked cases first, then fills each runner by total class time. New classes start with
+a weight of one second per discovered case. All three runners verify their TRX results against the
+assigned cases and must agree on every UID in the partition. Each `server-checks-<shard>-<commit>`
+artifact contains its report, case selection and measured class durations in `class-seconds.json`.
+Use all shards from representative full runs to refresh the weights. For
+[`server-browser-seconds.json`](../../.github/ci/server-browser-seconds.json), sum the TRX durations
+of cases marked `NotInParallel("Browser")` on the class or method. The standalone cold-restart acceptance remains a local operator check.
 
-The TUnit assembly limiter caps concurrent tests at four. Tests with the same
-`NotInParallel` key remain exclusive: database-backed classes use class-specific keys,
-while browser-launching classes and `ProxyChainTests` share `Browser`. The unkeyed
-`AccountModelTests` exclusion remains global because those tests change environment variables.
-CI runs proxy preparation, restore/build, formatting, migrations and tests as separate
-steps in the same server job.
+The assembly caps concurrency at four per runner. Browser scenarios and proxy checks share the
+`Browser` lock. The API cases in mixed classes use their class lock, and only tests that change
+process-wide configuration require global exclusion. Each fixture gets a fresh schema. Ordinary
+fixtures apply the same generated migration SQL in one batch. Migration tests use the EF migrator
+for their specific starting states, upgrades and rollbacks. The fixture keeps physical connections
+independent for tests that exercise competing transactions.
 
 The full suite includes `ProxyChainTests`, which starts two Caddy processes and a
 local ASP.NET test host. Provide the pinned Caddy **2.11.4** executable through
@@ -276,9 +280,9 @@ schema it created. It never uses `EnsureCreated`, resets `public`, or clears oth
 data. Direct fixture connections disable pooling so reopened-scope durability uses new
 connections. Duplicate-insert races use separate contexts.
 
-HTTPS application fixtures apply freshly generated production migration SQL as one
-batch to each new schema, avoiding repeated migration-history probes and locking.
-Direct database tests retain the EF migrator for upgrade and reapplication coverage.
+Ordinary database and HTTPS application fixtures cache the current production migration
+SQL and apply it in one batch to each new schema. Tests for upgrades, reapplication and
+rollback use the EF migrator against their chosen starting state.
 `PostgresAccountFixtureTests` compares both schema catalogs, seeds and history, then
 checks independent same-ID records and cleanup. Independent fixtures share the
 disposable test database but use separate schemas, application hosts and schema-scoped

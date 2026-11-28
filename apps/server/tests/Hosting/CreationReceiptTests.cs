@@ -460,7 +460,7 @@ public sealed class CreationReceiptTests
     public async Task MigrationUpgradeRollbackAndReapplyPreserveResourcesAndMatchModel()
     {
         const string previous = "20261114115659_AddAssetRemovalReceipts";
-        await using var fixture = await PostgresAccountFixture.CreateAsync(previous);
+        await using var fixture = await PostgresAccountFixture.CreateMigratedAsync(previous);
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var actor = new ApplicationUser { Id = Guid.NewGuid(), UserName = "creation-upgrade", NormalizedUserName = "CREATION-UPGRADE" };

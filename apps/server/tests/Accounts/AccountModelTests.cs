@@ -8,11 +8,11 @@ using Spatia.Server.Persistence;
 
 namespace Spatia.Server.Tests;
 
-// These tests change process-wide configuration read by other fixtures.
-[NotInParallel]
 public sealed class AccountModelTests
 {
+    // These tests change process-wide configuration read by other fixtures.
     [Test]
+    [NotInParallel]
     public async Task Model_DesignTimeAndDependencyInjection_UseTheSameIdentitySchema()
     {
         const string connection = "Host=127.0.0.1;Database=spatia_scrum45_test;Username=spatia_test";
@@ -59,6 +59,7 @@ public sealed class AccountModelTests
     }
 
     [Test]
+    [NotInParallel]
     public async Task DesignTimeFactory_MissingConfiguration_RejectsWithoutConnecting()
     {
         var previous = Environment.GetEnvironmentVariable("ConnectionStrings__Spatia");

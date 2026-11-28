@@ -62,8 +62,9 @@ export async function serveHttp(handler: (request: Request) => Response | Promis
   const request: typeof fetch = (input, init) => {
     const outgoing = new Request(input instanceof Request ? input : new URL(input, origin), init);
     if (new URL(outgoing.url).origin !== origin) throw new Error("Expected a fixture URL");
-    requests.push(outgoing.clone());
-    return fetch(outgoing);
+    // Keep the signal owner alive and the recorded body readable while fetch consumes its clone.
+    requests.push(outgoing);
+    return fetch(outgoing.clone(), { signal: outgoing.signal });
   };
   return { origin, fetch: request, requests };
 }
