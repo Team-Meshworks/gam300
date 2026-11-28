@@ -185,3 +185,23 @@ it("reorders views in one undo step and preserves the order through recovery and
   expect(restored.getSnapshot().canRedo).toBe(false);
   expect(views(restored).map((v) => v.name)).toEqual(["C", "A", "B"]);
 });
+
+it("initializes a default from the scene camera once without recreating deleted or undone views", () => {
+  const store = setup();
+  const original = store.getSnapshot().project!.scenes[0]!.startCamera;
+  expect(store.initializeDefaultViewpoint().ok).toBe(true);
+  expect(views(store)).toHaveLength(1);
+  expect(views(store)[0]!.name).toBe("Default View");
+  expect(views(store)[0]!.camera).toEqual(original);
+  const id = views(store)[0]!.id;
+  store.initializeDefaultViewpoint();
+  expect(views(store)).toHaveLength(1);
+  store.deleteViewpoint(id);
+  store.initializeDefaultViewpoint();
+  expect(views(store)).toHaveLength(0);
+  store.undo();
+  expect(views(store)[0]!.id).toBe(id);
+  store.undo();
+  store.initializeDefaultViewpoint();
+  expect(views(store)).toHaveLength(0);
+});

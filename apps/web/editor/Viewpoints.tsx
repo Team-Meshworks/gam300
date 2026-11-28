@@ -1,7 +1,11 @@
-import { Icon } from "./ui/Icon";
+import { Icon as EditorIcon } from "./ui/Icon";
+import { Button } from "../shared/ui/Button";
+import "./saved-views.css";
+import { Icon } from "@iconify/react/offline";
+import trashIcon from "@iconify-icons/ant-design/delete-outlined";
 import { getStartingView } from "../shared/project/starting-view";
-import { useState } from "react";
-import type { NamedViewpoint } from "../shared/project/project-types";
+import { useEffect, useState } from "react";
+import type { NamedViewpoint, CameraPose } from "../shared/project/project-types";
 import { playUiSound } from "./audio/ui-sounds";
 import type { createDocumentStore } from "./document-store";
 import type { ViewpointCamera } from "./viewport/Viewport";
@@ -14,283 +18,244 @@ export function Viewpoints({
   store,
 }: {
   views: readonly NamedViewpoint[];
-  startCamera: import("../shared/project/project-types").CameraPose;
+  startCamera: CameraPose;
   camera: ViewpointCamera | null;
   disabled: boolean;
   store: ReturnType<typeof createDocumentStore>;
 }) {
-  const [name, setName] = useState("");
+  useEffect(() => {
+    if (!disabled && camera) store.initializeDefaultViewpoint();
+  }, [disabled, camera, store]);
   const [selected, setSelected] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [name, setName] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [open, setOpen] = useState(false);
+  const [error, setError] = useState(false);
   const [dragged, setDragged] = useState<string | null>(null);
   const [drop, setDrop] = useState<{ id: string; after: boolean } | null>(null);
+  const view = views.find((entry) => entry.id === selected);
+  const deletingView = views.find((entry) => entry.id === deleting);
+  const startingView = getStartingView({ viewpoints: views, startCamera });
+  function report(result: ReturnType<typeof store.deleteViewpoint>, success: string) {
+    setMessage(result.ok ? success : result.error.message);
+    setError(!result.ok);
+  }
   function clearDrag() {
     setDragged(null);
     setDrop(null);
   }
   function move(id: string, index: number) {
+    if (!disabled && camera)
+      report(store.moveViewpoint(id, index), "View order updated. Undo is available.");
+  }
+  function rename(entry: NamedViewpoint, value: string) {
     if (disabled || !camera) return;
-    report(store.moveViewpoint(id, index), "View order updated. Undo is available.");
-  }
-  const view = views.find((v) => v.id === selected);
-  const deletingView = views.find((v) => v.id === deleting);
-  const startingView = getStartingView({
-    viewpoints: views,
-    startCamera,
-  });
-  function cycleView(direction: -1 | 1) {
-    if (disabled || !camera || views.length === 0) return;
-    const current = views.findIndex((entry) => entry.id === selected);
-    // Start at the first/last view if none is selected, then wrap at either end.
-    const index =
-      current < 0
-        ? direction === 1
-          ? 0
-          : views.length - 1
-        : (current + direction + views.length) % views.length;
-    const next = views[index]!;
-    setSelected(next.id);
-    setDeleting(null);
-    setName(next.name);
-    camera.show(next.camera);
-    setMessage(`Showing ${next.name}, view ${index + 1} of ${views.length}.`);
-  }
-  function report(result: ReturnType<typeof store.deleteViewpoint>, success: string) {
-    setMessage(result.ok ? success : result.error.message);
+    const result = store.renameViewpoint(entry.id, value);
+    report(result, "View renamed. Undo is available.");
+    if (result.ok) setEditing(null);
   }
   return (
-    <section className="viewpoints" aria-label="Named viewpoints">
-      <p>Frame the view, give it a name, then capture it.</p>
-      <p>Starting view: {startingView?.name ?? "Saved scene camera"}</p>
+    <section className="saved-views-panel" aria-label="Named viewpoints">
+      <p className="saved-views-description">Frame the view, give it a name, capture it.</p>
       <fieldset disabled={disabled || !camera}>
-        <label>
-          View name
-          <input maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-        <button
-          type="button"
-          disabled={!name.trim()}
-          onClick={() => {
-            if (camera)
-              report(
-                store.addViewpoint(name, camera.capture()),
-                "View captured. Undo is available.",
-              );
-          }}
-        >
-          Capture current view
-        </button>
-        <div
-          className="saved-view-picker"
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              clearDrag();
-              setOpen(false);
-            }
-          }}
-        >
-          <button
-            type="button"
-            className="saved-view-toggle"
-            aria-expanded={open}
-            aria-controls="saved-view-list"
-            onClick={() => {
-              clearDrag();
-              setOpen(!open);
-            }}
-          >
-            <span>{view?.name ?? "Choose a saved view"}</span>
-            <Icon name="caretDown" />
-          </button>
-          {open && (
-            <div id="saved-view-list" className="saved-view-menu">
-              <p>Drag the handles to change the order, or select a view and use Move up/down.</p>
-              {views.length === 0 && <p>No saved views yet.</p>}
-              <ol
-                aria-label="Saved views in order"
-                onDragLeave={(e) => {
-                  if (
-                    !(e.relatedTarget instanceof Node) ||
-                    !e.currentTarget.contains(e.relatedTarget)
-                  )
-                    setDrop(null);
+        {views.length === 0 && <p className="saved-views-empty">No saved views yet.</p>}
+        <ol aria-label="Saved views in order">
+          {views.map((entry, index) => (
+            <li
+              key={entry.id}
+              className={drop?.id === entry.id ? (drop.after ? "drop-after" : "drop-before") : ""}
+              onDragOver={(event) => {
+                if (!dragged || disabled || !camera) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                const bounds = event.currentTarget.getBoundingClientRect();
+                setDrop({ id: entry.id, after: event.clientY >= bounds.top + bounds.height / 2 });
+              }}
+              onDragLeave={() => setDrop(null)}
+              onDrop={(event) => {
+                event.preventDefault();
+                const from = views.findIndex((v) => v.id === dragged);
+                if (from >= 0 && dragged && !disabled && camera) {
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  const slot = index + (event.clientY >= bounds.top + bounds.height / 2 ? 1 : 0);
+                  move(dragged, slot > from ? slot - 1 : slot);
+                }
+                clearDrag();
+              }}
+            >
+              <Button
+                variant="quiet"
+                type="button"
+                className="saved-view-grip"
+                aria-label={`Reorder ${entry.name}`}
+                title="Drag to reorder; use arrow keys to move"
+                draggable={!disabled && !!camera}
+                onKeyDown={(event) => {
+                  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+                  event.preventDefault();
+                  const next = index + (event.key === "ArrowUp" ? -1 : 1);
+                  if (next >= 0 && next < views.length) move(entry.id, next);
                 }}
+                onDragStart={(event) => {
+                  if (disabled || !camera) {
+                    event.preventDefault();
+                    return;
+                  }
+                  setDragged(entry.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("application/x-spatia-viewpoint", entry.id);
+                }}
+                onDragEnd={clearDrag}
               >
-                {views.map((entry, index) => (
-                  <li
-                    key={entry.id}
-                    className={
-                      drop?.id === entry.id ? (drop.after ? "drop-after" : "drop-before") : ""
-                    }
-                    onDragOver={(e) => {
-                      if (!dragged || disabled || !camera) return;
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                      const bounds = e.currentTarget.getBoundingClientRect();
-                      setDrop({ id: entry.id, after: e.clientY >= bounds.top + bounds.height / 2 });
+                <EditorIcon name="dragHandle" />
+              </Button>
+              <div className="saved-view-card" data-selected={selected === entry.id}>
+                {editing === entry.id ? (
+                  <label className="saved-view-name-edit">
+                    <span>{index + 1}.</span>
+                    <input
+                      className="tree-rename"
+                      aria-label="View name"
+                      autoFocus
+                      maxLength={120}
+                      value={name}
+                      onFocus={(event) => event.currentTarget.select()}
+                      onChange={(event) => setName(event.target.value)}
+                      onBlur={(event) => rename(entry, event.currentTarget.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                        }
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          setEditing(null);
+                          setName(entry.name);
+                        }
+                      }}
+                    />
+                  </label>
+                ) : (
+                  <button
+                    type="button"
+                    className="saved-view-name"
+                    aria-pressed={selected === entry.id}
+                    title="Double-click to rename; press F2 to rename"
+                    onClick={() => {
+                      setSelected(entry.id);
+                      setDeleting(null);
                     }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const from = views.findIndex((v) => v.id === dragged);
-                      if (from >= 0 && dragged && !disabled && camera) {
-                        const bounds = e.currentTarget.getBoundingClientRect();
-                        const slot = index + (e.clientY >= bounds.top + bounds.height / 2 ? 1 : 0);
-                        move(dragged, slot > from ? slot - 1 : slot);
+                    onDoubleClick={() => {
+                      setName(entry.name);
+                      setEditing(entry.id);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "F2") {
+                        event.preventDefault();
+                        setName(entry.name);
+                        setEditing(entry.id);
                       }
-                      clearDrag();
                     }}
                   >
-                    <span
-                      className="view-drag-handle"
-                      draggable={!disabled && !!camera}
-                      title={`Drag to reorder ${entry.name}`}
-                      aria-hidden="true"
-                      onDragStart={(e) => {
-                        if (disabled || !camera) {
-                          e.preventDefault();
-                          return;
-                        }
-                        setDragged(entry.id);
-                        e.dataTransfer.effectAllowed = "move";
-                        e.dataTransfer.setData("application/x-spatia-viewpoint", entry.id);
-                      }}
-                      onDragEnd={clearDrag}
-                    >
-                      {"\u283f"}
-                    </span>
-                    <button
-                      type="button"
-                      aria-pressed={selected === entry.id}
-                      onClick={() => {
-                        setSelected(entry.id);
-                        setDeleting(null);
-                        setName(entry.name);
-                      }}
-                    >
-                      {index + 1}. {entry.name}
-                    </button>
-                  </li>
-                ))}
-              </ol>
-              <div className="viewpoint-actions">
-                <button
+                    {index + 1}. {entry.name}
+                  </button>
+                )}
+                <Button
+                  variant="quiet"
                   type="button"
-                  disabled={!view || views.indexOf(view) === 0}
+                  className="saved-view-delete"
+                  aria-label={`Delete view ${entry.name}`}
+                  title="Delete view"
                   onClick={() => {
-                    if (view) move(view.id, views.indexOf(view) - 1);
+                    setSelected(entry.id);
+                    setEditing(null);
+                    setDeleting(entry.id);
                   }}
                 >
-                  Move up
-                </button>
-                <button
-                  type="button"
-                  disabled={!view || views.indexOf(view) === views.length - 1}
-                  onClick={() => {
-                    if (view) move(view.id, views.indexOf(view) + 1);
-                  }}
-                >
-                  Move down
-                </button>
+                  <Icon icon={trashIcon} className="icon" aria-hidden="true" />
+                </Button>
               </div>
-            </div>
-          )}
-        </div>
-        <div className="viewpoint-cycle" role="group" aria-label="Browse saved views">
-          <button
-            type="button"
-            aria-label="Previous saved view"
-            disabled={views.length === 0}
-            onClick={() => cycleView(-1)}
-          >
-            <span className="viewpoint-previous">
-              <Icon name="chevronRight" />
-            </span>
-          </button>
-          <span aria-live="polite">
-            {view ? `${views.indexOf(view) + 1} / ${views.length}` : `${views.length} saved`}
-          </span>
-          <button
-            type="button"
-            aria-label="Next saved view"
-            disabled={views.length === 0}
-            onClick={() => cycleView(1)}
-          >
-            <Icon name="chevronRight" />
-          </button>
-        </div>
-        <div className="viewpoint-actions">
-          <button
-            type="button"
-            disabled={!view}
-            onClick={() => {
-              if (view) camera?.show(view.camera);
-            }}
-          >
-            Go to view
-          </button>
-          <button
-            type="button"
-            disabled={!view || view.id === startingView?.id}
-            onClick={() => {
-              if (view)
-                report(
-                  store.setStartingViewpoint(view.id),
-                  "Starting view saved. Undo is available.",
-                );
-            }}
-          >
-            Set as starting view
-          </button>
-          <button
-            type="button"
-            disabled={!view || !name.trim()}
-            onClick={() => {
-              if (view) report(store.renameViewpoint(view.id, name), "View renamed.");
-            }}
-          >
-            Rename
-          </button>
-          <button
-            type="button"
-            disabled={!view}
-            onClick={() => {
-              if (view) setDeleting(view.id);
-            }}
-          >
-            Delete view
-          </button>
-        </div>
-        {deletingView && (
-          <div role="group" aria-label="Confirm view deletion">
-            <p>
-              Deleting “{deletingView.name}” also removes its associated navigation points and
-              rules. Undo restores them all.
-            </p>
-            <button type="button" onClick={() => setDeleting(null)}>
-              Cancel
+            </li>
+          ))}
+        </ol>
+        {view && !deletingView && (
+          <div className="saved-view-actions">
+            <button
+              type="button"
+              disabled={editing !== null}
+              onClick={() => camera?.show(view.camera)}
+            >
+              Go to view
             </button>
             <button
               type="button"
-              onClick={() => {
-                const result = store.deleteViewpoint(deletingView.id);
-                if (result.ok) {
-                  setDeleting(null);
-                  playUiSound("delete");
-                }
+              disabled={editing !== null || view.id === startingView?.id}
+              onClick={() =>
                 report(
-                  result,
-                  "View, associated navigation points and rules deleted. Undo restores them all.",
-                );
-              }}
+                  store.setStartingViewpoint(view.id),
+                  "Starting view saved. Undo is available.",
+                )
+              }
             >
-              Confirm delete view
+              Set as starting view
             </button>
           </div>
         )}
+        {!deletingView && (
+          <button
+            type="button"
+            className="saved-view-add"
+            onClick={() => {
+              if (camera) {
+                let number = views.length + 1;
+                const names = new Set(views.map((entry) => entry.name));
+                while (names.has(`View ${number}`)) number++;
+                report(
+                  store.addViewpoint(`View ${number}`, camera.capture()),
+                  "View captured. Undo is available.",
+                );
+              }
+            }}
+          >
+            + Add View
+          </button>
+        )}
+        {deletingView && (
+          <div className="saved-view-confirm" role="group" aria-label="Confirm view deletion">
+            <h3>Delete “{deletingView.name}”?</h3>
+            <p>
+              Associated navigation points and rules will also be deleted. Undo restores them all.
+            </p>
+            <div className="saved-view-confirm-actions">
+              <button type="button" onClick={() => setDeleting(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="saved-view-confirm-delete"
+                aria-label="Confirm delete view"
+                onClick={() => {
+                  const result = store.deleteViewpoint(deletingView.id);
+                  if (result.ok) {
+                    setDeleting(null);
+                    playUiSound("delete");
+                  }
+                  report(
+                    result,
+                    "View, associated navigation points and rules deleted. Undo restores them all.",
+                  );
+                }}
+              >
+                Delete view
+              </button>
+            </div>
+          </div>
+        )}
       </fieldset>
-      <p role="status">{message}</p>
+      <p className={error ? "saved-views-status" : "sr-only"} role="status">
+        {message}
+      </p>
     </section>
   );
 }

@@ -134,7 +134,8 @@ try {
     );
   // Frame A differently from its starting view before entering preview.
   await page.getByRole("button", { name: "Saved views", exact: true }).click();
-  await page.getByRole("button", { name: "Next saved view", exact: true }).click();
+  await page.getByRole("button", { name: "1. Detail", exact: true }).click();
+  await page.getByRole("button", { name: "Go to view", exact: true }).click();
   // Walking keeps its own wider lens, so the saved view arrives by position only
   await page.waitForFunction(() => window.navigationCamera?.position[0] === 10);
   const editingCamera = await page.evaluate(() => window.navigationCamera);
