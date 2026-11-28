@@ -70,6 +70,11 @@ function AssetAdministrationPreview() {
 
   // Keep one adapter per scenario so changing controls cancels the previous screen session
   const records = useRef({ ...initial, assets: [...initial.assets, ...samples] });
+  function includeTags(tags: readonly string[] = []) {
+    const policy = records.current.policy;
+    return { ...policy, tags: [...new Set([...(policy.tags ?? []), ...tags])] };
+  }
+
   const service = useMemo<AssetAdministrationService>(
     () => ({
       async download(id, signal) {
@@ -116,6 +121,7 @@ function AssetAdministrationPreview() {
           name: input.name ?? input.file.name.replace(/\.[^.]*$/, ""),
           kind: input.kind,
           category: input.category,
+          tags: input.tags ?? [],
           status: input.replaces ? "approved" : "pending",
           hidden: !input.replaces,
           deleted: false,
@@ -126,6 +132,7 @@ function AssetAdministrationPreview() {
         };
         records.current = {
           ...records.current,
+          policy: includeTags(value.tags),
           assets: [
             ...records.current.assets.map((asset): AssetCandidate =>
               asset.id === input.replaces
@@ -150,6 +157,7 @@ function AssetAdministrationPreview() {
         };
         records.current = {
           ...records.current,
+          policy: includeTags(value.tags),
           assets: records.current.assets.map((asset) => (asset.id === id ? value : asset)),
         };
         return { ok: true, value };
