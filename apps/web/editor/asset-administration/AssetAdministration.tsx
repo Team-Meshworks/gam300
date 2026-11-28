@@ -23,6 +23,8 @@ import type {
 } from "./asset-administration";
 import "./asset-administration.css";
 import { AssetSelect } from "./AssetSelect";
+import { detailsUpdate } from "./asset-details";
+import { AssetTagBubbles, AssetTagPicker } from "./AssetTagPicker";
 
 type Props = {
   session: { userId: string; role: string; mustChangePassword: boolean } | null;
@@ -32,7 +34,7 @@ type Props = {
   onClose: () => void;
 };
 type Notice = Pick<Extract<AssetAdministrationResult<never>, { ok: false }>, "kind" | "message">;
-type EditField = "name" | "type" | "category";
+type EditField = "name" | "type" | "category" | "tags";
 type Selection =
   | { kind: "upload" }
   | { kind: "detail"; id: string }
@@ -75,6 +77,8 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [query, setQuery] = useState("");
+  // Empty means every tag; no real tag is empty, so a tag named "all" still filters
+  const [tagFilter, setTagFilter] = useState("");
   const [tab, setTab] = useState("all");
   const [selection, setSelection] = useState<Selection>(() => {
     if (initialUpload) return { kind: "upload" };
@@ -96,6 +100,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const [audioPreview, setAudioPreview] = useState<string | null>(null);
   const [audioPreviewError, setAudioPreviewError] = useState(false);
   const [category, setCategory] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [uncertainWrite, setUncertainWrite] = useState(false);
   const locked = busy || uncertainWrite;
@@ -201,9 +206,18 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     data?.assets.filter(
       (asset) => asset.kind === kind || (kind === "model" && asset.kind === "audio"),
     ) ?? [];
+  // Search matches names and tags, as the editor libraries do; the tag menu narrows to one tag
+  const tagsInUse = [...new Set(items.flatMap((asset) => asset.tags ?? []))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  // A tag removed from its last asset drops out of the menu, so fall back to every tag
+  const activeTag = tagsInUse.includes(tagFilter) ? tagFilter : "";
+  const search = query.trim().toLocaleLowerCase();
   const visible = items.filter(
     (asset) =>
-      asset.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) &&
+      (asset.name.toLocaleLowerCase().includes(search) ||
+        (asset.tags ?? []).some((tag) => tag.toLocaleLowerCase().includes(search))) &&
+      (activeTag === "" || (asset.tags ?? []).includes(activeTag)) &&
       (tab === "deleted"
         ? asset.deleted
         : !asset.deleted && (tab === "all" || (tab === "hidden" ? asset.hidden : !asset.hidden))),
@@ -226,7 +240,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   const loadingDialog = Boolean(selection && loading && !data);
   const title = kind === "environment" ? "All 3D Spaces" : "All Assets";
   const noun = kind === "environment" ? "3D spaces" : "assets";
-  const filtered = query.trim().length > 0 || tab !== "all";
+  const filtered = query.trim().length > 0 || tab !== "all" || activeTag !== "";
   // Spaces use the small fixed catalogue without category filtering
   const categoryChoices =
     uploadKind === "environment" ? null : (data?.policy.categories[uploadKind] ?? null);
@@ -287,6 +301,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     setNameDraft(null);
     setReview({ source: "", license: "", reviewNotes: "" });
     setCategory(data?.policy.categories[upload]?.[0] ?? "");
+    setTags([]);
     setNotice(null);
     setConfirmation(false);
     setSelection({ kind: "upload" });
@@ -301,6 +316,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     setNameDraft(asset.name);
     setUploadKind(asset.kind);
     setCategory(asset.category ?? "");
+    setTags([...(asset.tags ?? [])]);
     setReview({
       source: asset.source ?? "",
       license: asset.license ?? "",
@@ -338,6 +354,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
   function checkLibrary() {
     setSelection(null);
     setQuery("");
+    setTagFilter("");
     setTab("all");
     setLoading(true);
     setReload((value) => value + 1);
@@ -369,9 +386,12 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
       kind: uploadKind,
       category: categoryChoices === null ? null : category,
       review,
+      // Spaces have no tags; objects and audio carry the era/theme tags chosen here
+      tags: kind === "model" ? tags : [],
     };
     if (editing && selected && !replacing) {
-      await mutate((signal) => service.updateDetails(selected.id, details, signal));
+      const update = detailsUpdate(selected, details);
+      await mutate((signal) => service.updateDetails(selected.id, update, signal));
     } else if (file) {
       await mutate((signal) =>
         service.submit(
@@ -396,7 +416,18 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
     );
   }
 
-  async function mutate(send: AssetWrite | readonly AssetWrite[]) {
+  // Taking one tag off saves straight away and leaves the asset details open.
+  // Only the tag is sent, so edits another admin made since this dialog opened are kept.
+  async function removeTag(asset: AssetCandidate, tag: string) {
+    if (locked) return;
+    await mutate(
+      (signal) => service.removeTag(asset.id, tag, signal),
+      `Removed the ${tag} tag from ${asset.name}.`,
+    );
+  }
+
+  // keepOpen is the outcome to announce when the dialog should stay where it is
+  async function mutate(send: AssetWrite | readonly AssetWrite[], keepOpen?: string) {
     // Bind this request to the mounted screen; account changes abort it before a stale result can apply
     if (uncertainWrite || (operation.current && !operation.current.signal.aborted)) return;
     const controller = new AbortController();
@@ -423,6 +454,13 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
           (current) =>
             current && {
               ...current,
+              // A newly created tag is offered for every other asset straight away
+              policy: {
+                ...current.policy,
+                tags: [...new Set([...(current.policy.tags ?? []), ...(record.tags ?? [])])].sort(
+                  (a, b) => a.localeCompare(b),
+                ),
+              },
               assets: current.assets.some((asset) => asset.id === record.id)
                 ? current.assets.map((asset) => (asset.id === record.id ? record : asset))
                 : [...current.assets, record],
@@ -430,6 +468,10 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         );
       }
       if (!confirmed) return;
+      if (keepOpen) {
+        setOutcome(keepOpen);
+        return;
+      }
       setSelection(null);
       setReview({ source: "", license: "", reviewNotes: "" });
       setFile(null);
@@ -566,7 +608,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
         <div className="asset-admin-search">
           <SearchField
             label={`Search ${noun}`}
-            placeholder={`Search ${noun}`}
+            placeholder={kind === "model" ? "Search names or tags" : `Search ${noun}`}
             value={query}
             onChange={(value) => {
               setQuery(value);
@@ -610,6 +652,22 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
             measureLabel: `${label} (${data ? count : "00"})`,
           }))}
         />
+        {kind === "model" && tagsInUse.length > 0 && (
+          <AssetSelect
+            className="asset-admin-select asset-admin-tag-filter"
+            label="Filter by tag"
+            value={activeTag}
+            options={[
+              { value: "", label: "Tags" },
+              ...tagsInUse.map((tag) => ({ value: tag, label: `Tag: ${tag}` })),
+            ]}
+            onChange={(value) => {
+              setTagFilter(value);
+              setCheckedIds(new Set());
+              setOutcome("");
+            }}
+          />
+        )}
         <Button
           className="asset-admin-primary"
           disabled={!canOpenUpload || loading || uncertainWrite || notice?.kind === "denied"}
@@ -821,7 +879,7 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                 <h2>{filtered ? `No matching ${noun}` : `No ${noun} yet`}</h2>
                 <p>
                   {filtered
-                    ? "Try another name or visibility filter."
+                    ? "Try another name, tag or visibility filter."
                     : !canOpenUpload
                       ? "Uploads will be available after the server's validation service is restored."
                       : validationUnavailable
@@ -830,10 +888,11 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                           ? "Add a 3D space to submit it for validation."
                           : "Add an asset to submit it for validation."}
                 </p>
-                {(query || tab !== "all") && (
+                {filtered && (
                   <Button
                     onClick={() => {
                       setQuery("");
+                      setTagFilter("");
                       setTab("all");
                     }}
                   >
@@ -1196,6 +1255,59 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                             placeholder="Not configured"
                             onChange={setCategory}
                           />
+                        </div>
+                      )}
+                      {kind === "model" && editingForm && (
+                        <AssetTagPicker
+                          value={tags}
+                          available={data?.policy.tags ?? []}
+                          disabled={locked}
+                          maxTags={data?.policy.maxTags}
+                          maxLength={data?.policy.maxTagLength}
+                          onChange={setTags}
+                        />
+                      )}
+                      {kind === "model" && selection?.kind === "detail" && (
+                        <div className="asset-admin-select">
+                          <span id="asset-admin-tags-label">Tags</span>
+                          {selected && !selected.deleted ? (
+                            <div
+                              className="asset-admin-tag-field"
+                              role="group"
+                              aria-labelledby="asset-admin-tags-label"
+                            >
+                              {selected.tags?.length ? (
+                                <AssetTagBubbles
+                                  tags={selected.tags}
+                                  disabled={locked}
+                                  onRemove={(tag) => void removeTag(selected, tag)}
+                                />
+                              ) : (
+                                <span className="asset-admin-tag-none">None</span>
+                              )}
+                              <button
+                                type="button"
+                                aria-label="Edit tags"
+                                title="Edit tags"
+                                disabled={locked}
+                                onClick={() => openAsset(selected, "tags")}
+                              >
+                                <UiIcon icon={pencilIcon} aria-hidden="true" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div
+                              className="asset-admin-tag-field"
+                              role="group"
+                              aria-labelledby="asset-admin-tags-label"
+                            >
+                              {selected?.tags?.length ? (
+                                <AssetTagBubbles tags={selected.tags} />
+                              ) : (
+                                <span className="asset-admin-tag-none">None</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

@@ -23,6 +23,7 @@ public static partial class AssetAdministrationEndpoints
         group.MapGet("", async (HttpContext context, ProjectAccessService access, AssetAdministrationService service, AssetUploadValidator validator, CancellationToken token) =>
         {
             var assets = await service.ListAsync(token);
+            var tags = await service.ListTagsAsync(token);
 
             if (await RecheckAdministratorAsync(context, access, token) is { } denied)
                 return denied;
@@ -47,7 +48,11 @@ public static partial class AssetAdministrationEndpoints
                         model = validator.IsAvailable,
                         audio = true
                     },
-                    canForceRemove = true
+                    canForceRemove = true,
+                    // The shared tag list; admins add to it by saving a new tag on an asset
+                    tags,
+                    maxTags = AssetTags.MaxPerAsset,
+                    maxTagLength = AssetTags.MaxLength
                 },
             });
         }).RequireRateLimiting(SecurityPolicies.AssetCatalogueReadRateLimit);
@@ -74,7 +79,7 @@ public static partial class AssetAdministrationEndpoints
             AssetAdministrationService service, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
         {
             if (!AssetIntakePolicy.ValidDisplayName(request.Name) || !AssetIntakePolicy.AcceptsCategory(request.Kind, request.Category)
-                || request.Review is null || !ValidReview(request.Review))
+                || request.Review is null || !ValidReview(request.Review) || (request.Tags is not null && AssetTags.Read(request.Tags) is null))
             {
                 return Invalid(context);
             }
@@ -83,7 +88,32 @@ public static partial class AssetAdministrationEndpoints
             if (await RecheckAdministratorAsync(context, access, token) is { } denied)
                 return denied;
 
-            var record = await service.UpdateDetailsAsync(id, request, token);
+            var (record, stale) = await service.UpdateDetailsAsync(id, request, context.Features.Get<CurrentAccount>()!.UserId, token);
+            if (await RecheckAdministratorAsync(context, access, token) is { } changed)
+                return changed;
+            if (stale)
+                return ApiProblems.Create(context, 409, "asset_stale", "Another administrator changed this asset. Reload it before saving.");
+            if (record is null)
+                return ApiProblems.Create(context, 409, "asset_conflict", "Reload the asset before editing it");
+
+            await transaction.CommitAsync(token);
+            if (await RecheckAdministratorAsync(context, access, token) is not null)
+                return CommittedWrite.WithoutRepresentation(context);
+            return Results.Ok(record);
+        }).WithMetadata(new RequestSizeLimitAttribute(40 * 1024));
+
+        // One-click removal names only the tag, leaving every newer field and tag on the asset as it is
+        group.MapPost("/{id:guid}/tags/remove", async (Guid id, AssetTagRemovalRequest request, HttpContext context,
+            AssetAdministrationService service, ApplicationDbContext database, ProjectAccessService access, CancellationToken token) =>
+        {
+            if (AssetTags.Normalize(request.Tag) is not { } tag)
+                return Invalid(context);
+
+            await using var transaction = await database.Database.BeginTransactionAsync(token);
+            if (await RecheckAdministratorAsync(context, access, token) is { } denied)
+                return denied;
+
+            var record = await service.RemoveTagAsync(id, tag, token);
             if (await RecheckAdministratorAsync(context, access, token) is { } changed)
                 return changed;
             if (record is null)
@@ -93,7 +123,7 @@ public static partial class AssetAdministrationEndpoints
             if (await RecheckAdministratorAsync(context, access, token) is not null)
                 return CommittedWrite.WithoutRepresentation(context);
             return Results.Ok(record);
-        }).WithMetadata(new RequestSizeLimitAttribute(40 * 1024));
+        }).WithMetadata(new RequestSizeLimitAttribute(4 * 1024));
 
         // Allow the bounded review fields even when JSON escapes non-ASCII text
         group.MapPost("/{id:guid}/approve", async (Guid id, AssetReviewRequest request, HttpContext context,
@@ -187,7 +217,15 @@ public static partial class AssetAdministrationEndpoints
 
         var query = context.Request.Query;
 
-        if (query.Any(pair => pair.Value.Count != 1 || pair.Key is not ("name" or "kind" or "category" or "displayName" or "replaces")))
+        // Tags repeat as one value each, so names may contain any character a tag allows
+        if (query.Any(pair => pair.Key == "tags"
+                ? pair.Value.Count is < 1 or > AssetTags.MaxPerAsset
+                : pair.Value.Count != 1 || pair.Key is not ("name" or "kind" or "category" or "displayName" or "replaces")))
+        {
+            return Invalid(context);
+        }
+        var tags = AssetTags.Read(query.TryGetValue("tags", out var tagValues) ? tagValues.ToArray() : null);
+        if (tags is null)
             return Invalid(context);
 
         // Check metadata before reading the body; uploaded names remain labels rather than filesystem paths
@@ -235,7 +273,7 @@ public static partial class AssetAdministrationEndpoints
             return denied;
 
         // Validation or storage unavailability leaves no approved entry and must remain retryable to the client
-        var result = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token, displayName);
+        var result = await service.SubmitAsync(name, kind, category, buffer.ToArray(), actor, metadata, token, displayName, tags);
         if (await RecheckAdministratorAsync(context, access, token) is { } changed)
             return changed;
 

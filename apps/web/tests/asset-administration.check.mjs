@@ -29,12 +29,14 @@ async function checkDialogTypography() {
       upload: dialog.classList.contains("asset-admin-dialog-upload"),
       confirmation: dialog.classList.contains("asset-admin-dialog-confirmation"),
       section: dialog.querySelector("h3") ? font(dialog.querySelector("h3")) : null,
+      tagged: !!dialog.querySelector(".asset-admin-fields .asset-admin-tag-field"),
       labels: [
         ...dialog.querySelectorAll(".asset-admin-fields .asset-admin-select > :is(label, span)"),
       ].map((node) => ({ text: node.textContent.trim(), size: font(node) })),
       values: [
         ...dialog.querySelectorAll(
-          ".asset-admin-fields .asset-admin-select > :is(input, output, button)",
+          // The tag row holds removable bubbles, so it is a div rather than a single control
+          ".asset-admin-fields .asset-admin-select > :is(input, output, button, .asset-admin-tag-field)",
         ),
       ].map(font),
       actions: [...dialog.querySelectorAll(".asset-admin-actions > button")].map((node) => ({
@@ -56,7 +58,9 @@ async function checkDialogTypography() {
       sizes.labels.map(({ text }) => text),
       sizes.upload
         ? ["Asset name", "Asset Type", "Filter Category"]
-        : ["Asset Type", "Filter Category"],
+        : sizes.tagged
+          ? ["Asset Type", "Filter Category", "Tags"]
+          : ["Asset Type", "Filter Category"],
     );
     assert.equal(
       sizes.values.length,

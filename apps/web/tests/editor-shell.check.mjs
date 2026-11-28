@@ -195,7 +195,7 @@ try {
   let lastEnabledCategory;
   for (const option of await filterMenu.getByRole("option").all()) {
     const label = (await option.textContent()).trim();
-    const available = ["All assets", "Favourites", ...availableCategories].includes(label);
+    const available = ["Filters", "Favourites", ...availableCategories].includes(label);
     assert.equal(await option.isDisabled(), !available, `${label} reflects catalogue availability`);
     if (available) lastEnabledCategory = label;
   }
@@ -234,7 +234,7 @@ try {
   assert.equal(await picker.locator("script").count(), 0);
   await resetFilters.click();
   assert.equal(await search.inputValue(), "");
-  assert.equal(await filter.textContent(), "All assets");
+  assert.equal(await filter.textContent(), "Filters");
   assert.equal(await asset.getAttribute("aria-pressed"), "true");
   assert.equal(await rows.count(), 0);
   assert.equal(await undo.isDisabled(), true);
@@ -251,7 +251,7 @@ try {
   await filter.click();
   await page
     .getByRole("listbox", { name: "Filter assets" })
-    .getByRole("option", { name: "All assets", exact: true })
+    .getByRole("option", { name: "Filters", exact: true })
     .click();
   assert.equal(await asset.getAttribute("aria-pressed"), "true", "The pick survives filtering");
   await addAsset(page, "Starter room");

@@ -23,7 +23,10 @@ try {
   async function checkFilterPosition() {
     const { right, vertical } = await library.locator(".asset-search").evaluate((search) => {
       const bar = search.getBoundingClientRect();
-      const filter = search.querySelector('[role="combobox"]').getBoundingClientRect();
+      // Filters is the last menu; the Tags menu sits to its left once anything is tagged
+      const filter = [...search.querySelectorAll('[role="combobox"]')]
+        .at(-1)
+        .getBoundingClientRect();
       return {
         right: bar.right - filter.right - parseFloat(getComputedStyle(search).paddingRight),
         vertical: bar.y + bar.height / 2 - filter.y - filter.height / 2,
@@ -51,8 +54,8 @@ try {
     await picture.evaluate((img) => img.decode());
     assert.ok((await picture.getAttribute("src")).includes(`modern-bench-${index + 1}.png`));
     if (index === 0) {
-      const filter = library.getByRole("combobox", { name: "Filter furniture" });
-      assert.equal(await filter.textContent(), "All furniture");
+      const filter = library.getByRole("combobox", { name: "Filter furniture", exact: true });
+      assert.equal(await filter.textContent(), "Filters");
       await checkFilterPosition();
       await library.getByRole("searchbox", { name: "Search furniture" }).fill("bench 2");
       assert.equal(await option.count(), 0);
