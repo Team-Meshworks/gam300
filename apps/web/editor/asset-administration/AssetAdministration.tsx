@@ -1079,177 +1079,179 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
                           >
                             <span>Asset Name</span>
                             <input
-                            required
-                            maxLength={120}
-                            value={assetName}
-                            disabled={locked}
-                            placeholder="Enter an asset name"
-                            onChange={(event) => setNameDraft(event.target.value)}
-                          />
-                        </label>
-                      )}
-                      {/* All Assets accepts models and audio; the Spaces screen stays fixed */}
-                      {editingForm && kind === "model" && (
-                        <div data-asset-field="type" className="asset-admin-field-wrapper">
-                          <AssetSelect
-                            label="Asset Type"
-                            value={uploadKind}
-                            disabled={locked}
-                            options={[
-                              { value: "model", label: "3D Model" },
-                              ...(audioEnabled ? [{ value: "audio", label: "Audio" }] : []),
-                            ]}
-                            onChange={(value) => {
-                              const nextKind = value === "audio" ? "audio" : "model";
-                              setUploadKind(nextKind);
-                              setFile(null);
-                              setCategory(
-                                nextKind === selected?.kind
-                                  ? (selected.category ?? "")
-                                  : (data?.policy.categories[nextKind]?.[0] ?? ""),
-                              );
-                              setNotice(null);
-                            }}
-                          />
-                        </div>
-                      )}
-                      {(selection?.kind === "detail" || kind === "environment") && (
-                        <div className="asset-admin-select">
-                          <span id="asset-admin-type-label">Asset Type</span>
-                          {selected && !selected.deleted && kind === "model" ? (
-                            <button
-                              type="button"
-                              aria-label="Edit asset type"
+                              required
+                              maxLength={120}
+                              value={assetName}
                               disabled={locked}
-                              onClick={() => openAsset(selected, "type")}
-                            >
-                              <span className="sp-button-label">{typeLabel(selected.kind)}</span>
-                              <UiIcon icon={pencilIcon} aria-hidden="true" />
-                            </button>
-                          ) : (
-                            <output aria-labelledby="asset-admin-type-label">
-                              {typeLabel(selected?.kind ?? kind)}
-                            </output>
-                          )}
-                        </div>
-                      )}
-                      {kind === "environment" && (
-                        <div className="asset-admin-select">
-                          <span id="asset-admin-category-label">Filter Category</span>
-                          <output aria-labelledby="asset-admin-category-label">
-                            Not applicable
-                          </output>
-                        </div>
-                      )}
-                      {kind === "model" && selection?.kind === "detail" && (
-                        <div className="asset-admin-select">
-                          <span id="asset-admin-category-label">Filter Category</span>
-                          {selected && !selected.deleted ? (
-                            <button
-                              type="button"
-                              aria-label="Edit filter category"
-                              disabled={locked}
-                              onClick={() => openAsset(selected, "category")}
-                            >
-                              <span className="sp-button-label">
-                                {selected.category ?? "Not configured"}
-                              </span>
-                              <UiIcon icon={pencilIcon} aria-hidden="true" />
-                            </button>
-                          ) : (
-                            <output aria-labelledby="asset-admin-category-label">
-                              {selected?.category ?? "Not configured"}
-                            </output>
-                          )}
-                        </div>
-                      )}
-                      {kind === "model" && editingForm && (
-                        <div data-asset-field="category" className="asset-admin-field-wrapper">
-                          <AssetSelect
-                            label="Filter Category"
-                            disabled={locked || categoryChoices === null}
-                            value={category}
-                            options={(categoryChoices ?? []).map((value) => ({
-                              value,
-                              label: value,
-                            }))}
-                            placeholder="Not configured"
-                            onChange={setCategory}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {/* Keep review statements separate from technical validation and retain them after a failed request */}
-                  {selected &&
-                    !editing &&
-                    !selected.deleted &&
-                    selected.status === "pending" &&
-                    !confirmation && (
-                      <fieldset className="asset-admin-review" disabled={locked}>
-                        <legend>Approval review</legend>
-                        <p>These details are optional. You can approve without filling them in.</p>
-                        {(
-                          [
-                            ["source", "Source or provenance"],
-                            ["license", "Redistribution licence"],
-                            ["reviewNotes", "Content review notes"],
-                          ] as const
-                        ).map(([field, label]) => (
-                          <label className="asset-admin-select" key={field}>
-                            <span>{label} (optional)</span>
-                            <input
-                              value={review[field]}
-                              maxLength={2000}
-                              onChange={(event) =>
-                                setReview((current) => ({
-                                  ...current,
-                                  [field]: event.target.value,
-                                }))
-                              }
+                              placeholder="Enter an asset name"
+                              onChange={(event) => setNameDraft(event.target.value)}
                             />
                           </label>
-                        ))}
-                        <Button
-                          type="button"
-                          className="asset-admin-primary"
-                          onClick={() => {
-                            void mutate((signal) => service.review(selected.id, review, signal));
-                          }}
-                        >
-                          <span className="sp-button-label">Approve</span>
-                        </Button>
-                      </fieldset>
-                    )}
-                  {selected &&
-                    !editing &&
-                    (selected.status !== "approved" || selected.validation.length > 0) && (
-                      <div className="asset-admin-validation">
-                        <p>
-                          Status: <strong>{selected.status}</strong>
-                        </p>
-                        {selected.validation.length > 0 && (
-                          <ul aria-label="Validation results">
-                            {selected.validation.map((message, i) => (
-                              <li key={i}>{message}</li>
-                            ))}
-                          </ul>
+                        )}
+                        {/* All Assets accepts models and audio; the Spaces screen stays fixed */}
+                        {editingForm && kind === "model" && (
+                          <div data-asset-field="type" className="asset-admin-field-wrapper">
+                            <AssetSelect
+                              label="Asset Type"
+                              value={uploadKind}
+                              disabled={locked}
+                              options={[
+                                { value: "model", label: "3D Model" },
+                                ...(audioEnabled ? [{ value: "audio", label: "Audio" }] : []),
+                              ]}
+                              onChange={(value) => {
+                                const nextKind = value === "audio" ? "audio" : "model";
+                                setUploadKind(nextKind);
+                                setFile(null);
+                                setCategory(
+                                  nextKind === selected?.kind
+                                    ? (selected.category ?? "")
+                                    : (data?.policy.categories[nextKind]?.[0] ?? ""),
+                                );
+                                setNotice(null);
+                              }}
+                            />
+                          </div>
+                        )}
+                        {(selection?.kind === "detail" || kind === "environment") && (
+                          <div className="asset-admin-select">
+                            <span id="asset-admin-type-label">Asset Type</span>
+                            {selected && !selected.deleted && kind === "model" ? (
+                              <button
+                                type="button"
+                                aria-label="Edit asset type"
+                                disabled={locked}
+                                onClick={() => openAsset(selected, "type")}
+                              >
+                                <span className="sp-button-label">{typeLabel(selected.kind)}</span>
+                                <UiIcon icon={pencilIcon} aria-hidden="true" />
+                              </button>
+                            ) : (
+                              <output aria-labelledby="asset-admin-type-label">
+                                {typeLabel(selected?.kind ?? kind)}
+                              </output>
+                            )}
+                          </div>
+                        )}
+                        {kind === "environment" && (
+                          <div className="asset-admin-select">
+                            <span id="asset-admin-category-label">Filter Category</span>
+                            <output aria-labelledby="asset-admin-category-label">
+                              Not applicable
+                            </output>
+                          </div>
+                        )}
+                        {kind === "model" && selection?.kind === "detail" && (
+                          <div className="asset-admin-select">
+                            <span id="asset-admin-category-label">Filter Category</span>
+                            {selected && !selected.deleted ? (
+                              <button
+                                type="button"
+                                aria-label="Edit filter category"
+                                disabled={locked}
+                                onClick={() => openAsset(selected, "category")}
+                              >
+                                <span className="sp-button-label">
+                                  {selected.category ?? "Not configured"}
+                                </span>
+                                <UiIcon icon={pencilIcon} aria-hidden="true" />
+                              </button>
+                            ) : (
+                              <output aria-labelledby="asset-admin-category-label">
+                                {selected?.category ?? "Not configured"}
+                              </output>
+                            )}
+                          </div>
+                        )}
+                        {kind === "model" && editingForm && (
+                          <div data-asset-field="category" className="asset-admin-field-wrapper">
+                            <AssetSelect
+                              label="Filter Category"
+                              disabled={locked || categoryChoices === null}
+                              value={category}
+                              options={(categoryChoices ?? []).map((value) => ({
+                                value,
+                                label: value,
+                              }))}
+                              placeholder="Not configured"
+                              onChange={setCategory}
+                            />
+                          </div>
                         )}
                       </div>
                     )}
-                </>
-              )}
-              {notice && (
-                <p className="asset-admin-message" role="alert">
-                  {notice.message}
-                </p>
-              )}
-              {selected?.status === "approved" &&
-                !editing &&
-                !confirmation &&
-                (selected.source || selected.license || selected.reviewNotes) && (
-                  <details className="asset-admin-metadata">
-                    <summary>Additional Details</summary>
+                    {/* Keep review statements separate from technical validation and retain them after a failed request */}
+                    {selected &&
+                      !editing &&
+                      !selected.deleted &&
+                      selected.status === "pending" &&
+                      !confirmation && (
+                        <fieldset className="asset-admin-review" disabled={locked}>
+                          <legend>Approval review</legend>
+                          <p>
+                            These details are optional. You can approve without filling them in.
+                          </p>
+                          {(
+                            [
+                              ["source", "Source or provenance"],
+                              ["license", "Redistribution licence"],
+                              ["reviewNotes", "Content review notes"],
+                            ] as const
+                          ).map(([field, label]) => (
+                            <label className="asset-admin-select" key={field}>
+                              <span>{label} (optional)</span>
+                              <input
+                                value={review[field]}
+                                maxLength={2000}
+                                onChange={(event) =>
+                                  setReview((current) => ({
+                                    ...current,
+                                    [field]: event.target.value,
+                                  }))
+                                }
+                              />
+                            </label>
+                          ))}
+                          <Button
+                            type="button"
+                            className="asset-admin-primary"
+                            onClick={() => {
+                              void mutate((signal) => service.review(selected.id, review, signal));
+                            }}
+                          >
+                            <span className="sp-button-label">Approve</span>
+                          </Button>
+                        </fieldset>
+                      )}
+                    {selected &&
+                      !editing &&
+                      (selected.status !== "approved" || selected.validation.length > 0) && (
+                        <div className="asset-admin-validation">
+                          <p>
+                            Status: <strong>{selected.status}</strong>
+                          </p>
+                          {selected.validation.length > 0 && (
+                            <ul aria-label="Validation results">
+                              {selected.validation.map((message, i) => (
+                                <li key={i}>{message}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                  </>
+                )}
+                {notice && (
+                  <p className="asset-admin-message" role="alert">
+                    {notice.message}
+                  </p>
+                )}
+                {selected?.status === "approved" &&
+                  !editing &&
+                  !confirmation &&
+                  (selected.source || selected.license || selected.reviewNotes) && (
+                    <details className="asset-admin-metadata">
+                      <summary>Additional Details</summary>
                     <dl className="asset-admin-review">
                       <div>
                         <dt>Source or provenance</dt>
