@@ -1204,6 +1204,25 @@ try {
     assert.equal(right.width, right.height, "Look stays round");
     assert.ok(left.x + left.width <= jump.x, "Move and Jump dont overlap");
     assert.ok(jump.x + jump.width <= right.x, "Jump and Look dont overlap");
+    // Dragging well past the rim keeps each thumb inside its base, however small the stick renders
+    for (const [name, box] of [
+      ["Move", left],
+      ["Look", right],
+    ]) {
+      const stick = phonePage.getByRole("button", { name, exact: true });
+      await phonePage.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await phonePage.mouse.down();
+      await phonePage.mouse.move(box.x - box.width, box.y + box.height / 2, { steps: 4 });
+      await phonePage.waitForTimeout(150);
+      const base = await stick.locator(".mobile-joystick-base").boundingBox();
+      const thumb = await stick.locator(".mobile-joystick-thumb").boundingBox();
+      await phonePage.mouse.up();
+      assert.ok(
+        thumb.x >= base.x - 0.5 && thumb.x + thumb.width <= base.x + base.width + 0.5,
+        `${name} thumb stays inside its base at ${viewport.width}x${viewport.height}`,
+      );
+      assert.ok(thumb.x < base.x + (base.width - thumb.width) / 2 - 5, `${name} thumb follows`);
+    }
   }
   await phone.close();
   assert.deepEqual(errors, []);

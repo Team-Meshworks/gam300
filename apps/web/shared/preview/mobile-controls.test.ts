@@ -7,15 +7,21 @@ import { MobileControls } from "./MobileControls";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let host: HTMLDivElement;
+let thumbSize = 16;
 let root: Root;
 const controls = { setMove: vi.fn(), setLook: vi.fn(), jump: vi.fn() };
 
 beforeEach(() => {
   // jsdom has no layout or pointer capture; each stick is a 100 px square at the origin
+  // with a 16 px thumb, so the thumb can reach 42 px from the centre
   HTMLElement.prototype.setPointerCapture = () => {};
   HTMLElement.prototype.releasePointerCapture = () => {};
   HTMLElement.prototype.hasPointerCapture = () => true;
-  HTMLElement.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100);
+  HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+    const size = this.classList.contains("mobile-joystick-thumb") ? thumbSize : 100;
+    return new DOMRect(0, 0, size, size);
+  };
+  thumbSize = 16;
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -60,6 +66,18 @@ it.each(["Move", "Look"])(
     expect(offset(thumb)).toEqual([0, 0]);
   },
 );
+
+it.each(["Move", "Look"])("keeps the %s thumb inside a smaller portrait base", (name) => {
+  // A portrait phone shrinks the base more than the thumb: (100 - 60) / 2 leaves 20 px of travel
+  thumbSize = 60;
+  const { button, thumb } = stick(name);
+  pointer(button, "pointerdown", 50, 50);
+  pointer(button, "pointermove", 0, 50);
+  expect(offset(thumb)).toEqual([-20, 0]);
+  // The input still uses the full stick radius, so a portrait drag moves and looks as before
+  if (name === "Move") expect(controls.setMove).toHaveBeenLastCalledWith(-1, -0);
+  else expect(controls.setLook).toHaveBeenLastCalledWith(-75, 0);
+});
 
 it("keeps looking by drag distance while the thumb follows", () => {
   const { button } = stick("Look");
