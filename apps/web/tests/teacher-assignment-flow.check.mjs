@@ -21,6 +21,12 @@ try {
   page.setDefaultTimeout(5000);
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/auth/csrf")
+      return route.fulfill({ json: { requestToken: "test-token" } });
+    if (path.startsWith("/api/v1/creation-operations/"))
+      return route.fulfill({
+        json: { state: "ready", operationId: null, receipt: null },
+      });
     if (path === "/api/v1/auth/session")
       return route.fulfill({
         json: {
@@ -34,7 +40,10 @@ try {
       });
     if (path === "/api/v1/classes")
       return route.fulfill({
-        json: { items: [{ id: classId, name: "History", organizationId: org }], nextCursor: null },
+        json: {
+          items: [{ id: classId, name: "History", organizationId: org }],
+          nextCursor: null,
+        },
       });
     if (path === "/api/v1/projects")
       return route.fulfill({ json: { items: [], nextCursor: null } });
@@ -130,6 +139,15 @@ try {
     }
   }
   assert.deepEqual(failures, [], "Teacher assignment creation regression checks failed");
+  await page.goto(origin + "/new-project?sourceProjectId=d254d13f-1f70-46bd-862e-3847241c20ac");
+  await page.getByRole("heading", { name: "New Project", exact: true }).waitFor();
+  await page.locator("#project-title").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Assign project", exact: true }).count(), 0);
+  assert.equal(
+    await page.getByRole("button", { name: "Use an existing project", exact: true }).count(),
+    0,
+  );
+  console.log("PASS obsolete assign URL stays on the required class-and-students creation flow");
 } finally {
   await browser?.close();
   await server.close();

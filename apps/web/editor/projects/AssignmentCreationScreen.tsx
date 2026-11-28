@@ -140,6 +140,7 @@ export function AssignmentCreationScreen({
   const [setup, setSetup] = useState<Setup | null>(null);
   const [message, setMessage] = useState("");
   const [sourceId, setSourceId] = useState("");
+  const [recoveryExpanded, setRecoveryExpanded] = useState(false);
   const [recoveredSource, setRecoveredSource] = useState<SourceProject | null>(null);
   const [manualSource, setManualSource] = useState(false);
   const [existingSourceOpen, setExistingSourceOpen] = useState(false);
@@ -185,6 +186,13 @@ export function AssignmentCreationScreen({
           if (stored !== null && uncorrelatedBlankSource(stored)) {
             setSourceUncertain({ reason: "historical", record: stored });
             setExistingSourceOpen(true);
+            setSourceObserved(stored);
+          } else if (
+            stored !== null &&
+            historicalBlankSource(stored) &&
+            blankSourceProject(stored)
+          ) {
+            setSourceUncertain({ reason: "historical", record: stored });
             setSourceObserved(stored);
           } else if (
             stored !== null &&
@@ -289,9 +297,9 @@ export function AssignmentCreationScreen({
     if (confirmed && onCreated) onCreated();
   }, [confirmed, onCreated]);
 
-  function changeClass(classId: string, actorId: string) {
+  function changeClass(classId: string, actorId: string, retainStudents = false) {
     rosterController.current?.abort();
-    setStudents([]);
+    if (!retainStudents) setStudents([]);
     setRosterMessage(classId ? null : "");
     if (!classId) return;
     const controller = new AbortController();
@@ -323,7 +331,7 @@ export function AssignmentCreationScreen({
 
   async function refreshChoices() {
     if (!setup || pending) return;
-    setChoicesMessage("Refreshing projects and classes…");
+    setChoicesMessage("");
     try {
       const session = await assignmentSession();
       if (session.userId !== setup.session.userId) {
@@ -340,8 +348,8 @@ export function AssignmentCreationScreen({
         throw new Error("Account changed");
       setSetup({ session, ...choices });
       if (initialClass && choices.classes.some((row) => row.id === initialClass))
-        changeClass(initialClass, session.userId);
-      setChoicesMessage("Projects and classes refreshed.");
+        changeClass(initialClass, session.userId, true);
+      setChoicesMessage("");
     } catch {
       setChoicesMessage("Projects and classes could not be refreshed. Your details are unchanged.");
     }
@@ -381,14 +389,20 @@ export function AssignmentCreationScreen({
                 localStorage,
                 request.actorId,
                 request.sourceSelection,
-                { projectId: request.body.sourceProjectId, revision: request.body.sourceRevision },
+                {
+                  projectId: request.body.sourceProjectId,
+                  revision: request.body.sourceRevision,
+                },
               );
               await existingProjects.confirm(request.actorId, { ...chosen, archived: false }, true);
               await verifyExistingSelection(request.actorId);
             } catch (cause) {
               setRecoveredSource(null);
               setExistingSourceOpen(true);
-              setSourceUncertain({ reason: "existing", record: request.sourceSelection });
+              setSourceUncertain({
+                reason: "existing",
+                record: request.sourceSelection,
+              });
               return {
                 kind: "rejected",
                 message:
@@ -470,13 +484,17 @@ export function AssignmentCreationScreen({
         kind: "rejected",
         message: "Resolve the earlier assignment before creating another.",
       };
-    const dueAtUnixSeconds = createBlank
-      ? localDateToDueUnixSeconds(draft.dueDate)
-      : localDeadlineToUnixSeconds(draft.dueDate);
+    const dueAtUnixSeconds =
+      createBlank || setup.session.role === "Educator"
+        ? localDateToDueUnixSeconds(draft.dueDate)
+        : localDeadlineToUnixSeconds(draft.dueDate);
     if (dueAtUnixSeconds === null)
       return {
         kind: "rejected",
-        message: createBlank ? "Choose a valid due date." : "Choose a valid due date and time.",
+        message:
+          createBlank || setup.session.role === "Educator"
+            ? "Choose a valid due date."
+            : "Choose a valid due date and time.",
       };
     let source =
       recoveredSource ?? setup.projects.find((project) => project.projectId === sourceId);
@@ -673,41 +691,7 @@ export function AssignmentCreationScreen({
   return (
     <section aria-label="Create class assignment" className="sp-assignment-create">
       {createBlank &&
-        !pending &&
-        !recoveredSource &&
-        (() => {
-          let stored: string | null;
-          try {
-            stored = localStorage.getItem(blankSourceKey(setup.session.userId));
-          } catch {
-            return null;
-          }
-          const receipt =
-            stored !== null && historicalBlankSource(stored) ? blankSourceProject(stored) : null;
-          if (!receipt) return null;
-          const available = setup.projects.find(
-            (project) => project.projectId === receipt.projectId,
-          );
-          return (
-            <section className="sp-create-recovery" aria-label="Saved source project">
-              <p>
-                Saved source project ID: <code>{receipt.projectId}</code>
-              </p>
-              {available && (
-                <Button
-                  disabled={busy || formNavigation.locked}
-                  onClick={() => {
-                    setSourceObserved(stored);
-                    setExistingSourceOpen(true);
-                  }}
-                >
-                  Review saved source project {receipt.projectId}
-                </Button>
-              )}
-            </section>
-          );
-        })()}
-      {createBlank &&
+        recoveryExpanded &&
         !pending &&
         (() => {
           let observed: string | null;
@@ -719,9 +703,7 @@ export function AssignmentCreationScreen({
           const allowed =
             observed === null ||
             uncorrelatedBlankSource(observed) ||
-            (existingSourceOpen &&
-              historicalBlankSource(observed) &&
-              blankSourceProject(observed) !== null) ||
+            (historicalBlankSource(observed) && blankSourceProject(observed) !== null) ||
             selectedExistingSource(observed, setup.session.userId) !== null;
           return allowed && (!recoveredSource || manualSource) ? (
             <>
@@ -733,7 +715,7 @@ export function AssignmentCreationScreen({
                     setExistingSourceOpen(true);
                   }}
                 >
-                  {manualSource ? "Review selected source" : "Use an existing project"}
+                  {manualSource ? "Review selected source" : "Review previous project"}
                 </Button>
               )}
               {existingSourceOpen && (
@@ -745,7 +727,9 @@ export function AssignmentCreationScreen({
                     {...(sourceObserved !== null &&
                     historicalBlankSource(sourceObserved) &&
                     blankSourceProject(sourceObserved)
-                      ? { projectId: blankSourceProject(sourceObserved)!.projectId }
+                      ? {
+                          projectId: blankSourceProject(sourceObserved)!.projectId,
+                        }
                       : {})}
                     onSelect={async (project) => {
                       const record = await selectExistingSource(
@@ -791,6 +775,7 @@ export function AssignmentCreationScreen({
         <PendingCreateRecovery
           actorId={setup.session.userId}
           purpose="assignment-source"
+          {...(sourceUncertain ? { detailsOpen: recoveryExpanded } : {})}
           historicalLocal={(() => {
             try {
               const record = localStorage.getItem(blankSourceKey(setup.session.userId));
@@ -824,7 +809,11 @@ export function AssignmentCreationScreen({
               observed,
               operationId,
               value.receipt,
-              { projectId: current.projectId, title: current.title, revision: current.revision },
+              {
+                projectId: current.projectId,
+                title: current.title,
+                revision: current.revision,
+              },
               signal,
             );
             return {
@@ -846,10 +835,7 @@ export function AssignmentCreationScreen({
         />
       )}
       {recoveredSource && manualSource && (
-        <p role="status">
-          Using selected existing source project: {recoveredSource.title} (
-          {recoveredSource.projectId}), revision {recoveredSource.revision}.
-        </p>
+        <p role="status">Selected project: {recoveredSource.title}.</p>
       )}
       {recoveredSource && !manualSource && (
         <p role="status">
@@ -857,7 +843,13 @@ export function AssignmentCreationScreen({
           details to assign this source.
         </p>
       )}
-      {sourceUncertain && !pending && (
+      {sourceUncertain && !pending && !recoveryExpanded && (
+        <div className="sp-recovery-summary" role="alert">
+          <p>An earlier project request needs checking. Your details are unchanged.</p>
+          <Button onClick={() => setRecoveryExpanded(true)}>Check status</Button>
+        </div>
+      )}
+      {sourceUncertain && !pending && recoveryExpanded && (
         <div role="alert" className="sp-creation-notice">
           <p>
             {sourceUncertain.reason === "historical"
@@ -987,13 +979,17 @@ export function AssignmentCreationScreen({
             students={students}
             rosterMessage={rosterMessage}
             showImageOptions={createBlank && !recoveredSource}
-            dateOnly={createBlank}
-            customClassSelect={createBlank || setup.session.role === "Administrator"}
+            dateOnly={createBlank || setup.session.role === "Educator"}
+            customClassSelect={
+              createBlank ||
+              setup.session.role === "Administrator" ||
+              setup.session.role === "Educator"
+            }
             onClassChange={(classId) => {
               setInitialClass(classId);
               changeClass(classId, setup.session.userId);
             }}
-            {...(createBlank && setup.session.role === "Educator"
+            {...(setup.session.role === "Educator"
               ? {
                   manageClassesUrl: "/classes?organisation=1",
                   onRefreshClasses: () => {

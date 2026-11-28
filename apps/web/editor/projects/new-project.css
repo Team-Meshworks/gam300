@@ -252,7 +252,8 @@
   gap: 8px;
   min-width: 0;
 }
-.sp-project-class > label {
+.sp-project-class > label,
+.sp-project-image-heading > label {
   font-size: 14px;
   font-weight: 600;
 }
@@ -425,16 +426,25 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 16px;
-  font-size: 12px;
+  gap: 8px;
 }
-.sp-project-class-tools > a {
-  color: var(--sp-muted);
-  text-underline-offset: 3px;
+.sp-project-class-tools > .sp-button {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  text-decoration: none;
 }
 
 @media (max-width: 600px) {
   .sp-shell[data-account-role="Administrator"] .sp-assignment-create .sp-form-row {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.sp-project-class-tools > a.sp-button,
+.sp-project-class-tools > a.sp-button:visited {
+  color: var(--sp-ink);
 }

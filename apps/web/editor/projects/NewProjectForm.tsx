@@ -67,6 +67,23 @@ export function NewProjectForm({
   onRefreshClasses?: () => void;
   classesMessage?: string;
 }) {
+  const refreshClassesRef = useRef(onRefreshClasses);
+  useLayoutEffect(() => {
+    refreshClassesRef.current = onRefreshClasses;
+  }, [onRefreshClasses]);
+  useEffect(() => {
+    if (!manageClassesUrl) return;
+    const refresh = () => refreshClassesRef.current?.();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [manageClassesUrl]);
   const [phase, setPhase] = useState<"editing" | "pending" | "created" | "unknown">("editing");
   const [error, setError] = useState("");
   const inFlight = useRef(false);
@@ -228,6 +245,11 @@ export function NewProjectForm({
             <div className="sp-form-row">
               <ClassSelect
                 custom={customClassSelect}
+                manageClassesUrl={
+                  manageClassesUrl
+                    ? `${manageClassesUrl}${!classes.length ? "&create=1" : form.classId ? `&classId=${encodeURIComponent(form.classId)}` : ""}`
+                    : undefined
+                }
                 id="project-class"
                 classes={classes}
                 value={form.classId}
@@ -254,42 +276,32 @@ export function NewProjectForm({
                 </div>
               </Field>
             </div>
-            {manageClassesUrl && (
-              <div className="sp-project-class-help">
-                {!classes.length && (
-                  <p className="sp-hint">
-                    No classes yet. Create a class and enrol students, then return here and refresh
-                    classes. Your project details stay here.
-                  </p>
-                )}
-                {classes.length > 0 &&
-                  form.classId &&
-                  !students.length &&
-                  rosterMessage !== null && (
+            {manageClassesUrl &&
+              (!classes.length ||
+                (form.classId && !students.length && rosterMessage !== null) ||
+                classesMessage) && (
+                <div className="sp-project-class-help">
+                  {!classes.length && (
                     <p className="sp-hint">
-                      Manage this class to enrol existing student accounts, then refresh here.
+                      No classes yet. Create a class and enrol students, then return here. Your
+                      project details stay here.
                     </p>
                   )}
-                <div className="sp-project-class-tools">
-                  <a
-                    href={`${manageClassesUrl}${!classes.length ? "&create=1" : form.classId ? `&classId=${encodeURIComponent(form.classId)}` : ""}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {!classes.length ? "Create a class" : "Manage classes & students"}
-                    <span className="sp-sr-only"> (opens in a new tab)</span> ↗
-                  </a>
-                  <Button variant="quiet" onClick={onRefreshClasses}>
-                    Refresh classes
-                  </Button>
+                  {classes.length > 0 &&
+                    form.classId &&
+                    !students.length &&
+                    rosterMessage !== null && (
+                      <p className="sp-hint">
+                        Manage this class to enrol existing student accounts, then return here.
+                      </p>
+                    )}
+                  {classesMessage && (
+                    <p className="sp-hint" role="status">
+                      {classesMessage}
+                    </p>
+                  )}
                 </div>
-                {classesMessage && (
-                  <p className="sp-hint" role="status">
-                    {classesMessage}
-                  </p>
-                )}
-              </div>
-            )}
+              )}
             {showImageOptions && (
               <>
                 <fieldset className="sp-image-options">
@@ -395,7 +407,7 @@ export function NewProjectForm({
             <strong>
               {selected.length} {selected.length === 1 ? "student" : "students"} selected
             </strong>
-            <p className="sp-hint">Choose students to assign this project when you create it.</p>
+            <p className="sp-hint">Choose the students who will receive this project.</p>
           </div>
           <div className="sp-actions">
             <Button

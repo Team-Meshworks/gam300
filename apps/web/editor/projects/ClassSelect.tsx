@@ -9,8 +9,10 @@ export function ClassSelect({
   value,
   onChange,
   custom = false,
+  manageClassesUrl,
 }: {
   custom?: boolean;
+  manageClassesUrl?: string | undefined;
   id: string;
   classes: readonly ProjectClass[];
   value: string;
@@ -21,15 +23,27 @@ export function ClassSelect({
     // Validate the selected class against current authorised choices before submitting
     return (
       <Select
+        footerLink={
+          manageClassesUrl
+            ? {
+                label: "Manage classes…",
+                href: manageClassesUrl,
+                target: "_blank",
+              }
+            : undefined
+        }
         label="Class *"
         value={value}
         options={[
           { value: "", label: "Select a class" },
-          ...classes.map((item) => ({ value: item.id, label: labels.get(item.id)! })),
+          ...classes.map((item) => ({
+            value: item.id,
+            label: labels.get(item.id)!,
+          })),
         ]}
         onChange={onChange}
         className="sp-project-class"
-        menuClassName="sp-project-class-menu"
+        menuClassName="sp-project-class-menu sp-teacher-class-menu"
       />
     );
   }
