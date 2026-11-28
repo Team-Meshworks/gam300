@@ -297,8 +297,11 @@ async function checkAssetAuthoring() {
       ),
     ),
   );
+  const audioPath = `/api/v1/projects/${authoring.projectId}/assets/${authoring.audioId}/bytes`;
+  // The player retries temporary 429/503 responses. Check the result of that same playback request.
   const audioBytes = page.waitForResponse(
-    (response) => response.url().includes(authoring.audioId) && response.url().endsWith("/bytes"),
+    (response) =>
+      new URL(response.url()).pathname === audioPath && ![429, 503].includes(response.status()),
   );
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   const playing = await audioBytes;
