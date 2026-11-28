@@ -65,7 +65,11 @@ internal static class ClassAssignmentEditor
         if (replacement is not null)
         {
             // Keep old receipts replayable and bind new image mutations to the complete image intent.
-            digest = SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { digest, request.Image }));
+            digest = SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                digest,
+                request.Image
+            }));
         }
 
         var mappings = await database.ClassAssignmentStudents.Where(row => row.AssignmentId == assignmentId).ToArrayAsync(cancellationToken);

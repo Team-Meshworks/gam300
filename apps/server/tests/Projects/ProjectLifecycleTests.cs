@@ -92,7 +92,10 @@ public sealed class ProjectLifecycleTests
     {
         await using var fixture = await HttpsApplicationFixture.CreateAsync(environmentName: "Development");
         await fixture.SignInAsync(await fixture.CreateAccountAsync(ApplicationRoles.Educator));
-        var id = await CreateAsync(fixture, new { title = Marker });
+        var id = await CreateAsync(fixture, new
+        {
+            title = Marker
+        });
         using var listed = await fixture.Client.GetAsync("/api/v1/projects");
         var project = (await listed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0];
         var bytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGO0iapgYGAAAAUYARBocWoMAAAAAElFTkSuQmCC");
@@ -100,7 +103,12 @@ public sealed class ProjectLifecycleTests
         var update = new
         {
             expectedUpdatedAt = project.GetProperty("updatedAt").GetDateTimeOffset(),
-            image = new { type = "cover", contentType = "image/png", data = bytes }
+            image = new
+            {
+                type = "cover",
+                contentType = "image/png",
+                data = bytes
+            }
         };
 
         using var saved = await SendAsync(fixture, HttpMethod.Put, path, update);
@@ -114,7 +122,12 @@ public sealed class ProjectLifecycleTests
         using var stale = await SendAsync(fixture, HttpMethod.Put, path, new
         {
             update.expectedUpdatedAt,
-            image = new { type = "panorama", contentType = "image/png", data = bytes }
+            image = new
+            {
+                type = "panorama",
+                contentType = "image/png",
+                data = bytes
+            }
         });
         await Assert.That(stale.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
     }

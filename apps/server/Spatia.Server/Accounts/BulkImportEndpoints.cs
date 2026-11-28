@@ -97,7 +97,10 @@ public static partial class AccountDirectoryEndpoints
         {
             items = summaries.Select(entry => new
             {
-                entry.item.OperationId, entry.item.CreatedAt, entry.item.ExpiresAt, entry.item.CreatedCount,
+                entry.item.OperationId,
+                entry.item.CreatedAt,
+                entry.item.ExpiresAt,
+                entry.item.CreatedCount,
                 hasDownload = entry.item.ExpiresAt > clock.GetUtcNow() && entry.rows.Any(row => IsEligible(row, eligible)),
             }).ToArray(),
             nextCursor = results.Length > page.Limit ? results[page.Limit - 1].OperationId : (Guid?)null,
@@ -108,7 +111,8 @@ public static partial class AccountDirectoryEndpoints
         ApplicationDbContext db, CurrentAccountResolver accounts, IDataProtectionProvider protection, TimeProvider clock, CancellationToken token)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(token);
-        if (await AuthorizeAsync(context, accounts, token) is { } denied) return denied;
+        if (await AuthorizeAsync(context, accounts, token) is { } denied)
+            return denied;
         var actor = context.Features.Get<ValidatedAccountSession>()!.UserId;
         var now = clock.GetUtcNow();
         var receipts = await db.Set<BulkImportReceipt>().FromSqlInterpolated($"""
@@ -122,13 +126,17 @@ public static partial class AccountDirectoryEndpoints
             SELECT "Id" AS "Value" FROM "AspNetUsers" WHERE "Id" = ANY({ids}) ORDER BY "Id" FOR SHARE
             """).ToListAsync(token);
         var eligible = await EligibleBulkUsers(db, orgId, ids).ToDictionaryAsync(user => user.Id, token);
-        if (await AuthorizeAsync(context, accounts, token) is { } revoked) return revoked;
+        if (await AuthorizeAsync(context, accounts, token) is { } revoked)
+            return revoked;
         var result = batches.Where(batch => batch.item.ExpiresAt > clock.GetUtcNow()).Select(batch => new
         {
-            batch.item.OperationId, orgId, created = JsonSerializer.Deserialize<BulkCreated[]>(batch.item.CreatedJson),
+            batch.item.OperationId,
+            orgId,
+            created = JsonSerializer.Deserialize<BulkCreated[]>(batch.item.CreatedJson),
             credentials = batch.rows.Where(row => IsEligible(row, eligible))
                 .Select(row => new BulkCredential(row.UserId, eligible[row.UserId].UserName!, row.Password)).ToArray(),
-            batch.item.ExpiresAt, batch.item.Acknowledged,
+            batch.item.ExpiresAt,
+            batch.item.Acknowledged,
         }).Where(batch => batch.credentials.Length > 0).ToList();
         var response = await CompleteAsync(context, transaction, Results.Ok(result), token, readOnly: true);
         var completedAt = clock.GetUtcNow();

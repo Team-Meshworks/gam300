@@ -298,17 +298,27 @@ public sealed class BulkImportTests
         await Assert.That(unprivileged.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
 
         var download = $"/api/v1/admin/organizations/{org:D}/bulk-imports/download";
-        using var file = await AuthTestRequests.PostAsync(fixture, download, new { });
+        using var file = await AuthTestRequests.PostAsync(fixture, download, new
+        {
+        });
         var batch = (await file.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().Single();
         await Assert.That(batch.GetProperty("operationId").GetGuid()).IsEqualTo(op);
         await Assert.That(batch.GetProperty("credentials").EnumerateArray().Single().GetProperty("userName").GetString()).IsEqualTo("keep");
-        using var otherFile = await AuthTestRequests.PostAsync(fixture, download, new { }, different);
+        using var otherFile = await AuthTestRequests.PostAsync(fixture, download, new
+        {
+        }, different);
         await Assert.That((await otherFile.Content.ReadFromJsonAsync<JsonElement>()).GetArrayLength()).IsEqualTo(0);
-        using var wrongFile = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/organizations/{Guid.NewGuid():D}/bulk-imports/download", new { });
+        using var wrongFile = await AuthTestRequests.PostAsync(fixture, $"/api/v1/admin/organizations/{Guid.NewGuid():D}/bulk-imports/download", new
+        {
+        });
         await Assert.That((await wrongFile.Content.ReadFromJsonAsync<JsonElement>()).GetArrayLength()).IsEqualTo(0);
-        using var forbiddenFile = await AuthTestRequests.PostAsync(fixture, download, new { }, student);
+        using var forbiddenFile = await AuthTestRequests.PostAsync(fixture, download, new
+        {
+        }, student);
         await Assert.That(forbiddenFile.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
-        using var noFileToken = await fixture.Client.PostAsJsonAsync(download, new { });
+        using var noFileToken = await fixture.Client.PostAsJsonAsync(download, new
+        {
+        });
         await Assert.That(noFileToken.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
 
         var cutoff = receipt.GetProperty("expiresAt").GetDateTimeOffset();

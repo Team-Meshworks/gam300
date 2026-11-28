@@ -78,8 +78,17 @@ public sealed class ClassAssignmentCoordinatorTests
         {
             mutationId = Guid.NewGuid(),
             expectedRevision = 0,
-            request.Title, request.Description, request.Instructions, request.DueAtUnixSeconds, request.StudentIds,
-            image = new { type = "panorama", contentType = "image/webp", data = replacementBytes }
+            request.Title,
+            request.Description,
+            request.Instructions,
+            request.DueAtUnixSeconds,
+            request.StudentIds,
+            image = new
+            {
+                type = "panorama",
+                contentType = "image/webp",
+                data = replacementBytes
+            }
         };
         using var unauthorizedEdit = new HttpRequestMessage(HttpMethod.Patch, replacementPath) { Content = JsonContent.Create(replacement) };
         unauthorizedEdit.Headers.Add("X-CSRF-TOKEN", await fixture.GetCsrfAsync(student));
