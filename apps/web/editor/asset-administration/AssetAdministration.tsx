@@ -905,178 +905,180 @@ function AssetAdministrationScreen({ service, kind, onClose, initialUpload }: Pr
               </button>
             </div>
             {loadingDialog ? (
-            <Skeleton
-              loading
-              label={
-                selection?.kind === "upload" ? "Loading upload options" : "Loading asset details"
-              }
-            >
-              <div
-                className={
-                  selection?.kind === "upload" ? "asset-admin-upload" : "asset-admin-detail-preview"
+              <Skeleton
+                loading
+                label={
+                  selection?.kind === "upload" ? "Loading upload options" : "Loading asset details"
                 }
-              />
-              <h3>Asset Details</h3>
-              <div className="asset-admin-fields">
-                {["Asset Type", "Filter Category"].map((label) => (
-                  <div className="asset-admin-select" key={label}>
-                    <span>{label}</span>
-                    <output>Loading</output>
-                  </div>
-                ))}
-              </div>
-              <div className="asset-admin-actions">
-                {selection?.kind === "detail" && (
-                  <span className="asset-admin-text-link">Download File</span>
-                )}
-                {selection?.kind === "upload" && (
-                  <details className="asset-admin-metadata">
-                    <summary>Additional Details</summary>
-                  </details>
-                )}
-                <Button type="button" disabled>
-                  <span className="sp-button-label">Cancel</span>
-                </Button>
-                <Button type="button" disabled>
-                  <span className="sp-button-label">
-                    {selection?.kind === "upload" ? "Save Changes" : "Hide"}
-                  </span>
-                </Button>
-                {selection?.kind === "detail" && (
+              >
+                <div
+                  className={
+                    selection?.kind === "upload"
+                      ? "asset-admin-upload"
+                      : "asset-admin-detail-preview"
+                  }
+                />
+                <h3>Asset Details</h3>
+                <div className="asset-admin-fields">
+                  {["Asset Type", "Filter Category"].map((label) => (
+                    <div className="asset-admin-select" key={label}>
+                      <span>{label}</span>
+                      <output>Loading</output>
+                    </div>
+                  ))}
+                </div>
+                <div className="asset-admin-actions">
+                  {selection?.kind === "detail" && (
+                    <span className="asset-admin-text-link">Download File</span>
+                  )}
+                  {selection?.kind === "upload" && (
+                    <details className="asset-admin-metadata">
+                      <summary>Additional Details</summary>
+                    </details>
+                  )}
                   <Button type="button" disabled>
-                    <span className="sp-button-label">Delete</span>
+                    <span className="sp-button-label">Cancel</span>
                   </Button>
-                )}
-              </div>
-            </Skeleton>
-          ) : (
-            <>
-              {!confirmation && !bulk && (
-                <>
-                  {choosingFile ? (
-                    <label
-                      className="asset-admin-upload"
-                      onDragOver={(event) => {
-                        event.preventDefault();
-                        event.dataTransfer.dropEffect = locked ? "none" : "copy";
-                      }}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        if (locked) return;
-                        const files = event.dataTransfer.files;
-                        if (files.length !== 1) {
-                          setNotice({ kind: "invalid", message: "Drop one file at a time." });
-                          return;
-                        }
-                        const chosen = files.item(0);
-                        if (chosen) {
-                          setFile(chosen);
-                          setNotice(null);
-                        }
-                      }}
-                    >
-                      <span className="asset-admin-upload-symbol" aria-hidden="true">
-                        <svg
-                          viewBox="0 0 48 48"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <path
-                            d="M4 26v13c0 4 2 5 6 5h28c4 0 6-1 6-5V26"
-                            fill="var(--aa-upload-tray)"
-                          />
-                          <path d="M24 33V5m-10 9 8-8q2-2 4 0l8 8" />
-                        </svg>
-                      </span>
-                      <span>
-                        {file?.name ??
-                          (replacing
-                            ? "Choose a replacement file or drop it here"
-                            : uploadKind === "audio"
-                              ? "Choose an M4A file or drop it here"
-                              : "Choose a GLB file or drop it here")}
-                      </span>
-                      <span className="asset-admin-help">
-                        {data &&
-                          `${extensions.join(" / ")} files, up to ${Math.floor(data.policy.maxBytes / 1024 / 1024)} MB`}
-                        {replacing && "; existing projects keep the original file"}
-                      </span>
-                      <input
-                        aria-label="Choose asset file"
-                        type="file"
-                        key={uploadKind}
-                        accept={extensions.join(",")}
-                        disabled={locked}
-                        onChange={(e) => {
-                          // Keep the last selection when closing the file chooser without choosing a new file
-                          const chosen = e.target.files?.[0];
+                  <Button type="button" disabled>
+                    <span className="sp-button-label">
+                      {selection?.kind === "upload" ? "Save Changes" : "Hide"}
+                    </span>
+                  </Button>
+                  {selection?.kind === "detail" && (
+                    <Button type="button" disabled>
+                      <span className="sp-button-label">Delete</span>
+                    </Button>
+                  )}
+                </div>
+              </Skeleton>
+            ) : (
+              <>
+                {!confirmation && !bulk && (
+                  <>
+                    {choosingFile ? (
+                      <label
+                        className="asset-admin-upload"
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = locked ? "none" : "copy";
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          if (locked) return;
+                          const files = event.dataTransfer.files;
+                          if (files.length !== 1) {
+                            setNotice({ kind: "invalid", message: "Drop one file at a time." });
+                            return;
+                          }
+                          const chosen = files.item(0);
                           if (chosen) {
                             setFile(chosen);
                             setNotice(null);
                           }
                         }}
-                      />
-                    </label>
-                  ) : (
-                    selected && (
-                      <div className="asset-admin-detail-preview">
-                        {thumbnail(selected)}
-                        {selected.kind === "audio" &&
-                          selected.status === "approved" &&
-                          selected.inspectionUrl &&
-                          (audioPreview ? (
-                            <audio
-                              controls
-                              preload="metadata"
-                              src={audioPreview}
-                              aria-label={`Preview ${selected.name}`}
-                              onError={() => setAudioPreviewError(true)}
+                      >
+                        <span className="asset-admin-upload-symbol" aria-hidden="true">
+                          <svg
+                            viewBox="0 0 48 48"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M4 26v13c0 4 2 5 6 5h28c4 0 6-1 6-5V26"
+                              fill="var(--aa-upload-tray)"
                             />
-                          ) : (
-                            !audioPreviewError && (
-                              <div
-                                className="asset-admin-audio-loading"
-                                role="status"
-                                aria-label="Loading audio preview…"
-                                aria-busy="true"
-                              >
-                                <SkeletonBox width="100%" height={54} radius={27} />
-                              </div>
-                            )
-                          ))}
-                        {audioPreviewError && (
-                          <p role="alert">
-                            Audio preview is unavailable. You can download the file instead.
-                          </p>
-                        )}
-                      </div>
-                    )
-                  )}
-                  {choosingFile && data && !canSubmit && (
-                    <p role="status">
-                      {uploadKind === "audio"
-                        ? "Audio uploads are unavailable. Close this dialog and check upload availability again."
-                        : uploadAvailabilityMessage}
-                      {kind === "model" &&
-                        uploadKind !== "audio" &&
-                        canOpenUpload &&
-                        " Select Audio to upload an audio asset."}
-                    </p>
-                  )}
-                  <h3>Asset Details</h3>
-                  {selection && (
-                    <div className="asset-admin-fields">
-                      {selection.kind === "upload" && (
-                        <label
-                          className="asset-admin-select asset-admin-name"
-                          data-asset-field="name"
-                        >
-                          <span>Asset Name</span>
-                          <input
+                            <path d="M24 33V5m-10 9 8-8q2-2 4 0l8 8" />
+                          </svg>
+                        </span>
+                        <span>
+                          {file?.name ??
+                            (replacing
+                              ? "Choose a replacement file or drop it here"
+                              : uploadKind === "audio"
+                                ? "Choose an M4A file or drop it here"
+                                : "Choose a GLB file or drop it here")}
+                        </span>
+                        <span className="asset-admin-help">
+                          {data &&
+                            `${extensions.join(" / ")} files, up to ${Math.floor(data.policy.maxBytes / 1024 / 1024)} MB`}
+                          {replacing && "; existing projects keep the original file"}
+                        </span>
+                        <input
+                          aria-label="Choose asset file"
+                          type="file"
+                          key={uploadKind}
+                          accept={extensions.join(",")}
+                          disabled={locked}
+                          onChange={(e) => {
+                            // Keep the last selection when closing the file chooser without choosing a new file
+                            const chosen = e.target.files?.[0];
+                            if (chosen) {
+                              setFile(chosen);
+                              setNotice(null);
+                            }
+                          }}
+                        />
+                      </label>
+                    ) : (
+                      selected && (
+                        <div className="asset-admin-detail-preview">
+                          {thumbnail(selected)}
+                          {selected.kind === "audio" &&
+                            selected.status === "approved" &&
+                            selected.inspectionUrl &&
+                            (audioPreview ? (
+                              <audio
+                                controls
+                                preload="metadata"
+                                src={audioPreview}
+                                aria-label={`Preview ${selected.name}`}
+                                onError={() => setAudioPreviewError(true)}
+                              />
+                            ) : (
+                              !audioPreviewError && (
+                                <div
+                                  className="asset-admin-audio-loading"
+                                  role="status"
+                                  aria-label="Loading audio preview…"
+                                  aria-busy="true"
+                                >
+                                  <SkeletonBox width="100%" height={54} radius={27} />
+                                </div>
+                              )
+                            ))}
+                          {audioPreviewError && (
+                            <p role="alert">
+                              Audio preview is unavailable. You can download the file instead.
+                            </p>
+                          )}
+                        </div>
+                      )
+                    )}
+                    {choosingFile && data && !canSubmit && (
+                      <p role="status">
+                        {uploadKind === "audio"
+                          ? "Audio uploads are unavailable. Close this dialog and check upload availability again."
+                          : uploadAvailabilityMessage}
+                        {kind === "model" &&
+                          uploadKind !== "audio" &&
+                          canOpenUpload &&
+                          " Select Audio to upload an audio asset."}
+                      </p>
+                    )}
+                    <h3>Asset Details</h3>
+                    {selection && (
+                      <div className="asset-admin-fields">
+                        {selection.kind === "upload" && (
+                          <label
+                            className="asset-admin-select asset-admin-name"
+                            data-asset-field="name"
+                          >
+                            <span>Asset Name</span>
+                            <input
                             required
                             maxLength={120}
                             value={assetName}
