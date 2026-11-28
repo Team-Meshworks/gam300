@@ -94,6 +94,8 @@ type Entry = {
   };
   access: string;
   category: string;
+  // Optional era/theme tags, matching the limits the server applies to imported assets
+  tags?: readonly string[];
   durationSeconds?: number;
 };
 
@@ -126,6 +128,12 @@ export function assetCataloguePlugin(): Plugin {
       typeof entry.category !== "string" ||
       !entry.category.trim() ||
       (entry.placement !== undefined && entry.placement !== "bottom-center") ||
+      (entry.tags !== undefined &&
+        (!Array.isArray(entry.tags) ||
+          entry.tags.length > 10 ||
+          !entry.tags.every(
+            (tag) => typeof tag === "string" && tag.trim() !== "" && tag.length <= 40,
+          ))) ||
       (entry.thumbnail === null && entry.thumbnailMode !== "generated")
     ) {
       throw new Error("Invalid or non-development catalogue entry: " + entry.assetId);
@@ -290,6 +298,8 @@ export function assetCataloguePlugin(): Plugin {
             JSON.stringify(entry.durationSeconds) +
             ",category:" +
             JSON.stringify(entry.category) +
+            ",tags:" +
+            JSON.stringify(entry.tags) +
             ",sha256:" +
             JSON.stringify(entry.sha256) +
             ",url:model" +

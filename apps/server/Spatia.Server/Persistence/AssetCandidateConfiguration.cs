@@ -16,6 +16,7 @@ public sealed class AssetCandidateConfiguration : IEntityTypeConfiguration<Asset
             table.HasCheckConstraint("CK_asset_candidate_size", "octet_length(bytes) BETWEEN 1 AND 20971520");
             table.HasCheckConstraint("CK_asset_candidate_status", "status IN ('pending', 'approved', 'invalid')");
             table.HasCheckConstraint("CK_asset_candidate_retirement", "(NOT deleted OR hidden) AND (NOT removed_from_projects OR deleted)");
+            table.HasCheckConstraint("CK_asset_candidate_tags", $"cardinality(tags) <= {AssetTags.MaxPerAsset}");
             table.HasCheckConstraint("CK_asset_candidate_approval", "status <> 'approved' OR (reviewed_by IS NOT NULL AND source IS NOT NULL AND license IS NOT NULL AND review_notes IS NOT NULL)");
         });
         entity.HasKey(asset => asset.Id);
@@ -30,6 +31,7 @@ public sealed class AssetCandidateConfiguration : IEntityTypeConfiguration<Asset
         entity.Property(asset => asset.CatalogueSource).HasColumnName("catalogue_source").HasMaxLength(2000);
         entity.Property(asset => asset.CatalogueLicense).HasColumnName("catalogue_license").HasMaxLength(2000);
         entity.Property(asset => asset.CatalogueReviewNotes).HasColumnName("catalogue_review_notes").HasMaxLength(2000);
+        entity.Property(asset => asset.Tags).HasColumnName("tags").HasDefaultValueSql("'{}'::text[]");
         entity.Property(asset => asset.Sha256).HasColumnName("sha256").HasMaxLength(64);
         entity.Property(asset => asset.Bytes).HasColumnName("bytes");
 

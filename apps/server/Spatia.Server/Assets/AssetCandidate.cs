@@ -41,6 +41,8 @@ public sealed class AssetCandidate
     {
         get; set;
     }
+    // Catalogue tags are editable like the other catalogue fields and never identify the version
+    public string[] Tags { get; set; } = [];
     public required string Sha256
     {
         get; set;

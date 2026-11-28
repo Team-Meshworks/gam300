@@ -8,6 +8,7 @@ const domTests = [
   "editor/interaction/actionHandler.test.ts",
   "shared/asset-runtime/ModelCache.test.ts",
   "shared/preview/fps-walk-space.test.ts",
+  "shared/preview/mobile-controls.test.ts",
   "visitor/visitor-playback.test.ts",
 ];
 

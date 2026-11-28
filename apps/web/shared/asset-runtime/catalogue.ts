@@ -27,6 +27,8 @@ export type CatalogueAsset = Readonly<{
   displayRole?: "physical" | "digital";
   nonBlocking?: true;
   category?: string;
+  // Shared catalogue tags, such as historical eras, set by whoever imported the asset
+  tags?: readonly string[];
   durationSeconds?: number;
   // Local coordinates after bottom-center model normalization, in metres.
   displayTop?: number;
@@ -156,11 +158,20 @@ export function searchAssets(
   category: string = "All",
 ) {
   const name = query.trim().toLowerCase();
-  // Apply name and category together while preserving asset identity and catalogue order
+  // Apply name and category together while preserving asset identity and catalogue order.
+  // Typing a tag such as "post-war" also finds assets carrying it
   return assets.filter(
     (asset) =>
       (category === "All" || asset.category === category) &&
-      asset.name.toLowerCase().includes(name),
+      (asset.name.toLowerCase().includes(name) ||
+        (asset.tags ?? []).some((tag) => tag.toLowerCase().includes(name))),
+  );
+}
+
+// Every tag used in these assets, alphabetically, so filters only offer tags with results
+export function catalogueTags(assets: readonly CatalogueAsset[]): string[] {
+  return [...new Set(assets.flatMap((asset) => asset.tags ?? []))].sort((a, b) =>
+    a.localeCompare(b),
   );
 }
 

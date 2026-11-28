@@ -464,6 +464,13 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("submitted_by");
 
+                    b.PrimitiveCollection<string[]>("Tags")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("tags")
+                        .HasDefaultValueSql("'{}'::text[]");
+
                     b.Property<string>("ValidationJson")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -488,6 +495,8 @@ namespace Spatia.Server.Persistence.Migrations
                             t.HasCheckConstraint("CK_asset_candidate_size", "octet_length(bytes) BETWEEN 1 AND 20971520");
 
                             t.HasCheckConstraint("CK_asset_candidate_status", "status IN ('pending', 'approved', 'invalid')");
+
+                            t.HasCheckConstraint("CK_asset_candidate_tags", "cardinality(tags) <= 10");
                         });
                 });
 
@@ -514,6 +523,63 @@ namespace Spatia.Server.Persistence.Migrations
                     b.HasIndex("AssetId");
 
                     b.ToTable("asset_removal_receipts", (string)null);
+                });
+
+            modelBuilder.Entity("Spatia.Server.Assets.AssetTag", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Key");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.ToTable("asset_tags", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_asset_tag_name", "length(name) BETWEEN 1 AND 40 AND length(key) BETWEEN 1 AND 40");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Key = "postwar",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 11, 27, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Name = "Post-war"
+                        },
+                        new
+                        {
+                            Key = "japaneseoccupation",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 11, 27, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Name = "Japanese Occupation"
+                        },
+                        new
+                        {
+                            Key = "earlysingapore",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 11, 27, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Name = "Early Singapore"
+                        },
+                        new
+                        {
+                            Key = "modernsingapore",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 11, 27, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Name = "Modern Singapore"
+                        });
                 });
 
             modelBuilder.Entity("Spatia.Server.Classes.ClassAssignment", b =>
@@ -1481,6 +1547,14 @@ namespace Spatia.Server.Persistence.Migrations
                         .HasForeignKey("AssetId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Spatia.Server.Assets.AssetTag", b =>
+                {
+                    b.HasOne("Spatia.Server.Accounts.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Spatia.Server.Classes.ClassAssignment", b =>

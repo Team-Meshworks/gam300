@@ -146,7 +146,19 @@ function AssetAdministrationPreview() {
           ...details.review,
           name: details.name,
           category: details.category,
+          ...(details.tags ? { tags: details.tags } : {}),
         };
+        records.current = {
+          ...records.current,
+          assets: records.current.assets.map((asset) => (asset.id === id ? value : asset)),
+        };
+        return { ok: true, value };
+      },
+      async removeTag(id, tag) {
+        const previous = records.current.assets.find((asset) => asset.id === id);
+        if (!previous || previous.deleted || failure === "save")
+          return { ok: false, kind: "unavailable", message: "The tag could not be removed." };
+        const value = { ...previous, tags: (previous.tags ?? []).filter((other) => other !== tag) };
         records.current = {
           ...records.current,
           assets: records.current.assets.map((asset) => (asset.id === id ? value : asset)),

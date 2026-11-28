@@ -34,6 +34,8 @@ export async function readServerAssets(
     const url = readField(row, "url");
     const sha256 = readField(row, "sha256");
     const category = readField(row, "category");
+    // Tags are optional so a server from before tagging still loads; bad entries reject the row
+    const tags = readField(row, "tags");
     if (
       typeof id !== "string" ||
       !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id) ||
@@ -49,6 +51,10 @@ export async function readServerAssets(
       typeof sha256 !== "string" ||
       !/^[0-9a-f]{64}$/i.test(sha256) ||
       (category !== null && typeof category !== "string") ||
+      (tags !== undefined &&
+        (!Array.isArray(tags) ||
+          tags.length > 10 ||
+          !tags.every((tag) => typeof tag === "string" && tag.trim() && tag.length <= 40))) ||
       readField(row, "thumbnail") !== null
     )
       throw new Error("Invalid approved asset catalogue.");
@@ -67,6 +73,7 @@ export async function readServerAssets(
       ...(kind === "model" ? displayGeometry.get(sha256.toLowerCase()) : undefined),
       ...(measured ? { boundsMeters: measured, placement: "bottom-center" as const } : {}),
       ...(typeof category === "string" ? { category } : {}),
+      ...(Array.isArray(tags) && tags.length ? { tags: tags as string[] } : {}),
     };
   });
 }

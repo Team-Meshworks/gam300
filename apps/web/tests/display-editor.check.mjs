@@ -169,7 +169,8 @@ try {
         ".asset-picker-reset",
         ".asset-picker-add",
       ]) {
-        const node = el.querySelector(selector);
+        // Compare the Filters menu itself; the library also shows a Tags menu before it
+        const node = [...el.querySelectorAll(selector)].at(-1);
         if (!node) continue;
         const css = getComputedStyle(node),
           box = node.getBoundingClientRect();

@@ -6,6 +6,8 @@ export type AssetCandidate = Readonly<{
   name: string;
   kind: CatalogueAsset["kind"];
   category: string | null;
+  // Era and theme tags from the shared list; older servers omit them
+  tags?: readonly string[];
   inspectionUrl?: string | null;
   sha256?: string;
   source?: string | null;
@@ -33,6 +35,10 @@ export type AssetAdministrationData = Readonly<{
     canSubmit: boolean;
     canSubmitByKind?: Readonly<Partial<Record<CatalogueAsset["kind"], boolean>>>;
     canForceRemove: boolean;
+    // The shared tag list; saving a new tag on an asset adds it here for everyone
+    tags?: readonly string[];
+    maxTags?: number;
+    maxTagLength?: number;
   }>;
 }>;
 
@@ -47,6 +53,15 @@ export type AssetDetails = {
   kind: AssetCandidate["kind"];
   category: string | null;
   review: AssetReview;
+  // Omitted when unchanged, so the server keeps whatever tags the asset has now
+  tags?: readonly string[];
+  // What the editor opened with; the server rejects the save if those fields changed since
+  expected?: {
+    name: string;
+    category: string | null;
+    review: AssetReview;
+    tags: readonly string[];
+  };
 };
 
 // Return authoritative records after mutations; screens never infer approval from an upload
@@ -61,6 +76,7 @@ export interface AssetAdministrationService {
       kind: CatalogueAsset["kind"];
       category: string | null;
       review: AssetReview;
+      tags?: readonly string[];
       replaces?: string;
     },
     signal: AbortSignal,
@@ -68,6 +84,12 @@ export interface AssetAdministrationService {
   updateDetails(
     id: string,
     details: AssetDetails,
+    signal: AbortSignal,
+  ): Promise<AssetAdministrationResult<AssetCandidate>>;
+  // Names only the tag, so the server removes it from the asset's current tags without resending other details
+  removeTag(
+    id: string,
+    tag: string,
     signal: AbortSignal,
   ): Promise<AssetAdministrationResult<AssetCandidate>>;
   review(

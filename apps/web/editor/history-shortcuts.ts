@@ -66,6 +66,23 @@ export function handleHistoryShortcut(
   else history.redo();
 }
 
+export function handleSaveShortcut(
+  event: ShortcutEvent,
+  actions: { save(): void; exportFile(): void },
+  previewing: boolean,
+) {
+  if (event.defaultPrevented || event.isComposing || event.altKey) return;
+  if (!event.ctrlKey && !event.metaKey) return;
+  if (event.key.toLowerCase() !== "s") return;
+  // Never let Ctrl+S reach the browser's Save Page As, including in Preview: saving this
+  // WebGL page with its large blob assets can stall the tab
+  event.preventDefault();
+  // Preview has nothing to save, and holding the keys must not queue a save per repeat
+  if (previewing || event.repeat) return;
+  if (event.shiftKey) actions.exportFile();
+  else actions.save();
+}
+
 export function isTextEditingTarget(target: EventTarget): boolean {
   return (
     target instanceof HTMLElement &&

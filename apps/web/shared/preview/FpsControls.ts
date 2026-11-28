@@ -24,16 +24,17 @@ const PHYSICS_DT = 1 / 240;
 const LOCK_RETRY_MS = 2000;
 
 // C goes down instead of Ctrl, Ctrl+W closes the tab and Ctrl is kept for snapping
-const HANDLED_KEYS = new Set([
+const WALK_KEYS = new Set([
   "KeyW",
   "KeyA",
   "KeyS",
   "KeyD",
-  "KeyC",
-  "Space",
-  "ShiftLeft",
-  "ShiftRight",
+  "ArrowUp",
+  "ArrowLeft",
+  "ArrowDown",
+  "ArrowRight",
 ]);
+const HANDLED_KEYS = new Set([...WALK_KEYS, "KeyC", "Space", "ShiftLeft", "ShiftRight"]);
 
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -134,8 +135,9 @@ export class FpsControls {
     this.resetMobileInput();
     this.sync();
     this.ownerWindow?.addEventListener("keydown", this.onKeyDown);
-    this.ownerWindow?.addEventListener("keyup", this.onKeyUp);
+    this.ownerWindow?.addEventListener("keyup", this.onKeyUp, true);
     this.ownerWindow?.addEventListener("blur", this.clearInput);
+    this.ownerDocument.addEventListener("focusin", this.onFocusIn, true);
     this.ownerDocument.addEventListener("visibilitychange", this.onVisibilityChange);
   }
 
@@ -181,11 +183,29 @@ export class FpsControls {
     this.accumulated = 0;
   }
 
+  private get inputX(): number {
+    return (
+      Number(this.keys.has("KeyD") || this.keys.has("ArrowRight")) -
+      Number(this.keys.has("KeyA") || this.keys.has("ArrowLeft")) +
+      this.mobileMoveX
+    );
+  }
+
+  private get inputZ(): number {
+    return (
+      Number(this.keys.has("KeyW") || this.keys.has("ArrowUp")) -
+      Number(this.keys.has("KeyS") || this.keys.has("ArrowDown")) +
+      this.mobileMoveZ
+    );
+  }
+
   // Ballistic jump/fall and decaying velocity are not deliberate carry input
   hasMovementInput(): boolean {
-    const x = (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0) + this.mobileMoveX;
-    const z = (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0) + this.mobileMoveZ;
-    return x !== 0 || z !== 0 || (this.flying && (this.keys.has("Space") || this.keys.has("KeyC")));
+    return (
+      this.inputX !== 0 ||
+      this.inputZ !== 0 ||
+      (this.flying && (this.keys.has("Space") || this.keys.has("KeyC")))
+    );
   }
 
   // A plain left click on the scene grabs the mouse instead of doing anything else
@@ -274,8 +294,9 @@ export class FpsControls {
     this.resetMobileInput();
     if (this.captured) this.ownerDocument.exitPointerLock();
     this.ownerWindow?.removeEventListener("keydown", this.onKeyDown);
-    this.ownerWindow?.removeEventListener("keyup", this.onKeyUp);
+    this.ownerWindow?.removeEventListener("keyup", this.onKeyUp, true);
     this.ownerWindow?.removeEventListener("blur", this.clearInput);
+    this.ownerDocument.removeEventListener("focusin", this.onFocusIn, true);
     this.ownerDocument.removeEventListener("visibilitychange", this.onVisibilityChange);
   }
 
@@ -338,10 +359,6 @@ export class FpsControls {
       }
     }
 
-    const inputZ =
-      (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0) + this.mobileMoveZ;
-    const inputX =
-      (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0) + this.mobileMoveX;
     _forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
     if (!this.flying) _forward.y = 0;
     if (_forward.lengthSq() < 1e-8) {
@@ -354,7 +371,7 @@ export class FpsControls {
     _right.y = 0;
     _right.normalize();
 
-    _wish.set(0, 0, 0).addScaledVector(_forward, inputZ).addScaledVector(_right, inputX);
+    _wish.set(0, 0, 0).addScaledVector(_forward, this.inputZ).addScaledVector(_right, this.inputX);
     if (_wish.lengthSq() > 0) _wish.normalize().multiplyScalar(maxSpeed);
 
     const smoothing = 1 - Math.exp(-ACCELERATION * delta);
@@ -461,7 +478,10 @@ export class FpsControls {
     if (captured === this.captured) return;
     this.captured = captured;
     if (captured) this.capturePending = false;
-    else this.releasedAt = performance.now();
+    else {
+      this.releasedAt = performance.now();
+      this.releaseKeyboard();
+    }
     this.dragging = false;
     this.ignoreNextCapturedMove = captured;
     this.onCaptureChange();
@@ -485,11 +505,16 @@ export class FpsControls {
       event.metaKey ||
       event.altKey ||
       event.composedPath().some(isTextEditingTarget) ||
-      (event.target instanceof Element && event.target.closest("button, summary, dialog[open]"))
+      (event.target instanceof Element &&
+        event.target.closest(
+          "button, summary, details[open], dialog[open], a[href], audio[controls], video[controls]",
+        ))
     )
       return;
     if (!HANDLED_KEYS.has(event.code)) return;
     event.preventDefault();
+    // A held key may auto-repeat after the player has surrendered keyboard focus.
+    if (event.repeat && !this.keys.has(event.code)) return;
     if (event.code === "Space" && !event.repeat) {
       if (this.flightAllowed && event.timeStamp - this.lastSpace < DOUBLE_TAP_MS) {
         this.toggleFlight();
@@ -518,18 +543,35 @@ export class FpsControls {
       }
       return;
     }
-    if (HANDLED_KEYS.has(event.code)) this.keys.delete(event.code);
+    if (this.keys.delete(event.code) && WALK_KEYS.has(event.code)) this.stopKeyboardWalk();
+  };
+
+  private stopKeyboardWalk(): void {
+    if (this.flying || this.inputX !== 0 || this.inputZ !== 0) return;
+    // Stop at the displayed position, leaving vertical jump/fall physics alone.
+    for (const axis of ["x", "z"] as const) {
+      this.velocity[axis] = 0;
+      this.physicsPosition[axis] = this.camera.position[axis];
+      this.previousPhysics[axis] = this.camera.position[axis];
+    }
+  }
+
+  private releaseKeyboard(): void {
+    if (this.keys.size === 0) return;
+    this.keys.clear();
+    this.stopKeyboardWalk();
+  }
+
+  private readonly onFocusIn = (event: FocusEvent) => {
+    if (event.target !== this.domElement) this.releaseKeyboard();
   };
 
   private readonly clearInput = () => {
     this.keys.clear();
-    this.velocity.set(0, 0, 0);
+    this.stopMotion();
     this.dragging = false;
     this.resetMobileInput();
     this.altFreed = false;
-    this.physicsPosition.copy(this.camera.position);
-    this.previousPhysics.copy(this.camera.position);
-    this.accumulated = 0;
   };
 
   private readonly onVisibilityChange = () => {
