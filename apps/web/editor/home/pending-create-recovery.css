@@ -9,3 +9,36 @@
 .sp-create-recovery .sp-button-label {
   line-height: 1.4;
 }
+
+.sp-create-recovery {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.sp-create-recovery > p {
+  margin: 0 0 12px;
+}
+.sp-create-recovery .sp-button {
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: 13px;
+  margin: 0 8px 8px 0;
+}
+
+.sp-recovery-summary {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 13px;
+  color: var(--sp-muted);
+}
+.sp-recovery-summary > p {
+  margin: 0;
+}
+.sp-recovery-summary > .sp-button {
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: 13px;
+}

@@ -9,6 +9,7 @@ import {
   loadCreationHead,
   readCreateOperation,
   releaseCreateOperation,
+  releaseAcknowledgedCreation,
   type CreationHead,
   type CreationPurpose,
 } from "./create-operation";
@@ -18,7 +19,12 @@ import "./pending-create-recovery.css";
 
 const api = createWorkspaceClient();
 const accounts = createAccountClient();
-export type RecoveredCreation = { id: string; name: string; revision?: number; receipt: unknown };
+export type RecoveredCreation = {
+  id: string;
+  name: string;
+  revision?: number;
+  receipt: unknown;
+};
 
 type RecoveryProps = {
   actorId: string;
@@ -35,6 +41,9 @@ type RecoveryProps = {
   onPendingChange?: (pending: boolean) => void;
   historicalLocal?: boolean;
   refreshKey?: string;
+  detailsOpen?: boolean;
+  importOnly?: boolean;
+  onBusyChange?: (busy: boolean) => void;
 };
 
 function parseLocalRecovery(raw: string | null) {
@@ -64,6 +73,9 @@ function CreationRecoveryPanel({
   prepareRecovered,
   onPendingChange,
   historicalLocal = false,
+  detailsOpen,
+  importOnly = false,
+  onBusyChange,
 }: RecoveryProps) {
   const [observed, setObserved] = useState<string | null>(null);
   const [head, setHead] = useState<CreationHead | null>(null);
@@ -75,6 +87,7 @@ function CreationRecoveryPanel({
   const discovery = useRef<AbortController | null>(null);
   const classes = purpose === "class";
   const label = classes ? "classes" : "projects";
+  const [expanded, setExpanded] = useState(false);
   const key = createOperationKey(actorId, purpose);
   async function checkAccount(signal: AbortSignal) {
     const session = await accounts.getSession();
@@ -83,7 +96,9 @@ function CreationRecoveryPanel({
       throw new Error("The account changed. Reload before continuing.");
   }
   const showHead = useCallback(
-    (current: CreationHead, signal: AbortSignal) => {
+    async (current: CreationHead, signal: AbortSignal) => {
+      signal.throwIfAborted();
+      await releaseAcknowledgedCreation(localStorage, actorId, purpose, current);
       signal.throwIfAborted();
       const raw = localStorage.getItem(key);
       setHead(current);
@@ -92,7 +107,7 @@ function CreationRecoveryPanel({
       setRows(null);
       onPendingChange?.(current.state !== "ready" || raw !== null);
     },
-    [key, onPendingChange],
+    [key, actorId, purpose, onPendingChange],
   );
   function refresh(signal: AbortSignal) {
     return loadCreationHead(actorId, purpose).then((current) => showHead(current, signal));
@@ -131,6 +146,7 @@ function CreationRecoveryPanel({
     if (!active || !signal || signal.aborted || inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
+    onBusyChange?.(true);
     setMessage("");
     try {
       await checkAccount(signal);
@@ -255,13 +271,68 @@ function CreationRecoveryPanel({
           cause instanceof Error ? cause.message : "Recovery could not be checked. Try again.",
         );
     } finally {
+      onBusyChange?.(false);
       if (!signal.aborted) {
         inFlight.current = false;
         setBusy(false);
       }
     }
   }
+  if (importOnly)
+    return (
+      <section className="creator-import-recovery" aria-label="Recover earlier import">
+        <p>
+          {!head
+            ? "Checking the earlier import…"
+            : head.state !== "unacknowledged"
+              ? "No imported project needs recovery."
+              : reviewed
+                ? `“${reviewed.name}” is ready to open. Your current project will be saved first.`
+                : "An earlier import completed. Review it before opening it."}
+        </p>
+        <div className="creator-recovery-actions">
+          <div className="creator-recovery-versions">
+            <Button
+              disabled={!active || busy || head?.state !== "unacknowledged"}
+              onClick={() => void run("review")}
+            >
+              {reviewed ? "Refresh" : "Review import"}
+            </Button>
+            {reviewed && (
+              <Button
+                className="creator-recovery-primary-action"
+                disabled={!active || busy}
+                onClick={() => void run("acknowledge")}
+              >
+                Open imported project
+              </Button>
+            )}
+          </div>
+        </div>
+        {message && <p role="alert">{message}</p>}
+      </section>
+    );
+  // Keep routine discovery silent; errors and unresolved results still expose recovery controls.
+  if (!head && !message) return null;
   if (head?.state === "ready" && (observed === null || historicalLocal) && !message) return null;
+  if (detailsOpen === false) return null;
+  if (detailsOpen !== true && !expanded)
+    return (
+      <div className="sp-recovery-summary" role="alert">
+        <p>
+          An earlier {classes ? "class" : "project"} request needs checking. Your work is unchanged.
+        </p>
+        <Button
+          disabled={!active || busy}
+          onClick={() => {
+            setExpanded(true);
+            void run("refresh");
+          }}
+        >
+          Check status
+        </Button>
+      </div>
+    );
   return (
     <section
       className="sp-creation-notice sp-create-recovery"
@@ -274,9 +345,8 @@ function CreationRecoveryPanel({
           {head.state === "unacknowledged" || recoverable ? (
             <>
               <p>
-                A server creation result is awaiting review. It may belong to an earlier request or
-                another browser. Choose it explicitly; its title is not proof that it was this
-                form's request.
+                An earlier {classes ? "class" : "project"} may have been created. Review the result
+                before creating another.
               </p>
               {recoverable && (
                 <Button disabled={!active || busy} onClick={() => void run("review")}>
@@ -286,7 +356,7 @@ function CreationRecoveryPanel({
               {reviewed && (
                 <div>
                   <p>
-                    Recovered {classes ? "class" : "project"}: {reviewed.name} ({reviewed.id})
+                    Recovered {classes ? "class" : "project"}: {reviewed.name}
                   </p>
                   <Button disabled={!active || busy} onClick={() => void run("acknowledge")}>
                     {purpose === "assignment-source"
@@ -298,18 +368,13 @@ function CreationRecoveryPanel({
                 </div>
               )}
               {!reviewed && (
-                <p>
-                  If this result is unavailable or belongs to a different intent, review the current
-                  list before acknowledging it. Acknowledgement does not cancel or delete a created
-                  record.
-                </p>
+                <p>You can also check the current list. Reviewing a result does not delete it.</p>
               )}
             </>
           ) : (
             <p>
-              The saved request has no unreviewed server receipt. It may still complete later. Check
-              the current list before releasing only this browser's saved request. A new request is
-              a deliberate separate creation.
+              The earlier request could not be confirmed. Check the current list before trying
+              again.
             </p>
           )}
           <Button disabled={!active || busy} onClick={() => void run("list")}>

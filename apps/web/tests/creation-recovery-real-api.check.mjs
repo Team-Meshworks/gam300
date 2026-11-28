@@ -37,11 +37,18 @@ let creations = 0,
   assignments = 0;
 try {
   browser = await launchBrowser({ target: origin });
-  const first = await browser.newContext({ ignoreHTTPSErrors: true, timezoneId: "Asia/Singapore" });
+  const first = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    timezoneId: "Asia/Singapore",
+  });
   const page = await login(first);
   const session = await (await first.request.get(origin + "/api/v1/auth/session")).json();
   const actor = session.userId;
-  assert.deepEqual(await head(first, actor), { operationId: null, state: "ready", receipt: null });
+  assert.deepEqual(await head(first, actor), {
+    operationId: null,
+    state: "ready",
+    receipt: null,
+  });
   let commit, rejectCommit;
   const committed = new Promise((resolve, reject) => {
     commit = resolve;
@@ -90,7 +97,11 @@ try {
     await classControl.click();
     await page.getByRole("option", { name: selected.name, exact: true }).click();
   }
-  await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) }).check();
+  await page
+    .getByRole("checkbox", {
+      name: new RegExp(process.env.SPATIA_TEST_STUDENT),
+    })
+    .check();
   const png = await page.evaluate(() => {
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 2;
@@ -157,15 +168,27 @@ try {
     },
   );
   await recoveredPage.goto(origin + "/new-project");
+  await recoveredPage.getByRole("button", { name: "Check status", exact: true }).click();
   const recovery = recoveredPage.getByRole("region", {
     name: "Release pending assignment-source request",
   });
   await recovery.getByRole("button", { name: "Review recovered project", exact: true }).click();
-  await recovery.getByText(new RegExp(lost.receipt.projectId)).waitFor();
+  await recovery
+    .getByText("Recovered project: Cross-profile recovered source", { exact: true })
+    .waitFor();
+  const recoveredProject = await second.request.get(
+    origin + "/api/v1/projects/" + lost.receipt.projectId,
+    { headers: { "X-Spatia-Account": actor } },
+  );
+  assert.equal(recoveredProject.status(), 200);
+  assert.equal((await recoveredProject.json()).projectId, lost.receipt.projectId);
   assert.equal(await recoveredPage.getByText("original-only.png", { exact: true }).count(), 0);
   const restoreStorage = await exhaustStorage(recoveredPage);
   await recovery
-    .getByRole("button", { name: "Use this recovered source project", exact: true })
+    .getByRole("button", {
+      name: "Use this recovered source project",
+      exact: true,
+    })
     .click();
   await recovery
     .getByRole("alert")
@@ -182,7 +205,10 @@ try {
   );
   await restoreStorage();
   await recovery
-    .getByRole("button", { name: "Use this recovered source project", exact: true })
+    .getByRole("button", {
+      name: "Use this recovered source project",
+      exact: true,
+    })
     .click();
   await recoveredPage
     .getByRole("status")
@@ -228,7 +254,9 @@ try {
   await recoveredPage.getByLabel("Project description").fill("Assign the original durable source.");
   await recoveredPage.getByLabel("Project instructions").fill("Use the recovered original image.");
   await recoveredPage.getByLabel(/^Due date/).fill("2035-12-01");
-  const recoveredClass = recoveredPage.getByRole("combobox", { name: /^Class/ });
+  const recoveredClass = recoveredPage.getByRole("combobox", {
+    name: /^Class/,
+  });
   if (await recoveredClass.evaluate((element) => element.tagName === "SELECT"))
     await recoveredClass.selectOption(selected.id);
   else {
@@ -236,7 +264,9 @@ try {
     await recoveredPage.getByRole("option", { name: selected.name, exact: true }).click();
   }
   await recoveredPage
-    .getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) })
+    .getByRole("checkbox", {
+      name: new RegExp(process.env.SPATIA_TEST_STUDENT),
+    })
     .check();
   const assigning = recoveredPage.waitForResponse(
     (response) =>

@@ -33,20 +33,26 @@ try {
     const path = new URL(request.url()).pathname;
     if (path.startsWith("/api/v1/") && request.method() !== "GET") paths.push(path);
   });
-  const row = (picker, id) => picker.getByRole("listitem").filter({ hasText: id });
+  const row = (picker, id) =>
+    picker.getByRole("button", { name: "Review project " + id, exact: true }).locator("..");
   const review = (picker, id) =>
     picker.getByRole("button", { name: "Review project " + id, exact: true });
-  await page.getByText("Find an existing project", { exact: true }).click();
-  const fresh = page.getByRole("region", { name: "Choose existing project" });
-  await review(fresh, archived).waitFor();
-  assert.equal(await row(fresh, hidden).count(), 0);
-  assert.equal(await fresh.getByRole("button", { name: "Open this existing project" }).count(), 0);
+  assert.equal(
+    await page.getByText("Find an existing project", { exact: true }).count(),
+    0,
+    "Normal facilitator Home keeps recovery tools out of the project list",
+  );
 
   const sessionKey = "spatia:uncertain-project-creation:" + actor;
   await page.evaluate((key) => sessionStorage.setItem(key, "1"), sessionKey);
   await page.reload();
-  const historical = page.getByRole("region", { name: "Historical project recovery" });
-  const projects = historical.getByRole("region", { name: "Choose existing project" });
+  await page.getByRole("button", { name: "Check status", exact: true }).click();
+  const historical = page.getByRole("region", {
+    name: "Historical project recovery",
+  });
+  const projects = historical.getByRole("region", {
+    name: "Choose existing project",
+  });
   await review(projects, archived).waitFor();
   for (const id of [selected, sameName, archived]) {
     assert.match(await row(projects, id).textContent(), /Older gallery/);
@@ -63,16 +69,17 @@ try {
   const classList = page.getByRole("combobox", { name: "Class", exact: true });
   await classList.click();
   for (const id of [classroom, otherClass]) {
-    const option = page.getByRole("option").filter({ hasText: id });
+    const option = page.locator(`[role="option"][value="${id}"]`);
     await option.waitFor({ state: "attached" });
-    assert.match(await option.textContent(), /Recovered class/);
+    assert.match(await option.textContent(), /^Recovered class \(\d+\)$/);
+    assert.ok(!(await option.textContent()).includes(id), "Class IDs stay internal");
   }
   assert.equal(await page.getByRole("option", { selected: true }).count(), 0);
   const [roster] = await Promise.all([
     page.waitForResponse(
       (res) => new URL(res.url()).pathname === "/api/v1/classes/" + classroom + "/roster",
     ),
-    page.getByRole("option", { name: new RegExp(classroom) }).click(),
+    page.locator(`[role="option"][value="${classroom}"]`).click(),
   ]);
   assert.equal(roster.status(), 200);
   const members = (await roster.json()).items;
@@ -81,30 +88,41 @@ try {
 
   const sourceKey = "spatia.assignment.source:" + actor;
   await page.goto(origin + "/new-project");
-  await page.getByRole("button", { name: "Use an existing project", exact: true }).click();
+  assert.equal(
+    await page.getByRole("button", { name: "Use an existing project", exact: true }).count(),
+    0,
+  );
   const sources = page.getByRole("region", { name: "Choose existing project" });
-  await review(sources, selected).waitFor();
-  assert.ok(await review(sources, archived).isDisabled());
-  assert.equal(await page.evaluate((key) => localStorage.getItem(key), sourceKey), null);
-
-  const oldAttempt = { attemptId: randomUUID(), title: "Older gallery", environmentAssetId: "" };
+  const oldAttempt = {
+    attemptId: randomUUID(),
+    title: "Older gallery",
+    environmentAssetId: "",
+  };
   await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify(value)), {
     key: sourceKey,
     value: oldAttempt,
   });
   await page.reload();
+  await page.getByRole("button", { name: "Check status", exact: true }).click();
   await review(sources, selected).waitFor();
   assert.match(await row(sources, sameName).textContent(), /Older gallery/);
   assert.ok(await review(sources, archived).isDisabled());
   assert.equal(await row(sources, hidden).count(), 0);
   await review(sources, selected).click();
   await sources
-    .getByRole("button", { name: "Use this existing source project", exact: true })
+    .getByRole("button", {
+      name: "Use this existing source project",
+      exact: true,
+    })
     .click();
   await page.getByRole("status").filter({ hasText: "Older gallery" }).waitFor();
   assert.deepEqual(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), sourceKey), {
     actorId: actor,
-    selectedExisting: { projectId: selected, title: "Older gallery", revision: 7 },
+    selectedExisting: {
+      projectId: selected,
+      title: "Older gallery",
+      revision: 7,
+    },
   });
   await page.reload();
   await page.getByRole("status").filter({ hasText: "Older gallery" }).waitFor();
@@ -124,9 +142,34 @@ try {
     await classControl.selectOption(classroom);
   else {
     await classControl.click();
-    await page.getByRole("option", { name: new RegExp(classroom) }).click();
+    if (process.env.SPATIA_RECOVERY_SCREENSHOT)
+      await page.screenshot({ path: process.env.SPATIA_RECOVERY_SCREENSHOT });
+    const optionBounds = await page.getByRole("option").evaluateAll((options) =>
+      options.map((option) => {
+        const row = option.getBoundingClientRect();
+        const label = option.querySelector("[data-control-label]").getBoundingClientRect();
+        return {
+          text: option.textContent,
+          top: row.top,
+          bottom: row.bottom,
+          labelTop: label.top,
+          labelBottom: label.bottom,
+        };
+      }),
+    );
+    for (const option of optionBounds)
+      assert.ok(
+        option.labelTop >= option.top - 0.5 && option.labelBottom <= option.bottom + 0.5,
+        "Wrapped option labels must stay inside their own clickable rows: " +
+          JSON.stringify(option),
+      );
+    await page.locator(`[role="option"][value="${classroom}"]`).click();
   }
-  await page.getByRole("checkbox", { name: new RegExp(process.env.SPATIA_TEST_STUDENT) }).check();
+  await page
+    .getByRole("checkbox", {
+      name: new RegExp(process.env.SPATIA_TEST_STUDENT),
+    })
+    .check();
   const path = "/api/v1/classes/" + classroom + "/assignments";
   const [response] = await Promise.all([
     page.waitForResponse(
@@ -156,20 +199,26 @@ try {
     value: saved,
   });
   await page.goto(origin + "/new-project");
-  await page
-    .getByRole("button", { name: "Review saved source project " + sameName, exact: true })
-    .click();
+  await page.getByRole("button", { name: "Check status", exact: true }).click();
+  await page.getByRole("button", { name: "Review previous project", exact: true }).click();
   await review(sources, sameName).waitFor();
   assert.equal(await review(sources, selected).count(), 0);
   assert.equal(await review(sources, archived).count(), 0);
   await review(sources, sameName).click();
   await sources
-    .getByRole("button", { name: "Use this existing source project", exact: true })
+    .getByRole("button", {
+      name: "Use this existing source project",
+      exact: true,
+    })
     .click();
-  await page.getByRole("status").filter({ hasText: sameName }).waitFor();
+  await page.getByRole("status").filter({ hasText: "Older gallery" }).waitFor();
   assert.deepEqual(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), sourceKey), {
     actorId: actor,
-    selectedExisting: { projectId: sameName, title: "Older gallery", revision: 2 },
+    selectedExisting: {
+      projectId: sameName,
+      title: "Older gallery",
+      revision: 2,
+    },
   });
   assert.deepEqual(paths, [path]);
   await context.close();

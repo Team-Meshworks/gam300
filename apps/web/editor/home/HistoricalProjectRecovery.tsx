@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "../../shared/ui/Button";
 import { ExistingProjectPicker } from "./ExistingProjectPicker";
 import {
   clearHistoricalCreation,
@@ -19,6 +20,7 @@ export function HistoricalProjectRecovery({
   onOpen: (projectId: string) => void;
   onSeparate: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const [observed] = useState(() => {
     try {
       return sessionStorage.getItem(historicalCreationKey(actorId));
@@ -27,11 +29,19 @@ export function HistoricalProjectRecovery({
     }
   });
   if (observed === null) return null;
+  if (!expanded)
+    return (
+      <div className="sp-recovery-summary" role="alert">
+        <p>An earlier project request needs checking. Your work is unchanged.</p>
+        <Button disabled={!active} onClick={() => setExpanded(true)}>
+          Check status
+        </Button>
+      </div>
+    );
   if (observed !== "1")
     return (
       <p role="alert">
-        The earlier creation warning is unreadable. It has been preserved; no recovery choice can
-        safely clear it.
+        The earlier request could not be read. Reload to try again. Nothing has been cleared.
       </p>
     );
   async function clear() {
@@ -45,9 +55,8 @@ export function HistoricalProjectRecovery({
   return (
     <section className="sp-historical-recovery" aria-label="Historical project recovery">
       <p>
-        An earlier project creation or import had no server operation identifier. Review the current
-        projects and choose an exact existing project, or explicitly decide to start a separate
-        creation. Its earlier outcome remains unknown.
+        An earlier project request could not be confirmed. Check your projects before opening the
+        result or starting another project.
       </p>
       <ExistingProjectPicker
         actorId={actorId}

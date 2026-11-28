@@ -11,7 +11,12 @@ import { Select } from "../../shared/ui/Select";
 import { createWorkspaceClient, isId, projectReceipt } from "./workspace-api";
 import { isRecord } from "../../shared/project/validation-helpers";
 
-import { createOperationKey, readCreateOperation, sendCreateOperation } from "./create-operation";
+import {
+  finishConfirmedCreation,
+  createOperationKey,
+  readCreateOperation,
+  sendCreateOperation,
+} from "./create-operation";
 
 import { PendingCreateRecovery } from "./PendingCreateRecovery";
 
@@ -163,6 +168,14 @@ export function ProjectCreation({
             },
           },
     );
+    if (!retry && outcome.kind === "confirmed")
+      await finishConfirmedCreation(
+        localStorage,
+        session.userId,
+        "project",
+        outcome.value,
+        api.write,
+      );
     busy.current = false;
     try {
       setRecoverable(readCreateOperation(localStorage, operationKey, session.userId) !== null);
@@ -344,7 +357,10 @@ export function ProjectCreation({
                   value={spaceId}
                   options={[
                     { value: "", label: "Empty scene" },
-                    ...(spaces ?? []).map((space) => ({ value: space.id, label: space.name })),
+                    ...(spaces ?? []).map((space) => ({
+                      value: space.id,
+                      label: space.name,
+                    })),
                   ]}
                   onChange={setSpaceId}
                   disabled={!active || needsCheck || phase !== "ready"}
